@@ -1,0 +1,7 @@
+(^|\.)github\.com$
+(^|\.)githubusercontent\.com$
+(^|\.)githubassets\.com$
+(^|\.)registry\.npmjs\.org$
+(^|\.)api\.anthropic\.com$
+(^|\.)statsig\.anthropic\.com$
+(^|\.)sentry\.io$
