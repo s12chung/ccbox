@@ -1,0 +1,4 @@
+# Devbox policy: apt package versions are intentionally unpinned (DL3008).
+# Pinning every system package is high-churn and low-value for a dev image.
+ignored:
+  - DL3008
