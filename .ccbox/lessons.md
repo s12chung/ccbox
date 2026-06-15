@@ -16,6 +16,9 @@ Pick the section by type: if it's "what to do / what bit me," it's Judgment; if 
 ### `mise install --system` installs but writes no shims or config
 > Installs to the shared dir yet places no shims/config → ruby/go/python/gem/pip missing from PATH at runtime, invisible until a test runs. Expose tools via a config: COPY `mise-system.toml` → `/etc/mise/config.toml`, then `MISE_DATA_DIR=/usr/local/share/mise mise install` (reads it, installs shared, auto-shims). `MISE_DATA_DIR` build-only so runtime `mise use` still targets `~/.local`.
 
+### Describe only what the name/structure doesn't already say
+> Bloated CLAUDE.md Key components restating the obvious (`tests/` → "runs tests", folder roles their names already carry); user cut it all. Same rule as code comments — earn the line with the non-obvious bit.
+
 ## Shape
 
 ### Comment earns only the non-obvious bit, not a re-listing of the recipe

@@ -3,7 +3,7 @@
 require "minitest/autorun"
 
 class RegexpFileTest < Minitest::Test
-  ALLOWLIST = File.expand_path("../tinyproxy/allow.txt", __dir__)
+  ALLOWLIST = File.expand_path("../docker/tinyproxy/allow.txt", __dir__)
 
   def test_real_allowlist_patterns_all_compile
     assert_empty check_patterns(File.readlines(ALLOWLIST)),

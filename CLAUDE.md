@@ -3,10 +3,17 @@
 This project is a hardened Docker devbox wrapper for Claude Code - you are currently running inside of it, you already loaded its brief specifications in your managed-policy CLAUDE.md.
 
 ### Key components
-- **`Dockerfile`**
+- **`Dockerfile`** — builds the devbox image from the inputs under `docker/`.
+- **`docker/image/`** — baked into the image:
+  - `entrypoint.sh` — fail-closed start check: refuses to boot after user and network security checks
+  - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
+  - `CLAUDE.admin.md` — the managed-policy CLAUDE.md (at `/etc/claude-code`)
+- **`docker/tinyproxy/`** — the egress wall configs
+- **`docker/seed`** — seed templates
+- **`tests/`**
 - **`Makefile`** — primary entrypoints:
-  - `make proxy` - spins up a `tinyproxy` egress container with the allowlist: `tinyproxy/allow.txt` connected to an internal Docker network
-  - `make run` - runs the `Dockerfile` connected to `make proxy`'s Docker network
+  - `make proxy` (needs docker) - spins up a `tinyproxy` egress container with the allowlist: `docker/tinyproxy/allow.txt` connected to an internal Docker network
+  - `make run` (needs docker) - runs the `Dockerfile` connected to `make proxy`'s Docker network
   - `make lint` - linting
   - `make test.local` — runs all linting and tests that are possible without a Docker daemon
 

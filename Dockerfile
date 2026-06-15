@@ -19,7 +19,7 @@ COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
 # System config (at /etc/mise) read by `mise install` below installs to shared /usr/local
 # _temp_ MISE_DATA_DIR aims full install there  (`mise install --system` doesn't put shims)
 # _temp_ so at runtime ccbox's `mise use` -> ~/.local.
-COPY mise-system.toml /etc/mise/config.toml
+COPY docker/image/mise-system.toml /etc/mise/config.toml
 ENV PATH=/usr/local/share/mise/shims:$PATH
 
 # Ruby build headers: install, compile Ruby, then purge (runtime libs kept above)
@@ -40,7 +40,7 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 RUN git config --system core.pager delta && git config --system interactive.diffFilter 'delta --color-only' && git config --system delta.navigate true
 
 # Managed-policy CLAUDE.md: org-wide memory, highest precedence, loaded every session for all users.
-COPY CLAUDE.admin.md /etc/claude-code/CLAUDE.md
+COPY docker/image/CLAUDE.admin.md /etc/claude-code/CLAUDE.md
 
 ENV TZ="America/New_York"
 ENV CLAUDE_CONFIG_DIR=/home/ccbox/claude-config
@@ -64,6 +64,6 @@ ENV PATH=/home/ccbox/.local/share/mise/shims:/home/ccbox/.local/bin:/home/ccbox/
 USER ccbox
 WORKDIR /home/ccbox/workspace
 
-COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
+COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["bash"]

@@ -24,7 +24,7 @@ build:
 
 lint:
 	hadolint Dockerfile
-	shellcheck entrypoint.sh tests/test_helper.bash tests/*.bats
+	shellcheck docker/image/entrypoint.sh tests/test_helper.bash tests/*.bats
 	ruby tests/regexp_file_test.rb
 
 test.local: lint
@@ -47,7 +47,7 @@ proxy-clean:
 
 proxy:
 	mkdir -p $(CACHE_DIR)
-	cp -rf tinyproxy $(CACHE_DIR) || true
+	cp -rf docker/tinyproxy $(CACHE_DIR) || true
 	docker network create --internal ccbox-wall || true
 	docker run --rm --name ccbox-egress --network ccbox-wall \
       -v $(CACHE_DIR)/tinyproxy:/etc/tinyproxy:ro \
