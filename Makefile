@@ -15,6 +15,7 @@ run: build
 	-e https_proxy=http://ccbox-egress:8888 \
 	-v $(CACHE_DIR)/claude-config:/home/ccbox/claude-config \
 	-v $(shell pwd):/home/ccbox/workspace \
+	--tmpfs /home/ccbox/workspace/.idea \
 	-e CLAUDE_CODE_OAUTH_TOKEN=$(CLAUDE_CODE_OAUTH_TOKEN) \
 	-e GH_TOKEN=$(GH_TOKEN) \
 	$(TAG)
@@ -24,23 +25,27 @@ build:
 
 lint:
 	hadolint Dockerfile
-	shellcheck docker/image/entrypoint.sh tests/test_helper.bash tests/*.bats
+	shellcheck docker/image/entrypoint.sh docker/seed/claude-config/statusline.sh tests/test_helper.bash tests/*.bats
 	ruby tests/regexp_file_test.rb
+	jq empty docker/seed/claude-config/settings.json
+
+# ci run on the host with no Docker
+ci: test.local
+
+test: test.local test.docker
 
 test.local: lint
 	# Fill in later
 
 # Manual: needs the built image + network egress, so it stays out of CI.
-test.docker: build
+test.docker:
+	bats tests/
+
+docker.test: build
 	docker run --rm \
 	-v $(shell pwd):/home/ccbox/workspace \
 	--entrypoint bash $(TAG) \
-	-lc 'bats tests/'
-
-test: test.local test.docker
-
-# ci run on the host with no Docker
-ci: lint
+	-lc 'make test'
 
 proxy-clean:
 	docker network rm ccbox-wall

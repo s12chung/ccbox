@@ -12,6 +12,25 @@ teardown() {
     mise uninstall jq@1.7.1 >/dev/null 2>&1 || true
 }
 
+@test "login shell: /etc/profile.d restore survives /etc/profile's PATH reset" {
+    # bats is a pure mise shim (no /usr/local/bin fallback), so it's the canary:
+    # without the restore, /etc/profile drops the shims dir and this goes empty.
+    run bash -lc 'command -v bats'
+    [ "$status" -eq 0 ]
+
+    run bash -lc 'echo "$PATH"'
+    [[ "$output" == *"/usr/local/share/mise/shims"* ]]
+}
+
+@test "claude-code: provisioned via mise's npm backend and runs" {
+    run mise ls
+    [[ "$output" == *"npm:@anthropic-ai/claude-code"*"(system)"* ]]
+
+    run claude --version
+    [ "$status" -eq 0 ]
+    [[ "$output" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
+}
+
 @test "npm: global install lands in ~/.npm-global and on PATH" {
     npm install -g cowsay --silent
     [ -x "$HOME/.npm-global/bin/cowsay" ]

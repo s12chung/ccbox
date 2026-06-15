@@ -1,4 +1,5 @@
 # mise (tool version manager): version lists + release metadata
+(^|\.)mise\.en\.dev$
 (^|\.)mise-versions\.jdx\.dev$
 
 # Node / npm
@@ -19,11 +20,19 @@
 (^|\.)proxy\.golang\.org$
 (^|\.)sum\.golang\.org$
 (^|\.)dl\.google\.com$
+(^|\.)storage\.googleapis\.com$
 
 # GitHub: source + release assets (used by gh, delta, yq, rg, fd, jq, python-build-standalone, ruby-build)
 (^|\.)github\.com$
 (^|\.)githubusercontent\.com$
 (^|\.)githubassets\.com$
+
+# Man pages (canonical man text, not cheatsheets)
+(^|\.)manpages\.debian\.org$
+(^|\.)man7\.org$
+(^|\.)man\.cx$
+(^|\.)linux\.die\.net$
+(^|\.)manpages\.ubuntu\.com$
 
 # Anthropic / Claude Code
 (^|\.)platform\.claude\.com$
@@ -31,7 +40,3 @@
 (^|\.)mcp-proxy\.anthropic\.com$
 (^|\.)statsig\.anthropic\.com$
 (^|\.)sentry\.io$
-
-# man pages / cheat sheets on demand (curl cht.sh/<cmd>)
-(^|\.)cht\.sh$
-(^|\.)cheat\.sh$

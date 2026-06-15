@@ -4,7 +4,7 @@
 # actually exists). If any check fails, the container refuses to start.
 set -euo pipefail
 
-fail() { echo "egress-wall: FAIL — $1" >&2; exit 1; }
+fail() { echo "security-entrypoint: FAIL — $1" >&2; exit 1; }
 
 # Identity: must run as the unprivileged ccbox user (uid 1000), never root, no sudo.
 [ "$(id -u)" -eq 1000 ] || fail "not uid 1000 (got $(id -u))"

@@ -1,0 +1,39 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"$CLAUDE_CONFIG_DIR/statusline.sh\""
+  },
+  "permissions": {
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(.envrc)",
+      "Read(secrets/**)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat \"${CLAUDE_PROJECT_DIR:-.}/.ccbox/lessons.md\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_CONFIG_DIR/hooks/secret-tripwire.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}
