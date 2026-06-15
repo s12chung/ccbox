@@ -22,13 +22,13 @@ run: build
 build:
 	docker build -t $(TAG) .
 
-# ci run on the host with no Docker
-ci: lint
-
 lint:
 	hadolint Dockerfile
 	shellcheck entrypoint.sh tests/test_helper.bash tests/*.bats
 	ruby tests/regexp_file_test.rb
+
+test.local: lint
+	# Fill in later
 
 # Manual: needs the built image + network egress, so it stays out of CI.
 test.docker: build
@@ -36,6 +36,11 @@ test.docker: build
 	-v $(shell pwd):/home/ccbox/workspace \
 	--entrypoint bash $(TAG) \
 	-lc 'bats tests/'
+
+test: test.local test.docker
+
+# ci run on the host with no Docker
+ci: lint
 
 proxy-clean:
 	docker network rm ccbox-wall

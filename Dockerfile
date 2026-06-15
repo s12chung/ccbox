@@ -39,6 +39,9 @@ RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
 # Make delta git's diff pager. --system writes /etc/gitconfig so it applies to all users.
 RUN git config --system core.pager delta && git config --system interactive.diffFilter 'delta --color-only' && git config --system delta.navigate true
 
+# Managed-policy CLAUDE.md: org-wide memory, highest precedence, loaded every session for all users.
+COPY CLAUDE.admin.md /etc/claude-code/CLAUDE.md
+
 ENV TZ="America/New_York"
 ENV CLAUDE_CONFIG_DIR=/home/ccbox/claude-config
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1

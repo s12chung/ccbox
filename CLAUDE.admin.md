@@ -1,0 +1,23 @@
+# Your Container (ccbox)
+
+You run as the unprivileged `ccbox` user inside a disposable container. No root, no `sudo`, no Docker daemon. The container is `--rm`: **everything outside the `~/workspace/` bind-mount is wiped on exit.**
+
+## Network: walled, allowlist-only
+There is no general internet. All egress is forced through a proxy that **denies by default**; direct (non-proxy) traffic has no route at all. Allow domains include package registries, GitHub, Anthropic (APIs only), cht.sh, and possibly more.
+
+When a request fails on the network, **tell me which domain it needed** so I can decide whether to add it. Don't silently work around it.
+
+## Installing things
+You *can* install per-user in any ecosystem with no root — `npm i -g`, `pip install --user`, `gem install`, `go install`, `mise use`. But:
+- **Prefer not to.** Reach for what's already here first.
+- Anything you install is **ephemeral** — gone next run. Say so when you install, and flag it as a candidate for the Dockerfile if it should persist.
+
+## Docs / man pages
+No `man`. Get cheatsheets on demand: `curl cht.sh/<cmd>` (e.g. `curl cht.sh/tar`).
+
+## What's already installed
+Recent versions, managed by mise.
+
+- **Runtimes**: `go`, `python`, `ruby`, `node`/`npm`.
+- **CLIs**: `rg` (ripgrep), `fd`, `jq`, `yq`, `gh`, `bats`, `hadolint`, `shellcheck`.
+- **Base**: `git`, `curl`, `unzip`, `dig` (debug the wall), and a build toolchain (`gcc`, `make`, `pkg-config`).

@@ -1,55 +1,101 @@
 ## Overview
 
-This project is basically trying to create a docker devbox wrapper for claude code.
+This project is a hardened Docker devbox wrapper for Claude Code - you are currently running inside of it, you already loaded its brief specifications in your managed-policy CLAUDE.md.
 
-## Workflow Orchestration
+### Key components
+- **`Dockerfile`**
+- **`Makefile`** — primary entrypoints:
+  - `make proxy` - spins up a `tinyproxy` egress container with the allowlist: `tinyproxy/allow.txt` connected to an internal Docker network
+  - `make run` - runs the `Dockerfile` connected to `make proxy`'s Docker network
+  - `make lint` - linting
+  - `make test.local` — runs all linting and tests that are possible without a Docker daemon
 
-### 1. Plan Mode Default
-- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
-- If something goes sideways, STOP and re-plan immediately - don't keep pushing
-- Use plan mode for verification steps, not just building
-- Write detailed specs upfront to reduce ambiguity
-- Most importantly, Ask for clarifying questions early and often
+## Behavioral Guidelines
 
-### 2. Subagent Strategy
-- Use subagents liberally to keep main context window clean
+**Tradeoff:** Bias toward caution over speed. For trivial tasks, use judgment.
+
+### 1. Think Before Coding
+
+**Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+Before implementing:
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple interpretations exist, present them - don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+Mid-task: the moment something goes sideways, STOP and re-plan - don't keep pushing a failing path.
+
+### 2. Simplicity First
+
+**Minimum code that solves the problem. Nothing speculative.**
+
+- No features beyond what was asked.
+- No abstractions for single-use code.
+- No "flexibility" or "configurability" that wasn't requested.
+- No error handling for impossible scenarios.
+- If you write 200 lines and it could be 50, rewrite it.
+
+Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+
+### 3. Surgical Changes
+
+**Touch only what you must. Clean up only your own mess.**
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting.
+- Don't refactor things that aren't broken, and don't re-taxonomize working code.
+- Match existing style, even if you'd do it differently.
+- If you notice unrelated dead code, mention it - don't delete it.
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused.
+- Don't remove pre-existing dead code unless asked.
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+
+**Define success criteria. Loop until verified.**
+
+Transform tasks into verifiable goals:
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Verify by the stated checks: run tests, read logs, and diff behavior against `main` when a change could alter runtime behavior.
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+
+## Subagent Strategy
+Spans both thinking and execution - offload independent work, one task per subagent, so the main thread stays focused.
 - Offload research, exploration, and parallel analysis to subagents
-- For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution
 
-### 3. Self-Improvement Loop
-- After ANY correction from the user: update `tasks/lessons.md` with the pattern
-- Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
-- Review `tasks/lessons.md` at session start for relevant project
+## Persistence Between Tasks
 
-### 4. Verification Before Done
-- Never mark a task complete without proving it works
-- Diff behavior between main and your changes when relevant
-- Ask yourself: "Would a staff engineer approve this?"
-- Run tests, check logs, demonstrate correctness
+### 1. Autonomous Bug Fixing
+- The moment you stumble on bugs from the logs, errors, failing tests (locally or CI), create a `.ccbox/bug-<bug_name>.md`, where you describe the bug, reproduction steps, expected behavior, expected bug result, and reproduction results. Tell the user you did so.
 
-### 5. Demand Elegance (Balanced)
-- For non-trivial changes: pause and ask "is there a more elegant way?"
-- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
-- Skip this for simple, obvious fixes - don't over-engineer
-- Push for minimal impact changes that only touch what's necessary. Avoid introducing bugs.
-- Challenge your own work before presenting it
-
-### 6. Autonomous Bug Fixing
-- When given a bug report: just fix it. Don't ask for hand-holding
-- When stumbling on bugs from the logs, errors, failing tests (locally or CI), immediately, with zero context switching required from the user, attempt to reproduce it 3 times. Create a `tasks/bug-<bug_name>.md`, where you describe the bug, reproduction steps, expected behavior, expected bug result, and reproduction results. Tell the user you did so.
-
-## Task Management
-1. **Plan First**: Write plan to `tasks/todo.md` with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Document Results**: Add review section to `tasks/todo.md`
-6. **Capture Lessons**: Update `tasks/lessons.md` after corrections
+### 2. Self-Improvement Loop (`.ccbox/lessons.md`)
+`.ccbox/lessons.md` is training data from your past failures. Review it at session start; after ANY correction from the user, append a rule that prevents the recurrence (format spec lives in that file's header). Iterate until the mistake rate drops.
 
 ## Code Principles and Styling
-Code for elegance and avoid comments. Let the code speak for itself through structure (such as grouped decoupled abstractions), syntax terseness/spacing, folder/file/function structure, folder/file/function/variable names, and common assumptions. Add, with preferably 1 line (via. extreme optimization of word count), extra comments about title comments, intent, and organization to assist with this. When the code is opaque and can't speak for itself, such as gotchas and hard to read code, go into detail on the opaque parts.
+Code for elegance:
+- Let the code speak for itself through structure (such as grouped decoupled abstractions), syntax terseness/spacing, folder/file/function structure, folder/file/function/variable names, and common assumptions.
+
+On comments:
+- Add, with preferably 1 line (via extreme optimization of word count), extra comments about title comments, intent, and organization to assist with this
+- When the code is opaque and can't speak for itself, such as gotchas and hard to read code, go into detail on the opaque parts. Only when this occurs, write long comments.
+- Group listed constants/strings/variables by intent and write a title comment for that
+- Never write comments that restate code or relist constants/strings/variables
 
 Code with grouped decoupled abstractions, for example:
 - Spend thinking finding "wood grain" or root cause of the code, if you're working around or repeating something, you're likely modelling the code with the wrong shape or "cutting against the wood grain"
@@ -59,4 +105,6 @@ Code with grouped decoupled abstractions, for example:
 - Define all the "switches and knobs" of the code together, such as pulling out custom literals into global constants
 - Break down functions into separate functions for each step, even small functions comprising mostly a loop
 
-Regarding this section, in order for you to learn and emphasize these patterns, I will often ask you to update `tasks/lessons.md` with examples.
+---
+
+**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
