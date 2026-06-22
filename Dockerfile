@@ -41,7 +41,10 @@ ENV DEVCONTAINER=true
 
 # Managed-policy CLAUDE.md: org-wide memory, highest precedence, loaded every session for all users.
 COPY docker/image/CLAUDE.admin.md /etc/claude-code/CLAUDE.md
-ENV CLAUDE_CONFIG_DIR=/home/ccbox/claude-config
+# Config mount path: ccbox passes this as a build arg (single source in pkg/docker);
+# the default keeps a bare `docker build` working.
+ARG CLAUDE_CONFIG_DIR=/home/ccbox/.ccbox/claude-config
+ENV CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR}
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ENV DISABLE_AUTOUPDATER=1
 
@@ -81,6 +84,8 @@ RUN set -eux; \
     rm -rf /root/.cache
 
 USER ccbox
+# Default workdir for bare `docker build`/`docker run`; ccbox overrides it per-project
+# at run time (sets the container's working dir to /home/ccbox/<host-dir-basename>).
 WORKDIR /home/ccbox/workspace
 
 COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh

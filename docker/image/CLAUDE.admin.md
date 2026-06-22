@@ -1,6 +1,6 @@
 # Your Container (ccbox)
 
-You run as the unprivileged `ccbox` user inside a disposable container. No root, no `sudo`, no Docker daemon. The container is `--rm`: **everything outside the `~/workspace/` bind-mount is wiped on exit.**
+You run as the unprivileged `ccbox` user inside a disposable container. No root, no `sudo`, no Docker daemon. The container is `--rm`: **everything outside your project bind-mount (your `~/` working dir) is wiped on exit.**
 
 ## Network: walled, allowlist-only
 There is no general internet. All egress is forced through a proxy that **denies by default**; direct (non-proxy) traffic has no route at all. Allow domains include package registries, GitHub, Anthropic (APIs only), canonical man text, and possibly more.

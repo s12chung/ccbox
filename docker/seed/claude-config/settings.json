@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "cat \"${CLAUDE_PROJECT_DIR:-.}/.ccbox/lessons.md\""
+            "command": "cat /home/ccbox/.ccbox/project/lessons.md"
           }
         ]
       }

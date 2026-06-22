@@ -67,10 +67,10 @@ Offload independent work (especially research, exploration, and analysis), one t
 ## Persistence Between Tasks
 
 ### 1. Autonomous Bug Fixing
-- The moment you stumble on bugs from the logs, errors, failing tests (locally or CI), create a `.ccbox/bug-<bug_name>.md`, where you describe the bug, reproduction steps, expected behavior, expected bug result, and reproduction results. Tell the user you did so.
+- The moment you stumble on bugs from the logs, errors, failing tests (locally or CI), create a `/home/ccbox/.ccbox/project/bug-<bug_name>.md`, where you describe the bug, reproduction steps, expected behavior, expected bug result, and reproduction results. Tell the user you did so.
 
-### 2. Self-Improvement Loop (`.ccbox/lessons.md`)
-`.ccbox/lessons.md` is training data from your past failures, injected into context at session start. After ANY correction from the user, append a rule that prevents the recurrence (format spec lives in that file's header). Iterate until the mistake rate drops.
+### 2. Self-Improvement Loop (`/home/ccbox/.ccbox/project/lessons.md`)
+`/home/ccbox/.ccbox/project/lessons.md` is training data from your past failures, injected into context at session start. After ANY correction from the user, append a rule that prevents the recurrence (format spec lives in that file's header). Iterate until the mistake rate drops.
 
 ## Code Principles and Styling
 Code for elegance:

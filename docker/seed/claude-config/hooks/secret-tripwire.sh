@@ -4,8 +4,8 @@
 # `python -c "open('.env')"` is just `python` to the permission layer).
 #
 # Matched on the command STRING, so a rename, base64'd path, or generated script
-# slips past. The real boundary is keeping secrets out of the mount (Makefile
-# --tmpfs masks) + the egress wall. This only raises a prompt on the obvious path.
+# slips past. The real boundary is keeping secrets out of the mount + the egress
+# wall. This only raises a prompt on the obvious path.
 set -euo pipefail
 
 cmd=$(jq -r '.tool_input.command // ""')
