@@ -30,74 +30,6 @@ const (
 	tinyproxyDir = "/etc/tinyproxy"
 )
 
-// proxyWrap starts an egress wall container, runs fn against it, then cleans it up.
-// logFn streams the wall's logs in parallel; logDone delivers its result once it finishes.
-func (c *Client) proxyWrap(ctx context.Context, configFS fs.FS, fn func() error, logFn func(logs io.ReadCloser) error) (logDone chan error, err error) {
-	c.ensureNetwork(ctx)
-	// Tear the network down on exit, but only if we're its last user. A still-running
-	// devbox keeps the wall attached (expected) — leave it; `proxy clean` can clean it
-	defer log.Defer("remove wall network", func() error {
-		err := c.ProxyClean(context.Background())
-		if errdefs.IsPermissionDenied(err) {
-			log.Infof("keeping wall network around: %v", err)
-			return nil
-		}
-		return err
-	})
-
-	if err = c.ensureImage(ctx, proxyImage); err != nil {
-		return nil, err
-	}
-	// Clear any stale egress container so the fixed name is free.
-	_ = c.cli.ContainerRemove(ctx, egressName, container.RemoveOptions{Force: true})
-
-	resp, err := c.cli.ContainerCreate(ctx,
-		&container.Config{Image: proxyImage},
-		&container.HostConfig{NetworkMode: container.NetworkMode(networkName)},
-		nil, nil, egressName)
-	if err != nil {
-		return nil, err
-	}
-	id := resp.ID
-	defer log.Defer("remove container", func() error {
-		return c.cli.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
-	})
-
-	configTar, err := embedfs.ToTar(configFS)
-	if err != nil {
-		return nil, err
-	}
-	if err = c.cli.CopyToContainer(ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
-		return nil, err
-	}
-	if err = c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
-		return nil, err
-	}
-	defer log.Defer("container stop", func() error {
-		timeout := 5
-		return c.cli.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
-	})
-
-	logs, err := c.cli.ContainerLogs(ctx, id, container.LogsOptions{
-		ShowStdout: true, ShowStderr: true, Follow: true,
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer log.Defer("close logs", logs.Close)
-
-	logDone = make(chan error)
-	go func() {
-		logErr := logFn(logs)
-		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
-			logErr = nil
-		}
-		logDone <- logErr
-		close(logDone)
-	}()
-	return logDone, fn()
-}
-
 // Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
 // streaming its logs until interrupted. configFS holds the tinyproxy configs, copied
 // into the container at tinyproxyDir. Blocks until SIGINT/SIGTERM stops it.
@@ -178,4 +110,72 @@ func (c *Client) ProxyClean(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+// proxyWrap starts an egress wall container, runs fn against it, then cleans it up.
+// logFn streams the wall's logs in parallel; logDone delivers its result once it finishes.
+func (c *Client) proxyWrap(ctx context.Context, configFS fs.FS, fn func() error, logFn func(logs io.ReadCloser) error) (logDone chan error, err error) {
+	c.ensureNetwork(ctx)
+	// Tear the network down on exit, but only if we're its last user. A still-running
+	// devbox keeps the wall attached (expected) — leave it; `proxy clean` can clean it
+	defer log.Defer("remove wall network", func() error {
+		err := c.ProxyClean(context.Background())
+		if errdefs.IsPermissionDenied(err) {
+			log.Infof("keeping wall network around: %v", err)
+			return nil
+		}
+		return err
+	})
+
+	if err = c.ensureImage(ctx, proxyImage); err != nil {
+		return nil, err
+	}
+	// Clear any stale egress container so the fixed name is free.
+	_ = c.cli.ContainerRemove(ctx, egressName, container.RemoveOptions{Force: true})
+
+	resp, err := c.cli.ContainerCreate(ctx,
+		&container.Config{Image: proxyImage},
+		&container.HostConfig{NetworkMode: container.NetworkMode(networkName)},
+		nil, nil, egressName)
+	if err != nil {
+		return nil, err
+	}
+	id := resp.ID
+	defer log.Defer("remove container", func() error {
+		return c.cli.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
+	})
+
+	configTar, err := embedfs.ToTar(configFS)
+	if err != nil {
+		return nil, err
+	}
+	if err = c.cli.CopyToContainer(ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
+		return nil, err
+	}
+	if err = c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
+		return nil, err
+	}
+	defer log.Defer("container stop", func() error {
+		timeout := 5
+		return c.cli.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
+	})
+
+	logs, err := c.cli.ContainerLogs(ctx, id, container.LogsOptions{
+		ShowStdout: true, ShowStderr: true, Follow: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer log.Defer("close logs", logs.Close)
+
+	logDone = make(chan error)
+	go func() {
+		logErr := logFn(logs)
+		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
+			logErr = nil
+		}
+		logDone <- logErr
+		close(logDone)
+	}()
+	return logDone, fn()
 }
