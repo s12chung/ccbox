@@ -80,7 +80,7 @@ On comments:
 - Add, with preferably 1 line (via extreme optimization of word count), extra comments about title comments, intent, and organization to assist with this
 - When the code is opaque and can't speak for itself, such as gotchas and hard to read code, go into detail on the opaque parts. Only when this occurs, write long comments.
 - Group listed constants/strings/variables by intent and write a title comment for that
-- Never write comments that restate code or relist constants/strings/variables
+- Never write comments that restate code, relist constants/strings/variables, or state where it is used
 
 Code with grouped decoupled abstractions, for example:
 - Spend thinking finding "wood grain" or root cause of the code, if you're working around or repeating something, you're likely modelling the code with the wrong shape or "cutting against the wood grain"

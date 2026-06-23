@@ -12,7 +12,7 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run the tinyproxy egress wall in the foreground",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		configFS, err := fs.Sub(proxyConfig, "docker/tinyproxy")
+		configFS, err := proxyConfigFS()
 		if err != nil {
 			return err
 		}
@@ -24,14 +24,5 @@ var proxyCmd = &cobra.Command{
 	},
 }
 
-var proxyCleanCmd = &cobra.Command{
-	Use:   "clean",
-	Short: "Remove the egress wall network",
-	RunE: func(cmd *cobra.Command, _ []string) error {
-		c, err := docker.New()
-		if err != nil {
-			return err
-		}
-		return c.ProxyClean(cmd.Context())
-	},
-}
+// proxyConfigFS roots the embedded tinyproxy configs
+func proxyConfigFS() (fs.FS, error) { return fs.Sub(proxyConfig, "docker/tinyproxy") }

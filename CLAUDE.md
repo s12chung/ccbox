@@ -15,8 +15,9 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra), which talks to
 - **`pkg/`**
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `prompt/` — interactive terminal I/O (ask on stderr, read stdin); the only place user prompts belong
+  - `projectcfg/` — loads `.ccbox.yaml` from a workspace repo root (extra container env + tmpfs masks)
   - `perm/` — named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
-  - `log/` — we log via `log/slog` (stderr). Use `slog` for all status/diagnostic output; never `fmt.Print*`. stdout is reserved for real output (build stream, container I/O).
+  - `log/` — log helpers and abstraction, never use `fmt.Print*`
 - **`Dockerfile`** — builds the devbox image from the inputs under `docker/`.
 - **`docker/`**
   - `image/` — baked into the image:
@@ -25,12 +26,15 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra), which talks to
   - `tinyproxy/` — the egress wall configs
   - `seed/` — config, used only by `pkg/seed/`: it seeds these onto the host config dir and mounted to the container
     - `claude-config/` — the Claude config, `~/.ccbox/claude-config` → `~/ccbox/.ccbox/claude-config`
-    - `project-slug/` — ccbox project data, `~/.ccbox/projects/-project-slug` → `~/ccbox/.ccbox/project`
+    - `project-slug/` — ccbox project data, `~/.ccbox/projects/-project-slug` (see below) → `~/ccbox/.ccbox/project`
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:
-  - `make build` — builds the `ccbox` binary to `dist/ccbox`
+  - `make build` — builds the `ccbox` binary to `/tmp/ccbox` in the **container**
   - `make lint` - all linting
   - `make test` — runs all linting and tests that are possible without a Docker daemon
+
+### Project Slug
+`docker.ProjectSlug` keys ccbox's per-project state: it slugifies the **host** cwd (e.g. `/Users/me/app` → `-Users-me-app`). Distinct from Claude Code's `claude-config/projects` slug, which CC derives from its **container** cwd.
 
 ### Go tests
 

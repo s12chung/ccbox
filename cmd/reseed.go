@@ -2,12 +2,12 @@ package cmd
 
 import (
 	"io/fs"
-	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/seed"
 )
@@ -36,7 +36,7 @@ func safeSeedClaudeConfig(cacheDir string, confirm bool) (string, error) {
 			return configDir, nil
 		}
 		if !prompt.Confirm(configDir + " exists; reseed and back up overwritten files?") {
-			slog.Info("reseed aborted")
+			log.Info("reseed aborted")
 			return configDir, nil
 		}
 	case !os.IsNotExist(err): // stat failed for some other reason
@@ -52,9 +52,9 @@ func safeSeedClaudeConfig(cacheDir string, confirm bool) (string, error) {
 		return configDir, err
 	}
 	if len(renamed) == 0 {
-		slog.Info("seeded fresh, nothing backed up", "dir", configDir)
+		log.Infof("seeded fresh, nothing backed up: %s", configDir)
 	} else {
-		slog.Info("seeded, backed up overwritten files", "dir", configDir, "files", renamed)
+		log.Infof("seeded %s, backed up overwritten files: %v", configDir, renamed)
 	}
 	return configDir, nil
 }

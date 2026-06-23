@@ -4,13 +4,13 @@ package cmd
 
 import (
 	"embed"
-	"log/slog"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/log"
 )
 
 // Injected from main (package main can't be imported, so the embed FSes come in here).
@@ -44,7 +44,7 @@ func Execute(build, proxy, claudeConfig, project embed.FS) int {
 	seedClaudeConfig = claudeConfig
 	seedProject = project
 	if err := rootCmd.Execute(); err != nil {
-		slog.Error("command failed", "error", err)
+		log.Errorf("command failed: %v", err)
 		return 1
 	}
 	return exitCode
@@ -56,6 +56,5 @@ func init() {
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.StringVar(&flagCacheDir, "cache-dir", filepath.Join(home, ".ccbox"), "ccbox cache directory")
 
-	rootCmd.AddCommand(buildCmd, runCmd, proxyCmd, reseedCmd)
-	proxyCmd.AddCommand(proxyCleanCmd)
+	rootCmd.AddCommand(buildCmd, runCmd, proxyCmd, reseedCmd, cleanCmd)
 }

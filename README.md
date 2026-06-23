@@ -10,6 +10,23 @@ The one deliberate exception is **what you mount**. Whatever you bind-mount into
 
 As a safety net for accidents, Claude is also seeded to refuse reading common secret files (`.env`, `*.pem`, `*.key`, `secrets/`) and to ask before shell commands touch them. These don't add protection beyond the mount — anything inside it can still be reached.
 
+## Per-project config (`.ccbox.yaml`)
+
+Drop a `.ccbox.yaml` at a repo root to configure `ccbox run`; a missing file changes nothing.
+
+```yaml
+# tmpfs: workspace-relative dirs masked with a writable, executable tmpfs, so in-container
+# writes never reach the host bind-mount — handy for OS-specific build outputs (e.g. a
+# dist/ Go binary that differs between a macOS host and the Linux container).
+tmpfs:
+  - .idea
+  - dist
+
+# env: extra environment variables set in the container (cannot override the proxy/token vars).
+env:
+  GOFLAGS: -mod=mod
+```
+
 ## Docs
 
 - **[`docker/image/CLAUDE.admin.md`](docker/image/CLAUDE.admin.md)** — start here: the container Claude runs inside (user, network wall, what's installed).

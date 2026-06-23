@@ -2,7 +2,6 @@ package main
 
 import (
 	"embed"
-	"log/slog"
 	"os"
 
 	"github.com/s12chung/ccbox/cmd"
@@ -23,7 +22,5 @@ var seedClaudeConfig embed.FS
 var seedProject embed.FS
 
 func main() {
-	// Logs go to stderr; stdout is reserved for real output (build stream, container I/O).
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 	os.Exit(cmd.Execute(buildContext, proxyConfig, seedClaudeConfig, seedProject))
 }

@@ -2,9 +2,10 @@ package docker
 
 import (
 	"context"
+	"errors"
 	"io"
 	"io/fs"
-	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"strings"
@@ -29,26 +30,23 @@ const (
 	tinyproxyDir = "/etc/tinyproxy"
 )
 
-// Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
-// streaming its logs until interrupted. configFS holds the tinyproxy configs, copied
-// into the container at tinyproxyDir. Blocks until SIGINT/SIGTERM stops it.
-func (c *Client) Proxy(ctx context.Context, configFS fs.FS) error {
+// proxyWrap starts an egress wall container, runs fn against it, then cleans it up.
+// logFn streams the wall's logs in parallel; logDone delivers its result once it finishes.
+func (c *Client) proxyWrap(ctx context.Context, configFS fs.FS, fn func() error, logFn func(logs io.ReadCloser) error) (logDone chan error, err error) {
 	c.ensureNetwork(ctx)
 	// Tear the network down on exit, but only if we're its last user. A still-running
-	// devbox keeps the wall attached (expected) — leave it; `proxy clean` or the next
-	// proxy run handles it. Registered before the container defer so LIFO removes the
-	// egress container first.
+	// devbox keeps the wall attached (expected) — leave it; `proxy clean` can clean it
 	defer log.Defer("remove wall network", func() error {
 		err := c.ProxyClean(context.Background())
 		if errdefs.IsPermissionDenied(err) {
-			slog.Info("keeping wall network around", "reason", err)
+			log.Infof("keeping wall network around: %v", err)
 			return nil
 		}
 		return err
 	})
 
-	if err := c.ensureImage(ctx, proxyImage); err != nil {
-		return err
+	if err = c.ensureImage(ctx, proxyImage); err != nil {
+		return nil, err
 	}
 	// Clear any stale egress container so the fixed name is free.
 	_ = c.cli.ContainerRemove(ctx, egressName, container.RemoveOptions{Force: true})
@@ -58,47 +56,75 @@ func (c *Client) Proxy(ctx context.Context, configFS fs.FS) error {
 		&container.HostConfig{NetworkMode: container.NetworkMode(networkName)},
 		nil, nil, egressName)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	id := resp.ID
 	defer log.Defer("remove container", func() error {
 		return c.cli.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
-	// Copy our configs in BEFORE start: the image's CMD only generates a (permissive)
-	// default config when tinyproxy.conf is absent, so ours must be present first or the
-	// wall starts open.
 	configTar, err := embedfs.ToTar(configFS)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if err := c.cli.CopyToContainer(ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
-		return err
+	if err = c.cli.CopyToContainer(ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
+		return nil, err
 	}
-
-	if err := c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
-		return err
+	if err = c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
+		return nil, err
 	}
-
-	// Foreground: Ctrl-C stops the container, which ends the log stream below.
-	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-	defer signal.Stop(sig)
-	go func() {
-		<-sig
+	defer log.Defer("container stop", func() error {
 		timeout := 5
-		_ = c.cli.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
-	}()
+		return c.cli.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
+	})
 
 	logs, err := c.cli.ContainerLogs(ctx, id, container.LogsOptions{
 		ShowStdout: true, ShowStderr: true, Follow: true,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer log.Defer("close logs", logs.Close)
-	_, err = stdcopy.StdCopy(proxyColorWriter(os.Stdout), proxyColorWriter(os.Stderr), logs)
-	return err
+
+	logDone = make(chan error)
+	go func() {
+		logErr := logFn(logs)
+		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
+			logErr = nil
+		}
+		logDone <- logErr
+		close(logDone)
+	}()
+	return logDone, fn()
+}
+
+// Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
+// streaming its logs until interrupted. configFS holds the tinyproxy configs, copied
+// into the container at tinyproxyDir. Blocks until SIGINT/SIGTERM stops it.
+func (c *Client) Proxy(ctx context.Context, configFS fs.FS) error {
+	// Wall exits on its own (logFn closes stop).
+	stop := make(chan struct{})
+	logDone, err := c.proxyWrap(ctx, configFS, func() error {
+		// Foreground: block until Ctrl-C
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+		defer signal.Stop(sig)
+
+		select {
+		case <-sig:
+		case <-stop:
+		}
+		return nil
+	}, func(logs io.ReadCloser) error {
+		_, err := stdcopy.StdCopy(proxyColorWriter(os.Stdout), proxyColorWriter(os.Stderr), logs)
+		close(stop)
+		return err
+	})
+	var logErr error
+	if logDone != nil {
+		logErr = <-logDone
+	}
+	return errors.Join(err, logErr)
 }
 
 func proxyColorWriter(w io.Writer) io.Writer { return prompt.NewColorWriter(w, tinyproxyLevelColor) }
@@ -145,7 +171,11 @@ func (c *Client) ensureNetwork(ctx context.Context) {
 	})
 }
 
-// ProxyClean removes the wall network (errors if it's gone or still in use).
+// ProxyClean removes the wall network. A missing network is already clean (not an error);
+// an in-use one still errors.
 func (c *Client) ProxyClean(ctx context.Context) error {
-	return c.cli.NetworkRemove(ctx, networkName)
+	if err := c.cli.NetworkRemove(ctx, networkName); err != nil && !errdefs.IsNotFound(err) {
+		return err
+	}
+	return nil
 }

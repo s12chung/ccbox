@@ -3,29 +3,48 @@ package docker
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sort"
+	"strings"
 	"syscall"
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/perm"
 	"github.com/s12chung/ccbox/pkg/prompt"
 )
 
 const proxyPort = "8888"
 
+// containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
+const containerUID = "1000"
+
+// tmpfsOpts makes a workspace tmpfs writable+executable by that user, so masked build
+// outputs (e.g. dist/) can be written and run — Docker's default is root-owned noexec.
+var tmpfsOpts = fmt.Sprintf("uid=%s,gid=%s,exec", containerUID, containerUID)
+
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
-	Tag          string
-	ConfigDir    string // host dir bind-mounted at configMount
-	CcboxDir     string // host dir bind-mounted at ccboxMount
-	WorkspaceDir string // host dir bind-mounted at workspaceMount
-	OAuthToken   string
-	GHToken      string
+	Tag        string
+	ConfigDir  string // host dir bind-mounted at configMount
+	CcboxDir   string // host dir bind-mounted at ccboxMount
+	Cwd        string // host dir bind-mounted at workspaceMount
+	OAuthToken string
+	GHToken    string
+	Env        map[string]string // extra container env
+	Tmpfs      []string          // workspace-relative dirs to mask
+
+	AutoProxy    bool   // start (and tear down) the egress wall for this run; see ProxyWrap
+	ProxyConfig  fs.FS  // tinyproxy configs, for an auto-started wall
+	ProxyLogPath string // file an auto-started wall's logs are appended to
 }
 
 const (
@@ -34,45 +53,162 @@ const (
 	containerHome = "/home/ccbox"                      // the workspace mounts under containerHome at a per-project leaf
 )
 
-// ContainerMount is the in-container workspace, so per-project dirs (in claude-config, .ccbox) are keyed by it, not shared.
-func ContainerMount(workspaceDir string) string {
-	return filepath.Join(containerHome, filepath.Base(workspaceDir))
+// WorkspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
+func WorkspaceMount(hostCwd string) string {
+	return filepath.Join(containerHome, filepath.Base(hostCwd))
 }
 
-// Run starts the devbox container interactively (docker run -it --rm) behind the
-// wall and returns its exit code. The container is removed on return.
-func (c *Client) Run(ctx context.Context, o RunOptions) (int, error) {
-	if err := c.ensureProxyRunning(ctx); err != nil {
+// ProjectSlug is ccbox's per-project key: the host cwd slugified (e.g. /Users/me/app → -Users-me-app).
+// Distinct from Claude Code's claude-config/projects slug, which CC derives from its container cwd.
+func ProjectSlug(hostCwd string) string {
+	return strings.ReplaceAll(hostCwd, "/", "-")
+}
+
+// cacheVolumes maps suffix of volume name → container directory for cacheVolumeBinds()
+var cacheVolumes = map[string]string{
+	"go":         "/home/ccbox/go",          // go mod tidy module cache + GOBIN
+	"cache":      "/home/ccbox/.cache",      // go-build + pip cache
+	"gem":        "/home/ccbox/.gem",        // bundler GEM_HOME
+	"npm":        "/home/ccbox/.npm",        // npm download cache
+	"npm-global": "/home/ccbox/.npm-global", // global npm packages
+	"local":      "/home/ccbox/.local",      // pip --user installs
+}
+
+// cacheVolumeName is hostCwd's named volume for a given cacheVolumes suffix.
+func cacheVolumeName(hostCwd, suffix string) string {
+	return "ccbox" + ProjectSlug(hostCwd) + "-" + suffix
+}
+
+// cacheVolumeBinds returns the volume binds from cacheVolumes, not mounted for efficiency of small files
+func cacheVolumeBinds(hostCwd string) []string {
+	binds := make([]string, 0, len(cacheVolumes))
+	for suffix, dir := range cacheVolumes {
+		binds = append(binds, cacheVolumeName(hostCwd, suffix)+":"+dir)
+	}
+	sort.Strings(binds)
+	return binds
+}
+
+// VolumeClean removes hostCwd's cache volumes. An already-gone volume is skipped;
+// other errors (e.g. still in use by a running devbox) are joined and returned.
+func (c *Client) VolumeClean(ctx context.Context, hostCwd string) error {
+	var errs []error
+	for suffix := range cacheVolumes {
+		if err := c.cli.VolumeRemove(ctx, cacheVolumeName(hostCwd, suffix), false); err != nil && !errdefs.IsNotFound(err) {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// buildEnv renders base + extra as KEY=VALUE. extra goes first so base wins on a key
+// collision (Docker takes the last value), keeping the proxy/token vars unoverridable.
+func buildEnv(base []string, extra map[string]string) []string {
+	keys := make([]string, 0, len(extra))
+	for k := range extra {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // stable order for a deterministic spec
+
+	env := make([]string, 0, len(extra)+len(base))
+	for _, k := range keys {
+		env = append(env, k+"="+extra[k])
+	}
+	return append(env, base...)
+}
+
+// buildTmpfs maps each workspace-relative path from .ccbox.yaml to its tmpfs options
+// (writable+exec). Paths must stay inside the workspace, so absolute or ..-escaping
+// ones are rejected.
+func buildTmpfs(workspaceMount string, paths []string) (map[string]string, error) {
+	tmpfs := map[string]string{}
+	for _, p := range paths {
+		dest := filepath.Join(workspaceMount, p)
+		if rel, err := filepath.Rel(workspaceMount, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return nil, fmt.Errorf("tmpfs path escapes workspace: %q", p)
+		}
+		tmpfs[dest] = tmpfsOpts
+	}
+	return tmpfs, nil
+}
+
+// Run starts the devbox container interactively (docker run -it --rm) behind the wall and
+// returns its exit code. proxyWrap brings the wall up for the session (see AutoProxy); the
+// container is removed on return, before any wall proxyWrap owns is torn down.
+func (c *Client) Run(ctx context.Context, hostOptions RunOptions) (int, error) {
+	running, err := c.proxyRunning(ctx)
+	if err != nil {
 		return 0, err
 	}
+	if running {
+		return c.runDevbox(ctx, hostOptions)
+	} else if !hostOptions.AutoProxy {
+		return 0, errors.New("egress proxy not running; start it in another terminal with `ccbox proxy`")
+	}
+
+	return c.runWithProxy(ctx, hostOptions)
+}
+
+func (c *Client) runWithProxy(ctx context.Context, hostOptions RunOptions) (int, error) {
+	file, err := os.OpenFile(hostOptions.ProxyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, perm.File)
+	if err != nil {
+		return 0, err
+	}
+	defer log.Defer("close log file", file.Close)
+
+	var code int
+	logDone, err := c.proxyWrap(ctx, hostOptions.ProxyConfig, func() error {
+		var runErr error
+		code, runErr = c.runDevbox(ctx, hostOptions)
+		return runErr
+	}, func(logs io.ReadCloser) error {
+		_, logErr := stdcopy.StdCopy(file, file, logs)
+		return logErr
+	})
+
+	var logErr error
+	if logDone != nil {
+		logErr = <-logDone
+	}
+	return code, errors.Join(err, logErr)
+}
+
+func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, error) {
 	_ = c.cli.NetworkConnect(ctx, "bridge", egressName, nil) // silently ignore errors
+
+	baseEnv := []string{
+		"http_proxy=http://" + egressName + ":" + proxyPort,
+		"https_proxy=http://" + egressName + ":" + proxyPort,
+		"CLAUDE_CODE_OAUTH_TOKEN=" + hostOptions.OAuthToken,
+		"GH_TOKEN=" + hostOptions.GHToken,
+	}
+	workspaceMount := WorkspaceMount(hostOptions.Cwd)
+	tmpfs, err := buildTmpfs(workspaceMount, hostOptions.Tmpfs)
+	if err != nil {
+		return 0, err
+	}
 
 	resp, err := c.cli.ContainerCreate(ctx,
 		&container.Config{
-			Image:        o.Tag,
-			WorkingDir:   ContainerMount(o.WorkspaceDir),
+			Image:        hostOptions.Tag,
+			WorkingDir:   workspaceMount,
 			Tty:          true,
 			OpenStdin:    true,
 			AttachStdin:  true,
 			AttachStdout: true,
 			AttachStderr: true,
-			Env: []string{
-				"http_proxy=http://" + egressName + ":" + proxyPort,
-				"https_proxy=http://" + egressName + ":" + proxyPort,
-				"CLAUDE_CODE_OAUTH_TOKEN=" + o.OAuthToken,
-				"GH_TOKEN=" + o.GHToken,
-			},
+			Env:          buildEnv(baseEnv, hostOptions.Env),
 		},
 		&container.HostConfig{
 			NetworkMode: networkName,
 			CapDrop:     []string{"ALL"},
 			SecurityOpt: []string{"no-new-privileges"},
-			Binds: []string{
-				o.ConfigDir + ":" + configMount,
-				o.CcboxDir + ":" + ccboxMount,
-				o.WorkspaceDir + ":" + ContainerMount(o.WorkspaceDir),
-			},
-			Tmpfs: map[string]string{ContainerMount(o.WorkspaceDir) + "/.idea": ""},
+			Binds: append([]string{
+				hostOptions.ConfigDir + ":" + configMount,
+				hostOptions.CcboxDir + ":" + ccboxMount,
+				hostOptions.Cwd + ":" + workspaceMount,
+			}, cacheVolumeBinds(hostOptions.Cwd)...),
+			Tmpfs: tmpfs,
 		},
 		nil, nil, "")
 	if err != nil {
@@ -87,22 +223,17 @@ func (c *Client) Run(ctx context.Context, o RunOptions) (int, error) {
 	return c.runInteractive(ctx, resp.ID)
 }
 
-// ensureProxyRunning fails fast with errProxyDown unless the egress container is
-// up — a missing or stopped wall can't carry any traffic.
-func (c *Client) ensureProxyRunning(ctx context.Context) error {
-	errProxyDown := errors.New("egress proxy not running; start it in another terminal with `ccbox proxy`")
-
+// proxyRunning reports whether the egress container is up. A missing or stopped wall is
+// false, not an error.
+func (c *Client) proxyRunning(ctx context.Context) (bool, error) {
 	info, err := c.cli.ContainerInspect(ctx, egressName)
 	if errdefs.IsNotFound(err) {
-		return errProxyDown
+		return false, nil
 	}
 	if err != nil {
-		return err
+		return false, err
 	}
-	if !info.State.Running {
-		return errProxyDown
-	}
-	return nil
+	return info.State.Running, nil
 }
 
 // runInteractive wires the local terminal to the container: raw mode, a hijacked

@@ -84,6 +84,11 @@ RUN set -eux; \
     rm -rf /root/.cache
 
 USER ccbox
+# Pre-create cache mountpoints so per-project named volumes inherit uid 1000 (else root-owned, unwritable)
+# Mapped to pkg/docker/run.go
+RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
+             /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local
+
 # Default workdir for bare `docker build`/`docker run`; ccbox overrides it per-project
 # at run time (sets the container's working dir to /home/ccbox/<host-dir-basename>).
 WORKDIR /home/ccbox/workspace

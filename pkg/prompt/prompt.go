@@ -1,23 +1,21 @@
-// Package prompt does interactive terminal I/O: it asks the user on stderr
-// (stdout is reserved for real output) and reads the answer from stdin.
+// Package prompt has interactive terminal helpers
 package prompt
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
 
 	"github.com/moby/term"
+
+	"github.com/s12chung/ccbox/pkg/log"
 )
 
-// Confirm prints question on stderr and returns true only on y/yes.
+// Confirm prints question on stdout and returns true only on y/yes.
 func Confirm(question string) bool {
-	// fmt, not slog: an inline prompt can't carry slog's time=/level= prefix or its
-	// forced newline before the answer.
-	fmt.Fprint(os.Stderr, question+" [y/N] ")
+	log.Info(question + " [y/N]")
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":
