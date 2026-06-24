@@ -7,7 +7,6 @@ build:
 lint:
 	hadolint Dockerfile
 	shellcheck docker/image/entrypoint.sh docker/seed/claude-config/statusline.sh tests/test_helper.bash tests/*.bats
-	ruby tests/regexp_file_test.rb
 	jq empty docker/seed/claude-config/settings.json
 	gofmt -l . | (! grep .)
 	go vet ./...

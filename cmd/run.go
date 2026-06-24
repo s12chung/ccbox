@@ -9,7 +9,6 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/log"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/seed"
 )
 
@@ -32,10 +31,6 @@ var runCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		cfg, err := projectcfg.Load(m.cwd)
-		if err != nil {
-			return err
-		}
 		proxyFS, err := proxyConfigFS()
 		if err != nil {
 			return err
@@ -45,16 +40,19 @@ var runCmd = &cobra.Command{
 			return err
 		}
 		code, err := c.Run(cmd.Context(), docker.RunOptions{
-			Tag:          flagTag,
-			ConfigDir:    m.config,
-			CcboxDir:     m.ccbox,
-			Cwd:          m.cwd,
-			OAuthToken:   os.Getenv("CLAUDE_CODE_OAUTH_TOKEN"),
-			GHToken:      os.Getenv("GH_TOKEN"),
-			Env:          cfg.Env,
-			Tmpfs:        cfg.Tmpfs,
-			AutoProxy:    !flagNoAutoProxy,
-			ProxyConfig:  proxyFS,
+			Tag:        flagTag,
+			ConfigDir:  m.config,
+			CcboxDir:   m.ccbox,
+			Cwd:        m.cwd,
+			OAuthToken: os.Getenv("CLAUDE_CODE_OAUTH_TOKEN"),
+			GHToken:    os.Getenv("GH_TOKEN"),
+			Env:        projectCfg.Env,
+			Tmpfs:      projectCfg.Tmpfs,
+			AutoProxy:  !flagNoAutoProxy,
+			Proxy: docker.ProxyOptions{
+				Config:    proxyFS,
+				Overrides: allowOverride(projectCfg.Allowlist),
+			},
 			ProxyLogPath: filepath.Join(flagCacheDir, "proxy.log"),
 		})
 		if err != nil {

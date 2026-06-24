@@ -61,6 +61,26 @@ func TestSeedClaudeConfigBacksUpExisting(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "hooks/tripwire.old.sh"))
 }
 
+func TestSeedClaudeConfigSkipsIdentical(t *testing.T) {
+	dest := t.TempDir()
+	// Each dest already holds the source contents (CLAUDE.md is the renamed CLAUDE.user.md).
+	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	writeFile(t, filepath.Join(dest, "settings.json"), "new settings")
+	mkdirAll(t, filepath.Join(dest, "hooks"))
+	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
+
+	renamed, err := SeedClaudeConfig(srcFS(), dest)
+	require.NoError(t, err)
+	assert.Empty(t, renamed, "identical files should back up nothing")
+
+	// Untouched: contents stay, no backups created.
+	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
+	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
+	assertNotExist(t, filepath.Join(dest, "CLAUDE.old.md"))
+	assertNotExist(t, filepath.Join(dest, "settings.old.json"))
+}
+
 func TestSeedClaudeConfigBackupExistsErrors(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
@@ -97,6 +117,11 @@ func TestSeedProject(t *testing.T) {
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+}
+
+func mkdirAll(t *testing.T, path string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(path, 0o755))
 }
 
 func assertFile(t *testing.T, path, want string) {

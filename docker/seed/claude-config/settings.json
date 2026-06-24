@@ -10,7 +10,10 @@
       "Read(.envrc)",
       "Read(secrets/**)",
       "Read(**/*.pem)",
-      "Read(**/*.key)"
+      "Read(**/*.key)",
+
+      "Write(.ccbox.yaml)",
+      "Edit(.ccbox.yaml)"
     ]
   },
   "hooks": {

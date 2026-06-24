@@ -11,6 +11,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 // Injected from main (package main can't be imported, so the embed FSes come in here).
@@ -30,11 +31,22 @@ var (
 // exitCode lets `run` propagate the container's exit status out through Execute.
 var exitCode int
 
+// projectCfg is the cwd's .ccbox.yaml, loaded once before any command runs.
+var projectCfg projectcfg.Config
+
 var rootCmd = &cobra.Command{
 	Use:           "ccbox",
 	Short:         "Hardened Docker devbox for Claude Code",
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		projectCfg, err = projectcfg.Load(cwd)
+		return err
+	},
 }
 
 // Execute runs the CLI and returns the process exit code.

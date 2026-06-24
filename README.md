@@ -25,6 +25,14 @@ tmpfs:
 # env: extra environment variables set in the container (cannot override the proxy/token vars).
 env:
   GOFLAGS: -mod=mod
+
+# allowlist: domains the egress wall lets through. `domains` are added on top of the built-in
+# defaults (package registries, GitHub, Anthropic APIs, man mirrors)
+allowlist:
+  defaults: true
+  domains:
+    - example.com
+    - test.mywebsite.com
 ```
 
 ## Docs

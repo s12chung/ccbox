@@ -30,13 +30,19 @@ const (
 	tinyproxyDir = "/etc/tinyproxy"
 )
 
+// ProxyOptions configures the egress wall: Config holds the tinyproxy configs copied
+// into tinyproxyDir, and Overrides seeds files (the generated allow.txt) into them.
+type ProxyOptions struct {
+	Config    fs.FS
+	Overrides map[string][]byte
+}
+
 // Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
-// streaming its logs until interrupted. configFS holds the tinyproxy configs, copied
-// into the container at tinyproxyDir. Blocks until SIGINT/SIGTERM stops it.
-func (c *Client) Proxy(ctx context.Context, configFS fs.FS) error {
+// streaming its logs until interrupted. Blocks until SIGINT/SIGTERM stops it.
+func (c *Client) Proxy(ctx context.Context, o ProxyOptions) error {
 	// Wall exits on its own (logFn closes stop).
 	stop := make(chan struct{})
-	logDone, err := c.proxyWrap(ctx, configFS, func() error {
+	logDone, err := c.proxyWrap(ctx, o, func() error {
 		// Foreground: block until Ctrl-C
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
@@ -114,7 +120,7 @@ func (c *Client) ProxyClean(ctx context.Context) error {
 
 // proxyWrap starts an egress wall container, runs fn against it, then cleans it up.
 // logFn streams the wall's logs in parallel; logDone delivers its result once it finishes.
-func (c *Client) proxyWrap(ctx context.Context, configFS fs.FS, fn func() error, logFn func(logs io.ReadCloser) error) (logDone chan error, err error) {
+func (c *Client) proxyWrap(ctx context.Context, o ProxyOptions, fn func() error, logFn func(logs io.ReadCloser) error) (logDone chan error, err error) {
 	c.ensureNetwork(ctx)
 	// Tear the network down on exit, but only if we're its last user. A still-running
 	// devbox keeps the wall attached (expected) — leave it; `proxy clean` can clean it
@@ -145,7 +151,7 @@ func (c *Client) proxyWrap(ctx context.Context, configFS fs.FS, fn func() error,
 		return c.cli.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
-	configTar, err := embedfs.ToTar(configFS)
+	configTar, err := embedfs.ToTar(o.Config, o.Overrides)
 	if err != nil {
 		return nil, err
 	}

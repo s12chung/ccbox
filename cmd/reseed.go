@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -52,9 +53,13 @@ func safeSeedClaudeConfig(cacheDir string, confirm bool) (string, error) {
 		return configDir, err
 	}
 	if len(renamed) == 0 {
-		log.Infof("seeded fresh, nothing backed up: %s", configDir)
+		log.Infof("seeded, nothing to back up: %s", configDir)
 	} else {
-		log.Infof("seeded %s, backed up overwritten files: %v", configDir, renamed)
+		rel := make([]string, len(renamed))
+		for i, p := range renamed {
+			rel[i], _ = filepath.Rel(configDir, p)
+		}
+		log.Infof("seeded %s, backed up overwritten files:\n%s", configDir, strings.Join(rel, "\n"))
 	}
 	return configDir, nil
 }

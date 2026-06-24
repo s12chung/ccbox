@@ -15,7 +15,7 @@ import (
 
 // Confirm prints question on stdout and returns true only on y/yes.
 func Confirm(question string) bool {
-	log.Info(question + " [y/N]")
+	log.Infof(question + " [y/N] ")
 	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
 	switch strings.ToLower(strings.TrimSpace(line)) {
 	case "y", "yes":

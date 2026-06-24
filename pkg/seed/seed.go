@@ -3,6 +3,7 @@
 package seed
 
 import (
+	"bytes"
 	"fmt"
 	"io/fs"
 	"os"
@@ -23,7 +24,8 @@ func SeedProject(src fs.FS, destDir string) ([]string, error) {
 }
 
 // seedTree copies every file in src into destDir (creating it), preserving the tree
-// and applying renames (source path -> destination name) where present. Existing
+// and applying renames (source path -> destination name) where present. A destination
+// already matching the source is left untouched. Other existing
 // destination files are backed up to <base>.old<ext> before being overwritten; the
 // backed-up paths are returned. A pre-existing backup is never clobbered — it's a hard error.
 func seedTree(src fs.FS, destDir string, renames map[string]string) (renamed []string, err error) {
@@ -44,7 +46,10 @@ func seedTree(src fs.FS, destDir string, renames map[string]string) (renamed []s
 		if err := os.MkdirAll(filepath.Dir(dest), perm.Dir); err != nil {
 			return err
 		}
-		if _, err := os.Stat(dest); err == nil {
+		if existing, err := os.ReadFile(dest); err == nil {
+			if bytes.Equal(existing, body) {
+				return nil
+			}
 			backup := backupPath(dest)
 			if _, err := os.Stat(backup); err == nil {
 				return fmt.Errorf("seed: backup already exists, refusing to overwrite: %s", backup)

@@ -14,9 +14,19 @@ const fileName = ".ccbox.yaml"
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	Tmpfs []string          `yaml:"tmpfs"` // workspace-relative dirs to mask with a writable tmpfs
-	Env   map[string]string `yaml:"env"`   // extra env vars set in the container
+	Tmpfs     []string          `yaml:"tmpfs"`     // workspace-relative dirs to mask with a writable tmpfs
+	Env       map[string]string `yaml:"env"`       // extra env vars set in the container
+	Allowlist Allowlist         `yaml:"allowlist"` // egress wall domains
 }
+
+// Allowlist tunes the egress wall's allowed domains.
+type Allowlist struct {
+	Defaults *bool    `yaml:"defaults"` // include the built-in defaults; unset means yes
+	Domains  []string `yaml:"domains"`  // extra domains to allow
+}
+
+// DefaultsEnabled reports whether the built-in defaults apply: yes unless explicitly disabled.
+func (a Allowlist) DefaultsEnabled() bool { return a.Defaults == nil || *a.Defaults }
 
 // Load reads workspaceDir/.ccbox.yaml. A missing file is not an error — it yields
 // the zero Config, so repos without one keep working unchanged.

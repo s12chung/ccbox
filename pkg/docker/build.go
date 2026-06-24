@@ -32,7 +32,7 @@ type BuildOptions struct {
 // result into the local daemon's image store. src must hold the Dockerfile and every
 // path it COPYs.
 func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
-	contextTar, err := embedfs.ToTar(src)
+	contextTar, err := embedfs.ToTar(src, nil)
 	if err != nil {
 		return err
 	}

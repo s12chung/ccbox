@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -42,9 +41,9 @@ type RunOptions struct {
 	Env        map[string]string // extra container env
 	Tmpfs      []string          // workspace-relative dirs to mask
 
-	AutoProxy    bool   // start (and tear down) the egress wall for this run; see ProxyWrap
-	ProxyConfig  fs.FS  // tinyproxy configs, for an auto-started wall
-	ProxyLogPath string // file an auto-started wall's logs are appended to
+	AutoProxy    bool         // start (and tear down) the egress wall for this run; see ProxyWrap
+	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
+	ProxyLogPath string       // file an auto-started wall's logs are appended to
 }
 
 const (
@@ -157,7 +156,7 @@ func (c *Client) runWithProxy(ctx context.Context, hostOptions RunOptions) (int,
 	defer log.Defer("close log file", file.Close)
 
 	var code int
-	logDone, err := c.proxyWrap(ctx, hostOptions.ProxyConfig, func() error {
+	logDone, err := c.proxyWrap(ctx, hostOptions.Proxy, func() error {
 		var runErr error
 		code, runErr = c.runDevbox(ctx, hostOptions)
 		return runErr

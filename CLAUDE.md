@@ -15,7 +15,7 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra), which talks to
 - **`pkg/`**
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `prompt/` — interactive terminal I/O (ask on stderr, read stdin); the only place user prompts belong
-  - `projectcfg/` — loads `.ccbox.yaml` from a workspace repo root (extra container env + tmpfs masks)
+  - `projectcfg/` — related to `.ccbox.yaml` from a workspace repo root
   - `perm/` — named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
   - `log/` — log helpers and abstraction, never use `fmt.Print*`
 - **`Dockerfile`** — builds the devbox image from the inputs under `docker/`.
