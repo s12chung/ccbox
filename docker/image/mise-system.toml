@@ -3,7 +3,8 @@
 [tools]
 # Language runtimes
 node   = "26.3.0"
-python = "3.13"
+# postinstall re-adds setuptools/wheel CPython 3.12+ dropped (setuptools = 3.13's distutils shim)
+python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0" }
 ruby   = "3.4"
 go     = "1.26"
 
