@@ -37,8 +37,11 @@ var projectCfg projectcfg.Config
 var rootCmd = &cobra.Command{
 	Use:           "ccbox",
 	Short:         "Hardened Docker devbox for Claude Code",
+	Long:          "Hardened Docker devbox for Claude Code. With no subcommand, runs the devbox container interactively behind the egress wall.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	Args:          resumeArgs,
+	RunE:          runDevbox,
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
@@ -68,5 +71,5 @@ func init() {
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.StringVar(&flagCacheDir, "cache-dir", filepath.Join(home, ".ccbox"), "ccbox cache directory")
 
-	rootCmd.AddCommand(buildCmd, runCmd, proxyCmd, reseedCmd, cleanCmd)
+	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd)
 }

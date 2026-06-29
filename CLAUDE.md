@@ -5,9 +5,9 @@ This project is a hardened Docker devbox wrapper for Claude Code - you are curre
 You run inside the container this Dockerfile builds, and we often swap containers as the Dockerfile changes, especially mid-debug — so the running image may not match the file on disk. Re-read the Dockerfile before answering "what's this line/file" (never reconstruct from git or memory), and when container/Dockerfile changes come up, ask whether the state is old or new.
 
 ### Key components
-The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra), which talks to the Docker Engine SDK in-process. Subcommands:
+The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra), which talks to the Docker Engine SDK in-process. Commands:
+  - `ccbox` (no subcommand) — runs the devbox container interactively behind the wall, wiring the local terminal to the container's pty; launches `claude` by default (`--shell` for a plain shell)
   - `ccbox build` — builds the image from the embedded context on BuildKit (buildx library)
-  - `ccbox run` — runs the devbox container interactively behind the wall, wiring the local terminal to the container's pty
   - `ccbox proxy` — runs the `tinyproxy` egress wall in the foreground
 
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/image/*`) and proxy configs (`docker/tinyproxy/*`) into the binary, then hands off to `cmd`.

@@ -40,6 +40,7 @@ type RunOptions struct {
 	GHToken    string
 	Env        map[string]string // extra container env
 	Tmpfs      []string          // workspace-relative dirs to mask
+	Cmd        []string          // command the entrypoint execs; nil uses the image default (shell)
 
 	AutoProxy    bool         // start (and tear down) the egress wall for this run; see ProxyWrap
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
@@ -190,6 +191,7 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 	resp, err := c.cli.ContainerCreate(ctx,
 		&container.Config{
 			Image:        hostOptions.Tag,
+			Cmd:          hostOptions.Cmd,
 			WorkingDir:   workspaceMount,
 			Tty:          true,
 			OpenStdin:    true,

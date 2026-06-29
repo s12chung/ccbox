@@ -1,4 +1,4 @@
-# .ccbox.yaml — per-project ccbox config, read on the host by `ccbox run`.
+# .ccbox.yaml — per-project ccbox config, read on the host by `ccbox`.
 
 # Workspace-relative dirs masked with a writable tmpfs (uid 1000, exec) so in-container
 # writes never reach the host bind-mount.
