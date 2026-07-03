@@ -2,43 +2,138 @@
 package projectcfg
 
 import (
+	_ "embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/s12chung/ccbox/pkg/perm"
 )
 
 const fileName = ".ccbox.yaml"
+
+// DefaultsToken listed in allowlist, expands in place to allowDefaults
+const DefaultsToken = "ccbox-defaults"
+
+// tmpfsDefaults always-masked dirs
+var tmpfsDefaults = []string{".idea", ".vscode"}
+
+// allowDefaults are the egress domains DefaultsToken expands to: the wall's built-in allow.
+var allowDefaults = []string{
+	// mise (tool version manager): version lists + release metadata
+	"mise.en.dev",
+	"mise-versions.jdx.dev",
+
+	// Node / npm
+	"registry.npmjs.org",
+	"registry.yarnpkg.com",
+	"nodejs.org",
+
+	// Python
+	"pypi.org",
+	"pythonhosted.org",
+
+	// Ruby (gems + from-source tarballs)
+	"rubygems.org",
+	"cache.ruby-lang.org",
+
+	// Go (vanity imports, module proxy, checksum db, toolchain mirror)
+	"golang.org",
+	"proxy.golang.org",
+	"sum.golang.org",
+	"dl.google.com",
+	"storage.googleapis.com",
+
+	// GitHub: source + release assets (used by gh, delta, yq, rg, fd, jq, python-build-standalone, ruby-build)
+	"github.com",
+	"githubusercontent.com",
+	"githubassets.com",
+
+	// Man pages (canonical man text, not cheatsheets)
+	"manpages.debian.org",
+	"man7.org",
+	"man.cx",
+	"linux.die.net",
+	"manpages.ubuntu.com",
+
+	// Anthropic / Claude Code
+	"platform.claude.com",
+	"api.anthropic.com",
+	"mcp-proxy.anthropic.com",
+	"statsig.anthropic.com",
+	"sentry.io",
+}
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
 	Tmpfs     []string          `yaml:"tmpfs"`     // workspace-relative dirs to mask with a writable tmpfs
 	Env       map[string]string `yaml:"env"`       // extra env vars set in the container
-	Allowlist Allowlist         `yaml:"allowlist"` // egress wall domains
+	Allowlist []string          `yaml:"allowlist"` // egress wall domains; "ccbox-defaults" expands to the built-ins
 }
 
-// Allowlist tunes the egress wall's allowed domains.
-type Allowlist struct {
-	Defaults *bool    `yaml:"defaults"` // include the built-in defaults; unset means yes
-	Domains  []string `yaml:"domains"`  // extra domains to allow
+// Defaulted resolves c to its effective config: the always-on tmpfsDefaults are prepended
+// to Tmpfs, and Allowlist has DefaultsToken (its fallback when unset) expanded in place to
+// allowDefaults. Applied once by Load.
+func Defaulted(c Config) Config {
+	c.Tmpfs = append(append([]string{}, tmpfsDefaults...), c.Tmpfs...)
+	c.Allowlist = expandAllowlist(c.Allowlist)
+	return c
 }
 
-// DefaultsEnabled reports whether the built-in defaults apply: yes unless explicitly disabled.
-func (a Allowlist) DefaultsEnabled() bool { return a.Defaults == nil || *a.Defaults }
+// expandAllowlist replaces each DefaultsToken with allowDefaults. A nil list (allowlist
+// unset) falls back to the built-ins; an explicit empty list ([]) stays empty, so the wall
+// allows nothing.
+func expandAllowlist(domains []string) []string {
+	if domains == nil {
+		domains = []string{DefaultsToken}
+	}
+	var out []string
+	for _, d := range domains {
+		if d == DefaultsToken {
+			out = append(out, allowDefaults...)
+			continue
+		}
+		out = append(out, d)
+	}
+	return out
+}
 
-// Load reads workspaceDir/.ccbox.yaml. A missing file is not an error — it yields
-// the zero Config, so repos without one keep working unchanged.
+// Load reads workspaceDir/.ccbox.yaml and applies Defaulted. A missing file is not an
+// error — it yields the defaulted zero Config, so repos without one keep working.
 func Load(workspaceDir string) (Config, error) {
 	body, err := os.ReadFile(filepath.Join(workspaceDir, fileName))
 	if errors.Is(err, fs.ErrNotExist) {
-		return Config{}, nil
+		return Defaulted(Config{}), nil
 	}
 	if err != nil {
 		return Config{}, err
 	}
 
 	var c Config
-	return c, yaml.Unmarshal(body, &c)
+	if err := yaml.Unmarshal(body, &c); err != nil {
+		return Config{}, err
+	}
+	return Defaulted(c), nil
+}
+
+// defaultYAML is the starter .ccbox.yaml
+//
+//go:embed default.ccbox.yaml
+var defaultYAML string
+
+// Init writes defaultYAML to workspaceDir/.ccbox.yaml and returns its path.
+// It refuses to clobber an existing file.
+func Init(workspaceDir string) (string, error) {
+	path := filepath.Join(workspaceDir, fileName)
+	switch _, err := os.Stat(path); {
+	case err == nil:
+		return "", fmt.Errorf("%s already exists", path)
+	case !errors.Is(err, fs.ErrNotExist):
+		return "", err
+	}
+	return path, os.WriteFile(path, []byte(defaultYAML), perm.File)
 }

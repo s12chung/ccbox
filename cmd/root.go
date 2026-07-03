@@ -71,5 +71,5 @@ func init() {
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.StringVar(&flagCacheDir, "cache-dir", filepath.Join(home, ".ccbox"), "ccbox cache directory")
 
-	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd)
+	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
 }

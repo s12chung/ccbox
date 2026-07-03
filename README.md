@@ -16,28 +16,7 @@ As a safety net for accidents, Claude is also seeded to refuse reading common se
 
 ## Per-project config (`.ccbox.yaml`)
 
-Drop a `.ccbox.yaml` at a repo root to configure `ccbox`; a missing file changes nothing.
-
-```yaml
-# tmpfs: workspace-relative dirs masked with a writable, executable tmpfs, so in-container
-# writes never reach the host bind-mount — handy for OS-specific build outputs (e.g. a
-# dist/ Go binary that differs between a macOS host and the Linux container).
-tmpfs:
-  - .idea
-  - dist
-
-# env: extra environment variables set in the container (cannot override the proxy/token vars).
-env:
-  GOFLAGS: -mod=mod
-
-# allowlist: domains the egress wall lets through. `domains` are added on top of the built-in
-# defaults (package registries, GitHub, Anthropic APIs, man mirrors)
-allowlist:
-  defaults: true
-  domains:
-    - example.com
-    - test.mywebsite.com
-```
+`ccbox` has an internal default. `ccbox config` prints the effective config with defaults applied. `ccbox config init` creates a documented default.
 
 ## Docs
 

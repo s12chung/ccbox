@@ -3,7 +3,6 @@
 # Workspace-relative dirs masked with a writable tmpfs (uid 1000, exec) so in-container
 # writes never reach the host bind-mount.
 tmpfs:
-  - .idea
   - dist
 
 # Extra env vars set inside the container (cannot override the proxy/token vars).

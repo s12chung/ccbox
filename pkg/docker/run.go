@@ -117,9 +117,8 @@ func buildEnv(base []string, extra map[string]string) []string {
 	return append(env, base...)
 }
 
-// buildTmpfs maps each workspace-relative path from .ccbox.yaml to its tmpfs options
-// (writable+exec). Paths must stay inside the workspace, so absolute or ..-escaping
-// ones are rejected.
+// buildTmpfs maps each workspace-relative path to its tmpfs options
+// Paths must stay inside the workspace, so absolute or ..-escaping ones are rejected.
 func buildTmpfs(workspaceMount string, paths []string) (map[string]string, error) {
 	tmpfs := map[string]string{}
 	for _, p := range paths {

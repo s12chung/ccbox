@@ -84,7 +84,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 		AutoProxy:  !flagNoAutoProxy,
 		Proxy: docker.ProxyOptions{
 			Config:    proxyFS,
-			Overrides: allowOverride(projectCfg.Allowlist),
+			Overrides: docker.AllowOverride(projectCfg.Allowlist),
 		},
 		ProxyLogPath: filepath.Join(flagCacheDir, "proxy.log"),
 	})

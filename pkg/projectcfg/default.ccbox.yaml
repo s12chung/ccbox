@@ -1,0 +1,12 @@
+# tmpfs: workspace-relative dirs masked with a tmpfs, so in-container writes never reach the host
+# Useful for protecting directories from the container
+# Defaults are always appended: .idea, .vscode
+tmpfs: []
+
+# env: extra environment variables set in the container (cannot override the proxy/token vars).
+env: {}
+
+# allowlist: domains the egress wall lets through.
+# "ccbox-defaults" expands to built-in defaults (package registries, GitHub, Anthropic APIs, man mirrors)
+allowlist:
+  - ccbox-defaults
