@@ -33,6 +33,10 @@ var allowDefaults = []string{
 	"registry.yarnpkg.com",
 	"nodejs.org",
 
+	// Playwright browser binaries (image bakes the system libs; browsers fetched per-project)
+	"cdn.playwright.dev",
+	"playwright.download.prss.microsoft.com",
+
 	// Python
 	"pypi.org",
 	"pythonhosted.org",

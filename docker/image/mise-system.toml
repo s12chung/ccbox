@@ -20,3 +20,8 @@ delta   = "0.19.2"
 shellcheck = "0.11.0"
 hadolint   = "2.14.0"
 bats       = "1.13.0"
+
+# Installs a lot of version independent apt-get packages
+[tools."npm:playwright"]
+version     = "latest"
+postinstall = "playwright install-deps chromium"
