@@ -1,6 +1,6 @@
 # tmpfs: workspace-relative dirs masked with a tmpfs, so in-container writes never reach the host
 # Useful for protecting directories from the container
-# Defaults are always appended: .idea, .vscode
+# Defaults appended when present in the workspace: .idea, .vscode
 tmpfs: []
 
 # env: extra environment variables set in the container (cannot override the proxy/token vars).

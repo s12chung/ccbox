@@ -19,7 +19,7 @@ const fileName = ".ccbox.yaml"
 // DefaultsToken listed in allowlist, expands in place to allowDefaults
 const DefaultsToken = "ccbox-defaults"
 
-// tmpfsDefaults always-masked dirs
+// tmpfsDefaults always-masked dirs, prepended only when present in the workspace (to prevent host creation)
 var tmpfsDefaults = []string{".idea", ".vscode"}
 
 // allowDefaults are the egress domains DefaultsToken expands to: the wall's built-in allow.
@@ -79,13 +79,22 @@ type Config struct {
 	Allowlist []string          `yaml:"allowlist"` // egress wall domains; "ccbox-defaults" expands to the built-ins
 }
 
-// Defaulted resolves c to its effective config: the always-on tmpfsDefaults are prepended
-// to Tmpfs, and Allowlist has DefaultsToken (its fallback when unset) expanded in place to
-// allowDefaults. Applied once by Load.
-func Defaulted(c Config) Config {
-	c.Tmpfs = append(append([]string{}, tmpfsDefaults...), c.Tmpfs...)
+// Defaulted resolves c against its workspace. Applied once by Load.
+func Defaulted(workspaceDir string, c Config) Config {
+	c.Tmpfs = append(presentTmpfsDefaults(workspaceDir), c.Tmpfs...)
 	c.Allowlist = expandAllowlist(c.Allowlist)
 	return c
+}
+
+// presentTmpfsDefaults returns the tmpfsDefaults that exist as dirs under workspaceDir.
+func presentTmpfsDefaults(workspaceDir string) []string {
+	var out []string
+	for _, d := range tmpfsDefaults {
+		if info, err := os.Stat(filepath.Join(workspaceDir, d)); err == nil && info.IsDir() {
+			out = append(out, d)
+		}
+	}
+	return out
 }
 
 // expandAllowlist replaces each DefaultsToken with allowDefaults. A nil list (allowlist
@@ -111,7 +120,7 @@ func expandAllowlist(domains []string) []string {
 func Load(workspaceDir string) (Config, error) {
 	body, err := os.ReadFile(filepath.Join(workspaceDir, fileName))
 	if errors.Is(err, fs.ErrNotExist) {
-		return Defaulted(Config{}), nil
+		return Defaulted(workspaceDir, Config{}), nil
 	}
 	if err != nil {
 		return Config{}, err
@@ -121,7 +130,7 @@ func Load(workspaceDir string) (Config, error) {
 	if err := yaml.Unmarshal(body, &c); err != nil {
 		return Config{}, err
 	}
-	return Defaulted(c), nil
+	return Defaulted(workspaceDir, c), nil
 }
 
 // defaultYAML is the starter .ccbox.yaml
