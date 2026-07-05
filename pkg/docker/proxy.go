@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/pkg/stdcopy"
 
+	"github.com/s12chung/ccbox/pkg/cleanup"
 	"github.com/s12chung/ccbox/pkg/embedfs"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/prompt"
@@ -42,27 +43,24 @@ type ProxyOptions struct {
 func (c *Client) Proxy(ctx context.Context, o ProxyOptions) error {
 	// Wall exits on its own (logFn closes stop).
 	stop := make(chan struct{})
-	logDone, err := c.proxyWrap(ctx, o, func() error {
-		// Foreground: block until Ctrl-C
-		sig := make(chan os.Signal, 1)
-		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
-		defer signal.Stop(sig)
-
-		select {
-		case <-sig:
-		case <-stop:
-		}
-		return nil
-	}, func(logs io.ReadCloser) error {
+	cleanup, err := c.proxyStart(ctx, o, func(logs io.ReadCloser) error {
 		_, err := stdcopy.StdCopy(proxyColorWriter(os.Stdout), proxyColorWriter(os.Stderr), logs)
 		close(stop)
 		return err
 	})
-	var logErr error
-	if logDone != nil {
-		logErr = <-logDone
+	if err != nil {
+		return err
 	}
-	return errors.Join(err, logErr)
+
+	// Foreground: block until Ctrl-C.
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(sig)
+	select {
+	case <-sig:
+	case <-stop:
+	}
+	return cleanup()
 }
 
 func proxyColorWriter(w io.Writer) io.Writer { return prompt.NewColorWriter(w, tinyproxyLevelColor) }
@@ -118,13 +116,20 @@ func (c *Client) ProxyClean(ctx context.Context) error {
 	return nil
 }
 
-// proxyWrap starts an egress wall container, runs fn against it, then cleans it up.
-// logFn streams the wall's logs in parallel; logDone delivers its result once it finishes.
-func (c *Client) proxyWrap(ctx context.Context, o ProxyOptions, fn func() error, logFn func(logs io.ReadCloser) error) (logDone chan error, err error) {
+// proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
+func (c *Client) proxyStart(ctx context.Context, o ProxyOptions, logFn func(logs io.ReadCloser) error) (teardown func() error, err error) {
+	var stack cleanup.Stack
+	// Unwind partial setup if we bail before returning teardown.
+	defer func() {
+		if err != nil {
+			stack.Run()
+		}
+	}()
+
 	c.ensureNetwork(ctx)
-	// Tear the network down on exit, but only if we're its last user. A still-running
-	// devbox keeps the wall attached (expected) — leave it; `proxy clean` can clean it
-	defer log.Defer("remove wall network", func() error {
+	// Tear the network down only if we're its last user. A still-running devbox keeps
+	// the wall attached (expected) — leave it; `proxy clean` can clean it.
+	stack.Push("remove wall network", func() error {
 		err := c.ProxyClean(context.Background())
 		if errdefs.IsPermissionDenied(err) {
 			log.Infof("keeping wall network around: %v", err)
@@ -147,7 +152,7 @@ func (c *Client) proxyWrap(ctx context.Context, o ProxyOptions, fn func() error,
 		return nil, err
 	}
 	id := resp.ID
-	defer log.Defer("remove container", func() error {
+	stack.Push("remove container", func() error {
 		return c.cli.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
@@ -161,7 +166,7 @@ func (c *Client) proxyWrap(ctx context.Context, o ProxyOptions, fn func() error,
 	if err = c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
 		return nil, err
 	}
-	defer log.Defer("container stop", func() error {
+	stack.Push("container stop", func() error {
 		timeout := 5
 		return c.cli.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
 	})
@@ -172,9 +177,9 @@ func (c *Client) proxyWrap(ctx context.Context, o ProxyOptions, fn func() error,
 	if err != nil {
 		return nil, err
 	}
-	defer log.Defer("close logs", logs.Close)
+	stack.Push("close logs", logs.Close)
 
-	logDone = make(chan error)
+	logDone := make(chan error)
 	go func() {
 		logErr := logFn(logs)
 		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
@@ -183,5 +188,9 @@ func (c *Client) proxyWrap(ctx context.Context, o ProxyOptions, fn func() error,
 		logDone <- logErr
 		close(logDone)
 	}()
-	return logDone, fn()
+
+	return func() error {
+		stack.Run()
+		return <-logDone
+	}, nil
 }

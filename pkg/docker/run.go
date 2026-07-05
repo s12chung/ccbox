@@ -34,7 +34,7 @@ type RunOptions struct {
 	Volumes    []string          // workspace-relative dirs to mask with a persistent per-project volume
 	Cmd        []string          // command the entrypoint execs; nil uses the image default (shell)
 
-	AutoProxy    bool         // start (and tear down) the egress wall for this run; see ProxyWrap
+	AutoProxy    bool         // start (and tear down) the egress wall for this run; see proxyStart
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
 	ProxyLogPath string       // file an auto-started wall's logs are appended to
 }
@@ -57,8 +57,8 @@ func ProjectSlug(hostCwd string) string {
 }
 
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
-// returns its exit code. proxyWrap brings the wall up for the session (see AutoProxy); the
-// container is removed on return, before any wall proxyWrap owns is torn down.
+// returns its exit code. proxyStart brings the wall up for the session (see AutoProxy); the
+// container is removed on return, before any wall proxyStart owns is torn down.
 func (c *Client) Run(ctx context.Context, hostOptions RunOptions) (int, error) {
 	running, err := c.proxyRunning(ctx)
 	if err != nil {
@@ -80,21 +80,16 @@ func (c *Client) runWithProxy(ctx context.Context, hostOptions RunOptions) (int,
 	}
 	defer log.Defer("close log file", file.Close)
 
-	var code int
-	logDone, err := c.proxyWrap(ctx, hostOptions.Proxy, func() error {
-		var runErr error
-		code, runErr = c.runDevbox(ctx, hostOptions)
-		return runErr
-	}, func(logs io.ReadCloser) error {
+	cleanup, err := c.proxyStart(ctx, hostOptions.Proxy, func(logs io.ReadCloser) error {
 		_, logErr := stdcopy.StdCopy(file, file, logs)
 		return logErr
 	})
-
-	var logErr error
-	if logDone != nil {
-		logErr = <-logDone
+	if err != nil {
+		return 0, err
 	}
-	return code, errors.Join(err, logErr)
+
+	code, runErr := c.runDevbox(ctx, hostOptions)
+	return code, errors.Join(runErr, cleanup())
 }
 
 func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, error) {
