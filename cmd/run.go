@@ -5,11 +5,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/seed"
 )
 
@@ -63,6 +65,13 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+
+	// A default mask dir absent now isn't masked this run, but gets masked once it exists.
+	// Snapshot the absent ones, then warn after the run for any the container created.
+	defer printMasks()
+	absentDefaults := masksOnHost(m.cwd, projectcfg.MaskDefaults(), false)
+	defer warnCreatedMasks(m.cwd, absentDefaults)
+
 	proxyFS, err := proxyConfigFS()
 	if err != nil {
 		return err
@@ -94,6 +103,37 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	}
 	exitCode = code
 	return nil
+}
+
+// printMasks tells the user which workspace dirs are shadowed, so a hidden dir is no surprise.
+func printMasks() {
+	if len(projectCfg.Tmpfs) > 0 {
+		log.Infof("during run, masked (ephemeral tmpfs): %s", strings.Join(projectCfg.Tmpfs, ", "))
+	}
+	if len(projectCfg.Volumes) > 0 {
+		log.Infof("during run, masked (persistent volume): %s", strings.Join(projectCfg.Volumes, ", "))
+	}
+}
+
+// masksOnHost returns the mask dirs whose existence as a dir in the host workspace cwd matches
+// present (dir-only, mirroring projectcfg's mask present-filter, so a stray file never counts).
+func masksOnHost(cwd string, dirs []string, present bool) []string {
+	var out []string
+	for _, d := range dirs {
+		info, err := os.Stat(filepath.Join(cwd, d))
+		if (err == nil && info.IsDir()) == present {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// warnCreatedMasks warns for each default mask dir absent at start that the run created: it
+// exists now, so future runs will mask it — a heads-up that it behaves differently from here.
+func warnCreatedMasks(cwd string, absentBefore []string) {
+	if created := masksOnHost(cwd, absentBefore, true); len(created) > 0 {
+		log.Warnf("before run, these directories did not exist. future runs will mask them: %s", strings.Join(created, ", "))
+	}
 }
 
 func init() {

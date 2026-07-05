@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -114,4 +115,15 @@ func TestSafeSeedProjectDirPropagatesSeedError(t *testing.T) {
 
 	_, err := safeSeedProjectDir(t.TempDir(), testWorkspace)
 	assert.ErrorIs(t, err, wantErr)
+}
+
+func TestMasksOnHost(t *testing.T) {
+	cwd := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(cwd, "vendor", "bundle"), perm.Dir))
+	require.NoError(t, os.Mkdir(filepath.Join(cwd, "node_modules"), perm.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(cwd, "afile"), nil, perm.File)) // a file, not a dir
+
+	dirs := []string{"node_modules", "dist", "vendor/bundle", "typo", "afile"}
+	assert.Equal(t, []string{"dist", "typo", "afile"}, masksOnHost(cwd, dirs, false))        // absent as a dir (file counts as absent)
+	assert.Equal(t, []string{"node_modules", "vendor/bundle"}, masksOnHost(cwd, dirs, true)) // present as a dir
 }
