@@ -17,8 +17,8 @@ func TestBuildEnvBaseWins(t *testing.T) {
 	assert.Equal(t, []string{"GOFLAGS=-mod=mod", "http_proxy=evil", "http_proxy=wall", "GH_TOKEN=secret"}, got)
 }
 
-func TestBuildTmpfsMasksPaths(t *testing.T) {
-	got, err := buildTmpfs("/home/ccbox/proj", []string{".idea", "dist"})
+func TestTmpfsMasks(t *testing.T) {
+	got, err := tmpfsMasks("/home/ccbox/proj", []string{".idea", "dist"})
 	require.NoError(t, err)
 
 	assert.Equal(t, map[string]string{
@@ -27,11 +27,27 @@ func TestBuildTmpfsMasksPaths(t *testing.T) {
 	}, got)
 }
 
-func TestBuildTmpfsRejectsEscape(t *testing.T) {
+func TestSafeContainerPath(t *testing.T) {
+	got, err := safeContainerPath("/home/ccbox/proj", "vendor/bundle")
+	require.NoError(t, err)
+	assert.Equal(t, "/home/ccbox/proj/vendor/bundle", got)
+
 	for _, p := range []string{"..", "../escape", "../../x"} {
-		_, err := buildTmpfs("/home/ccbox/proj", []string{p})
+		_, err := safeContainerPath("/home/ccbox/proj", p)
 		assert.Error(t, err, p)
 	}
+}
+
+func TestNamedVolumeMasks(t *testing.T) {
+	binds, names, err := namedVolumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"})
+	require.NoError(t, err)
+
+	// bind is "volume:containerPath"; the name slugifies the path (/ → -) under the project slug.
+	assert.Equal(t, []string{
+		"ccbox-Users-me-proj-node_modules:/home/ccbox/proj/node_modules",
+		"ccbox-Users-me-proj-vendor-bundle:/home/ccbox/proj/vendor/bundle",
+	}, binds)
+	assert.Equal(t, []string{"ccbox-Users-me-proj-node_modules", "ccbox-Users-me-proj-vendor-bundle"}, names)
 }
 
 func TestCacheVolumeBinds(t *testing.T) {

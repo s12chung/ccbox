@@ -56,6 +56,22 @@ func TestDefaultedSkipsAbsentTmpfsDefaults(t *testing.T) {
 	assert.Equal(t, []string{"dist"}, c.Tmpfs) // absent defaults not prepended
 }
 
+func TestDefaultedVolumesPresentPrepended(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "node_modules"), perm.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "vendor", "bundle"), perm.Dir)) // nested default
+
+	c := Defaulted(dir, Config{Volumes: []string{"target"}})
+	// only present defaults prepended (.venv absent), user entry kept after
+	assert.Equal(t, []string{"node_modules", "vendor/bundle", "target"}, c.Volumes)
+}
+
+func TestDefaultedSkipsAbsentVolumeDefaults(t *testing.T) {
+	dir := t.TempDir() // no node_modules/.venv/vendor on disk
+	c := Defaulted(dir, Config{})
+	assert.Empty(t, c.Volumes) // absent defaults not prepended
+}
+
 func TestInitWritesLoadableDefault(t *testing.T) {
 	dir := t.TempDir()
 	path, err := Init(dir)

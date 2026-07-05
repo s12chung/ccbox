@@ -3,6 +3,10 @@
 # Defaults appended when present in the workspace: .idea, .vscode
 tmpfs: []
 
+# volumes: workspace-relative dirs masked with a PERSISTENT per-project volume to avoid collisions with host
+# Defaults appended when present in the workspace: node_modules, .venv, vendor/bundle
+volumes: []
+
 # env: extra environment variables set in the container (cannot override the proxy/token vars).
 env: {}
 

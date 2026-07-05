@@ -21,6 +21,6 @@ var cleanCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		return errors.Join(c.VolumeClean(cmd.Context(), cwd), c.ProxyClean(cmd.Context()))
+		return errors.Join(c.VolumeClean(cmd.Context(), cwd, projectCfg.Volumes), c.ProxyClean(cmd.Context()))
 	},
 }

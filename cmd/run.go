@@ -80,6 +80,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 		GHToken:    os.Getenv("GH_TOKEN"),
 		Env:        projectCfg.Env,
 		Tmpfs:      projectCfg.Tmpfs,
+		Volumes:    projectCfg.Volumes,
 		Cmd:        containerCmd(args),
 		AutoProxy:  !flagNoAutoProxy,
 		Proxy: docker.ProxyOptions{

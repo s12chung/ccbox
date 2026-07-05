@@ -22,6 +22,9 @@ const DefaultsToken = "ccbox-defaults"
 // tmpfsDefaults always-masked dirs, prepended only when present in the workspace (to prevent host creation)
 var tmpfsDefaults = []string{".idea", ".vscode"}
 
+// volumeDefaults for persistent volume masked dirs only when present in the workspace (to prevent host creation)
+var volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
+
 // allowDefaults are the egress domains DefaultsToken expands to: the wall's built-in allow.
 var allowDefaults = []string{
 	// mise (tool version manager): version lists + release metadata
@@ -75,21 +78,23 @@ var allowDefaults = []string{
 // Config is the parsed .ccbox.yaml.
 type Config struct {
 	Tmpfs     []string          `yaml:"tmpfs"`     // workspace-relative dirs to mask with a writable tmpfs
+	Volumes   []string          `yaml:"volumes"`   // workspace-relative dirs to mask with a persistent per-project volume
 	Env       map[string]string `yaml:"env"`       // extra env vars set in the container
 	Allowlist []string          `yaml:"allowlist"` // egress wall domains; "ccbox-defaults" expands to the built-ins
 }
 
 // Defaulted resolves c against its workspace. Applied once by Load.
 func Defaulted(workspaceDir string, c Config) Config {
-	c.Tmpfs = append(presentTmpfsDefaults(workspaceDir), c.Tmpfs...)
+	c.Tmpfs = append(presentDirs(workspaceDir, tmpfsDefaults), c.Tmpfs...)
+	c.Volumes = append(presentDirs(workspaceDir, volumeDefaults), c.Volumes...)
 	c.Allowlist = expandAllowlist(c.Allowlist)
 	return c
 }
 
-// presentTmpfsDefaults returns the tmpfsDefaults that exist as dirs under workspaceDir.
-func presentTmpfsDefaults(workspaceDir string) []string {
+// presentDirs returns the entries of dirs that exist as directories under workspaceDir.
+func presentDirs(workspaceDir string, dirs []string) []string {
 	var out []string
-	for _, d := range tmpfsDefaults {
+	for _, d := range dirs {
 		if info, err := os.Stat(filepath.Join(workspaceDir, d)); err == nil && info.IsDir() {
 			out = append(out, d)
 		}

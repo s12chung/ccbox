@@ -1,0 +1,67 @@
+// Package dockerutil holds generic Docker Engine operations, independent of the devbox
+// lifecycle — things that can only be done from inside a container the daemon spawns.
+package dockerutil
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/containerd/errdefs"
+	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/volume"
+	"github.com/docker/docker/client"
+
+	"github.com/s12chung/ccbox/pkg/log"
+)
+
+// EnsureOwnedVolume creates the named volume if absent and chowns it to uid
+func EnsureOwnedVolume(ctx context.Context, cli *client.Client, image, volumeName, uid string) error {
+	switch _, err := cli.VolumeInspect(ctx, volumeName); {
+	case err == nil:
+		return nil
+	case !errdefs.IsNotFound(err):
+		return err
+	}
+	if _, err := cli.VolumeCreate(ctx, volume.CreateOptions{Name: volumeName}); err != nil {
+		return err
+	}
+	return ChownVolume(ctx, cli, image, volumeName, uid+":"+uid)
+}
+
+// ChownVolume chown's volume to owner ("uid:gid") via a throwaway root container  running image.
+func ChownVolume(ctx context.Context, cli *client.Client, image, volumeName, owner string) error {
+	mountPoint := "/mnt"
+
+	resp, err := cli.ContainerCreate(ctx,
+		&container.Config{
+			Image:      image,
+			User:       "0:0",
+			Entrypoint: []string{"chown", owner, mountPoint},
+		},
+		&container.HostConfig{
+			NetworkMode: "none",
+			Binds:       []string{volumeName + ":" + mountPoint},
+		},
+		nil, nil, "")
+	if err != nil {
+		return err
+	}
+	defer log.Defer("remove chown container", func() error {
+		return cli.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
+	})
+
+	// Register the wait before start so a fast exit isn't missed.
+	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNextExit)
+	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+		return err
+	}
+	select {
+	case err := <-errCh:
+		return err
+	case st := <-statusCh:
+		if st.StatusCode != 0 {
+			return fmt.Errorf("chown volume %q: container exited %d", volumeName, st.StatusCode)
+		}
+		return nil
+	}
+}

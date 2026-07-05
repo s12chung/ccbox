@@ -16,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
+	"github.com/s12chung/ccbox/pkg/dockerutil"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/perm"
 	"github.com/s12chung/ccbox/pkg/prompt"
@@ -39,7 +40,8 @@ type RunOptions struct {
 	OAuthToken string
 	GHToken    string
 	Env        map[string]string // extra container env
-	Tmpfs      []string          // workspace-relative dirs to mask
+	Tmpfs      []string          // workspace-relative dirs to mask with an ephemeral tmpfs
+	Volumes    []string          // workspace-relative dirs to mask with a persistent per-project volume
 	Cmd        []string          // command the entrypoint execs; nil uses the image default (shell)
 
 	AutoProxy    bool         // start (and tear down) the egress wall for this run; see ProxyWrap
@@ -89,12 +91,24 @@ func cacheVolumeBinds(hostCwd string) []string {
 	return binds
 }
 
-// VolumeClean removes hostCwd's cache volumes. An already-gone volume is skipped;
-// other errors (e.g. still in use by a running devbox) are joined and returned.
-func (c *Client) VolumeClean(ctx context.Context, hostCwd string) error {
-	var errs []error
+// maskVolumeName is hostCwd's persistent volume for a workspace-relative masked dir
+func maskVolumeName(hostCwd, rel string) string {
+	return cacheVolumeName(hostCwd, strings.ReplaceAll(rel, "/", "-"))
+}
+
+// VolumeClean removes hostCwd's cache volumes and the mask volumes for maskDirs
+func (c *Client) VolumeClean(ctx context.Context, hostCwd string, maskDirs []string) error {
+	names := make([]string, 0, len(cacheVolumes)+len(maskDirs))
 	for suffix := range cacheVolumes {
-		if err := c.cli.VolumeRemove(ctx, cacheVolumeName(hostCwd, suffix), false); err != nil && !errdefs.IsNotFound(err) {
+		names = append(names, cacheVolumeName(hostCwd, suffix))
+	}
+	for _, d := range maskDirs {
+		names = append(names, maskVolumeName(hostCwd, d))
+	}
+
+	var errs []error
+	for _, name := range names {
+		if err := c.cli.VolumeRemove(ctx, name, false); err != nil && !errdefs.IsNotFound(err) {
 			errs = append(errs, err)
 		}
 	}
@@ -117,18 +131,56 @@ func buildEnv(base []string, extra map[string]string) []string {
 	return append(env, base...)
 }
 
-// buildTmpfs maps each workspace-relative path to its tmpfs options
-// Paths must stay inside the workspace, so absolute or ..-escaping ones are rejected.
-func buildTmpfs(workspaceMount string, paths []string) (map[string]string, error) {
+// safeContainerPath joins a workspace-relative path under workspaceMount
+// rejecting unsafe paths ("..", absolute)
+func safeContainerPath(workspaceMount, hostPath string) (string, error) {
+	dest := filepath.Join(workspaceMount, hostPath)
+	if rel, err := filepath.Rel(workspaceMount, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("mask path escapes workspace: %q", hostPath)
+	}
+	return dest, nil
+}
+
+// tmpfsMasks maps each workspace-relative path to its tmpfs options.
+func tmpfsMasks(workspaceMount string, hostPaths []string) (map[string]string, error) {
 	tmpfs := map[string]string{}
-	for _, p := range paths {
-		dest := filepath.Join(workspaceMount, p)
-		if rel, err := filepath.Rel(workspaceMount, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-			return nil, fmt.Errorf("tmpfs path escapes workspace: %q", p)
+	for _, p := range hostPaths {
+		containerPath, err := safeContainerPath(workspaceMount, p)
+		if err != nil {
+			return nil, err
 		}
-		tmpfs[dest] = tmpfsOpts
+		tmpfs[containerPath] = tmpfsOpts
 	}
 	return tmpfs, nil
+}
+
+// namedVolumeMasks returns a "volume:containerPath" bind per masked path, plus each volume's name.
+func namedVolumeMasks(hostCwd string, hostPaths []string) (binds, names []string, err error) {
+	workspaceMount := WorkspaceMount(hostCwd)
+	for _, p := range hostPaths {
+		containerPath, err := safeContainerPath(workspaceMount, p)
+		if err != nil {
+			return nil, nil, err
+		}
+		name := maskVolumeName(hostCwd, p)
+		binds = append(binds, name+":"+containerPath)
+		names = append(names, name)
+	}
+	return binds, names, nil
+}
+
+// ensureNamedVolumeMasks builds the mask binds and ensures each volume exists owned by the container user.
+func (c *Client) ensureNamedVolumeMasks(ctx context.Context, hostCwd, imageTag string, hostPaths []string) ([]string, error) {
+	binds, names, err := namedVolumeMasks(hostCwd, hostPaths)
+	if err != nil {
+		return nil, err
+	}
+	for _, name := range names {
+		if err := dockerutil.EnsureOwnedVolume(ctx, c.cli, imageTag, name, containerUID); err != nil {
+			return nil, err
+		}
+	}
+	return binds, nil
 }
 
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
@@ -182,11 +234,14 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 		"GH_TOKEN=" + hostOptions.GHToken,
 	}
 	workspaceMount := WorkspaceMount(hostOptions.Cwd)
-	tmpfs, err := buildTmpfs(workspaceMount, hostOptions.Tmpfs)
+	tmpfs, err := tmpfsMasks(workspaceMount, hostOptions.Tmpfs)
 	if err != nil {
 		return 0, err
 	}
-
+	volumeMaskBinds, err := c.ensureNamedVolumeMasks(ctx, hostOptions.Cwd, hostOptions.Tag, hostOptions.Volumes)
+	if err != nil {
+		return 0, err
+	}
 	resp, err := c.cli.ContainerCreate(ctx,
 		&container.Config{
 			Image:        hostOptions.Tag,
@@ -203,11 +258,11 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 			NetworkMode: networkName,
 			CapDrop:     []string{"ALL"},
 			SecurityOpt: []string{"no-new-privileges"},
-			Binds: append([]string{
+			Binds: append(append([]string{
 				hostOptions.ConfigDir + ":" + configMount,
 				hostOptions.CcboxDir + ":" + ccboxMount,
 				hostOptions.Cwd + ":" + workspaceMount,
-			}, cacheVolumeBinds(hostOptions.Cwd)...),
+			}, cacheVolumeBinds(hostOptions.Cwd)...), volumeMaskBinds...),
 			Tmpfs: tmpfs,
 		},
 		nil, nil, "")

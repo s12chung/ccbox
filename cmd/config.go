@@ -13,7 +13,7 @@ import (
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Print the effective .ccbox.yaml with tmpfs and allowlist defaults applied",
+	Short: "Print the effective .ccbox.yaml with tmpfs, volumes, and allowlist defaults applied",
 	RunE: func(_ *cobra.Command, _ []string) error {
 		out, err := yaml.Marshal(projectCfg) // already resolved by projectcfg.Load
 		if err != nil {
