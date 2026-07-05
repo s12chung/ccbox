@@ -72,6 +72,12 @@ func TestDefaultedSkipsAbsentVolumeDefaults(t *testing.T) {
 	assert.Empty(t, c.Volumes) // absent defaults not prepended
 }
 
+func TestVolumeCleanupDirs(t *testing.T) {
+	// all defaults regardless of presence, plus explicit config volumes, deduped
+	c := Config{Volumes: []string{"node_modules", "target"}}
+	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupDirs())
+}
+
 func TestInitWritesLoadableDefault(t *testing.T) {
 	dir := t.TempDir()
 	path, err := Init(dir)

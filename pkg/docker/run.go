@@ -108,6 +108,10 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 	if err != nil {
 		return 0, err
 	}
+	cacheBinds, err := c.ensureCacheVolumes(ctx, hostOptions.Cwd)
+	if err != nil {
+		return 0, err
+	}
 	resp, err := c.cli.ContainerCreate(ctx,
 		&container.Config{
 			Image:        hostOptions.Tag,
@@ -128,7 +132,7 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 				hostOptions.ConfigDir + ":" + configMount,
 				hostOptions.CcboxDir + ":" + ccboxMount,
 				hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
-			}, cacheVolumeBinds(hostOptions.Cwd)...), volumeMaskBinds...),
+			}, cacheBinds...), volumeMaskBinds...),
 			Tmpfs: tmpfs,
 		},
 		nil, nil, "")

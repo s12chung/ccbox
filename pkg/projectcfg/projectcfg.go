@@ -91,6 +91,20 @@ func Defaulted(workspaceDir string, c Config) Config {
 	return c
 }
 
+// VolumeCleanupDirs is every mask dir whose volume may exist: the built-in defaults (regardless of
+// presence) plus explicit config volumes.
+func (c Config) VolumeCleanupDirs() []string {
+	seen := map[string]bool{}
+	var dirs []string
+	for _, d := range append(append([]string{}, volumeDefaults...), c.Volumes...) {
+		if !seen[d] {
+			seen[d] = true
+			dirs = append(dirs, d)
+		}
+	}
+	return dirs
+}
+
 // presentDirs returns the entries of dirs that exist as directories under workspaceDir.
 func presentDirs(workspaceDir string, dirs []string) []string {
 	var out []string

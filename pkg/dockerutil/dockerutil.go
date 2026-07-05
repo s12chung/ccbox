@@ -14,15 +14,15 @@ import (
 	"github.com/s12chung/ccbox/pkg/log"
 )
 
-// EnsureOwnedVolume creates the named volume if absent and chowns it to uid
-func EnsureOwnedVolume(ctx context.Context, cli *client.Client, image, volumeName, uid string) error {
+// EnsureOwnedVolume creates the named volume (with labels) if absent and chowns it to uid
+func EnsureOwnedVolume(ctx context.Context, cli *client.Client, image, volumeName, uid string, labels map[string]string) error {
 	switch _, err := cli.VolumeInspect(ctx, volumeName); {
 	case err == nil:
 		return nil
 	case !errdefs.IsNotFound(err):
 		return err
 	}
-	if _, err := cli.VolumeCreate(ctx, volume.CreateOptions{Name: volumeName}); err != nil {
+	if _, err := cli.VolumeCreate(ctx, volume.CreateOptions{Name: volumeName, Labels: labels}); err != nil {
 		return err
 	}
 	return ChownVolume(ctx, cli, image, volumeName, uid+":"+uid)

@@ -40,6 +40,10 @@ func TestNamedVolumeMasks(t *testing.T) {
 	assert.Equal(t, []string{"ccbox-Users-me-proj-node_modules", "ccbox-Users-me-proj-vendor-bundle"}, names)
 }
 
+func TestVolumeLabels(t *testing.T) {
+	assert.Equal(t, map[string]string{"ccbox": "true", "ccbox.project": "/Users/me/proj"}, volumeLabels("/Users/me/proj"))
+}
+
 func TestCacheVolumeBinds(t *testing.T) {
 	got := cacheVolumeBinds("/Users/me/code/project_name") // host cwd
 

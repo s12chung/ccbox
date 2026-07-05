@@ -9,9 +9,20 @@ import (
 	"strings"
 
 	"github.com/containerd/errdefs"
+	"github.com/docker/docker/api/types/volume"
 
 	"github.com/s12chung/ccbox/pkg/dockerutil"
 )
+
+const (
+	ccboxLabel   = "ccbox"         // marks every ccbox volume, for cross-project discovery
+	projectLabel = "ccbox.project" // the owning project, valued by host path
+)
+
+// volumeLabels are the labels stamped on every volume ccbox creates for hostCwd.
+func volumeLabels(hostCwd string) map[string]string {
+	return map[string]string{ccboxLabel: "true", projectLabel: hostCwd}
+}
 
 // containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
 const containerUID = "1000"
@@ -69,6 +80,17 @@ func cacheVolumeBinds(hostCwd string) []string {
 	return binds
 }
 
+// ensureCacheVolumes creates hostCwd's cache volumes labeled with the project and returns their binds.
+func (c *Client) ensureCacheVolumes(ctx context.Context, hostCwd string) ([]string, error) {
+	for suffix := range cacheVolumes {
+		opts := volume.CreateOptions{Name: cacheVolumeName(hostCwd, suffix), Labels: volumeLabels(hostCwd)}
+		if _, err := c.cli.VolumeCreate(ctx, opts); err != nil {
+			return nil, err
+		}
+	}
+	return cacheVolumeBinds(hostCwd), nil
+}
+
 // maskVolumeName is hostCwd's persistent volume for a workspace-relative masked dir
 func maskVolumeName(hostCwd, rel string) string {
 	return cacheVolumeName(hostCwd, strings.ReplaceAll(rel, "/", "-"))
@@ -96,7 +118,7 @@ func (c *Client) ensureNamedVolumeMasks(ctx context.Context, hostCwd, imageTag s
 		return nil, err
 	}
 	for _, name := range names {
-		if err := dockerutil.EnsureOwnedVolume(ctx, c.cli, imageTag, name, containerUID); err != nil {
+		if err := dockerutil.EnsureOwnedVolume(ctx, c.cli, imageTag, name, containerUID, volumeLabels(hostCwd)); err != nil {
 			return nil, err
 		}
 	}
