@@ -1,0 +1,26 @@
+package docker
+
+import "sort"
+
+// envString renders the container's environment as KEY=VALUE. The proxy/token vars come last so
+// they win on a key collision (Docker takes the last value), keeping them unoverridable by o.Env.
+func envString(o RunOptions) []string {
+	base := []string{
+		"http_proxy=http://" + egressName + ":" + proxyPort,
+		"https_proxy=http://" + egressName + ":" + proxyPort,
+		"CLAUDE_CODE_OAUTH_TOKEN=" + o.OAuthToken,
+		"GH_TOKEN=" + o.GHToken,
+	}
+
+	keys := make([]string, 0, len(o.Env))
+	for k := range o.Env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys) // stable order for a deterministic spec
+
+	env := make([]string, 0, len(o.Env)+len(base))
+	for _, k := range keys {
+		env = append(env, k+"="+o.Env[k])
+	}
+	return append(env, base...)
+}

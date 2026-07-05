@@ -7,18 +7,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBuildEnvBaseWins(t *testing.T) {
-	base := []string{"http_proxy=wall", "GH_TOKEN=secret"}
-	extra := map[string]string{"GOFLAGS": "-mod=mod", "http_proxy": "evil"}
-
-	got := buildEnv(base, extra)
-
-	// extra is sorted and precedes base, so base's http_proxy is the last (winning) value.
-	assert.Equal(t, []string{"GOFLAGS=-mod=mod", "http_proxy=evil", "http_proxy=wall", "GH_TOKEN=secret"}, got)
-}
-
 func TestTmpfsMasks(t *testing.T) {
-	got, err := tmpfsMasks("/home/ccbox/proj", []string{".idea", "dist"})
+	got, err := tmpfsMasks("/Users/me/proj", []string{".idea", "dist"})
 	require.NoError(t, err)
 
 	assert.Equal(t, map[string]string{

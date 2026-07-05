@@ -3,12 +3,10 @@ package docker
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 
@@ -16,20 +14,12 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
-	"github.com/s12chung/ccbox/pkg/dockerutil"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/perm"
 	"github.com/s12chung/ccbox/pkg/prompt"
 )
 
 const proxyPort = "8888"
-
-// containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
-const containerUID = "1000"
-
-// tmpfsOpts makes a workspace tmpfs writable+executable by that user, so masked build
-// outputs (e.g. dist/) can be written and run — Docker's default is root-owned noexec.
-var tmpfsOpts = fmt.Sprintf("uid=%s,gid=%s,exec", containerUID, containerUID)
 
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
@@ -64,123 +54,6 @@ func WorkspaceMount(hostCwd string) string {
 // Distinct from Claude Code's claude-config/projects slug, which CC derives from its container cwd.
 func ProjectSlug(hostCwd string) string {
 	return strings.ReplaceAll(hostCwd, "/", "-")
-}
-
-// cacheVolumes maps suffix of volume name → container directory for cacheVolumeBinds()
-var cacheVolumes = map[string]string{
-	"go":         "/home/ccbox/go",          // go mod tidy module cache + GOBIN
-	"cache":      "/home/ccbox/.cache",      // go-build + pip cache
-	"gem":        "/home/ccbox/.gem",        // bundler GEM_HOME
-	"npm":        "/home/ccbox/.npm",        // npm download cache
-	"npm-global": "/home/ccbox/.npm-global", // global npm packages
-	"local":      "/home/ccbox/.local",      // pip --user installs
-}
-
-// cacheVolumeName is hostCwd's named volume for a given cacheVolumes suffix.
-func cacheVolumeName(hostCwd, suffix string) string {
-	return "ccbox" + ProjectSlug(hostCwd) + "-" + suffix
-}
-
-// cacheVolumeBinds returns the volume binds from cacheVolumes, not mounted for efficiency of small files
-func cacheVolumeBinds(hostCwd string) []string {
-	binds := make([]string, 0, len(cacheVolumes))
-	for suffix, dir := range cacheVolumes {
-		binds = append(binds, cacheVolumeName(hostCwd, suffix)+":"+dir)
-	}
-	sort.Strings(binds)
-	return binds
-}
-
-// maskVolumeName is hostCwd's persistent volume for a workspace-relative masked dir
-func maskVolumeName(hostCwd, rel string) string {
-	return cacheVolumeName(hostCwd, strings.ReplaceAll(rel, "/", "-"))
-}
-
-// VolumeClean removes hostCwd's cache volumes and the mask volumes for maskDirs
-func (c *Client) VolumeClean(ctx context.Context, hostCwd string, maskDirs []string) error {
-	names := make([]string, 0, len(cacheVolumes)+len(maskDirs))
-	for suffix := range cacheVolumes {
-		names = append(names, cacheVolumeName(hostCwd, suffix))
-	}
-	for _, d := range maskDirs {
-		names = append(names, maskVolumeName(hostCwd, d))
-	}
-
-	var errs []error
-	for _, name := range names {
-		if err := c.cli.VolumeRemove(ctx, name, false); err != nil && !errdefs.IsNotFound(err) {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
-}
-
-// buildEnv renders base + extra as KEY=VALUE. extra goes first so base wins on a key
-// collision (Docker takes the last value), keeping the proxy/token vars unoverridable.
-func buildEnv(base []string, extra map[string]string) []string {
-	keys := make([]string, 0, len(extra))
-	for k := range extra {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys) // stable order for a deterministic spec
-
-	env := make([]string, 0, len(extra)+len(base))
-	for _, k := range keys {
-		env = append(env, k+"="+extra[k])
-	}
-	return append(env, base...)
-}
-
-// safeContainerPath joins a workspace-relative path under workspaceMount
-// rejecting unsafe paths ("..", absolute)
-func safeContainerPath(workspaceMount, hostPath string) (string, error) {
-	dest := filepath.Join(workspaceMount, hostPath)
-	if rel, err := filepath.Rel(workspaceMount, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("mask path escapes workspace: %q", hostPath)
-	}
-	return dest, nil
-}
-
-// tmpfsMasks maps each workspace-relative path to its tmpfs options.
-func tmpfsMasks(workspaceMount string, hostPaths []string) (map[string]string, error) {
-	tmpfs := map[string]string{}
-	for _, p := range hostPaths {
-		containerPath, err := safeContainerPath(workspaceMount, p)
-		if err != nil {
-			return nil, err
-		}
-		tmpfs[containerPath] = tmpfsOpts
-	}
-	return tmpfs, nil
-}
-
-// namedVolumeMasks returns a "volume:containerPath" bind per masked path, plus each volume's name.
-func namedVolumeMasks(hostCwd string, hostPaths []string) (binds, names []string, err error) {
-	workspaceMount := WorkspaceMount(hostCwd)
-	for _, p := range hostPaths {
-		containerPath, err := safeContainerPath(workspaceMount, p)
-		if err != nil {
-			return nil, nil, err
-		}
-		name := maskVolumeName(hostCwd, p)
-		binds = append(binds, name+":"+containerPath)
-		names = append(names, name)
-	}
-	return binds, names, nil
-}
-
-// ensureNamedVolumeMasks builds the mask binds and ensures each volume exists owned by the container user.
-func (c *Client) ensureNamedVolumeMasks(ctx context.Context, hostCwd, imageTag string, hostPaths []string) ([]string, error) {
-	binds, names, err := namedVolumeMasks(hostCwd, hostPaths)
-	if err != nil {
-		return nil, err
-	}
-	for _, name := range names {
-		if err := dockerutil.EnsureOwnedVolume(ctx, c.cli, imageTag, name, containerUID); err != nil {
-			return nil, err
-		}
-	}
-	return binds, nil
 }
 
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
@@ -227,14 +100,7 @@ func (c *Client) runWithProxy(ctx context.Context, hostOptions RunOptions) (int,
 func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, error) {
 	_ = c.cli.NetworkConnect(ctx, "bridge", egressName, nil) // silently ignore errors
 
-	baseEnv := []string{
-		"http_proxy=http://" + egressName + ":" + proxyPort,
-		"https_proxy=http://" + egressName + ":" + proxyPort,
-		"CLAUDE_CODE_OAUTH_TOKEN=" + hostOptions.OAuthToken,
-		"GH_TOKEN=" + hostOptions.GHToken,
-	}
-	workspaceMount := WorkspaceMount(hostOptions.Cwd)
-	tmpfs, err := tmpfsMasks(workspaceMount, hostOptions.Tmpfs)
+	tmpfs, err := tmpfsMasks(hostOptions.Cwd, hostOptions.Tmpfs)
 	if err != nil {
 		return 0, err
 	}
@@ -246,13 +112,13 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 		&container.Config{
 			Image:        hostOptions.Tag,
 			Cmd:          hostOptions.Cmd,
-			WorkingDir:   workspaceMount,
+			WorkingDir:   WorkspaceMount(hostOptions.Cwd),
 			Tty:          true,
 			OpenStdin:    true,
 			AttachStdin:  true,
 			AttachStdout: true,
 			AttachStderr: true,
-			Env:          buildEnv(baseEnv, hostOptions.Env),
+			Env:          envString(hostOptions),
 		},
 		&container.HostConfig{
 			NetworkMode: networkName,
@@ -261,7 +127,7 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 			Binds: append(append([]string{
 				hostOptions.ConfigDir + ":" + configMount,
 				hostOptions.CcboxDir + ":" + ccboxMount,
-				hostOptions.Cwd + ":" + workspaceMount,
+				hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
 			}, cacheVolumeBinds(hostOptions.Cwd)...), volumeMaskBinds...),
 			Tmpfs: tmpfs,
 		},
