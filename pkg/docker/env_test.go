@@ -19,6 +19,8 @@ func TestEnvStringBaseWins(t *testing.T) {
 		"http_proxy=evil",
 		"http_proxy=http://ccbox-egress:8888",
 		"https_proxy=http://ccbox-egress:8888",
+		"no_proxy=localhost,127.0.0.1,::1",
+		"NO_PROXY=localhost,127.0.0.1,::1",
 		"CLAUDE_CODE_OAUTH_TOKEN=oauth",
 		"GH_TOKEN=gh",
 	}, got)
