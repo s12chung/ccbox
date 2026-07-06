@@ -3,11 +3,13 @@ package projectcfg
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/deepcopy"
 	"github.com/s12chung/ccbox/pkg/perm"
 )
 
@@ -125,10 +127,75 @@ func TestLoadEmptyFileGetsDefaults(t *testing.T) {
 	assert.Equal(t, tmpfsDefaults, c.Tmpfs)
 }
 
+func TestLoadMergesLocalOverride(t *testing.T) {
+	dir := t.TempDir()
+	mkDefaultDirs(t, dir)
+	base := "tmpfs:\n  - dist\nenv:\n  FOO: base\n  BAR: base\nallowlist:\n  - ccbox-defaults\n"
+	local := "tmpfs:\n  - build\nenv:\n  FOO: local\nallowlist:\n  - example.com\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(base), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte(local), perm.File))
+
+	c, err := Load(dir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)                   // lists append, base first
+	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env)                  // env overlays, local wins
+	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // merged, then token expanded
+}
+
+func TestLoadLocalOnly(t *testing.T) {
+	dir := t.TempDir() // no base .ccbox.yaml
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName),
+		[]byte("allowlist:\n  - example.com\n"), perm.File))
+
+	c, err := Load(dir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"example.com"}, c.Allowlist) // no base, no token → just the override
+}
+
+func TestLoadInvalidLocalErrors(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("tmpfs: ["), perm.File))
+
+	_, err := Load(dir)
+	assert.Error(t, err)
+}
+
 func TestLoadInvalidErrors(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("tmpfs: ["), perm.File))
 
 	_, err := Load(dir)
 	assert.Error(t, err)
+}
+
+func TestMergeIsPure(t *testing.T) {
+	src := Config{
+		Tmpfs:     []string{"dist"},
+		Volumes:   []string{"target"},
+		Env:       map[string]string{"FOO": "base", "BAR": "base"},
+		Allowlist: []string{"ccbox-defaults"},
+	}
+	other := Config{
+		Tmpfs:     []string{"build"},
+		Volumes:   []string{"cache"},
+		Env:       map[string]string{"FOO": "local", "BAZ": "local"},
+		Allowlist: []string{"example.com"},
+	}
+	before := deepcopy.Of(src)
+
+	got := src.merge(other)
+
+	// merge must not mutate its receiver — every src field still equals its pre-merge snapshot
+	srvVal, beforeVal, gotVal := reflect.ValueOf(src), reflect.ValueOf(before), reflect.ValueOf(got)
+	for i := 0; i < srvVal.NumField(); i++ {
+		field := srvVal.Type().Field(i).Name
+		assert.Equal(t, beforeVal.Field(i).Interface(), srvVal.Field(i).Interface(), "merge mutated src.%s", field)
+		assert.NotEqual(t, beforeVal.Field(i).Interface(), gotVal.Field(i).Interface(), "before = got on field %s, maybe missed a new field?", field)
+	}
+
+	// and the returned Config is the actual layering
+	assert.Equal(t, []string{"dist", "build"}, got.Tmpfs)
+	assert.Equal(t, []string{"target", "cache"}, got.Volumes)
+	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
+	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
 }

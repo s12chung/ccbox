@@ -11,10 +11,14 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/pkg/mergeempty"
 	"github.com/s12chung/ccbox/pkg/perm"
 )
 
 const fileName = ".ccbox.yaml"
+
+// localFileName is for git-ignored override merged onto fileName: lists append, env overlays.
+const localFileName = ".ccbox.local.yaml"
 
 // DefaultsToken listed in allowlist, expands in place to allowDefaults
 const DefaultsToken = "ccbox-defaults"
@@ -140,22 +144,44 @@ func expandAllowlist(domains []string) []string {
 	return out
 }
 
-// Load reads workspaceDir/.ccbox.yaml and applies Defaulted. A missing file is not an
-// error — it yields the defaulted zero Config, so repos without one keep working.
-func Load(workspaceDir string) (Config, error) {
-	body, err := os.ReadFile(filepath.Join(workspaceDir, fileName))
+// merge layers other onto c and returns a fresh Config
+func (c Config) merge(other Config) Config {
+	c.Tmpfs = mergeempty.Slice(c.Tmpfs, other.Tmpfs)
+	c.Volumes = mergeempty.Slice(c.Volumes, other.Volumes)
+	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
+	c.Env = mergeempty.Map(c.Env, other.Env)
+	return c
+}
+
+// read parses the .ccbox.yaml at path. A missing file yields the zero Config
+func read(path string) (Config, error) {
+	body, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return Defaulted(workspaceDir, Config{}), nil
+		return Config{}, nil
 	}
 	if err != nil {
 		return Config{}, err
 	}
-
 	var c Config
 	if err := yaml.Unmarshal(body, &c); err != nil {
 		return Config{}, err
 	}
-	return Defaulted(workspaceDir, c), nil
+	return c, nil
+}
+
+// Load reads workspaceDir/.ccbox.yaml, layers .ccbox.local.yaml onto it, and
+// applies Defaulted. Both files are optional — absent ones contribute the zero Config, so repos
+// without either keep working.
+func Load(workspaceDir string) (Config, error) {
+	base, err := read(filepath.Join(workspaceDir, fileName))
+	if err != nil {
+		return Config{}, err
+	}
+	local, err := read(filepath.Join(workspaceDir, localFileName))
+	if err != nil {
+		return Config{}, err
+	}
+	return Defaulted(workspaceDir, base.merge(local)), nil
 }
 
 // defaultYAML is the starter .ccbox.yaml

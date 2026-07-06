@@ -10,7 +10,8 @@ volumes: []
 # env: extra environment variables set in the container (cannot override the proxy/token vars).
 env: {}
 
-# allowlist: domains the egress wall lets through.
+# allowlist: domains the egress wall lets through. Each entry also matches all its subdomains,
+# so "cloudfront.net" covers "d123.cloudfront.net" too (no wildcard syntax; list the parent domain).
 # "ccbox-defaults" expands to built-in defaults (package registries, GitHub, Anthropic APIs, man mirrors)
 allowlist:
   - ccbox-defaults

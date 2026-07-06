@@ -26,8 +26,8 @@ if printf '%s' "$cmd" | grep -Eq '\.env([^A-Za-z0-9_]|$)|\.env\.|\.envrc|(^|/)se
   ask "Command references a secret path — confirm this read/use is intended."
 fi
 
-# .ccbox.yaml is the egress-wall allowlist; Write/Edit deny can't see Bash writes to it.
-if printf '%s' "$cmd" | grep -Eq '\.ccbox\.yaml'; then
+# .ccbox.yaml (+ .ccbox.local.yaml override) is the egress-wall allowlist; Write/Edit deny can't see Bash writes to it.
+if printf '%s' "$cmd" | grep -Eq '\.ccbox(\.local)?\.yaml'; then
   ask ".ccbox.yaml controls the egress wall — confirm this change is intended."
 fi
 

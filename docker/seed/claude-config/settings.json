@@ -13,7 +13,9 @@
       "Read(**/*.key)",
 
       "Write(.ccbox.yaml)",
-      "Edit(.ccbox.yaml)"
+      "Edit(.ccbox.yaml)",
+      "Write(.ccbox.local.yaml)",
+      "Edit(.ccbox.local.yaml)"
     ]
   },
   "hooks": {

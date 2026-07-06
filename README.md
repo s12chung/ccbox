@@ -16,7 +16,7 @@ As a safety net for accidents, Claude is also seeded to refuse reading common se
 
 ## Per-project config (`.ccbox.yaml`)
 
-`ccbox` has an internal default. `ccbox config` prints the effective config with defaults applied. `ccbox config init` creates a documented default.
+`ccbox` has an internal default. `ccbox config` prints the effective config with defaults applied. `ccbox config init` creates a documented default. For git-ignoring, `.ccbox.local.yaml` (same format) is merged for machine-local overrides — top level arrays are appended.
 
 ## Docs
 
