@@ -81,10 +81,11 @@ var allowDefaults = []string{
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	Tmpfs     []string          `yaml:"tmpfs"`     // workspace-relative dirs to mask with a writable tmpfs
-	Volumes   []string          `yaml:"volumes"`   // workspace-relative dirs to mask with a persistent per-project volume
-	Env       map[string]string `yaml:"env"`       // extra env vars set in the container
-	Allowlist []string          `yaml:"allowlist"` // egress wall domains; "ccbox-defaults" expands to the built-ins
+	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git; nil = default on, resolved by Defaulted
+	Tmpfs         []string          `yaml:"tmpfs"`           // workspace-relative dirs to mask with a writable tmpfs
+	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume
+	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
+	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains; "ccbox-defaults" expands to the built-ins
 }
 
 // Defaulted resolves c against its workspace. Applied once by Load.
@@ -92,6 +93,10 @@ func Defaulted(workspaceDir string, c Config) Config {
 	c.Tmpfs = append(presentDirs(workspaceDir, tmpfsDefaults), c.Tmpfs...)
 	c.Volumes = append(presentDirs(workspaceDir, volumeDefaults), c.Volumes...)
 	c.Allowlist = expandAllowlist(c.Allowlist)
+	if c.HostGitConfig == nil { // resolve the default-on so the effective config prints it
+		on := true
+		c.HostGitConfig = &on
+	}
 	return c
 }
 
@@ -150,6 +155,9 @@ func (c Config) merge(other Config) Config {
 	c.Volumes = mergeempty.Slice(c.Volumes, other.Volumes)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
 	c.Env = mergeempty.Map(c.Env, other.Env)
+	if other.HostGitConfig != nil { // scalar override: a set local value wins
+		c.HostGitConfig = other.HostGitConfig
+	}
 	return c
 }
 

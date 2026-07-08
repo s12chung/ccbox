@@ -23,16 +23,17 @@ const proxyPort = "8888"
 
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
-	Tag        string
-	ConfigDir  string // host dir bind-mounted at configMount
-	CcboxDir   string // host dir bind-mounted at ccboxMount
-	Cwd        string // host dir bind-mounted at workspaceMount
-	OAuthToken string
-	GHToken    string
-	Env        map[string]string // extra container env
-	Tmpfs      []string          // workspace-relative dirs to mask with an ephemeral tmpfs
-	Volumes    []string          // workspace-relative dirs to mask with a persistent per-project volume
-	Cmd        []string          // command the entrypoint execs; nil uses the image default (shell)
+	Tag          string
+	ConfigDir    string // host dir bind-mounted at configMount
+	CcboxDir     string // host dir bind-mounted at ccboxMount
+	Cwd          string // host dir bind-mounted at workspaceMount
+	GitConfigDir string // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
+	OAuthToken   string
+	GHToken      string
+	Env          map[string]string // extra container env
+	Tmpfs        []string          // workspace-relative dirs to mask with an ephemeral tmpfs
+	Volumes      []string          // workspace-relative dirs to mask with a persistent per-project volume
+	Cmd          []string          // command the entrypoint execs; nil uses the image default (shell)
 
 	AutoProxy    bool         // start (and tear down) the egress wall for this run; see proxyStart
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
@@ -43,6 +44,8 @@ const (
 	configMount   = "/home/ccbox/.ccbox/claude-config" // configMount is threaded into the build (CLAUDE_CONFIG_DIR arg)
 	ccboxMount    = "/home/ccbox/.ccbox/project"       // per-project devbox state (e.g. lessons)
 	containerHome = "/home/ccbox"                      // the workspace mounts under containerHome at a per-project leaf
+
+	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
 )
 
 // WorkspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
@@ -107,6 +110,10 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 	if err != nil {
 		return 0, err
 	}
+	var gitBinds []string
+	if hostOptions.GitConfigDir != "" {
+		gitBinds = []string{hostOptions.GitConfigDir + ":" + gitConfigMount + ":ro"}
+	}
 	resp, err := c.cli.ContainerCreate(ctx,
 		&container.Config{
 			Image:        hostOptions.Tag,
@@ -123,11 +130,11 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 			NetworkMode: networkName,
 			CapDrop:     []string{"ALL"},
 			SecurityOpt: []string{"no-new-privileges"},
-			Binds: append(append([]string{
+			Binds: append(append(append([]string{
 				hostOptions.ConfigDir + ":" + configMount,
 				hostOptions.CcboxDir + ":" + ccboxMount,
 				hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
-			}, cacheBinds...), volumeMaskBinds...),
+			}, cacheBinds...), volumeMaskBinds...), gitBinds...),
 			Tmpfs: tmpfs,
 		},
 		nil, nil, "")

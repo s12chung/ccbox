@@ -11,6 +11,17 @@ fail() { echo "security-entrypoint: FAIL — $1" >&2; exit 1; }
 [ "$(id -un)" = ccbox ] || fail "user is not ccbox (got $(id -un))"
 if command -v sudo >/dev/null 2>&1; then fail "sudo is present"; fi
 
+# Git config: the host's global git dir binds here read-only
+GIT_CONFIG_MOUNT=/home/ccbox/.config/git
+if [ -d "$GIT_CONFIG_MOUNT" ]; then
+  # mountinfo field 6 is the per-mount options; last match wins as the effective mount.
+  opts=$(awk -v d="$GIT_CONFIG_MOUNT" '$5 == d { o = $6 } END { print o }' /proc/self/mountinfo)
+  case ",$opts," in
+    *,ro,*) ;;
+    *) fail "$GIT_CONFIG_MOUNT is not a read-only mount (opts: ${opts:-none})" ;;
+  esac
+fi
+
 # api.github.com returns 200 unauthenticated and matches the proxy allowlist,
 # so it makes a clean positive probe. Overridable for other allowlists.
 ALLOWED_URL="${WALL_ALLOWED_URL:-https://api.github.com}"

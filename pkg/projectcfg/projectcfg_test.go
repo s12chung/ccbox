@@ -13,6 +13,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/perm"
 )
 
+func ptr[T any](v T) *T { return &v }
+
 // mkDefaultDirs creates the tmpfsDefaults under dir so they get prepended.
 func mkDefaultDirs(t *testing.T, dir string) {
 	t.Helper()
@@ -35,13 +37,27 @@ func TestLoadParses(t *testing.T) {
 	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // token expanded
 }
 
-func TestLoadMissingGetsDefaults(t *testing.T) {
-	dir := t.TempDir()
-	mkDefaultDirs(t, dir)
-	c, err := Load(dir)
-	require.NoError(t, err)
-	assert.Equal(t, tmpfsDefaults, c.Tmpfs)     // present always-on masks
-	assert.Equal(t, allowDefaults, c.Allowlist) // empty allowlist → the built-ins
+func TestLoadUnsetGetsDefaults(t *testing.T) {
+	// a missing file and an empty file are both "unset" (not []) → the built-in defaults
+	for _, tt := range []struct {
+		name  string
+		write bool
+	}{
+		{"missing file", false},
+		{"empty file", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mkDefaultDirs(t, dir)
+			if tt.write {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), perm.File))
+			}
+			c, err := Load(dir)
+			require.NoError(t, err)
+			assert.Equal(t, tmpfsDefaults, c.Tmpfs)     // present always-on masks
+			assert.Equal(t, allowDefaults, c.Allowlist) // unset allowlist → the built-ins
+		})
+	}
 }
 
 func TestDefaultedResolves(t *testing.T) {
@@ -50,6 +66,7 @@ func TestDefaultedResolves(t *testing.T) {
 	c := Defaulted(dir, Config{Tmpfs: []string{"dist"}, Allowlist: []string{"example.com"}})
 	assert.Equal(t, []string{".idea", ".vscode", "dist"}, c.Tmpfs)
 	assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
+	assert.Equal(t, ptr(true), c.HostGitConfig)           // unset → default on
 }
 
 func TestDefaultedSkipsAbsentTmpfsDefaults(t *testing.T) {
@@ -116,22 +133,11 @@ func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
 	assert.Empty(t, c.Allowlist) // an explicit [] is not the built-ins
 }
 
-func TestLoadEmptyFileGetsDefaults(t *testing.T) {
-	dir := t.TempDir()
-	mkDefaultDirs(t, dir)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), perm.File))
-
-	c, err := Load(dir)
-	require.NoError(t, err)
-	assert.Equal(t, allowDefaults, c.Allowlist) // an empty file is unset, not []
-	assert.Equal(t, tmpfsDefaults, c.Tmpfs)
-}
-
 func TestLoadMergesLocalOverride(t *testing.T) {
 	dir := t.TempDir()
 	mkDefaultDirs(t, dir)
-	base := "tmpfs:\n  - dist\nenv:\n  FOO: base\n  BAR: base\nallowlist:\n  - ccbox-defaults\n"
-	local := "tmpfs:\n  - build\nenv:\n  FOO: local\nallowlist:\n  - example.com\n"
+	base := "tmpfs:\n  - dist\nenv:\n  FOO: base\n  BAR: base\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n"
+	local := "tmpfs:\n  - build\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(base), perm.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte(local), perm.File))
 
@@ -140,6 +146,7 @@ func TestLoadMergesLocalOverride(t *testing.T) {
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)                   // lists append, base first
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env)                  // env overlays, local wins
 	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // merged, then token expanded
+	assert.Equal(t, ptr(false), c.HostGitConfig)                                              // scalar override, local wins
 }
 
 func TestLoadLocalOnly(t *testing.T) {
@@ -152,34 +159,32 @@ func TestLoadLocalOnly(t *testing.T) {
 	assert.Equal(t, []string{"example.com"}, c.Allowlist) // no base, no token → just the override
 }
 
-func TestLoadInvalidLocalErrors(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("tmpfs: ["), perm.File))
-
-	_, err := Load(dir)
-	assert.Error(t, err)
-}
-
 func TestLoadInvalidErrors(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("tmpfs: ["), perm.File))
+	for _, name := range []string{fileName, localFileName} { // malformed yaml in either file errors
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("tmpfs: ["), perm.File))
 
-	_, err := Load(dir)
-	assert.Error(t, err)
+			_, err := Load(dir)
+			assert.Error(t, err)
+		})
+	}
 }
 
 func TestMergeIsPure(t *testing.T) {
 	src := Config{
-		Tmpfs:     []string{"dist"},
-		Volumes:   []string{"target"},
-		Env:       map[string]string{"FOO": "base", "BAR": "base"},
-		Allowlist: []string{"ccbox-defaults"},
+		Tmpfs:         []string{"dist"},
+		Volumes:       []string{"target"},
+		Env:           map[string]string{"FOO": "base", "BAR": "base"},
+		Allowlist:     []string{"ccbox-defaults"},
+		HostGitConfig: ptr(true),
 	}
 	other := Config{
-		Tmpfs:     []string{"build"},
-		Volumes:   []string{"cache"},
-		Env:       map[string]string{"FOO": "local", "BAZ": "local"},
-		Allowlist: []string{"example.com"},
+		Tmpfs:         []string{"build"},
+		Volumes:       []string{"cache"},
+		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
+		Allowlist:     []string{"example.com"},
+		HostGitConfig: ptr(false),
 	}
 	before := deepcopy.Of(src)
 
@@ -198,4 +203,5 @@ func TestMergeIsPure(t *testing.T) {
 	assert.Equal(t, []string{"target", "cache"}, got.Volumes)
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
+	assert.Equal(t, ptr(false), got.HostGitConfig) // scalar: other (local) wins when set
 }

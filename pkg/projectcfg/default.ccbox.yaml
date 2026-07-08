@@ -1,3 +1,7 @@
+# host_git_config: read-only mount the host's ~/.config/git into the container so in-container git
+# honors your global ignore/config/attributes. Defaults on; set false to disable.
+host_git_config: true
+
 # tmpfs: workspace-relative dirs masked with a tmpfs, so in-container writes never reach the host
 # Useful for protecting directories from the container
 # Defaults appended when present in the workspace: .idea, .vscode

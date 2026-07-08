@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/git"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/seed"
@@ -65,6 +66,10 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	gitConfigDir, err := hostGitConfigDir()
+	if err != nil {
+		return err
+	}
 
 	// A default mask dir absent now isn't masked this run, but gets masked once it exists.
 	// Snapshot the absent ones, then warn after the run for any the container created.
@@ -81,17 +86,18 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	code, err := c.Run(cmd.Context(), docker.RunOptions{
-		Tag:        flagTag,
-		ConfigDir:  m.config,
-		CcboxDir:   m.ccbox,
-		Cwd:        m.cwd,
-		OAuthToken: os.Getenv("CLAUDE_CODE_OAUTH_TOKEN"),
-		GHToken:    os.Getenv("GH_TOKEN"),
-		Env:        projectCfg.Env,
-		Tmpfs:      projectCfg.Tmpfs,
-		Volumes:    projectCfg.Volumes,
-		Cmd:        containerCmd(args),
-		AutoProxy:  !flagNoAutoProxy,
+		Tag:          flagTag,
+		ConfigDir:    m.config,
+		CcboxDir:     m.ccbox,
+		Cwd:          m.cwd,
+		OAuthToken:   os.Getenv("CLAUDE_CODE_OAUTH_TOKEN"),
+		GHToken:      os.Getenv("GH_TOKEN"),
+		GitConfigDir: gitConfigDir,
+		Env:          projectCfg.Env,
+		Tmpfs:        projectCfg.Tmpfs,
+		Volumes:      projectCfg.Volumes,
+		Cmd:          containerCmd(args),
+		AutoProxy:    !flagNoAutoProxy,
 		Proxy: docker.ProxyOptions{
 			Config:    proxyFS,
 			Overrides: docker.AllowOverride(projectCfg.Allowlist),
@@ -166,6 +172,16 @@ func resolveHostMounts(cacheDir string) (hostMounts, error) {
 		return hostMounts{}, err
 	}
 	return hostMounts{cwd: cwd, config: config, ccbox: ccbox}, nil
+}
+
+// hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when
+// host_git_config is disabled in .ccbox.yaml or the dir is absent. HostGitConfig is non-nil:
+// projectcfg.Load always applies Defaulted, which resolves the default-on.
+func hostGitConfigDir() (string, error) {
+	if !*projectCfg.HostGitConfig {
+		return "", nil
+	}
+	return git.XDGConfigDir()
 }
 
 // safeSeedProjectDir seeds projectDir() if missing
