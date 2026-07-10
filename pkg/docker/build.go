@@ -19,12 +19,14 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 
 	"github.com/s12chung/ccbox/pkg/embedfs"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 // BuildOptions configures an image build.
 type BuildOptions struct {
-	Tag               string
-	ClaudeCodeVersion string // CLAUDE_CODE_VERSION build arg
+	Tag        string
+	CLI        projectcfg.CLI // CLI build arg: which coding CLI to install ("claude" default, or "codex")
+	CLIVersion string         // CLI_VERSION build arg: version of the selected CLI's npm package
 }
 
 // Build builds the devbox image from the embedded build context (src) on BuildKit,
@@ -79,15 +81,18 @@ func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
 	return buildErr
 }
 
-// buildArgs maps BuildOptions to Dockerfile ARGs. configMount is always threaded
+// buildArgs maps BuildOptions to Dockerfile ARGs. The CLI's config mount is always threaded
 // so the image bakes the same config path run binds to; version is optional. The
 // workspace WORKDIR is set per-project at run time, not baked here.
 func buildArgs(o BuildOptions) map[string]string {
 	args := map[string]string{
-		"CLAUDE_CONFIG_DIR": configMount,
+		"CONFIG_DIR": configMount(o.CLI),
 	}
-	if o.ClaudeCodeVersion != "" {
-		args["CLAUDE_CODE_VERSION"] = o.ClaudeCodeVersion
+	if o.CLI != "" {
+		args["CLI"] = string(o.CLI)
+	}
+	if o.CLIVersion != "" {
+		args["CLI_VERSION"] = o.CLIVersion
 	}
 	return args
 }

@@ -40,19 +40,39 @@ func resumeArgs(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-// containerCmd is the command the entrypoint execs: Claude by default, `claude -c` to
-// continue the last session, `claude --resume [name]` to pick/name one, or the image
-// default (shell) with --shell. args holds the optional resume session name.
-func containerCmd(args []string) []string {
-	switch {
-	case flagShell:
+// containerCmd is the command the entrypoint execs: the configured CLI by default
+// or the image default (shell) with --shell.
+func containerCmd(cli projectcfg.CLI, args []string) []string {
+	if flagShell {
 		return nil
+	}
+	if cli == projectcfg.CLICodex {
+		return codexCmd(args)
+	}
+	return claudeCmd(args)
+}
+
+// claudeCmd maps the run flags to Claude's session syntax.
+func claudeCmd(args []string) []string {
+	switch {
 	case flagContinue:
 		return []string{"claude", "-c"}
 	case flagResume:
 		return append([]string{"claude", "--resume"}, args...)
 	default:
 		return []string{"claude"}
+	}
+}
+
+// codexCmd maps the run flags to Codex's session syntax.
+func codexCmd(args []string) []string {
+	switch {
+	case flagContinue:
+		return []string{"codex", "resume", "--last"}
+	case flagResume:
+		return append([]string{"codex", "resume"}, args...)
+	default:
+		return []string{"codex"}
 	}
 }
 
@@ -87,16 +107,16 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	}
 	code, err := c.Run(cmd.Context(), docker.RunOptions{
 		Tag:          flagTag,
+		CLI:          projectCfg.CLI,
 		ConfigDir:    m.config,
 		CcboxDir:     m.ccbox,
 		Cwd:          m.cwd,
-		OAuthToken:   os.Getenv("CLAUDE_CODE_OAUTH_TOKEN"),
 		GHToken:      os.Getenv("GH_TOKEN"),
 		GitConfigDir: gitConfigDir,
 		Env:          projectCfg.Env,
 		Tmpfs:        projectCfg.Tmpfs,
 		Volumes:      projectCfg.Volumes,
-		Cmd:          containerCmd(args),
+		Cmd:          containerCmd(projectCfg.CLI, args),
 		AutoProxy:    !flagNoAutoProxy,
 		Proxy: docker.ProxyOptions{
 			Config:    proxyFS,

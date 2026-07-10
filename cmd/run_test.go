@@ -5,12 +5,14 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/perm"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 const testWorkspace = "/work/myproj"
@@ -22,25 +24,40 @@ func stubSeedProjectFn(fn func(fs.FS, string) ([]string, error)) func() {
 	return func() { seedProjectFn = orig }
 }
 
+const (
+	claude = projectcfg.CLIClaude
+	codex  = projectcfg.CLICodex
+)
+
 func TestContainerCmd(t *testing.T) {
 	defer func() { flagContinue, flagResume, flagShell = false, false, false }()
 
 	tests := []struct {
-		name                string
+		cli                 projectcfg.CLI
 		cont, resume, shell bool
 		args                []string
 		want                []string
 	}{
-		{name: "default launches claude", want: []string{"claude"}},
-		{name: "continue resumes the last session", cont: true, want: []string{"claude", "-c"}},
-		{name: "bare resume opens the session picker", resume: true, want: []string{"claude", "--resume"}},
-		{name: "named resume targets that session", resume: true, args: []string{"auth-refactor"}, want: []string{"claude", "--resume", "auth-refactor"}},
-		{name: "shell falls back to the image default", shell: true, want: nil},
+		{cli: claude, want: []string{"claude"}},
+		{cli: claude, cont: true, want: []string{"claude", "-c"}},
+		{cli: claude, resume: true, want: []string{"claude", "--resume"}},
+		{cli: claude, resume: true, args: []string{"auth-refactor"}, want: []string{"claude", "--resume", "auth-refactor"}},
+
+		{cli: codex, want: []string{"codex"}},
+		{cli: codex, cont: true, want: []string{"codex", "resume", "--last"}},
+		{cli: codex, resume: true, want: []string{"codex", "resume"}},
+		{cli: codex, resume: true, args: []string{"abc123"}, want: []string{"codex", "resume", "abc123"}},
+
+		{cli: claude, shell: true, want: nil}, // --shell wins over cli, dropping to the image default
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		name := strings.Join(tt.want, " ")
+		if tt.shell {
+			name = "shell"
+		}
+		t.Run(name, func(t *testing.T) {
 			flagContinue, flagResume, flagShell = tt.cont, tt.resume, tt.shell
-			assert.Equal(t, tt.want, containerCmd(tt.args))
+			assert.Equal(t, tt.want, containerCmd(tt.cli, tt.args))
 		})
 	}
 }

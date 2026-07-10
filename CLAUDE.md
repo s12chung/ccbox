@@ -26,7 +26,7 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
     - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
   - `tinyproxy/` — the egress wall configs
   - `seed/` — config, used only by `pkg/seed/`: it seeds these onto the host config dir and mounted to the container
-    - `claude-config/` — the Claude config, `~/.ccbox/claude-config` → `~/ccbox/.ccbox/claude-config`
+    - `claude-config/` — the Claude config, `~/.ccbox/claude-config` → `~/ccbox/.claude`
     - `project-slug/` — ccbox project data, `~/.ccbox/projects/-project-slug` (see below) → `~/ccbox/.ccbox/project`
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:
@@ -35,7 +35,7 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
   - `make test` — runs all linting and tests that are possible without a Docker daemon
 
 ### Project Slug
-`docker.ProjectSlug` keys ccbox's per-project state: it slugifies the **host** cwd (e.g. `/Users/me/app` → `-Users-me-app`). Distinct from Claude Code's `claude-config/projects` slug, which CC derives from its **container** cwd.
+`docker.ProjectSlug` keys ccbox's per-project state: it slugifies the **host** cwd (e.g. `/Users/me/app` → `-Users-me-app`). Distinct from Claude Code's `.claude/projects` slug, which CC derives from its **container** cwd.
 
 ### Go tests
 

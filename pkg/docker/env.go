@@ -12,7 +12,6 @@ func envString(o RunOptions) []string {
 		// and browsers hit the wall and get refused.
 		"no_proxy=localhost,127.0.0.1,::1",
 		"NO_PROXY=localhost,127.0.0.1,::1",
-		"CLAUDE_CODE_OAUTH_TOKEN=" + o.OAuthToken,
 		"GH_TOKEN=" + o.GHToken,
 	}
 

@@ -23,6 +23,14 @@ const localFileName = ".ccbox.local.yaml"
 // DefaultsToken listed in allowlist, expands in place to allowDefaults
 const DefaultsToken = "ccbox-defaults"
 
+// CLI is the coding CLI the image installs and the container launches.
+type CLI string
+
+const (
+	CLIClaude CLI = "claude"
+	CLICodex  CLI = "codex"
+)
+
 // tmpfsDefaults always-masked dirs, prepended only when present in the workspace (to prevent host creation)
 var tmpfsDefaults = []string{".idea", ".vscode"}
 
@@ -77,10 +85,16 @@ var allowDefaults = []string{
 	"mcp-proxy.anthropic.com",
 	"statsig.anthropic.com",
 	"sentry.io",
+
+	// OpenAI / Codex
+	"api.openai.com",
+	"auth.openai.com",
+	"chatgpt.com",
 }
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
+	CLI           CLI               `yaml:"cli"`             // coding CLI to install + launch: "claude" (default) or "codex"
 	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git; nil = default on, resolved by Defaulted
 	Tmpfs         []string          `yaml:"tmpfs"`           // workspace-relative dirs to mask with a writable tmpfs
 	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume
@@ -93,11 +107,22 @@ func Defaulted(workspaceDir string, c Config) Config {
 	c.Tmpfs = append(presentDirs(workspaceDir, tmpfsDefaults), c.Tmpfs...)
 	c.Volumes = append(presentDirs(workspaceDir, volumeDefaults), c.Volumes...)
 	c.Allowlist = expandAllowlist(c.Allowlist)
+	if c.CLI == "" {
+		c.CLI = CLIClaude
+	}
 	if c.HostGitConfig == nil { // resolve the default-on so the effective config prints it
 		on := true
 		c.HostGitConfig = &on
 	}
 	return c
+}
+
+// validate rejects an unknown cli, the one field whose value must be a known enum.
+func (c Config) validate() error {
+	if c.CLI != CLIClaude && c.CLI != CLICodex {
+		return fmt.Errorf("cli: unknown value %q (want %q or %q)", c.CLI, CLIClaude, CLICodex)
+	}
+	return nil
 }
 
 // MaskDefaults are the built-in dirs masked when present in the workspace: tmpfs then volume.
@@ -155,6 +180,9 @@ func (c Config) merge(other Config) Config {
 	c.Volumes = mergeempty.Slice(c.Volumes, other.Volumes)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
 	c.Env = mergeempty.Map(c.Env, other.Env)
+	if other.CLI != "" { // scalar override: a set local value wins
+		c.CLI = other.CLI
+	}
 	if other.HostGitConfig != nil { // scalar override: a set local value wins
 		c.HostGitConfig = other.HostGitConfig
 	}
@@ -189,7 +217,11 @@ func Load(workspaceDir string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return Defaulted(workspaceDir, base.merge(local)), nil
+	c := Defaulted(workspaceDir, base.merge(local))
+	if err := c.validate(); err != nil {
+		return Config{}, err
+	}
+	return c, nil
 }
 
 // defaultYAML is the starter .ccbox.yaml

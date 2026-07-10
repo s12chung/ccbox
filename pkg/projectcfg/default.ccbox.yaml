@@ -1,3 +1,7 @@
+# cli: which coding CLI the image installs and launches: "claude" (Claude Code) or "codex" (OpenAI Codex).
+# Changing this rebuilds the image. Defaults to claude.
+cli: claude
+
 # host_git_config: read-only mount the host's ~/.config/git into the container so in-container git
 # honors your global ignore/config/attributes. Defaults on; set false to disable.
 host_git_config: true

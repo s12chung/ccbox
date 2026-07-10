@@ -16,6 +16,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/perm"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/prompt"
 )
 
@@ -24,12 +25,12 @@ const proxyPort = "8888"
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
 	Tag          string
-	ConfigDir    string // host dir bind-mounted at configMount
-	CcboxDir     string // host dir bind-mounted at ccboxMount
-	Cwd          string // host dir bind-mounted at workspaceMount
-	GitConfigDir string // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
-	OAuthToken   string
-	GHToken      string
+	CLI          projectcfg.CLI    // selects the config mount target (each CLI's native default dir)
+	ConfigDir    string            // host dir bind-mounted at the CLI's configMount
+	CcboxDir     string            // host dir bind-mounted at ccboxMount
+	Cwd          string            // host dir bind-mounted at workspaceMount
+	GitConfigDir string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
+	GHToken      string            // GH_TOKEN passed through for gh
 	Env          map[string]string // extra container env
 	Tmpfs        []string          // workspace-relative dirs to mask with an ephemeral tmpfs
 	Volumes      []string          // workspace-relative dirs to mask with a persistent per-project volume
@@ -41,12 +42,24 @@ type RunOptions struct {
 }
 
 const (
-	configMount   = "/home/ccbox/.ccbox/claude-config" // configMount is threaded into the build (CLAUDE_CONFIG_DIR arg)
-	ccboxMount    = "/home/ccbox/.ccbox/project"       // per-project devbox state (e.g. lessons)
-	containerHome = "/home/ccbox"                      // the workspace mounts under containerHome at a per-project leaf
+	containerHome = "/home/ccbox"                // the workspace mounts under containerHome at a per-project leaf
+	ccboxMount    = "/home/ccbox/.ccbox/project" // per-project devbox state (e.g. lessons)
+
+	// Per-CLI config mounts: each CLI's native default dir, so the mounted config is found with
+	// no CLAUDE_CONFIG_DIR/CODEX_HOME override. Threaded into the build too (CONFIG_DIR arg).
+	claudeConfigMount = containerHome + "/.claude"
+	codexConfigMount  = containerHome + "/.codex"
 
 	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
 )
+
+// configMount is the in-container path the persisted config dir binds to for cli.
+func configMount(cli projectcfg.CLI) string {
+	if cli == projectcfg.CLICodex {
+		return codexConfigMount
+	}
+	return claudeConfigMount
+}
 
 // WorkspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
 func WorkspaceMount(hostCwd string) string {
@@ -54,7 +67,7 @@ func WorkspaceMount(hostCwd string) string {
 }
 
 // ProjectSlug is ccbox's per-project key: the host cwd slugified (e.g. /Users/me/app → -Users-me-app).
-// Distinct from Claude Code's claude-config/projects slug, which CC derives from its container cwd.
+// Distinct from Claude Code's .claude/projects slug, which CC derives from its container cwd.
 func ProjectSlug(hostCwd string) string {
 	return strings.ReplaceAll(hostCwd, "/", "-")
 }
@@ -131,7 +144,7 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 			CapDrop:     []string{"ALL"},
 			SecurityOpt: []string{"no-new-privileges"},
 			Binds: append(append(append([]string{
-				hostOptions.ConfigDir + ":" + configMount,
+				hostOptions.ConfigDir + ":" + configMount(hostOptions.CLI),
 				hostOptions.CcboxDir + ":" + ccboxMount,
 				hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
 			}, cacheBinds...), volumeMaskBinds...), gitBinds...),

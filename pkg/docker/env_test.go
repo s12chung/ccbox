@@ -8,9 +8,8 @@ import (
 
 func TestEnvStringBaseWins(t *testing.T) {
 	got := envString(RunOptions{
-		OAuthToken: "oauth",
-		GHToken:    "gh",
-		Env:        map[string]string{"GOFLAGS": "-mod=mod", "http_proxy": "evil"},
+		GHToken: "gh",
+		Env:     map[string]string{"GOFLAGS": "-mod=mod", "http_proxy": "evil"},
 	})
 
 	// o.Env is sorted and precedes the base vars, so the base http_proxy is the last (winning) value.
@@ -21,7 +20,6 @@ func TestEnvStringBaseWins(t *testing.T) {
 		"https_proxy=http://ccbox-egress:8888",
 		"no_proxy=localhost,127.0.0.1,::1",
 		"NO_PROXY=localhost,127.0.0.1,::1",
-		"CLAUDE_CODE_OAUTH_TOKEN=oauth",
 		"GH_TOKEN=gh",
 	}, got)
 }

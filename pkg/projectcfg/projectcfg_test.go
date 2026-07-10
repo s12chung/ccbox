@@ -26,12 +26,13 @@ func mkDefaultDirs(t *testing.T, dir string) {
 func TestLoadParses(t *testing.T) {
 	dir := t.TempDir()
 	mkDefaultDirs(t, dir)
-	body := "tmpfs:\n  - dist\n  - build\nenv:\n  FOO: bar\n" +
+	body := "cli: codex\ntmpfs:\n  - dist\n  - build\nenv:\n  FOO: bar\n" +
 		"allowlist:\n  - ccbox-defaults\n  - example.com\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(body), perm.File))
 
 	c, err := Load(dir)
 	require.NoError(t, err)
+	assert.Equal(t, CLICodex, c.CLI)
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs) // present defaults prepended
 	assert.Equal(t, map[string]string{"FOO": "bar"}, c.Env)
 	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // token expanded
@@ -54,6 +55,7 @@ func TestLoadUnsetGetsDefaults(t *testing.T) {
 			}
 			c, err := Load(dir)
 			require.NoError(t, err)
+			assert.Equal(t, CLIClaude, c.CLI)           // unset cli → claude
 			assert.Equal(t, tmpfsDefaults, c.Tmpfs)     // present always-on masks
 			assert.Equal(t, allowDefaults, c.Allowlist) // unset allowlist → the built-ins
 		})
@@ -136,13 +138,14 @@ func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
 func TestLoadMergesLocalOverride(t *testing.T) {
 	dir := t.TempDir()
 	mkDefaultDirs(t, dir)
-	base := "tmpfs:\n  - dist\nenv:\n  FOO: base\n  BAR: base\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n"
-	local := "tmpfs:\n  - build\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n"
+	base := "cli: claude\ntmpfs:\n  - dist\nenv:\n  FOO: base\n  BAR: base\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n"
+	local := "cli: codex\ntmpfs:\n  - build\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(base), perm.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte(local), perm.File))
 
 	c, err := Load(dir)
 	require.NoError(t, err)
+	assert.Equal(t, CLICodex, c.CLI)                                                          // scalar override, local wins
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)                   // lists append, base first
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env)                  // env overlays, local wins
 	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // merged, then token expanded
@@ -173,6 +176,7 @@ func TestLoadInvalidErrors(t *testing.T) {
 
 func TestMergeIsPure(t *testing.T) {
 	src := Config{
+		CLI:           CLIClaude,
 		Tmpfs:         []string{"dist"},
 		Volumes:       []string{"target"},
 		Env:           map[string]string{"FOO": "base", "BAR": "base"},
@@ -180,6 +184,7 @@ func TestMergeIsPure(t *testing.T) {
 		HostGitConfig: ptr(true),
 	}
 	other := Config{
+		CLI:           CLICodex,
 		Tmpfs:         []string{"build"},
 		Volumes:       []string{"cache"},
 		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
@@ -204,4 +209,13 @@ func TestMergeIsPure(t *testing.T) {
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
 	assert.Equal(t, ptr(false), got.HostGitConfig) // scalar: other (local) wins when set
+	assert.Equal(t, CLICodex, got.CLI)             // scalar: other (local) wins when set
+}
+
+func TestLoadRejectsUnknownCLI(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: emacs\n"), perm.File))
+
+	_, err := Load(dir)
+	assert.ErrorContains(t, err, "emacs")
 }

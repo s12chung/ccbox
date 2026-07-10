@@ -41,12 +41,14 @@ ENV DEVCONTAINER=true
 
 # Managed-policy CLAUDE.md: org-wide memory, highest precedence, loaded every session for all users.
 COPY docker/image/CLAUDE.admin.md /etc/claude-code/CLAUDE.md
-# Config mount path: ccbox passes this as a build arg (single source in pkg/docker);
-# the default keeps a bare `docker build` working.
-ARG CLAUDE_CONFIG_DIR=/home/ccbox/.ccbox/claude-config
-ENV CLAUDE_CONFIG_DIR=${CLAUDE_CONFIG_DIR}
+# Config mount path: the selected CLI's default config dir, where ccbox binds the persisted config
+ARG CONFIG_DIR=/home/ccbox/.claude
+
+ENV CLAUDE_CONFIG_DIR=${CONFIG_DIR}
 ENV CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
 ENV DISABLE_AUTOUPDATER=1
+
+ENV CODEX_HOME=${CONFIG_DIR}
 
 # Make delta git's diff pager. --system writes /etc/gitconfig so it applies to all users.
 RUN git config --system core.pager delta && git config --system interactive.diffFilter 'delta --color-only' && git config --system delta.navigate true
@@ -72,13 +74,17 @@ RUN echo 'export PATH="'"$PATH"'"' > /etc/profile.d/ccbox-path.sh; \
       'TAB: menu-complete' \
       '"\e[Z": menu-complete-backward' >> /etc/inputrc
 
-# Claude Code last for version bumping and clear mise cache
+# Coding CLI last for version bumping and clear mise cache. CLI picks the package: claude or codex.
 # npm_args: --ignore-scripts=false re-runs the postinstall mise's npm backend skips;
 # --allow-scripts adds it to npm 11's separate allowlist, else npm warns each install.
-ARG CLAUDE_CODE_VERSION=latest
+ARG CLI=claude
+ARG CLI_VERSION=latest
 RUN set -eux; \
-    cfg=/etc/mise/config.toml; pkg='@anthropic-ai/claude-code'; tool="npm:$pkg"; \
-    mise config set --file "$cfg" "tools.$tool.version" "${CLAUDE_CODE_VERSION}"; \
+    cfg=/etc/mise/config.toml; \
+    if [ "$CLI" = codex ]; then pkg='@openai/codex'; \
+    else pkg='@anthropic-ai/claude-code'; fi; \
+    tool="npm:$pkg"; \
+    mise config set --file "$cfg" "tools.$tool.version" "${CLI_VERSION}"; \
     mise config set --file "$cfg" "tools.$tool.npm_args" -- "--ignore-scripts=false --allow-scripts=$pkg"; \
     MISE_DATA_DIR=/usr/local/share/mise mise install "$tool"; \
     rm -rf /root/.cache

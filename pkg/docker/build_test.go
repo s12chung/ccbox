@@ -4,17 +4,20 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 func TestBuildArgs(t *testing.T) {
-	paths := map[string]string{
-		"CLAUDE_CONFIG_DIR": configMount,
-	}
-	assert.Equal(t, paths, buildArgs(BuildOptions{}), "config path is always threaded; version omitted when unset")
-
-	got := buildArgs(BuildOptions{ClaudeCodeVersion: "1.2.3"})
+	// empty CLI → claude's default config dir; CLI + version omitted when unset
 	assert.Equal(t, map[string]string{
-		"CLAUDE_CONFIG_DIR":   configMount,
-		"CLAUDE_CODE_VERSION": "1.2.3",
+		"CONFIG_DIR": claudeConfigMount,
+	}, buildArgs(BuildOptions{}))
+
+	got := buildArgs(BuildOptions{CLI: projectcfg.CLICodex, CLIVersion: "1.2.3"})
+	assert.Equal(t, map[string]string{
+		"CONFIG_DIR":  codexConfigMount,
+		"CLI":         "codex",
+		"CLI_VERSION": "1.2.3",
 	}, got)
 }

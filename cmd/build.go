@@ -7,11 +7,17 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/npm"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
-const claudeCodePackage = "@anthropic-ai/claude-code"
+// cliPackages maps each CLI to the npm package the image installs — the same choice the
+// Dockerfile makes, mirrored here so we can resolve the selected CLI's "latest" version.
+var cliPackages = map[projectcfg.CLI]string{
+	projectcfg.CLIClaude: "@anthropic-ai/claude-code",
+	projectcfg.CLICodex:  "@openai/codex",
+}
 
-var flagClaudeCodeVersion string
+var flagCLIVersion string
 
 var buildCmd = &cobra.Command{
 	Use:   "build",
@@ -24,21 +30,22 @@ var buildCmd = &cobra.Command{
 // build builds the devbox image; `run` calls it too, mirroring the old `run: build`.
 func build(ctx context.Context) error {
 	// Pin "latest" now so the image records the concrete version, not a moving tag.
-	if flagClaudeCodeVersion == "latest" {
-		v, err := npm.LatestVersion(claudeCodePackage)
+	if flagCLIVersion == "latest" {
+		v, err := npm.LatestVersion(cliPackages[projectCfg.CLI])
 		if err != nil {
 			return err
 		}
-		flagClaudeCodeVersion = v
+		flagCLIVersion = v
 	}
 
 	return docker.Build(ctx, buildContext, docker.BuildOptions{
-		Tag:               flagTag,
-		ClaudeCodeVersion: flagClaudeCodeVersion,
+		Tag:        flagTag,
+		CLI:        projectCfg.CLI,
+		CLIVersion: flagCLIVersion,
 	})
 }
 
 func init() {
-	buildCmd.Flags().StringVar(&flagClaudeCodeVersion, "claude-code-version", "latest",
-		"CLAUDE_CODE_VERSION build arg")
+	buildCmd.Flags().StringVar(&flagCLIVersion, "cli-version", "latest",
+		"CLI_VERSION build arg")
 }
