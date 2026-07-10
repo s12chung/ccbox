@@ -29,3 +29,7 @@ No `man`. Fetch pages on demand from these allowlisted mirrors: `manpages.debian
 
 ### `.ccbox.yaml` is off-limits
 `.ccbox.yaml` contains configurations related to devbox security. Don't read or change it unless I ask: `Write`/`Edit` are denied and a Bash tripwire prompts on it.
+
+## Git
+
+Stale entries in the git index/cache whose underlying file no longer exists are safe to ignore — IDEs and Claude Code share this repo's `.git`, so leftover cache/lock artifacts from one side aren't real problems for the other.
