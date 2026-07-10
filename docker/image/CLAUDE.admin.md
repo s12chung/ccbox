@@ -2,7 +2,7 @@
 
 You run as the unprivileged [ccbox](https://github.com/s12chung/ccbox) user inside a disposable container. No root, no `sudo`, no Docker daemon. The container is `--rm`: **everything is wiped on exit except these bind mounts**, which persist on the host:
 - `/home/ccbox/<project>` — your working dir (the host repo you're in)
-- `/home/ccbox/.claude` — Claude config
+- `/home/ccbox/.<cli>` - cli config, where the cli is claude, codex, etc.
 - `/home/ccbox/.ccbox/project` — per-project devbox state (lessons, bug notes)
 
 Other dirs also live on persistent per-project volumes that survive across sessions: for Node, the workspace's `node_modules` plus caches like `~/.npm` and `~/.npm-global`. The same holds for the other runtimes.

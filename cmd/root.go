@@ -19,6 +19,7 @@ var (
 	buildContext     embed.FS // Dockerfile + docker/image/* — the build context
 	proxyConfig      embed.FS // docker/tinyproxy/* — the egress wall configs
 	seedClaudeConfig embed.FS // docker/seed/claude-config — the seedable Claude config
+	seedCodexConfig  embed.FS // docker/seed/codex-config — the seedable Codex config
 	seedProject      embed.FS // docker/seed/project-slug — the seedable per-project tree
 )
 
@@ -53,10 +54,11 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute runs the CLI and returns the process exit code.
-func Execute(build, proxy, claudeConfig, project embed.FS) int {
+func Execute(build, proxy, claudeConfig, codexConfig, project embed.FS) int {
 	buildContext = build
 	proxyConfig = proxy
 	seedClaudeConfig = claudeConfig
+	seedCodexConfig = codexConfig
 	seedProject = project
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)

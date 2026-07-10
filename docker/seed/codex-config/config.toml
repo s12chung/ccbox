@@ -1,0 +1,32 @@
+# Codex config seeded into CODEX_HOME (~/.codex). Mirrors the Claude seed's settings.json:
+# secret-path hygiene (a permission profile) + the SessionStart lessons injection.
+
+# Filesystem hygiene, NOT the boundary (the mount + egress wall are). Beta feature; safe to drop.
+default_permissions = "ccbox"
+
+[permissions.ccbox]
+extends = ":workspace" # writable in workspace, read-only elsewhere
+
+[permissions.ccbox.filesystem]
+glob_scan_max_depth = 4 # depth for the unbounded **/ deny globs below
+
+# Secret paths denied; .ccbox.yaml read-only (it's the egress-wall allowlist).
+[permissions.ccbox.filesystem.":workspace_roots"]
+"**/*.env" = "deny"
+"**/.env.*" = "deny"
+"**/.envrc" = "deny"
+"secrets/**" = "deny"
+"**/*.pem" = "deny"
+"**/*.key" = "deny"
+".ccbox.yaml" = "read"
+".ccbox.local.yaml" = "read"
+
+# Managed-policy CLAUDE.md — Codex has no /etc/claude-code equivalent
+[[hooks.SessionStart]]
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "cat /etc/claude-code/CLAUDE.md"
+
+[[hooks.SessionStart.hooks]]
+type = "command"
+command = "cat /home/ccbox/.ccbox/project/lessons.md"

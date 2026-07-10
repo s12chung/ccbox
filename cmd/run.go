@@ -183,7 +183,7 @@ func resolveHostMounts(cacheDir string) (hostMounts, error) {
 	if err != nil {
 		return hostMounts{}, err
 	}
-	config, err := safeSeedClaudeConfig(cacheDir, false)
+	config, err := safeSeedConfig(cacheDir, projectCfg.CLI, false)
 	if err != nil {
 		return hostMounts{}, err
 	}

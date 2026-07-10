@@ -96,6 +96,24 @@ func TestSeedClaudeConfigBackupExistsErrors(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
 }
 
+func TestSeedCodexConfig(t *testing.T) {
+	dest := t.TempDir()
+	src := fstest.MapFS{
+		"AGENTS.user.md": {Data: []byte("new agents")},
+		"config.toml":    {Data: []byte("new config")},
+	}
+
+	renamed, err := SeedCodexConfig(src, dest)
+	require.NoError(t, err)
+	assert.Empty(t, renamed, "fresh seed should back up nothing")
+
+	// AGENTS.user.md lands as AGENTS.md; config.toml is a regular file.
+	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
+	assertFile(t, filepath.Join(dest, "config.toml"), "new config")
+	assertNotExist(t, filepath.Join(dest, "AGENTS.user.md"))
+	assertMode(t, filepath.Join(dest, "config.toml"), perm.File)
+}
+
 func TestSeedProject(t *testing.T) {
 	dest := t.TempDir()
 	src := fstest.MapFS{

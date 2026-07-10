@@ -18,9 +18,12 @@ var proxyConfig embed.FS
 //go:embed docker/seed/claude-config
 var seedClaudeConfig embed.FS
 
+//go:embed docker/seed/codex-config
+var seedCodexConfig embed.FS
+
 //go:embed docker/seed/project-slug
 var seedProject embed.FS
 
 func main() {
-	os.Exit(cmd.Execute(buildContext, proxyConfig, seedClaudeConfig, seedProject))
+	os.Exit(cmd.Execute(buildContext, proxyConfig, seedClaudeConfig, seedCodexConfig, seedProject))
 }

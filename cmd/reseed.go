@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"embed"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -9,27 +10,50 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/seed"
 )
 
-const claudeConfigPrefix = "docker/seed/claude-config"
+const (
+	claudeSeedSrcPrefix = "docker/seed/claude-config"
+	codexSeedSrcPrefix  = "docker/seed/codex-config"
+)
 
-// seedClaudeFn is seed.SeedClaudeConfig, indirected so tests can stub out the file-copying step.
-var seedClaudeFn = seed.SeedClaudeConfig
+// seed{Claude,Codex}Fn are the seed.Seed* funcs, indirected so tests can stub the file-copying step.
+var (
+	seedClaudeFn = seed.SeedClaudeConfig
+	seedCodexFn  = seed.SeedCodexConfig
+)
 
 var reseedCmd = &cobra.Command{
 	Use:   "reseed",
-	Short: "Seed the host Claude config dir from the embedded seed, backing up overwrites",
+	Short: "Seed the host config dir for the configured CLI from the embedded seed, backing up overwrites",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		_, err := safeSeedClaudeConfig(flagCacheDir, true)
+		_, err := safeSeedConfig(flagCacheDir, projectCfg.CLI, true)
 		return err
 	},
 }
 
-// safeSeedClaudeConfig seeds the host claude-config dir in cacheDir and returns that dir
-func safeSeedClaudeConfig(cacheDir string, confirm bool) (string, error) {
-	configDir := filepath.Join(cacheDir, "claude-config")
+// cliSeed bundles the per-CLI knobs for seeding that CLI's config dir.
+type cliSeed struct {
+	src       embed.FS
+	srcPrefix string // the host config dir reuses its leaf (e.g. .../codex-config -> codex-config)
+	seedFn    func(fs.FS, string) ([]string, error)
+}
+
+// cliSeedSpec selects the seed knobs for cli. Reads the embed vars at call time (set by Execute).
+func cliSeedSpec(cli projectcfg.CLI) cliSeed {
+	if cli == projectcfg.CLICodex {
+		return cliSeed{seedCodexConfig, codexSeedSrcPrefix, seedCodexFn}
+	}
+	return cliSeed{seedClaudeConfig, claudeSeedSrcPrefix, seedClaudeFn}
+}
+
+// safeSeedConfig seeds cli's host config dir in cacheDir and returns that dir
+func safeSeedConfig(cacheDir string, cli projectcfg.CLI, confirm bool) (string, error) {
+	spec := cliSeedSpec(cli)
+	configDir := filepath.Join(cacheDir, filepath.Base(spec.srcPrefix))
 
 	switch _, err := os.Stat(configDir); {
 	case err == nil: // exists
@@ -44,11 +68,11 @@ func safeSeedClaudeConfig(cacheDir string, confirm bool) (string, error) {
 		return configDir, err
 	}
 
-	src, err := fs.Sub(seedClaudeConfig, claudeConfigPrefix)
+	src, err := fs.Sub(spec.src, spec.srcPrefix)
 	if err != nil {
 		return configDir, err
 	}
-	renamed, err := seedClaudeFn(src, configDir)
+	renamed, err := spec.seedFn(src, configDir)
 	if err != nil {
 		return configDir, err
 	}

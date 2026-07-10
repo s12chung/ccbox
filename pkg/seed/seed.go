@@ -18,6 +18,11 @@ func SeedClaudeConfig(src fs.FS, destDir string) ([]string, error) {
 	return seedTree(src, destDir, map[string]string{"CLAUDE.user.md": "CLAUDE.md"})
 }
 
+// SeedCodexConfig seeds the Codex config tree, renaming root AGENTS.user.md -> AGENTS.md.
+func SeedCodexConfig(src fs.FS, destDir string) ([]string, error) {
+	return seedTree(src, destDir, map[string]string{"AGENTS.user.md": "AGENTS.md"})
+}
+
 // SeedProject seeds a project tree as-is (no filename remapping).
 func SeedProject(src fs.FS, destDir string) ([]string, error) {
 	return seedTree(src, destDir, nil)

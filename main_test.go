@@ -46,3 +46,11 @@ func TestBuildContextHasCopySources(t *testing.T) {
 	}
 	require.NoError(t, sc.Err())
 }
+
+func TestSeedUserDocsMatch(t *testing.T) {
+	claude, err := seedClaudeConfig.ReadFile("docker/seed/claude-config/CLAUDE.user.md")
+	require.NoError(t, err)
+	codex, err := seedCodexConfig.ReadFile("docker/seed/codex-config/AGENTS.user.md")
+	require.NoError(t, err)
+	assert.Equal(t, string(claude), string(codex))
+}
