@@ -20,19 +20,17 @@ Mid-task: the moment something goes sideways, STOP and re-plan - don't keep push
 **Minimum code that solves the problem. Nothing speculative.**
 
 - No features beyond what was asked.
-- No abstractions for single-use code.
 - No "flexibility" or "configurability" that wasn't requested.
-
-Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
 ### 3. Surgical Changes
 
 **Touch only what you must. Clean up only your own mess.**
 
+Always match existing style, even if you'd do it differently (ex. before writing a new test, check if similar tests exist, add to existing tests or refactor in test cases).
+
 When editing existing code:
 - Don't "improve" adjacent code, comments, or formatting.
 - Don't re-taxonomize working code.
-- Match existing style, even if you'd do it differently (ex. before writing a new test, check if similar tests exist, add to the tests or set up test cases)
 - If you notice unrelated dead code, mention it - don't delete it.
 
 When your changes create orphans:
@@ -77,7 +75,6 @@ Code for elegance:
 - Let the code speak for itself through structure (such as grouped decoupled abstractions), syntax terseness/spacing, folder/file/function structure, folder/file/function/variable names, and common assumptions.
 
 On comments:
-- Add, with preferably 1 line (via extreme optimization of word count), extra comments about title comments, intent, and organization to assist with this
 - When the code is opaque and can't speak for itself, such as gotchas and hard to read code, go into detail on the opaque parts. Only when this occurs, write long comments.
 - Group listed constants/strings/variables by intent and write a title comment for that
 - Never write comments that restate code, relist constants/strings/variables, or state where it is used

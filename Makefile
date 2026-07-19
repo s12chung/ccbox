@@ -24,6 +24,7 @@ test.docker:
 docker.test: build
 	$(BIN) build --tag $(TAG)
 	docker run --rm \
-	-v $(shell pwd):/home/ccbox/workspace \
+	-v $(shell pwd):/home/ccbox/docker.test \
+	--workdir /home/ccbox/docker.test \
 	--entrypoint bash $(TAG) \
 	-lc 'make test.all'

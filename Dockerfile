@@ -115,10 +115,6 @@ USER ccbox
 RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
              /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local
 
-# Default workdir for bare `docker build`/`docker run`; ccbox overrides it per-project
-# at run time (sets the container's working dir to /home/ccbox/<host-dir-basename>).
-WORKDIR /home/ccbox/workspace
-
 COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["bash"]
