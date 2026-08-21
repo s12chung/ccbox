@@ -62,7 +62,7 @@ var cacheVolumes = map[string]string{
 	"gem":        "/home/ccbox/.gem",        // bundler GEM_HOME
 	"npm":        "/home/ccbox/.npm",        // npm download cache
 	"npm-global": "/home/ccbox/.npm-global", // global npm packages
-	"local":      "/home/ccbox/.local",      // pip --user installs
+	"local":      "/home/ccbox/.local",      // pip --user installs and opencode state
 }
 
 // cacheVolumeName is hostCwd's named volume for a given cacheVolumes suffix.

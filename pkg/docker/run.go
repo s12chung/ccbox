@@ -52,9 +52,9 @@ const (
 // configMount is the in-container path the persisted config dir binds to for cliName
 // An unknown name falls back to claude, so a zero-value CLI still yields a valid mount.
 func configMount(cliName harness.Name) string {
-	folder := harness.Claude.ConfigMountFolder
+	folder := harness.Claude.ConfigHomeMount
 	if cli, ok := harness.For(cliName); ok {
-		folder = cli.ConfigMountFolder
+		folder = cli.ConfigHomeMount
 	}
 	return path.Join(containerHome, folder)
 }

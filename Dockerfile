@@ -50,6 +50,8 @@ ENV DISABLE_AUTOUPDATER=1
 
 ENV CODEX_HOME=${CONFIG_DIR}
 
+ENV OPENCODE_DISABLE_AUTOUPDATE=1
+
 # Make delta git's diff pager. --system writes /etc/gitconfig so it applies to all users.
 RUN git config --system core.pager delta && git config --system interactive.diffFilter 'delta --color-only' && git config --system delta.navigate true
 ENV TZ="America/New_York"
@@ -99,6 +101,7 @@ RUN set -eux; \
         ;; \
     *) \
         if [ "$CLI" = codex ]; then pkg='@openai/codex'; \
+        elif [ "$CLI" = opencode ]; then pkg='opencode-ai'; \
         else pkg='@anthropic-ai/claude-code'; fi; \
         tool="npm:$pkg"; \
         mise config set --file "$cfg" "tools.$tool.version" "${CLI_VERSION}"; \
@@ -113,7 +116,7 @@ USER ccbox
 # Pre-create cache mountpoints so per-project named volumes inherit uid 1000 (else root-owned, unwritable)
 # Mapped to pkg/docker/run.go
 RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
-             /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local
+             /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local /home/ccbox/.config
 
 COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

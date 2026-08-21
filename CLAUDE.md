@@ -14,6 +14,7 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/image/*`) and proxy configs (`docker/tinyproxy/*`) into the binary, then hands off to `cmd`.
 - **`cmd/`** — thin cobra commands: gather flags/env and call one `pkg/docker` operation each.
 - **`pkg/`**
+  - `harness/` — individual harness/cli related code
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `prompt/` — interactive terminal I/O (ask on stderr, read stdin); the only place user prompts belong
   - `projectcfg/` — related to `.ccbox.yaml` from a workspace repo root, also contains any defaulting

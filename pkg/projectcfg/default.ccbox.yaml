@@ -1,9 +1,9 @@
-# cli: which coding CLI the image installs and launches: "claude" (Claude Code) or "codex" (OpenAI Codex).
+# cli: which coding CLI the image installs and launches
 # Changing this rebuilds the image. Defaults to claude.
 cli: claude
 
 # host_git_config: read-only mount the host's ~/.config/git into the container so in-container git
-# honors your global ignore/config/attributes. Defaults on; set false to disable.
+# honors your global ignore/config/attributes. Defaults to true.
 host_git_config: true
 
 # tmpfs: workspace-relative dirs masked with a tmpfs, so in-container writes never reach the host
@@ -19,7 +19,6 @@ volumes: []
 env: {}
 
 # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains,
-# so "cloudfront.net" covers "d123.cloudfront.net" too (no wildcard syntax; list the parent domain).
-# "ccbox-defaults" expands to built-in defaults (package registries, GitHub, Anthropic APIs, man mirrors)
+# "ccbox-defaults" expands to built-in defaults (package registries, GitHub, etc.)
 allowlist:
   - ccbox-defaults

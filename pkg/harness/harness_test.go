@@ -42,6 +42,12 @@ func TestSessionCmd(t *testing.T) {
 		{cli: Codex, cont: true, want: []string{"codex", "resume", "--last"}},
 		{cli: Codex, resume: true, want: []string{"codex", "resume"}},
 		{cli: Codex, resume: true, args: []string{"abc123"}, want: []string{"codex", "resume", "abc123"}},
+
+		{cli: OpenCode, want: []string{"opencode"}},
+		{cli: OpenCode, cont: true, want: []string{"opencode", "-c"}},
+		// No picker flag: bare --session errors in opencode, so -r needs an id
+		{cli: OpenCode, resume: true, want: []string{"opencode", "--session"}},
+		{cli: OpenCode, resume: true, args: []string{"ses_42"}, want: []string{"opencode", "--session", "ses_42"}},
 	}
 	for _, tt := range tests {
 		got := tt.cli.SessionCmd(tt.cont, tt.resume, tt.args)

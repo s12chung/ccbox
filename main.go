@@ -21,9 +21,12 @@ var seedClaudeConfig embed.FS
 //go:embed docker/seed/codex-config
 var seedCodexConfig embed.FS
 
+//go:embed docker/seed/opencode-config
+var seedOpenCodeConfig embed.FS
+
 //go:embed docker/seed/project-slug
 var seedProject embed.FS
 
 func main() {
-	os.Exit(cmd.Execute(buildContext, proxyConfig, seedClaudeConfig, seedCodexConfig, seedProject))
+	os.Exit(cmd.Execute(buildContext, proxyConfig, seedClaudeConfig, seedCodexConfig, seedOpenCodeConfig, seedProject))
 }

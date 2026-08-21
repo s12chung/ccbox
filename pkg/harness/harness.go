@@ -11,13 +11,14 @@ import (
 type Name string
 
 const (
-	NameClaude Name = "claude"
-	NameCodex  Name = "codex"
+	NameClaude   Name = "claude"
+	NameCodex    Name = "codex"
+	NameOpenCode Name = "opencode"
 )
 
 // All lists every supported CLI, in stable order.
 func All() []CLI {
-	return []CLI{Claude, Codex}
+	return []CLI{Claude, Codex, OpenCode}
 }
 
 // CLI holds everything ccbox does differently per coding CLI.
@@ -27,10 +28,10 @@ type CLI struct {
 	// Package is the npm package the image installs
 	Package string
 
-	// ConfigMountFolder is the CLI's native default config dir in-container within the $HOME, so the
+	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
 	// mounted config is found with no CLAUDE_CONFIG_DIR/CODEX_HOME override.
 	// Threaded into the build too (CONFIG_DIR arg).
-	ConfigMountFolder string
+	ConfigHomeMount string
 
 	// SeedSrcFolder locates the embedded seed tree for this CLI's config dir;
 	// the host config dir reuses its leaf (e.g. .../codex-config -> codex-config).
@@ -52,14 +53,14 @@ type CLI struct {
 
 // Claude is Claude Code (Anthropic).
 var Claude = CLI{
-	Name:              NameClaude,
-	Package:           "@anthropic-ai/claude-code",
-	ConfigMountFolder: ".claude",
-	SeedSrcFolder:     "claude-config",
-	SeedRenames:       map[string]string{"CLAUDE.user.md": "CLAUDE.md"},
-	Cmd:               "claude",
-	ContinueArgs:      "-c",
-	ResumeArgs:        "--resume",
+	Name:            NameClaude,
+	Package:         "@anthropic-ai/claude-code",
+	ConfigHomeMount: ".claude",
+	SeedSrcFolder:   "claude-config",
+	SeedRenames:     map[string]string{"CLAUDE.user.md": "CLAUDE.md"},
+	Cmd:             "claude",
+	ContinueArgs:    "-c",
+	ResumeArgs:      "--resume",
 	AllowDomains: []string{
 		"platform.claude.com",
 		"api.anthropic.com",
@@ -71,18 +72,35 @@ var Claude = CLI{
 
 // Codex is Codex (OpenAI).
 var Codex = CLI{
-	Name:              NameCodex,
-	Package:           "@openai/codex",
-	ConfigMountFolder: ".codex",
-	SeedSrcFolder:     "codex-config",
-	SeedRenames:       map[string]string{"AGENTS.user.md": "AGENTS.md"},
-	Cmd:               "codex",
-	ContinueArgs:      "resume --last",
-	ResumeArgs:        "resume",
+	Name:            NameCodex,
+	Package:         "@openai/codex",
+	ConfigHomeMount: ".codex",
+	SeedSrcFolder:   "codex-config",
+	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
+	Cmd:             "codex",
+	ContinueArgs:    "resume --last",
+	ResumeArgs:      "resume",
 	AllowDomains: []string{
 		"api.openai.com",
 		"auth.openai.com",
 		"chatgpt.com",
+	},
+}
+
+// OpenCode is OpenCode (Anomaly).
+var OpenCode = CLI{
+	Name:            NameOpenCode,
+	Package:         "opencode-ai",
+	ConfigHomeMount: ".config/opencode",
+	SeedSrcFolder:   "opencode-config",
+	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
+	Cmd:             "opencode",
+	ContinueArgs:    "-c",
+	// No picker flag exists; bare --session errors, so -r needs a session id.
+	ResumeArgs: "--session",
+	AllowDomains: []string{
+		"opencode.ai",
+		"models.dev",
 	},
 }
 

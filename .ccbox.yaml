@@ -13,7 +13,6 @@ env:
   BIN: /tmp/ccbox
 
 # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains,
-# so "cloudfront.net" covers "d123.cloudfront.net" too (no wildcard syntax; list the parent domain).
-# "ccbox-defaults" expands to built-in defaults (package registries, GitHub, Anthropic APIs, man mirrors)
+# "ccbox-defaults" expands to built-in defaults (package registries, GitHub, etc.)
 allowlist:
   - ccbox-defaults

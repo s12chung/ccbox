@@ -56,11 +56,12 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute runs the CLI and returns the process exit code.
-func Execute(build, proxy, claudeConfig, codexConfig, project embed.FS) int {
+func Execute(build, proxy, claudeConfig, codexConfig, openCodeConfig, project embed.FS) int {
 	buildContext = build
 	proxyConfig = proxy
 	seedConfigs[harness.Claude.Name] = claudeConfig
 	seedConfigs[harness.Codex.Name] = codexConfig
+	seedConfigs[harness.OpenCode.Name] = openCodeConfig
 	seedProject = project
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)
