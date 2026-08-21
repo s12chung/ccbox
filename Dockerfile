@@ -74,19 +74,39 @@ RUN echo 'export PATH="'"$PATH"'"' > /etc/profile.d/ccbox-path.sh; \
       'TAB: menu-complete' \
       '"\e[Z": menu-complete-backward' >> /etc/inputrc
 
-# Coding CLI last for version bumping and clear mise cache. CLI picks the package: claude or codex.
+# Coding CLI last for version bumping and clear mise cache.
+#
 # npm_args: --ignore-scripts=false re-runs the postinstall mise's npm backend skips;
 # --allow-scripts adds it to npm 11's separate allowlist, else npm warns each install.
+#
+# grok: http backend needs a concrete version to build the URL, so resolve "latest" like the
+# upstream installer does (x.ai/cli/<channel> returns the version); bin renames the raw binary.
+# mise's http backend can't reverse-resolve its own shim without MISE_DATA_DIR in the env (which we
+# leave unset so ccbox's `mise use` targets ~/.local), so re-do the shim via. symlink.
 ARG CLI=claude
 ARG CLI_VERSION=latest
 RUN set -eux; \
     cfg=/etc/mise/config.toml; \
-    if [ "$CLI" = codex ]; then pkg='@openai/codex'; \
-    else pkg='@anthropic-ai/claude-code'; fi; \
-    tool="npm:$pkg"; \
-    mise config set --file "$cfg" "tools.$tool.version" "${CLI_VERSION}"; \
-    mise config set --file "$cfg" "tools.$tool.npm_args" -- "--ignore-scripts=false --allow-scripts=$pkg"; \
+    case "$CLI" in \
+    grok) \
+        tool='http:grok'; \
+        ver="$CLI_VERSION"; \
+        if [ "$ver" = latest ]; then ver=$(curl -fsSL https://x.ai/cli/stable); fi; \
+        mise config set --file "$cfg" "tools.$tool.version" "$ver"; \
+        mise config set --file "$cfg" "tools.$tool.bin" grok; \
+        mise config set --file "$cfg" "tools.$tool.platforms.linux-x64.url" "https://x.ai/cli/grok-$ver-linux-x86_64"; \
+        mise config set --file "$cfg" "tools.$tool.platforms.linux-arm64.url" "https://x.ai/cli/grok-$ver-linux-aarch64"; \
+        ;; \
+    *) \
+        if [ "$CLI" = codex ]; then pkg='@openai/codex'; \
+        else pkg='@anthropic-ai/claude-code'; fi; \
+        tool="npm:$pkg"; \
+        mise config set --file "$cfg" "tools.$tool.version" "${CLI_VERSION}"; \
+        mise config set --file "$cfg" "tools.$tool.npm_args" -- "--ignore-scripts=false --allow-scripts=$pkg"; \
+        ;; \
+    esac; \
     MISE_DATA_DIR=/usr/local/share/mise mise install "$tool"; \
+    if [ "$CLI" = grok ]; then ln -sf /usr/local/share/mise/installs/http-grok/latest/grok /usr/local/share/mise/shims/grok; fi; \
     rm -rf /root/.cache
 
 USER ccbox
