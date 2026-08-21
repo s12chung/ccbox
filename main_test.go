@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"embed"
 	"io/fs"
 	"strings"
 	"testing"
@@ -50,7 +51,16 @@ func TestBuildContextHasCopySources(t *testing.T) {
 func TestSeedUserDocsMatch(t *testing.T) {
 	claude, err := seedClaudeConfig.ReadFile("docker/seed/claude-config/CLAUDE.user.md")
 	require.NoError(t, err)
-	codex, err := seedCodexConfig.ReadFile("docker/seed/codex-config/AGENTS.user.md")
-	require.NoError(t, err)
-	assert.Equal(t, string(claude), string(codex))
+	for _, s := range []struct {
+		fs  *embed.FS
+		dir string
+	}{
+		{&seedCodexConfig, "codex-config"},
+		{&seedOpenCodeConfig, "opencode-config"},
+		{&seedGrokConfig, "grok-config"},
+	} {
+		agents, err := s.fs.ReadFile("docker/seed/" + s.dir + "/AGENTS.user.md")
+		require.NoError(t, err)
+		assert.Equal(t, string(claude), string(agents))
+	}
 }

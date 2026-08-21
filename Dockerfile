@@ -52,6 +52,8 @@ ENV CODEX_HOME=${CONFIG_DIR}
 
 ENV OPENCODE_DISABLE_AUTOUPDATE=1
 
+ENV GROK_DISABLE_AUTOUPDATER=1
+
 # Make delta git's diff pager. --system writes /etc/gitconfig so it applies to all users.
 RUN git config --system core.pager delta && git config --system interactive.diffFilter 'delta --color-only' && git config --system delta.navigate true
 ENV TZ="America/New_York"

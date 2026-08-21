@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/s12chung/ccbox/pkg/pkger"
 )
 
 // Name is the coding CLI's identity — the .ccbox.yaml cli value.
@@ -14,19 +16,21 @@ const (
 	NameClaude   Name = "claude"
 	NameCodex    Name = "codex"
 	NameOpenCode Name = "opencode"
+	NameGrok     Name = "grok"
 )
 
 // All lists every supported CLI, in stable order.
 func All() []CLI {
-	return []CLI{Claude, Codex, OpenCode}
+	return []CLI{Claude, Codex, OpenCode, Grok}
 }
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {
 	Name Name
 
-	// Package is the npm package the image installs
-	Package string
+	// Pinner resolves "latest" into the concrete version the image build records
+	// (CLI_VERSION arg).
+	Pinner pkger.Pinner
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
 	// mounted config is found with no CLAUDE_CONFIG_DIR/CODEX_HOME override.
@@ -54,7 +58,7 @@ type CLI struct {
 // Claude is Claude Code (Anthropic).
 var Claude = CLI{
 	Name:            NameClaude,
-	Package:         "@anthropic-ai/claude-code",
+	Pinner:          pkger.Npm{Package: "@anthropic-ai/claude-code"},
 	ConfigHomeMount: ".claude",
 	SeedSrcFolder:   "claude-config",
 	SeedRenames:     map[string]string{"CLAUDE.user.md": "CLAUDE.md"},
@@ -73,7 +77,7 @@ var Claude = CLI{
 // Codex is Codex (OpenAI).
 var Codex = CLI{
 	Name:            NameCodex,
-	Package:         "@openai/codex",
+	Pinner:          pkger.Npm{Package: "@openai/codex"},
 	ConfigHomeMount: ".codex",
 	SeedSrcFolder:   "codex-config",
 	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
@@ -90,7 +94,7 @@ var Codex = CLI{
 // OpenCode is OpenCode (Anomaly).
 var OpenCode = CLI{
 	Name:            NameOpenCode,
-	Package:         "opencode-ai",
+	Pinner:          pkger.Npm{Package: "opencode-ai"},
 	ConfigHomeMount: ".config/opencode",
 	SeedSrcFolder:   "opencode-config",
 	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
@@ -101,6 +105,25 @@ var OpenCode = CLI{
 	AllowDomains: []string{
 		"opencode.ai",
 		"models.dev",
+	},
+}
+
+// Grok is Grok Build (xAI).
+var Grok = CLI{
+	Name:            NameGrok,
+	Pinner:          pkger.VersionURL{URL: "https://x.ai/cli/stable"},
+	ConfigHomeMount: ".grok",
+	SeedSrcFolder:   "grok-config",
+	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
+	Cmd:             "grok",
+	ContinueArgs:    "-c",
+	// Bare --resume resumes the most recent session — no picker flag exists.
+	ResumeArgs: "--resume",
+	AllowDomains: []string{
+		"x.ai",
+		"cli-chat-proxy.grok.com",
+		"code.grok.com",
+		"assets.grok.com",
 	},
 }
 

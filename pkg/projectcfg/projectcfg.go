@@ -92,7 +92,7 @@ func cliAllowDomains() []string {
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLI           harness.Name      `yaml:"cli"`             // coding CLI to install + launch: "claude" (default) or "codex"
+	CLI           harness.Name      `yaml:"cli"`             // coding CLI to install + launch (default claude)
 	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git; nil = default on, resolved by Defaulted
 	Tmpfs         []string          `yaml:"tmpfs"`           // workspace-relative dirs to mask with a writable tmpfs
 	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume

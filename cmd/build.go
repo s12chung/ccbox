@@ -7,7 +7,6 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/npm"
 )
 
 var flagCLIVersion string
@@ -26,7 +25,7 @@ func build(ctx context.Context) error {
 
 	// Pin "latest" now so the image records the concrete version, not a moving tag.
 	if flagCLIVersion == "latest" {
-		v, err := npm.LatestVersion(cli.Package)
+		v, err := cli.Pinner.Latest()
 		if err != nil {
 			return err
 		}

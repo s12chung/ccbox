@@ -1,0 +1,26 @@
+[cli]
+auto_update = false
+
+[permission]
+# Hard boundary: secret files stay unreadable even under always-approve
+deny = [
+  "Read(**/.env)",
+  "Read(**/.env.*)",
+  "Read(**/.envrc)",
+  "Read(secrets/**)",
+  "Read(**/*.pem)",
+  "Read(**/*.key)",
+  "Edit(.ccbox.yaml)",
+  "Edit(.ccbox.local.yaml)",
+]
+
+# Soft tripwire over Bash (hygiene, NOT a boundary)
+ask = [
+  "Bash(*.env*)",        # .env / .env.* / .envrc (also ".environment" etc)
+  "Bash(*secrets/*)",
+  "Bash(*.pem*)",
+  "Bash(*.key*)",
+  "Bash(*.aws/*)",
+  "Bash(*.ssh/*)",
+  "Bash(*.ccbox*.yaml*)", # covers .ccbox.yaml and .ccbox.local.yaml
+]
