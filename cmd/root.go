@@ -10,18 +10,20 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 // Injected from main (package main can't be imported, so the embed FSes come in here).
 var (
-	buildContext     embed.FS // Dockerfile + docker/image/* — the build context
-	proxyConfig      embed.FS // docker/tinyproxy/* — the egress wall configs
-	seedClaudeConfig embed.FS // docker/seed/claude-config — the seedable Claude config
-	seedCodexConfig  embed.FS // docker/seed/codex-config — the seedable Codex config
-	seedProject      embed.FS // docker/seed/project-slug — the seedable per-project tree
+	buildContext embed.FS // Dockerfile + docker/image/* — the build context
+	proxyConfig  embed.FS // docker/tinyproxy/* — the egress wall configs
+	seedProject  embed.FS // docker/seed/project-slug — the seedable per-project tree
 )
+
+// seedConfigs holds each CLI's config seed, keyed by its harness.CLI.SeedSrcPrefix.
+var seedConfigs = map[harness.Name]embed.FS{}
 
 // Shared flags.
 var (
@@ -57,8 +59,8 @@ var rootCmd = &cobra.Command{
 func Execute(build, proxy, claudeConfig, codexConfig, project embed.FS) int {
 	buildContext = build
 	proxyConfig = proxy
-	seedClaudeConfig = claudeConfig
-	seedCodexConfig = codexConfig
+	seedConfigs[harness.Claude.Name] = claudeConfig
+	seedConfigs[harness.Codex.Name] = codexConfig
 	seedProject = project
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)

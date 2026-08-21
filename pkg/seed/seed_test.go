@@ -20,10 +20,13 @@ func srcFS() fstest.MapFS {
 	}
 }
 
-func TestSeedClaudeConfigFresh(t *testing.T) {
+// claudeRenames is harness.Claude.SeedRenames's remap, inlined to keep this pkg harness-free.
+var claudeRenames = map[string]string{"CLAUDE.user.md": "CLAUDE.md"}
+
+func TestTreeFresh(t *testing.T) {
 	dest := t.TempDir()
 
-	renamed, err := SeedClaudeConfig(srcFS(), dest)
+	renamed, err := Tree(srcFS(), dest, claudeRenames)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
@@ -37,12 +40,12 @@ func TestSeedClaudeConfigFresh(t *testing.T) {
 	assertMode(t, filepath.Join(dest, "settings.json"), perm.File)
 }
 
-func TestSeedClaudeConfigBacksUpExisting(t *testing.T) {
+func TestTreeBacksUpExisting(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := SeedClaudeConfig(srcFS(), dest)
+	renamed, err := Tree(srcFS(), dest, claudeRenames)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
@@ -61,7 +64,7 @@ func TestSeedClaudeConfigBacksUpExisting(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "hooks/tripwire.old.sh"))
 }
 
-func TestSeedClaudeConfigSkipsIdentical(t *testing.T) {
+func TestTreeSkipsIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// Each dest already holds the source contents (CLAUDE.md is the renamed CLAUDE.user.md).
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
@@ -69,7 +72,7 @@ func TestSeedClaudeConfigSkipsIdentical(t *testing.T) {
 	mkdirAll(t, filepath.Join(dest, "hooks"))
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	renamed, err := SeedClaudeConfig(srcFS(), dest)
+	renamed, err := Tree(srcFS(), dest, claudeRenames)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "identical files should back up nothing")
 
@@ -81,14 +84,14 @@ func TestSeedClaudeConfigSkipsIdentical(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "settings.old.json"))
 }
 
-func TestSeedClaudeConfigBackupExistsErrors(t *testing.T) {
+func TestTreeBackupExistsErrors(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
 
 	// CLAUDE.user.md → CLAUDE.md collides with the live file, whose backup already exists.
 	src := fstest.MapFS{"CLAUDE.user.md": {Data: []byte("new claude")}}
-	_, err := SeedClaudeConfig(src, dest)
+	_, err := Tree(src, dest, claudeRenames)
 	require.Error(t, err)
 
 	// Neither the live file nor the pre-existing backup was touched.
@@ -96,14 +99,15 @@ func TestSeedClaudeConfigBackupExistsErrors(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
 }
 
-func TestSeedCodexConfig(t *testing.T) {
+func TestTreeCodexRenames(t *testing.T) {
 	dest := t.TempDir()
 	src := fstest.MapFS{
 		"AGENTS.user.md": {Data: []byte("new agents")},
 		"config.toml":    {Data: []byte("new config")},
 	}
+	renames := map[string]string{"AGENTS.user.md": "AGENTS.md"}
 
-	renamed, err := SeedCodexConfig(src, dest)
+	renamed, err := Tree(src, dest, renames)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
@@ -114,14 +118,14 @@ func TestSeedCodexConfig(t *testing.T) {
 	assertMode(t, filepath.Join(dest, "config.toml"), perm.File)
 }
 
-func TestSeedProject(t *testing.T) {
+func TestProject(t *testing.T) {
 	dest := t.TempDir()
 	src := fstest.MapFS{
 		"lessons.md":     {Data: []byte("lessons")},
 		"hooks/setup.sh": {Data: []byte("hook")}, // nested → exercises tree + .sh mode
 	}
 
-	renamed, err := SeedProject(src, dest)
+	renamed, err := Project(src, dest)
 	require.NoError(t, err)
 	assert.Empty(t, renamed)
 

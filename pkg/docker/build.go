@@ -19,14 +19,14 @@ import (
 	"github.com/moby/buildkit/util/progress/progressui"
 
 	"github.com/s12chung/ccbox/pkg/embedfs"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/harness"
 )
 
 // BuildOptions configures an image build.
 type BuildOptions struct {
 	Tag        string
-	CLI        projectcfg.CLI // CLI build arg: which coding CLI to install ("claude" default, or "codex")
-	CLIVersion string         // CLI_VERSION build arg: version of the selected CLI's npm package
+	CLIName    harness.Name // CLIName build arg: which coding cli to install
+	CLIVersion string       // CLI_VERSION build arg: version of the selected CLIName's npm package
 }
 
 // Build builds the devbox image from the embedded build context (src) on BuildKit,
@@ -86,10 +86,10 @@ func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
 // workspace WORKDIR is set per-project at run time, not baked here.
 func buildArgs(o BuildOptions) map[string]string {
 	args := map[string]string{
-		"CONFIG_DIR": configMount(o.CLI),
+		"CONFIG_DIR": configMount(o.CLIName),
 	}
-	if o.CLI != "" {
-		args["CLI"] = string(o.CLI)
+	if o.CLIName != "" {
+		args["CLI"] = string(o.CLIName)
 	}
 	if o.CLIVersion != "" {
 		args["CLI_VERSION"] = o.CLIVersion

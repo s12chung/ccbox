@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/perm"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 const testWorkspace = "/work/myproj"
@@ -24,31 +24,20 @@ func stubSeedProjectFn(fn func(fs.FS, string) ([]string, error)) func() {
 	return func() { seedProjectFn = orig }
 }
 
-const (
-	claude = projectcfg.CLIClaude
-	codex  = projectcfg.CLICodex
-)
-
 func TestContainerCmd(t *testing.T) {
 	defer func() { flagContinue, flagResume, flagShell = false, false, false }()
 
+	// Per-CLI session syntax lives in pkg/harness; here just the flag plumbing into it.
 	tests := []struct {
-		cli                 projectcfg.CLI
+		cli                 harness.Name
 		cont, resume, shell bool
 		args                []string
 		want                []string
 	}{
-		{cli: claude, want: []string{"claude"}},
-		{cli: claude, cont: true, want: []string{"claude", "-c"}},
-		{cli: claude, resume: true, want: []string{"claude", "--resume"}},
-		{cli: claude, resume: true, args: []string{"auth-refactor"}, want: []string{"claude", "--resume", "auth-refactor"}},
-
-		{cli: codex, want: []string{"codex"}},
-		{cli: codex, cont: true, want: []string{"codex", "resume", "--last"}},
-		{cli: codex, resume: true, want: []string{"codex", "resume"}},
-		{cli: codex, resume: true, args: []string{"abc123"}, want: []string{"codex", "resume", "abc123"}},
-
-		{cli: claude, shell: true, want: nil}, // --shell wins over cli, dropping to the image default
+		{cli: harness.NameClaude, want: []string{"claude"}},
+		{cli: harness.NameCodex, cont: true, want: []string{"codex", "resume", "--last"}},
+		{cli: harness.NameCodex, resume: true, args: []string{"abc123"}, want: []string{"codex", "resume", "abc123"}},
+		{cli: harness.NameClaude, shell: true, want: nil}, // --shell wins over cli, dropping to the image default
 	}
 	for _, tt := range tests {
 		name := strings.Join(tt.want, " ")

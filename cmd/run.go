@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -11,22 +12,21 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/git"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/seed"
 )
 
-const projectSeedPrefix = "docker/seed/project-slug"
-
-// seedProjectFn is seed.SeedProject, indirected so tests can stub out the file-copying step.
-var seedProjectFn = seed.SeedProject
+// seedProjectFn is seed.Project, indirected so tests can stub out the file-copying step.
+var seedProjectFn = seed.Project
 
 // Run flags.
 var (
 	flagNoAutoProxy bool // disable starting the egress wall; a wall must already be up
-	flagContinue    bool // -c: continue the last Claude session (`claude -c`)
-	flagResume      bool // -r: resume a Claude session — the picker, or a name from the positional arg
-	flagShell       bool // drop into the image's default shell instead of launching Claude
+	flagContinue    bool // -c: continue the last session
+	flagResume      bool // -r: resume a session — the picker, or an id from the positional arg
+	flagShell       bool // drop into the image's default shell instead of launching the CLI
 )
 
 // resumeArgs allows a single positional session name, and only alongside -r/--resume.
@@ -42,38 +42,11 @@ func resumeArgs(_ *cobra.Command, args []string) error {
 
 // containerCmd is the command the entrypoint execs: the configured CLI by default
 // or the image default (shell) with --shell.
-func containerCmd(cli projectcfg.CLI, args []string) []string {
+func containerCmd(cliName harness.Name, args []string) []string {
 	if flagShell {
 		return nil
 	}
-	if cli == projectcfg.CLICodex {
-		return codexCmd(args)
-	}
-	return claudeCmd(args)
-}
-
-// claudeCmd maps the run flags to Claude's session syntax.
-func claudeCmd(args []string) []string {
-	switch {
-	case flagContinue:
-		return []string{"claude", "-c"}
-	case flagResume:
-		return append([]string{"claude", "--resume"}, args...)
-	default:
-		return []string{"claude"}
-	}
-}
-
-// codexCmd maps the run flags to Codex's session syntax.
-func codexCmd(args []string) []string {
-	switch {
-	case flagContinue:
-		return []string{"codex", "resume", "--last"}
-	case flagResume:
-		return append([]string{"codex", "resume"}, args...)
-	default:
-		return []string{"codex"}
-	}
+	return harness.MustFor(cliName).SessionCmd(flagContinue, flagResume, args)
 }
 
 // runDevbox builds the image then runs the devbox container interactively behind the
@@ -166,9 +139,9 @@ func init() {
 	f := rootCmd.Flags()
 	f.BoolVar(&flagNoAutoProxy, "no-auto-proxy", false,
 		"don't start the egress wall; require one already running (`ccbox proxy`)")
-	f.BoolVarP(&flagContinue, "continue", "c", false, "continue the last Claude session (`claude -c`)")
-	f.BoolVarP(&flagResume, "resume", "r", false, "resume a Claude session: `ccbox -r <name>`, or bare for the picker")
-	f.BoolVar(&flagShell, "shell", false, "drop into a shell instead of launching Claude")
+	f.BoolVarP(&flagContinue, "continue", "c", false, "continue the last session")
+	f.BoolVarP(&flagResume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
+	f.BoolVar(&flagShell, "shell", false, "drop into a shell instead of launching the harness CLI")
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume", "shell")
 }
 
@@ -215,7 +188,7 @@ func safeSeedProjectDir(cacheDir, cwd string) (string, error) {
 		return dir, err
 	}
 
-	src, err := fs.Sub(seedProject, projectSeedPrefix)
+	src, err := fs.Sub(seedProject, path.Join(seed.SourceDir, "project-slug"))
 	if err != nil {
 		return dir, err
 	}

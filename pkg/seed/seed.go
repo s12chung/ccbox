@@ -13,27 +13,19 @@ import (
 	"github.com/s12chung/ccbox/pkg/perm"
 )
 
-// SeedClaudeConfig seeds the Claude config tree, renaming root CLAUDE.user.md -> CLAUDE.md.
-func SeedClaudeConfig(src fs.FS, destDir string) ([]string, error) {
-	return seedTree(src, destDir, map[string]string{"CLAUDE.user.md": "CLAUDE.md"})
+const SourceDir = "docker/seed"
+
+// Project seeds a project tree as-is (no filename remapping).
+func Project(src fs.FS, destDir string) ([]string, error) {
+	return Tree(src, destDir, nil)
 }
 
-// SeedCodexConfig seeds the Codex config tree, renaming root AGENTS.user.md -> AGENTS.md.
-func SeedCodexConfig(src fs.FS, destDir string) ([]string, error) {
-	return seedTree(src, destDir, map[string]string{"AGENTS.user.md": "AGENTS.md"})
-}
-
-// SeedProject seeds a project tree as-is (no filename remapping).
-func SeedProject(src fs.FS, destDir string) ([]string, error) {
-	return seedTree(src, destDir, nil)
-}
-
-// seedTree copies every file in src into destDir (creating it), preserving the tree
+// Tree seeds a config tree onto destDir (creating it), preserving the tree
 // and applying renames (source path -> destination name) where present. A destination
 // already matching the source is left untouched. Other existing
 // destination files are backed up to <base>.old<ext> before being overwritten; the
 // backed-up paths are returned. A pre-existing backup is never clobbered — it's a hard error.
-func seedTree(src fs.FS, destDir string, renames map[string]string) (renamed []string, err error) {
+func Tree(src fs.FS, destDir string, renames map[string]string) (renamed []string, err error) {
 	err = fs.WalkDir(src, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err

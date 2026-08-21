@@ -8,9 +8,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/mergeempty"
 	"github.com/s12chung/ccbox/pkg/perm"
 )
@@ -23,13 +25,8 @@ const localFileName = ".ccbox.local.yaml"
 // DefaultsToken listed in allowlist, expands in place to allowDefaults
 const DefaultsToken = "ccbox-defaults"
 
-// CLI is the coding CLI the image installs and the container launches.
-type CLI string
-
-const (
-	CLIClaude CLI = "claude"
-	CLICodex  CLI = "codex"
-)
+// defaultCliName is the coding CLI when .ccbox.yaml doesn't say.
+const defaultCliName = harness.NameClaude
 
 // tmpfsDefaults always-masked dirs, prepended only when present in the workspace (to prevent host creation)
 var tmpfsDefaults = []string{".idea", ".vscode"}
@@ -37,8 +34,12 @@ var tmpfsDefaults = []string{".idea", ".vscode"}
 // volumeDefaults for persistent volume masked dirs only when present in the workspace (to prevent host creation)
 var volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
 
-// allowDefaults are the egress domains DefaultsToken expands to: the wall's built-in allow.
-var allowDefaults = []string{
+// allowDefaults are the egress domains DefaultsToken expands to: the wall's built-in
+// allow — shared defaults plus every supported CLI's own domains.
+var allowDefaults = append(append([]string{}, sharedAllowDefaults...), cliAllowDomains()...)
+
+// sharedAllowDefaults are the CLI-independent egress domains.
+var sharedAllowDefaults = []string{
 	// mise (tool version manager): version lists + release metadata
 	"mise.en.dev",
 	"mise-versions.jdx.dev",
@@ -78,23 +79,20 @@ var allowDefaults = []string{
 	"man.cx",
 	"linux.die.net",
 	"manpages.ubuntu.com",
+}
 
-	// Anthropic / Claude Code
-	"platform.claude.com",
-	"api.anthropic.com",
-	"mcp-proxy.anthropic.com",
-	"statsig.anthropic.com",
-	"sentry.io",
-
-	// OpenAI / Codex
-	"api.openai.com",
-	"auth.openai.com",
-	"chatgpt.com",
+// cliAllowDomains concatenates every supported CLI's own egress domains, in All's order.
+func cliAllowDomains() []string {
+	var domains []string
+	for _, c := range harness.All() {
+		domains = append(domains, c.AllowDomains...)
+	}
+	return domains
 }
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLI           CLI               `yaml:"cli"`             // coding CLI to install + launch: "claude" (default) or "codex"
+	CLI           harness.Name      `yaml:"cli"`             // coding CLI to install + launch: "claude" (default) or "codex"
 	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git; nil = default on, resolved by Defaulted
 	Tmpfs         []string          `yaml:"tmpfs"`           // workspace-relative dirs to mask with a writable tmpfs
 	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume
@@ -108,7 +106,7 @@ func Defaulted(workspaceDir string, c Config) Config {
 	c.Volumes = append(presentDirs(workspaceDir, volumeDefaults), c.Volumes...)
 	c.Allowlist = expandAllowlist(c.Allowlist)
 	if c.CLI == "" {
-		c.CLI = CLIClaude
+		c.CLI = defaultCliName
 	}
 	if c.HostGitConfig == nil { // resolve the default-on so the effective config prints it
 		on := true
@@ -119,8 +117,12 @@ func Defaulted(workspaceDir string, c Config) Config {
 
 // validate rejects an unknown cli, the one field whose value must be a known enum.
 func (c Config) validate() error {
-	if c.CLI != CLIClaude && c.CLI != CLICodex {
-		return fmt.Errorf("cli: unknown value %q (want %q or %q)", c.CLI, CLIClaude, CLICodex)
+	if _, ok := harness.For(c.CLI); !ok {
+		var names []string
+		for _, cli := range harness.All() {
+			names = append(names, string(cli.Name))
+		}
+		return fmt.Errorf("cli: unknown value %q (want %q)", c.CLI, strings.Join(names, ", "))
 	}
 	return nil
 }

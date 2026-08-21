@@ -10,44 +10,38 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/perm"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
-// stubSeedClaudeFn swaps the seed step for a test double and returns a restore func.
-func stubSeedClaudeFn(fn func(fs.FS, string) ([]string, error)) func() {
-	orig := seedClaudeFn
-	seedClaudeFn = fn
-	return func() { seedClaudeFn = orig }
+// stubSeedTreeFn swaps the seed step for a test double and returns a restore func.
+func stubSeedTreeFn(fn func(fs.FS, string, map[string]string) ([]string, error)) func() {
+	orig := seedTreeFn
+	seedTreeFn = fn
+	return func() { seedTreeFn = orig }
 }
 
-// stubSeedCodexFn swaps the codex seed step for a test double and returns a restore func.
-func stubSeedCodexFn(fn func(fs.FS, string) ([]string, error)) func() {
-	orig := seedCodexFn
-	seedCodexFn = fn
-	return func() { seedCodexFn = orig }
-}
-
-// Each CLI seeds its own config dir via its own seed fn.
+// Each CLI seeds its own config dir leaf with its own renames.
 func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 	cases := []struct {
-		name     string
-		cli      projectcfg.CLI
-		wantLeaf string
-		stub     func(func(fs.FS, string) ([]string, error)) func()
+		name string
+		cli  harness.Name
 	}{
-		{"claude", projectcfg.CLIClaude, "claude-config", stubSeedClaudeFn},
-		{"codex", projectcfg.CLICodex, "codex-config", stubSeedCodexFn},
+		{"claude", harness.NameClaude},
+		{"codex", harness.NameCodex},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cacheDir := t.TempDir()
-			wantDir := filepath.Join(cacheDir, tc.wantLeaf)
+			spec, requireOK := harness.For(tc.cli)
+			require.True(t, requireOK)
+			wantDir := filepath.Join(cacheDir, spec.SeedSrcFolder)
 
 			var gotDir string
+			var gotRenames map[string]string
 			called := false
-			defer tc.stub(func(_ fs.FS, dest string) ([]string, error) {
-				called, gotDir = true, dest
+			defer stubSeedTreeFn(func(_ fs.FS, dest string, renames map[string]string) ([]string, error) {
+				called, gotDir, gotRenames = true, dest, renames
 				return nil, nil
 			})()
 
@@ -55,6 +49,7 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 			require.NoError(t, err)
 			assert.True(t, called, "seed fn not called for missing dir")
 			assert.Equal(t, wantDir, gotDir, "seeded dir")
+			assert.Equal(t, spec.SeedRenames, gotRenames, "seed renames")
 			assert.Equal(t, wantDir, dir)
 		})
 	}
@@ -66,23 +61,23 @@ func TestSafeSeedConfigExistingSkips(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, perm.Dir))
 
 	called := false
-	defer stubSeedClaudeFn(func(fs.FS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
 		called = true
 		return nil, nil
 	})()
 
-	dir, err := safeSeedConfig(cacheDir, projectcfg.CLIClaude, false)
+	dir, err := safeSeedConfig(cacheDir, harness.NameClaude, false)
 	require.NoError(t, err)
-	assert.False(t, called, "seedClaudeFn called for existing dir without confirm")
+	assert.False(t, called, "seed fn called for existing dir without confirm")
 	assert.Equal(t, configDir, dir)
 }
 
 func TestSafeSeedConfigPropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
-	defer stubSeedClaudeFn(func(fs.FS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
 		return nil, wantErr
 	})()
 
-	_, err := safeSeedConfig(t.TempDir(), projectcfg.CLIClaude, false)
+	_, err := safeSeedConfig(t.TempDir(), harness.NameClaude, false)
 	assert.ErrorIs(t, err, wantErr)
 }

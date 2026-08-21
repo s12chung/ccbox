@@ -6,16 +6,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/npm"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
-
-// cliPackages maps each CLI to the npm package the image installs — the same choice the
-// Dockerfile makes, mirrored here so we can resolve the selected CLI's "latest" version.
-var cliPackages = map[projectcfg.CLI]string{
-	projectcfg.CLIClaude: "@anthropic-ai/claude-code",
-	projectcfg.CLICodex:  "@openai/codex",
-}
 
 var flagCLIVersion string
 
@@ -29,9 +22,11 @@ var buildCmd = &cobra.Command{
 
 // build builds the devbox image; `run` calls it too, mirroring the old `run: build`.
 func build(ctx context.Context) error {
+	cli := harness.MustFor(projectCfg.CLI)
+
 	// Pin "latest" now so the image records the concrete version, not a moving tag.
 	if flagCLIVersion == "latest" {
-		v, err := npm.LatestVersion(cliPackages[projectCfg.CLI])
+		v, err := npm.LatestVersion(cli.Package)
 		if err != nil {
 			return err
 		}
@@ -40,7 +35,7 @@ func build(ctx context.Context) error {
 
 	return docker.Build(ctx, buildContext, docker.BuildOptions{
 		Tag:        flagTag,
-		CLI:        projectCfg.CLI,
+		CLIName:    cli.Name,
 		CLIVersion: flagCLIVersion,
 	})
 }

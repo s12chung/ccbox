@@ -1,30 +1,22 @@
 package cmd
 
 import (
-	"embed"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/seed"
 )
 
-const (
-	claudeSeedSrcPrefix = "docker/seed/claude-config"
-	codexSeedSrcPrefix  = "docker/seed/codex-config"
-)
-
-// seed{Claude,Codex}Fn are the seed.Seed* funcs, indirected so tests can stub the file-copying step.
-var (
-	seedClaudeFn = seed.SeedClaudeConfig
-	seedCodexFn  = seed.SeedCodexConfig
-)
+// seedTreeFn is seed.Tree, indirected so tests can stub out the file-copying step.
+var seedTreeFn = seed.Tree
 
 var reseedCmd = &cobra.Command{
 	Use:   "reseed",
@@ -35,25 +27,10 @@ var reseedCmd = &cobra.Command{
 	},
 }
 
-// cliSeed bundles the per-CLI knobs for seeding that CLI's config dir.
-type cliSeed struct {
-	src       embed.FS
-	srcPrefix string // the host config dir reuses its leaf (e.g. .../codex-config -> codex-config)
-	seedFn    func(fs.FS, string) ([]string, error)
-}
-
-// cliSeedSpec selects the seed knobs for cli. Reads the embed vars at call time (set by Execute).
-func cliSeedSpec(cli projectcfg.CLI) cliSeed {
-	if cli == projectcfg.CLICodex {
-		return cliSeed{seedCodexConfig, codexSeedSrcPrefix, seedCodexFn}
-	}
-	return cliSeed{seedClaudeConfig, claudeSeedSrcPrefix, seedClaudeFn}
-}
-
 // safeSeedConfig seeds cli's host config dir in cacheDir and returns that dir
-func safeSeedConfig(cacheDir string, cli projectcfg.CLI, confirm bool) (string, error) {
-	spec := cliSeedSpec(cli)
-	configDir := filepath.Join(cacheDir, filepath.Base(spec.srcPrefix))
+func safeSeedConfig(cacheDir string, cliName harness.Name, confirm bool) (string, error) {
+	cli := harness.MustFor(cliName)
+	configDir := filepath.Join(cacheDir, cli.SeedSrcFolder)
 
 	switch _, err := os.Stat(configDir); {
 	case err == nil: // exists
@@ -68,11 +45,11 @@ func safeSeedConfig(cacheDir string, cli projectcfg.CLI, confirm bool) (string, 
 		return configDir, err
 	}
 
-	src, err := fs.Sub(spec.src, spec.srcPrefix)
+	src, err := fs.Sub(seedConfigs[cli.Name], path.Join(seed.SourceDir, cli.SeedSrcFolder))
 	if err != nil {
 		return configDir, err
 	}
-	renamed, err := spec.seedFn(src, configDir)
+	renamed, err := seedTreeFn(src, configDir, cli.SeedRenames)
 	if err != nil {
 		return configDir, err
 	}

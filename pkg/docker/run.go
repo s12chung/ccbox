@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -14,9 +15,9 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/perm"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/prompt"
 )
 
@@ -25,7 +26,7 @@ const proxyPort = "8888"
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
 	Tag          string
-	CLI          projectcfg.CLI    // selects the config mount target (each CLI's native default dir)
+	CLI          harness.Name      // selects the config mount target (each CLI's native default dir)
 	ConfigDir    string            // host dir bind-mounted at the CLI's configMount
 	CcboxDir     string            // host dir bind-mounted at ccboxMount
 	Cwd          string            // host dir bind-mounted at workspaceMount
@@ -45,20 +46,17 @@ const (
 	containerHome = "/home/ccbox"                // the workspace mounts under containerHome at a per-project leaf
 	ccboxMount    = "/home/ccbox/.ccbox/project" // per-project devbox state (e.g. lessons)
 
-	// Per-CLI config mounts: each CLI's native default dir, so the mounted config is found with
-	// no CLAUDE_CONFIG_DIR/CODEX_HOME override. Threaded into the build too (CONFIG_DIR arg).
-	claudeConfigMount = containerHome + "/.claude"
-	codexConfigMount  = containerHome + "/.codex"
-
 	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
 )
 
-// configMount is the in-container path the persisted config dir binds to for cli.
-func configMount(cli projectcfg.CLI) string {
-	if cli == projectcfg.CLICodex {
-		return codexConfigMount
+// configMount is the in-container path the persisted config dir binds to for cliName
+// An unknown name falls back to claude, so a zero-value CLI still yields a valid mount.
+func configMount(cliName harness.Name) string {
+	folder := harness.Claude.ConfigMountFolder
+	if cli, ok := harness.For(cliName); ok {
+		folder = cli.ConfigMountFolder
 	}
-	return claudeConfigMount
+	return path.Join(containerHome, folder)
 }
 
 // WorkspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
