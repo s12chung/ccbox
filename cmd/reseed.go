@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -26,11 +25,11 @@ var reseedCmd = &cobra.Command{
 }
 
 // safeSeedConfig seeds cli's host config dir in cacheDir and returns that dir:
-// the shared all/ tree first (renamed to cli's live memory file), then cli's own tree.
+// the shared/ tree first (renamed to cli's live memory file), then cli's own tree.
 func safeSeedConfig(cacheDir string, cliName harness.Name, confirm bool) (string, error) {
 	cli := harness.MustFor(cliName)
 	name := string(cli.Name)
-	return safeSeed(seedFS, filepath.Join(cacheDir, name), confirm,
+	return safeSeed(harness.SeedFS(), filepath.Join(cacheDir, name), confirm,
 		seedSrc{
 			sub:     harness.SharedSeedPath,
 			renames: map[string]string{harness.AgentsFileName: cli.SeedAgentsFilename},
@@ -44,13 +43,13 @@ var seedTreeFn = seed.Tree
 
 // seedSrc is one embedded tree to lay onto the dest dir.
 type seedSrc struct {
-	sub     string            // subtree under seed.SourceDir
+	sub     string            // subtree under the seed root
 	renames map[string]string // source path -> destination name
 }
 
-// safeSeed seeds dst from root's embedded trees under seed.SourceDir when dst
-// doesn't exist yet, applying renames — or re-seeds after confirmation when confirm
-// is set, backing up overwritten files across all trees.
+// safeSeed seeds dst from root's trees when dst doesn't exist yet, applying
+// renames — or re-seeds after confirmation when confirm is set, backing up
+// overwritten files across all trees.
 func safeSeed(root fs.FS, dst string, confirm bool, srcs ...seedSrc) (string, error) {
 	switch _, err := os.Stat(dst); {
 	case err == nil: // exists
@@ -68,7 +67,7 @@ func safeSeed(root fs.FS, dst string, confirm bool, srcs ...seedSrc) (string, er
 	noChanges := true
 	var renamed []string
 	for _, s := range srcs {
-		src, err := fs.Sub(root, path.Join(seed.SourceDir, s.sub))
+		src, err := fs.Sub(root, s.sub)
 		if err != nil {
 			return dst, err
 		}

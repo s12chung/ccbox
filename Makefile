@@ -6,8 +6,8 @@ build:
 
 lint:
 	hadolint Dockerfile
-	shellcheck docker/image/entrypoint.sh docker/seed/claude/statusline.sh tests/test_helper.bash tests/*.bats
-	find docker/seed -name '*.json' -exec jq empty {} +
+	shellcheck docker/image/entrypoint.sh pkg/harness/clis/claude/statusline.sh tests/test_helper.bash tests/*.bats
+	find pkg/harness/clis -name '*.json' -exec jq empty {} +
 	gofmt -l . | (! grep .)
 	go vet ./...
 

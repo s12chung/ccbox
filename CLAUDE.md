@@ -14,7 +14,10 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/image/*`) and proxy configs (`docker/tinyproxy/*`) into the binary, then hands off to `cmd`.
 - **`cmd/`** — thin cobra commands: gather flags/env and call one `pkg/docker` operation each.
 - **`pkg/`**
-  - `harness/` — individual harness/cli related code
+  - `harness/` — individual harness/cli related code; embeds its seed trees under `clis/`, seeded by `pkg/seed/`: it lays these onto the host config dir which is then mounted to the container. Only the configured CLI's config dir is seeded and mounted.
+    - `shared/` — shared across CLIs: one `AGENTS.user.md`, renamed to the CLI's live memory file on seed (`CLAUDE.md` / `AGENTS.md`)
+    - `(per-CLI directories)/` — each CLI's native config, `~/.ccbox/<cli>` → `~/ccbox/.<config>` (e.g. `.claude`)
+    - `project-slug/` — ccbox project data, `~/.ccbox/projects/-project-slug` (see below) → `~/ccbox/.ccbox/project`
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `prompt/` — interactive terminal I/O (ask on stderr, read stdin); the only place user prompts belong
   - `projectcfg/` — related to `.ccbox.yaml` from a workspace repo root, also contains any defaulting
@@ -26,10 +29,6 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
     - `entrypoint.sh` — fail-closed start check: refuses to boot after user and network security checks
     - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
   - `tinyproxy/` — the egress wall configs
-  - `seed/` — config, used only by `pkg/seed/`: it seeds these onto the host config dir and mounted to the container. Only the configured CLI's config dir is seeded and mounted.
-    - `all/` — shared across CLIs: one `AGENTS.user.md`, renamed to the CLI's live memory file on seed (`CLAUDE.md` / `AGENTS.md`)
-    - `(other directories)/` — each CLI's native config, `~/.ccbox/<cli>` → `~/ccbox/.<config>` (e.g. `.claude`)
-    - `project-slug/` — ccbox project data, `~/.ccbox/projects/-project-slug` (see below) → `~/ccbox/.ccbox/project`
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:
   - `make build` — builds the `ccbox` binary to `/tmp/ccbox` in the **container**

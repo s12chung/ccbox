@@ -14,8 +14,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/perm"
 )
 
-const SourceDir = "docker/seed"
-
 // ErrNoChanges reports that Tree made no changes: every destination already
 // matched its source, so nothing was written or backed up.
 var ErrNoChanges = errors.New("seed: all files identical")

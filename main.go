@@ -15,9 +15,6 @@ var buildContext embed.FS
 //go:embed docker/tinyproxy/*
 var proxyConfig embed.FS
 
-//go:embed docker/seed
-var seedFS embed.FS
-
 func main() {
-	os.Exit(cmd.Execute(buildContext, proxyConfig, seedFS))
+	os.Exit(cmd.Execute(buildContext, proxyConfig))
 }

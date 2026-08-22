@@ -19,7 +19,6 @@ import (
 var (
 	buildContext embed.FS // Dockerfile + docker/image/* — the build context
 	proxyConfig  embed.FS // docker/tinyproxy/* — the egress wall configs
-	seedFS       embed.FS // docker/seed/* — the seedable trees (all/, per-CLI, project-slug)
 )
 
 // Shared flags.
@@ -54,10 +53,9 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute runs the CLI and returns the process exit code.
-func Execute(build, proxy, seed embed.FS) int {
+func Execute(build, proxy embed.FS) int {
 	buildContext = build
 	proxyConfig = proxy
-	seedFS = seed
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)
 		return 1

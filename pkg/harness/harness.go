@@ -2,7 +2,9 @@
 package harness
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"slices"
 	"strings"
 
@@ -23,6 +25,19 @@ const SharedSeedPath = "shared"
 
 // AgentsFileName is the shared user AGENTS.md
 const AgentsFileName = "AGENTS.user.md"
+
+//go:embed clis
+var clisFS embed.FS
+
+// SeedFS returns the embedded seed trees (shared/, per-CLI, project-slug),
+// rooted at their common parent.
+func SeedFS() fs.FS {
+	sub, err := fs.Sub(clisFS, "clis")
+	if err != nil {
+		panic(err) // unreachable: the //go:embed pattern above guarantees clis exists
+	}
+	return sub
+}
 
 // All lists every supported CLI, in stable order.
 func All() []CLI {
