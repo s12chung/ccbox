@@ -22,12 +22,31 @@ ask() {
 }
 
 # Secret-path reads — err toward asking (over-match is fine for a tripwire)
-if printf '%s' "$cmd" | grep -Eq '\.env([^A-Za-z0-9_]|$)|\.env\.|\.envrc|(^|/)secrets/|\.pem([^A-Za-z0-9]|$)|\.key([^A-Za-z0-9]|$)|\.aws/|\.ssh/'; then
+secret_files=(
+  '\.env([^A-Za-z0-9_]|$)'
+  '\.env\.'
+  '\.envrc'
+  '\.pem([^A-Za-z0-9]|$)'
+  '\.key([^A-Za-z0-9]|$)'
+)
+secret_dirs=(
+  '(^|/)secrets/'
+  '\.aws/'
+  '\.ssh/'
+)
+pattern=$(IFS='|'; printf '%s' "${secret_files[*]}|${secret_dirs[*]}")
+
+if printf '%s' "$cmd" | grep -Eq "$pattern"; then
   ask "Command references a secret path — confirm this read/use is intended."
 fi
 
 # .ccbox.yaml (+ .ccbox.local.yaml override) is the egress-wall allowlist; Write/Edit deny can't see Bash writes to it.
-if printf '%s' "$cmd" | grep -Eq '\.ccbox(\.local)?\.yaml'; then
+allowlist_files=(
+  '\.ccbox(\.local)?\.yaml'
+)
+pattern=$(IFS='|'; printf '%s' "${allowlist_files[*]}")
+
+if printf '%s' "$cmd" | grep -Eq "$pattern"; then
   ask ".ccbox.yaml controls the egress wall — confirm this change is intended."
 fi
 
