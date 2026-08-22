@@ -29,8 +29,8 @@ const AgentsFileName = "AGENTS.user.md"
 //go:embed clis
 var clisFS embed.FS
 
-// SeedFS returns the embedded seed trees (shared/, per-CLI, project-slug),
-// rooted at their common parent.
+// SeedFS returns the embedded seed trees (shared/, per-CLI), rooted at their
+// common parent.
 func SeedFS() fs.FS {
 	sub, err := fs.Sub(clisFS, "clis")
 	if err != nil {

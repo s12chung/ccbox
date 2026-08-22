@@ -14,6 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/projectstate"
 )
 
 // Run flags.
@@ -170,7 +171,7 @@ func hostGitConfigDir() (string, error) {
 // safeSeedProjectDir seeds projectDir() if missing
 func safeSeedProjectDir(cacheDir, cwd string) (string, error) {
 	dir := projectDir(cacheDir, cwd)
-	return safeSeed(harness.SeedFS(), dir, false, seedSrc{sub: "project-slug"})
+	return safeSeed(projectstate.SeedFS(), dir, false, seedSrc{sub: "."})
 }
 
 // projectDir is the host state dir for a project: cacheDir/projects/<slug>

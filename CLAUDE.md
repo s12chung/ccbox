@@ -17,10 +17,10 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
   - `harness/` — individual harness/cli related code; embeds its seed trees under `clis/`, seeded by `pkg/seed/`: it lays these onto the host config dir which is then mounted to the container. Only the configured CLI's config dir is seeded and mounted.
     - `shared/` — shared across CLIs: one `AGENTS.user.md`, renamed to the CLI's live memory file on seed (`CLAUDE.md` / `AGENTS.md`)
     - `(per-CLI directories)/` — each CLI's native config, `~/.ccbox/<cli>` → `~/ccbox/.<config>` (e.g. `.claude`)
-    - `project-slug/` — ccbox project data, `~/.ccbox/projects/-project-slug` (see below) → `~/ccbox/.ccbox/project`
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `prompt/` — interactive terminal I/O (ask on stderr, read stdin); the only place user prompts belong
   - `projectcfg/` — related to `.ccbox.yaml` from a workspace repo root, also contains any defaulting
+  - `projectstate/` — ccbox project data, seeded per project to `~/.ccbox/projects/-project-slug` → mounted at `~/ccbox/.ccbox/project`
   - `perm/` — named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
   - `log/` — log helpers and abstraction, never use `fmt.Print*`
 - **`Dockerfile`** — builds the devbox image from the inputs under `docker/`.
