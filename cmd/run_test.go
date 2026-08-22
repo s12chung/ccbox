@@ -35,8 +35,8 @@ func TestContainerCmd(t *testing.T) {
 		want                []string
 	}{
 		{cli: harness.NameClaude, want: []string{"claude"}},
-		{cli: harness.NameCodex, cont: true, want: []string{"codex", "resume", "--last"}},
-		{cli: harness.NameCodex, resume: true, args: []string{"abc123"}, want: []string{"codex", "resume", "abc123"}},
+		{cli: harness.NameOpenCode, cont: true, want: []string{"opencode", "-c"}},
+		{cli: harness.NameOpenCode, resume: true, args: []string{"abc123"}, want: []string{"opencode", "--session", "abc123"}},
 		{cli: harness.NameClaude, shell: true, want: nil}, // --shell wins over cli, dropping to the image default
 	}
 	for _, tt := range tests {

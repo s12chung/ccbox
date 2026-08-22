@@ -93,7 +93,7 @@ var Codex = CLI{
 	ConfigDirEnvKey: "CODEX_HOME",
 	SeedSrcFolder:   "codex-config",
 	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
-	Cmd:             "codex",
+	Cmd:             "codex --sandbox danger-full-access", // run without bubblewrap, which is buggy atm without root
 	ContinueArgs:    "resume --last",
 	ResumeArgs:      "resume",
 	AllowDomains: []string{

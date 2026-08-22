@@ -57,10 +57,10 @@ func TestSessionCmd(t *testing.T) {
 		{cli: Claude, resume: true, want: []string{"claude", "--resume"}},
 		{cli: Claude, resume: true, args: []string{"auth-refactor"}, want: []string{"claude", "--resume", "auth-refactor"}},
 
-		{cli: Codex, want: []string{"codex"}},
-		{cli: Codex, cont: true, want: []string{"codex", "resume", "--last"}},
-		{cli: Codex, resume: true, want: []string{"codex", "resume"}},
-		{cli: Codex, resume: true, args: []string{"abc123"}, want: []string{"codex", "resume", "abc123"}},
+		{cli: Codex, want: []string{"codex", "--sandbox", "danger-full-access"}},
+		{cli: Codex, cont: true, want: []string{"codex", "--sandbox", "danger-full-access", "resume", "--last"}},
+		{cli: Codex, resume: true, want: []string{"codex", "--sandbox", "danger-full-access", "resume"}},
+		{cli: Codex, resume: true, args: []string{"abc123"}, want: []string{"codex", "--sandbox", "danger-full-access", "resume", "abc123"}},
 
 		{cli: OpenCode, want: []string{"opencode"}},
 		{cli: OpenCode, cont: true, want: []string{"opencode", "-c"}},
