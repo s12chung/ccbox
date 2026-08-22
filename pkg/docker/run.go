@@ -37,7 +37,6 @@ type RunOptions struct {
 	Volumes      []string          // workspace-relative dirs to mask with a persistent per-project volume
 	Cmd          []string          // command the entrypoint execs; nil uses the image default (shell)
 
-	AutoProxy    bool         // start (and tear down) the egress wall for this run; see proxyStart
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
 	ProxyLogPath string       // file an auto-started wall's logs are appended to
 }
@@ -75,10 +74,7 @@ func (c *Client) Run(ctx context.Context, hostOptions RunOptions) (int, error) {
 	}
 	if running {
 		return c.runDevbox(ctx, hostOptions)
-	} else if !hostOptions.AutoProxy {
-		return 0, errors.New("egress proxy not running; start it in another terminal with `ccbox proxy`")
 	}
-
 	return c.runWithProxy(ctx, hostOptions)
 }
 

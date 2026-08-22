@@ -23,10 +23,9 @@ var seedProjectFn = seed.Project
 
 // Run flags.
 var (
-	flagNoAutoProxy bool // disable starting the egress wall; a wall must already be up
-	flagContinue    bool // -c: continue the last session
-	flagResume      bool // -r: resume a session — the picker, or an id from the positional arg
-	flagShell       bool // drop into the image's default shell instead of launching the CLI
+	flagContinue bool // -c: continue the last session
+	flagResume   bool // -r: resume a session — the picker, or an id from the positional arg
+	flagShell    bool // drop into the image's default shell instead of launching the CLI
 )
 
 // resumeArgs allows a single positional session name, and only alongside -r/--resume.
@@ -90,7 +89,6 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 		Tmpfs:        projectCfg.Tmpfs,
 		Volumes:      projectCfg.Volumes,
 		Cmd:          containerCmd(projectCfg.CLI, args),
-		AutoProxy:    !flagNoAutoProxy,
 		Proxy: docker.ProxyOptions{
 			Config:    proxyFS,
 			Overrides: docker.AllowOverride(projectCfg.Allowlist),
@@ -137,8 +135,6 @@ func warnCreatedMasks(cwd string, absentBefore []string) {
 
 func init() {
 	f := rootCmd.Flags()
-	f.BoolVar(&flagNoAutoProxy, "no-auto-proxy", false,
-		"don't start the egress wall; require one already running (`ccbox proxy`)")
 	f.BoolVarP(&flagContinue, "continue", "c", false, "continue the last session")
 	f.BoolVarP(&flagResume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
 	f.BoolVar(&flagShell, "shell", false, "drop into a shell instead of launching the harness CLI")
