@@ -81,13 +81,9 @@ func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
 	return buildErr
 }
 
-// buildArgs maps BuildOptions to Dockerfile ARGs. The CLI's config mount is always threaded
-// so the image bakes the same config path run binds to; version is optional. The
-// workspace WORKDIR is set per-project at run time, not baked here.
+// buildArgs maps BuildOptions to Dockerfile ARGs
 func buildArgs(o BuildOptions) map[string]string {
-	args := map[string]string{
-		"CONFIG_DIR": configMount(o.CLIName),
-	}
+	args := map[string]string{}
 	if o.CLIName != "" {
 		args["CLI"] = string(o.CLIName)
 	}

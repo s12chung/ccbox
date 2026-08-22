@@ -1,9 +1,13 @@
 package docker
 
-import "sort"
+import (
+	"maps"
+	"sort"
 
-// envString renders the container's environment as KEY=VALUE. The proxy/token vars come last so
-// they win on a key collision (Docker takes the last value), keeping them unoverridable by o.Env.
+	"github.com/s12chung/ccbox/pkg/harness"
+)
+
+// envString renders the container's environment as KEY=VALUE
 func envString(o RunOptions) []string {
 	base := []string{
 		"http_proxy=http://" + egressName + ":" + proxyPort,
@@ -15,15 +19,31 @@ func envString(o RunOptions) []string {
 		"GH_TOKEN=" + o.GHToken,
 	}
 
-	keys := make([]string, 0, len(o.Env))
-	for k := range o.Env {
+	// Later entries override when conflicting
+	return append(append(cliEnv(o), sortedEnv(o.Env)...), base...)
+}
+
+// cliEnv renders the selected CLI's required env
+func cliEnv(o RunOptions) []string {
+	cli := harness.MustFor(o.CLI)
+	env := maps.Clone(cli.Env)
+	if env == nil {
+		env = map[string]string{}
+	}
+	return sortedEnv(env)
+}
+
+// sortedEnv renders a KEY=VALUE list in sorted-key order for a deterministic spec.
+func sortedEnv(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys) // stable order for a deterministic spec
+	sort.Strings(keys)
 
-	env := make([]string, 0, len(o.Env)+len(base))
+	env := make([]string, 0, len(keys))
 	for _, k := range keys {
-		env = append(env, k+"="+o.Env[k])
+		env = append(env, k+"="+m[k])
 	}
-	return append(env, base...)
+	return env
 }

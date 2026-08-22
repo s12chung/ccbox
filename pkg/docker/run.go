@@ -50,13 +50,8 @@ const (
 )
 
 // configMount is the in-container path the persisted config dir binds to for cliName
-// An unknown name falls back to claude, so a zero-value CLI still yields a valid mount.
 func configMount(cliName harness.Name) string {
-	folder := harness.Claude.ConfigHomeMount
-	if cli, ok := harness.For(cliName); ok {
-		folder = cli.ConfigHomeMount
-	}
-	return path.Join(containerHome, folder)
+	return path.Join(containerHome, harness.MustFor(cliName).ConfigHomeMount)
 }
 
 // WorkspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.

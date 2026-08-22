@@ -25,6 +25,25 @@ func TestMustFor(t *testing.T) {
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { MustFor("emacs") })
 }
 
+func TestEnv(t *testing.T) {
+	// Config-dir overrides point at the CLI's native config mount; toggles disable
+	// update checks / nonessential traffic. pkg/docker merges these into every run.
+	assert.Equal(t, "CLAUDE_CONFIG_DIR", Claude.ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		"DISABLE_AUTOUPDATER":                      "1",
+	}, Claude.Env)
+
+	assert.Equal(t, "CODEX_HOME", Codex.ConfigDirEnvKey)
+	assert.Empty(t, Codex.Env)
+
+	assert.Empty(t, OpenCode.ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, OpenCode.Env)
+
+	assert.Empty(t, Grok.ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, Grok.Env)
+}
+
 func TestSessionCmd(t *testing.T) {
 	tests := []struct {
 		cli    CLI

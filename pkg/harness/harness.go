@@ -33,9 +33,16 @@ type CLI struct {
 	Pinner pkger.Pinner
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
-	// mounted config is found with no CLAUDE_CONFIG_DIR/CODEX_HOME override.
-	// Threaded into the build too (CONFIG_DIR arg).
+	// mounted config is found with no override; ConfigDirEnvKey points the CLI's env var at it.
 	ConfigHomeMount string
+
+	// ConfigDirEnvKey is the env var naming the mounted config path for this CLI
+	// (e.g. CLAUDE_CONFIG_DIR), set per run by pkg/docker; "" = none.
+	ConfigDirEnvKey string
+
+	// Env is fixed container env the CLI requires (updater/traffic toggles), merged into
+	// every run of this CLI.
+	Env map[string]string
 
 	// SeedSrcFolder locates the embedded seed tree for this CLI's config dir;
 	// the host config dir reuses its leaf (e.g. .../codex-config -> codex-config).
@@ -60,11 +67,16 @@ var Claude = CLI{
 	Name:            NameClaude,
 	Pinner:          pkger.Npm{Package: "@anthropic-ai/claude-code"},
 	ConfigHomeMount: ".claude",
-	SeedSrcFolder:   "claude-config",
-	SeedRenames:     map[string]string{"CLAUDE.user.md": "CLAUDE.md"},
-	Cmd:             "claude",
-	ContinueArgs:    "-c",
-	ResumeArgs:      "--resume",
+	ConfigDirEnvKey: "CLAUDE_CONFIG_DIR",
+	Env: map[string]string{
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		"DISABLE_AUTOUPDATER":                      "1",
+	},
+	SeedSrcFolder: "claude-config",
+	SeedRenames:   map[string]string{"CLAUDE.user.md": "CLAUDE.md"},
+	Cmd:           "claude",
+	ContinueArgs:  "-c",
+	ResumeArgs:    "--resume",
 	AllowDomains: []string{
 		"platform.claude.com",
 		"api.anthropic.com",
@@ -79,6 +91,7 @@ var Codex = CLI{
 	Name:            NameCodex,
 	Pinner:          pkger.Npm{Package: "@openai/codex"},
 	ConfigHomeMount: ".codex",
+	ConfigDirEnvKey: "CODEX_HOME",
 	SeedSrcFolder:   "codex-config",
 	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
 	Cmd:             "codex",
@@ -102,6 +115,7 @@ var OpenCode = CLI{
 	ContinueArgs:    "-c",
 	// No picker flag exists; bare --session errors, so -r needs a session id.
 	ResumeArgs: "--session",
+	Env:        map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"},
 	AllowDomains: []string{
 		"opencode.ai",
 		"models.dev",
@@ -119,6 +133,7 @@ var Grok = CLI{
 	ContinueArgs:    "-c",
 	// Bare --resume resumes the most recent session — no picker flag exists.
 	ResumeArgs: "--resume",
+	Env:        map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"},
 	AllowDomains: []string{
 		"x.ai",
 		"cli-chat-proxy.grok.com",
