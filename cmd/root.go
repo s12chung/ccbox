@@ -29,6 +29,7 @@ var seedConfigs = map[harness.Name]embed.FS{}
 var (
 	flagTag      string
 	flagCacheDir string
+	flagCLI      string
 )
 
 // exitCode lets `run` propagate the container's exit status out through Execute.
@@ -50,7 +51,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		projectCfg, err = projectcfg.Load(cwd)
+		projectCfg, err = projectcfg.Load(cwd, projectcfg.Config{CLI: harness.Name(flagCLI)})
 		return err
 	},
 }
@@ -76,6 +77,7 @@ func init() {
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.StringVar(&flagCacheDir, "cache-dir", filepath.Join(home, ".ccbox"), "ccbox cache directory")
+	pf.StringVar(&flagCLI, "cli", "", "override the coding CLI set in .ccbox.yaml")
 
 	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
 }

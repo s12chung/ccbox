@@ -207,10 +207,10 @@ func read(path string) (Config, error) {
 	return c, nil
 }
 
-// Load reads workspaceDir/.ccbox.yaml, layers .ccbox.local.yaml onto it, and
-// applies Defaulted. Both files are optional — absent ones contribute the zero Config, so repos
-// without either keep working.
-func Load(workspaceDir string) (Config, error) {
+// Load reads workspaceDir/.ccbox.yaml, layers .ccbox.local.yaml onto it, then
+// CLI flags. Both files are optional — absent ones contribute the zero
+// Config, so repos without either keep working.
+func Load(workspaceDir string, flags Config) (Config, error) {
 	base, err := read(filepath.Join(workspaceDir, fileName))
 	if err != nil {
 		return Config{}, err
@@ -219,7 +219,7 @@ func Load(workspaceDir string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	c := Defaulted(workspaceDir, base.merge(local))
+	c := Defaulted(workspaceDir, base.merge(local).merge(flags))
 	if err := c.validate(); err != nil {
 		return Config{}, err
 	}

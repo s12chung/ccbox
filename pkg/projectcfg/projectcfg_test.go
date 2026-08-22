@@ -31,7 +31,7 @@ func TestLoadParses(t *testing.T) {
 		"allowlist:\n  - ccbox-defaults\n  - example.com\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(body), perm.File))
 
-	c, err := Load(dir)
+	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	assert.Equal(t, harness.NameCodex, c.CLI)
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs) // present defaults prepended
@@ -54,7 +54,7 @@ func TestLoadUnsetGetsDefaults(t *testing.T) {
 			if tt.write {
 				require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), perm.File))
 			}
-			c, err := Load(dir)
+			c, err := Load(dir, Config{})
 			require.NoError(t, err)
 			assert.Equal(t, harness.NameClaude, c.CLI)  // unset cli → claude
 			assert.Equal(t, tmpfsDefaults, c.Tmpfs)     // present always-on masks
@@ -106,7 +106,7 @@ func TestInitWritesLoadableDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, fileName), path)
 
-	c, err := Load(dir) // the written scaffold must resolve to the no-file behavior
+	c, err := Load(dir, Config{}) // the written scaffold must resolve to the no-file behavior
 	require.NoError(t, err)
 	assert.Equal(t, Defaulted(dir, Config{}).Tmpfs, c.Tmpfs)
 	assert.Equal(t, Defaulted(dir, Config{}).Allowlist, c.Allowlist)
@@ -131,7 +131,7 @@ func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("allowlist: []\n"), perm.File))
 
-	c, err := Load(dir)
+	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	assert.Empty(t, c.Allowlist) // an explicit [] is not the built-ins
 }
@@ -144,7 +144,7 @@ func TestLoadMergesLocalOverride(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(base), perm.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte(local), perm.File))
 
-	c, err := Load(dir)
+	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	assert.Equal(t, harness.NameCodex, c.CLI)                                                 // scalar override, local wins
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)                   // lists append, base first
@@ -158,7 +158,7 @@ func TestLoadLocalOnly(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName),
 		[]byte("allowlist:\n  - example.com\n"), perm.File))
 
-	c, err := Load(dir)
+	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"example.com"}, c.Allowlist) // no base, no token → just the override
 }
@@ -169,7 +169,7 @@ func TestLoadInvalidErrors(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("tmpfs: ["), perm.File))
 
-			_, err := Load(dir)
+			_, err := Load(dir, Config{})
 			assert.Error(t, err)
 		})
 	}
@@ -217,6 +217,23 @@ func TestLoadRejectsUnknownCLI(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: emacs\n"), perm.File))
 
-	_, err := Load(dir)
+	_, err := Load(dir, Config{})
 	assert.ErrorContains(t, err, "emacs")
+}
+
+func TestLoadFlagsOverrideFiles(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: claude\n"), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), perm.File))
+
+	c, err := Load(dir, Config{CLI: harness.NameGrok})
+	require.NoError(t, err)
+	assert.Equal(t, harness.NameGrok, c.CLI) // a set flag wins over both files
+
+	c, err = Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, harness.NameCodex, c.CLI) // an unset flag keeps the files' layering
+
+	_, err = Load(dir, Config{CLI: "emacs"})
+	assert.ErrorContains(t, err, "emacs") // the flag value validates like a file's
 }
