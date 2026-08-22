@@ -22,11 +22,22 @@ teardown() {
     [[ "$output" == *"/usr/local/share/mise/shims"* ]]
 }
 
-@test "claude-code: provisioned via mise's npm backend and runs" {
-    run mise ls
-    [[ "$output" == *"npm:@anthropic-ai/claude-code"*"(system)"* ]]
+@test "coding cli: provisioned via mise and runs" {
+    local ref bin
+    ref="$(mise ls --json | jq -r 'keys[]' | grep -E '^(npm:(@anthropic-ai/claude-code|@openai/codex|opencode-ai)|http:grok)$')"
+    [ -n "$ref" ]
 
-    run claude --version
+    case "$ref" in
+    npm:@anthropic-ai/claude-code) bin=claude ;;
+    npm:@openai/codex)             bin=codex ;;
+    npm:opencode-ai)               bin=opencode ;;
+    http:grok)                     bin=grok ;;
+    esac
+
+    run mise ls
+    [[ "$output" == *"$ref"*"(system)"* ]]
+
+    run "$bin" --version
     [ "$status" -eq 0 ]
     [[ "$output" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
 }
