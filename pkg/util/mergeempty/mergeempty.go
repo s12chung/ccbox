@@ -4,6 +4,8 @@
 // maps.Copy patterns that lose it.
 package mergeempty
 
+import "maps"
+
 // Slice returns a's elements followed by b's in a fresh slice.
 func Slice[T any](a, b []T) []T {
 	if a == nil && b == nil {
@@ -18,11 +20,7 @@ func Map[K comparable, V any](a, b map[K]V) map[K]V {
 		return nil
 	}
 	out := make(map[K]V, len(a)+len(b))
-	for k, v := range a {
-		out[k] = v
-	}
-	for k, v := range b {
-		out[k] = v
-	}
+	maps.Copy(out, a)
+	maps.Copy(out, b)
 	return out
 }

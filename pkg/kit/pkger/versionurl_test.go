@@ -23,7 +23,7 @@ func TestVersionURLArg(t *testing.T) {
 func TestVersionURLLatest(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write([]byte("  1.0.5\n"))
+			_, _ = w.Write([]byte("  1.0.5\n"))
 		}))
 		defer srv.Close()
 
@@ -35,7 +35,7 @@ func TestVersionURLLatest(t *testing.T) {
 	for _, body := range []string{"", "not found", "<html>502</html>", "1.0.5\n1.0.6"} {
 		t.Run("rejects "+body, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Write([]byte(body))
+				_, _ = w.Write([]byte(body))
 			}))
 			defer srv.Close()
 

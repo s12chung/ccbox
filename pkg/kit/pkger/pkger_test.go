@@ -16,7 +16,7 @@ func TestNpmArg(t *testing.T) {
 func TestNpmLatest(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.Write([]byte(`{"version": "1.2.3"}`))
+			_, _ = w.Write([]byte(`{"version": "1.2.3"}`))
 		}))
 		defer srv.Close()
 
@@ -32,7 +32,7 @@ func TestNpmLatest(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				w.Write([]byte(body))
+				_, _ = w.Write([]byte(body))
 			}))
 			defer srv.Close()
 

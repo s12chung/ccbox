@@ -7,9 +7,10 @@ import (
 	"github.com/moby/term"
 )
 
-// ANSI escapes for terminal coloring. Reset closes any of the others.
+// Color is an ANSI escape sequence tinting terminal output; ColorReset closes any of the others.
 type Color string
 
+// The colors ccbox uses.
 const (
 	ColorReset   Color = "\x1b[0m"
 	ColorBoldRed Color = "\x1b[1;31m"

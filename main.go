@@ -1,3 +1,5 @@
+// Command ccbox runs the hardened Docker devbox: build, wall proxy, and the
+// interactive devbox container launching the configured coding CLI.
 package main
 
 import (

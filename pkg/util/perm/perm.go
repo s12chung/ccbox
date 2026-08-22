@@ -4,6 +4,7 @@ package perm
 
 import "os"
 
+// Modes for the files and directories ccbox writes.
 const (
 	Dir      os.FileMode = 0o755 // directories
 	File     os.FileMode = 0o644 // regular files

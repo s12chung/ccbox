@@ -12,14 +12,24 @@ var ( // swapped in tests
 	outErr  io.Writer = os.Stderr
 )
 
-func Info(msg string)                { fmt.Fprintln(outInfo, msg) }
-func Infof(format string, a ...any)  { fmt.Fprintln(outInfo, fmt.Sprintf(format, a...)) }
-func Warnf(format string, a ...any)  { fmt.Fprintln(outErr, fmt.Sprintf(format, a...)) }
-func Errorf(format string, a ...any) { fmt.Fprintln(outErr, fmt.Sprintf(format, a...)) }
+// Info prints msg to stdout.
+func Info(msg string) { _, _ = fmt.Fprintln(outInfo, msg) }
+
+// Infof prints the formatted msg to stdout.
+func Infof(format string, a ...any) { _, _ = fmt.Fprintln(outInfo, fmt.Sprintf(format, a...)) }
+
+// Warnf prints the formatted msg to stderr.
+func Warnf(format string, a ...any) { _, _ = fmt.Fprintln(outErr, fmt.Sprintf(format, a...)) }
+
+// Errorf prints the formatted msg to stderr.
+func Errorf(format string, a ...any) { _, _ = fmt.Fprintln(outErr, fmt.Sprintf(format, a...)) }
 
 // Defer runs a deferred cleanup fn and surfaces (rather than swallows) its error.
-func Defer(what string, fn func() error) {
-	if err := fn(); err != nil {
+func Defer(what string, fn func() error) { WarnErr(what, fn()) }
+
+// WarnErr logs err against what when non-nil.
+func WarnErr(what string, err error) {
+	if err != nil {
 		Warnf("%s failed: %v", what, err)
 	}
 }

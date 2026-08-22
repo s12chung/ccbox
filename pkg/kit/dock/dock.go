@@ -8,18 +8,22 @@ import (
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 
 	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/ccbox/pkg/util/prompt"
 )
 
 // CtxD pairs a D Engine client with the context its calls run under.
 type CtxD struct {
+	//nolint:containedctx // pairs the engine client with its call context by design
 	Ctx context.Context
 	D   *client.Client
 }
 
+// NewCtxD builds an Engine client from the environment (DOCKER_HOST etc.) under ctx.
 func NewCtxD(ctx context.Context) (*CtxD, error) {
 	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
 	if err != nil {
@@ -78,4 +82,21 @@ func ChownVolume(ctxD *CtxD, image, volumeName, owner string) error {
 		}
 		return nil
 	}
+}
+
+// EnsureImageExists pulls ref only when it isn't present locally (the SDK, unlike the
+// CLI, never auto-pulls on create). Inspect resolves the digest-pinned ref that a
+// reference filter would miss, so a cached image isn't re-pulled (or wrongly
+// reported absent when the host is offline) each run.
+func EnsureImageExists(ctxD *CtxD, ref string) error {
+	if _, err := ctxD.D.ImageInspect(ctxD.Ctx, ref); err == nil {
+		return nil
+	}
+	readCloser, err := ctxD.D.ImagePull(ctxD.Ctx, ref, image.PullOptions{})
+	if err != nil {
+		return err
+	}
+
+	defer log.Defer("close image pull", readCloser.Close)
+	return prompt.DisplayProgress(readCloser)
 }

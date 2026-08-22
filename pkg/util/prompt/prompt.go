@@ -29,7 +29,7 @@ func Confirm(question string) bool {
 // unbuffered, returning a restore func to undo it. ok is false when stdin isn't
 // a terminal (piped/redirected) or raw mode can't be set — then restore is nil
 // and there's nothing to undo.
-func RawTerminal() (restore func() error, ok bool) {
+func RawTerminal() (func() error, bool) {
 	inFd, _ := term.GetFdInfo(os.Stdin)
 	if !term.IsTerminal(inFd) {
 		return nil, false
@@ -45,7 +45,7 @@ func RawTerminal() (restore func() error, ok bool) {
 // and again on every SIGWINCH, so a consumer (e.g. a container tty) can track
 // the terminal's size. The returned stop func ends forwarding. When stdout
 // isn't a terminal, sizes can't be read and onResize never fires.
-func ForwardResizes(onResize func(h, w uint)) (stop func()) {
+func ForwardResizes(onResize func(h, w uint)) func() {
 	outFd, _ := term.GetFdInfo(os.Stdout)
 	emit := func() {
 		if ws, err := term.GetWinsize(outFd); err == nil {

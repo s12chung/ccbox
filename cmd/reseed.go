@@ -80,11 +80,12 @@ func safeSeed(root fs.FS, dst string, confirm bool, srcs ...seedSrc) (string, er
 		}
 		renamed = append(renamed, r...)
 	}
-	if noChanges {
+	switch {
+	case noChanges:
 		log.Infof("no seed changes")
-	} else if len(renamed) == 0 {
+	case len(renamed) == 0:
 		log.Infof("seeded: %s with no overwritten files", dst)
-	} else {
+	default:
 		rel := make([]string, len(renamed))
 		for i, p := range renamed {
 			rel[i], _ = filepath.Rel(dst, p)

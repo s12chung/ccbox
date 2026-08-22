@@ -13,7 +13,6 @@ import (
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/pkg/stdcopy"
 
@@ -42,9 +41,9 @@ type ProxyOptions struct {
 // Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
 // streaming its logs until interrupted. Blocks until SIGINT/SIGTERM stops it.
 func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
-	// Wall exits on its own (logFn closes stop).
+	// proxy exits on its own (logFn closes stop).
 	stop := make(chan struct{})
-	cleanup, err := proxyStart(ctxD, o, func(logs io.ReadCloser) error {
+	clean, err := proxyStart(ctxD, o, func(logs io.ReadCloser) error {
 		_, err := stdcopy.StdCopy(proxyColorWriter(os.Stdout), proxyColorWriter(os.Stderr), logs)
 		close(stop)
 		return err
@@ -61,7 +60,7 @@ func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	case <-sig:
 	case <-stop:
 	}
-	return cleanup()
+	return clean()
 }
 
 func proxyColorWriter(w io.Writer) io.Writer { return prompt.NewColorWriter(w, tinyproxyLevelColor) }
@@ -83,22 +82,6 @@ func tinyproxyLevelColor(line string) prompt.Color {
 	return tinyproxyLevelColors[fields[0]]
 }
 
-// ensureImage pulls ref only when it isn't present locally (the SDK, unlike the
-// CLI, never auto-pulls on create). Inspect resolves the digest-pinned ref that a
-// reference filter would miss, so a cached image isn't re-pulled (or wrongly
-// reported absent when the host is offline) each run.
-func ensureImage(ctxD *dock.CtxD, ref string) error {
-	if _, err := ctxD.D.ImageInspect(ctxD.Ctx, ref); err == nil {
-		return nil
-	}
-	readCloser, err := ctxD.D.ImagePull(ctxD.Ctx, ref, image.PullOptions{})
-	if err != nil {
-		return err
-	}
-	defer log.Defer("close image pull", readCloser.Close)
-	return prompt.DisplayProgress(readCloser)
-}
-
 // ensureNetwork creates the internal wall network if absent. Like the Makefile's
 // `docker network create ... || true`, a pre-existing network is not an error.
 func ensureNetwork(ctxD *dock.CtxD) {
@@ -106,6 +89,32 @@ func ensureNetwork(ctxD *dock.CtxD) {
 		Driver:   "bridge",
 		Internal: true,
 	})
+}
+
+// tearIdleNetwork tears the network down only if we're its last user. A still-running devbox keeps
+// the wall attached (expected) — leave it; `proxy clean` can clean it.
+func tearIdleNetwork(ctxD *dock.CtxD) error {
+	err := ProxyClean(ctxD)
+	if errdefs.IsPermissionDenied(err) {
+		log.Infof("keeping wall network around: %v", err)
+		return nil
+	}
+	return err
+}
+
+// streamLogs streams logs through logFn in a goroutine and returns a channel yielding
+// its error when the stream ends.
+func streamLogs(logFn func(logs io.ReadCloser) error, logs io.ReadCloser) chan error {
+	logDone := make(chan error)
+	go func() {
+		logErr := logFn(logs)
+		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
+			logErr = nil
+		}
+		logDone <- logErr
+		close(logDone)
+	}()
+	return logDone
 }
 
 // ProxyClean removes the wall network. A missing network is already clean (not an error);
@@ -118,9 +127,9 @@ func ProxyClean(ctxD *dock.CtxD) error {
 }
 
 // proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
-func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (teardown func() error, err error) {
+func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (func() error, error) {
+	var err error
 	var stack cleanup.Stack
-	// Unwind partial setup if we bail before returning teardown.
 	defer func() {
 		if err != nil {
 			stack.Run()
@@ -128,18 +137,11 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	}()
 
 	ensureNetwork(ctxD)
-	// Tear the network down only if we're its last user. A still-running devbox keeps
-	// the wall attached (expected) — leave it; `proxy clean` can clean it.
 	stack.Push("remove wall network", func() error {
-		err := ProxyClean(ctxD)
-		if errdefs.IsPermissionDenied(err) {
-			log.Infof("keeping wall network around: %v", err)
-			return nil
-		}
-		return err
+		return tearIdleNetwork(ctxD)
 	})
 
-	if err = ensureImage(ctxD, proxyImage); err != nil {
+	if err = dock.EnsureImageExists(ctxD, proxyImage); err != nil {
 		return nil, err
 	}
 	// Clear any stale egress container so the fixed name is free.
@@ -172,24 +174,13 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 		return ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
 	})
 
-	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{
-		ShowStdout: true, ShowStderr: true, Follow: true,
-	})
+	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
 	if err != nil {
 		return nil, err
 	}
 	stack.Push("close logs", logs.Close)
 
-	logDone := make(chan error)
-	go func() {
-		logErr := logFn(logs)
-		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
-			logErr = nil
-		}
-		logDone <- logErr
-		close(logDone)
-	}()
-
+	logDone := streamLogs(logFn, logs)
 	return func() error {
 		stack.Run()
 		return <-logDone

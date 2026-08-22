@@ -14,8 +14,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/perm"
 )
 
-func ptr[T any](v T) *T { return &v }
-
 // mkDefaultDirs creates the tmpfsDefaults under dir so they get prepended.
 func mkDefaultDirs(t *testing.T, dir string) {
 	t.Helper()
@@ -69,7 +67,7 @@ func TestDefaultedResolves(t *testing.T) {
 	c := Defaulted(dir, Config{Tmpfs: []string{"dist"}, Allowlist: []string{"example.com"}})
 	assert.Equal(t, []string{".idea", ".vscode", "dist"}, c.Tmpfs)
 	assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
-	assert.Equal(t, ptr(true), c.HostGitConfig)           // unset → default on
+	assert.Equal(t, new(true), c.HostGitConfig)           // unset → default on
 }
 
 func TestDefaultedSkipsAbsentTmpfsDefaults(t *testing.T) {
@@ -150,7 +148,7 @@ func TestLoadMergesLocalOverride(t *testing.T) {
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)                   // lists append, base first
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env)                  // env overlays, local wins
 	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // merged, then token expanded
-	assert.Equal(t, ptr(false), c.HostGitConfig)                                              // scalar override, local wins
+	assert.Equal(t, new(false), c.HostGitConfig)                                              // scalar override, local wins
 }
 
 func TestLoadLocalOnly(t *testing.T) {
@@ -182,7 +180,7 @@ func TestMergeIsPure(t *testing.T) {
 		Volumes:       []string{"target"},
 		Env:           map[string]string{"FOO": "base", "BAR": "base"},
 		Allowlist:     []string{"ccbox-defaults"},
-		HostGitConfig: ptr(true),
+		HostGitConfig: new(true),
 	}
 	other := Config{
 		CLI:           harness.NameCodex,
@@ -190,7 +188,7 @@ func TestMergeIsPure(t *testing.T) {
 		Volumes:       []string{"cache"},
 		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
 		Allowlist:     []string{"example.com"},
-		HostGitConfig: ptr(false),
+		HostGitConfig: new(false),
 	}
 	before := deepcopy.Of(src)
 
@@ -198,7 +196,7 @@ func TestMergeIsPure(t *testing.T) {
 
 	// merge must not mutate its receiver — every src field still equals its pre-merge snapshot
 	srvVal, beforeVal, gotVal := reflect.ValueOf(src), reflect.ValueOf(before), reflect.ValueOf(got)
-	for i := 0; i < srvVal.NumField(); i++ {
+	for i := range srvVal.NumField() {
 		field := srvVal.Type().Field(i).Name
 		assert.Equal(t, beforeVal.Field(i).Interface(), srvVal.Field(i).Interface(), "merge mutated src.%s", field)
 		assert.NotEqual(t, beforeVal.Field(i).Interface(), gotVal.Field(i).Interface(), "before = got on field %s, maybe missed a new field?", field)
@@ -209,7 +207,7 @@ func TestMergeIsPure(t *testing.T) {
 	assert.Equal(t, []string{"target", "cache"}, got.Volumes)
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
-	assert.Equal(t, ptr(false), got.HostGitConfig) // scalar: other (local) wins when set
+	assert.Equal(t, new(false), got.HostGitConfig) // scalar: other (local) wins when set
 	assert.Equal(t, harness.NameCodex, got.CLI)    // scalar: other (local) wins when set
 }
 

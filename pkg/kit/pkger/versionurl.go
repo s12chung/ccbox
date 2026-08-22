@@ -1,12 +1,14 @@
 package pkger
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"regexp"
 	"strings"
 
+	"github.com/s12chung/ccbox/pkg/util/httputil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
@@ -35,11 +37,11 @@ func (u VersionURL) Arg() string {
 }
 
 func versionAt(url string) (string, error) {
-	resp, err := http.Get(url)
+	resp, err := httputil.Get(context.Background(), url)
 	if err != nil {
 		return "", err
 	}
-	defer log.Defer("close version response", resp.Body.Close)
+	defer func() { log.WarnErr("close version response", resp.Body.Close()) }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%s: %s", url, resp.Status)
 	}

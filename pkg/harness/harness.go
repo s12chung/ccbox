@@ -14,6 +14,7 @@ import (
 // Name is the coding CLI's identity — the .ccbox.yaml cli value.
 type Name string
 
+// Supported coding CLIs.
 const (
 	NameClaude   Name = "claude"
 	NameCodex    Name = "codex"
@@ -21,7 +22,11 @@ const (
 	NameGrok     Name = "grok"
 )
 
+// SharedSeedPath is the seed subtree shared across every CLI.
 const SharedSeedPath = "shared"
+
+// agentsMD is the live memory filename most CLIs rename the shared doc into.
+const agentsMD = "AGENTS.md"
 
 // AgentsFileName is the shared user AGENTS.md
 const AgentsFileName = "AGENTS.user.md"
@@ -106,7 +111,7 @@ var Codex = CLI{
 	Pkger:              pkger.Npm{Package: "@openai/codex"},
 	ConfigHomeMount:    ".codex",
 	ConfigDirEnvKey:    "CODEX_HOME",
-	SeedAgentsFilename: "AGENTS.md",
+	SeedAgentsFilename: agentsMD,
 	Cmd:                "codex --sandbox danger-full-access", // run without bubblewrap, which is buggy atm without root
 	ContinueArgs:       "resume --last",
 	ResumeArgs:         "resume",
@@ -122,7 +127,7 @@ var OpenCode = CLI{
 	Name:               NameOpenCode,
 	Pkger:              pkger.Npm{Package: "opencode-ai"},
 	ConfigHomeMount:    ".config/opencode",
-	SeedAgentsFilename: "AGENTS.md",
+	SeedAgentsFilename: agentsMD,
 	Cmd:                "opencode",
 	ContinueArgs:       "-c",
 	// No picker flag exists; bare --session errors, so -r needs a session id.
@@ -143,7 +148,7 @@ var Grok = CLI{
 		LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
 	},
 	ConfigHomeMount:    ".grok",
-	SeedAgentsFilename: "AGENTS.md",
+	SeedAgentsFilename: agentsMD,
 	Cmd:                "grok",
 	ContinueArgs:       "-c",
 	// Bare --resume resumes the most recent session — no picker flag exists.

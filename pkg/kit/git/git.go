@@ -18,7 +18,7 @@ func XDGConfigDir() (string, error) {
 		base = filepath.Join(home, ".config")
 	}
 	dir := filepath.Join(base, "git")
-	switch info, err := os.Stat(dir); {
+	switch info, err := os.Stat(dir); { // #nosec G703 -- dir is the user's own XDG git config path
 	case err == nil && info.IsDir():
 		return dir, nil
 	case err == nil || os.IsNotExist(err): // a non-dir or absent path → skip, not an error

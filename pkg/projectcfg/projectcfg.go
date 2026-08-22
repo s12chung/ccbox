@@ -23,7 +23,7 @@ const fileName = ".ccbox.yaml"
 const localFileName = ".ccbox.local.yaml"
 
 // DefaultsToken listed in allowlist, expands in place to allowDefaults
-const DefaultsToken = "ccbox-defaults"
+const DefaultsToken = "ccbox-defaults" // #nosec G101 -- config expansion keyword, not a credential
 
 // defaultCliName is the coding CLI when .ccbox.yaml doesn't say.
 const defaultCliName = harness.NameClaude
@@ -43,6 +43,7 @@ var sharedAllowDefaults = []string{
 	// mise (tool version manager): version lists + release metadata
 	"mise.en.dev",
 	"mise-versions.jdx.dev",
+	"tuf-repo-cdn.sigstore.dev",
 
 	// Node / npm
 	"registry.npmjs.org",
@@ -118,8 +119,9 @@ func Defaulted(workspaceDir string, c Config) Config {
 // validate rejects an unknown cli, the one field whose value must be a known enum.
 func (c Config) validate() error {
 	if _, ok := harness.For(c.CLI); !ok {
-		var names []string
-		for _, cli := range harness.All() {
+		all := harness.All()
+		names := make([]string, 0, len(all))
+		for _, cli := range all {
 			names = append(names, string(cli.Name))
 		}
 		return fmt.Errorf("cli: unknown value %q (want %q)", c.CLI, strings.Join(names, ", "))
@@ -193,7 +195,7 @@ func (c Config) merge(other Config) Config {
 
 // read parses the .ccbox.yaml at path. A missing file yields the zero Config
 func read(path string) (Config, error) {
-	body, err := os.ReadFile(path)
+	body, err := os.ReadFile(path) // #nosec G304 -- path is the workspace's own .ccbox.yaml
 	if errors.Is(err, fs.ErrNotExist) {
 		return Config{}, nil
 	}

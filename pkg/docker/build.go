@@ -7,9 +7,7 @@ import (
 
 	"github.com/docker/buildx/build"
 	"github.com/docker/buildx/builder"
-	// Registers the "docker" driver factory (daemon's embedded BuildKit) via init;
-	// without it builder resolution fails with "no drivers available".
-	_ "github.com/docker/buildx/driver/docker"
+	_ "github.com/docker/buildx/driver/docker" // registers the daemon's embedded BuildKit driver factory
 	"github.com/docker/buildx/util/confutil"
 	"github.com/docker/buildx/util/dockerutil"
 	"github.com/docker/buildx/util/progress"

@@ -96,8 +96,9 @@ func maskVolumeName(hostCwd, rel string) string {
 }
 
 // namedVolumeMasks returns a "volume:containerPath" bind per masked path, plus each volume's name.
-func namedVolumeMasks(hostCwd string, hostPaths []string) (binds, names []string, err error) {
+func namedVolumeMasks(hostCwd string, hostPaths []string) ([]string, []string, error) {
 	workspaceMount := WorkspaceMount(hostCwd)
+	var binds, names []string
 	for _, p := range hostPaths {
 		containerPath, err := safeContainerPath(workspaceMount, p)
 		if err != nil {

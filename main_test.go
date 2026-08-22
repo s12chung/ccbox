@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,7 +15,7 @@ import (
 func TestBuildContextHasCopySources(t *testing.T) {
 	f, err := buildContext.Open("Dockerfile")
 	require.NoError(t, err, "Dockerfile not embedded")
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
@@ -41,7 +40,7 @@ func TestBuildContextHasCopySources(t *testing.T) {
 		}
 		for _, src := range nonFlag[:len(nonFlag)-1] {
 			_, err := fs.Stat(buildContext, src)
-			assert.NoErrorf(t, err, "Dockerfile COPYs %q but it isn't embedded in buildContext", src)
+			require.NoErrorf(t, err, "Dockerfile COPYs %q but it isn't embedded in buildContext", src)
 		}
 	}
 	require.NoError(t, sc.Err())

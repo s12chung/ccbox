@@ -1,10 +1,12 @@
 package pkger
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 
+	"github.com/s12chung/ccbox/pkg/util/httputil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
@@ -34,11 +36,11 @@ func (n Npm) Arg() string {
 
 func latestAt(registry, pkg string) (string, error) {
 	url := fmt.Sprintf("%s/%s/latest", registry, pkg)
-	resp, err := http.Get(url)
+	resp, err := httputil.Get(context.Background(), url)
 	if err != nil {
 		return "", err
 	}
-	defer log.Defer("close npm response", resp.Body.Close)
+	defer func() { log.WarnErr("close npm response", resp.Body.Close()) }()
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("npm registry %s: %s", url, resp.Status)
 	}

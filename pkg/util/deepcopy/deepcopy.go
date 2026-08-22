@@ -8,7 +8,10 @@ import "reflect"
 // scalars are copied by value. Nil slices/maps/pointers stay nil. Unexported struct fields are
 // left zero — reflection can't set them.
 func Of[T any](v T) T {
-	return copyValue(reflect.ValueOf(v)).Interface().(T)
+	// copyValue preserves v's type, so Set doubles as the type check — no assertion needed
+	var out T
+	reflect.ValueOf(&out).Elem().Set(copyValue(reflect.ValueOf(v)))
+	return out
 }
 
 func copyValue(v reflect.Value) reflect.Value {
@@ -18,7 +21,7 @@ func copyValue(v reflect.Value) reflect.Value {
 			return v
 		}
 		out := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
-		for i := 0; i < v.Len(); i++ {
+		for i := range v.Len() {
 			out.Index(i).Set(copyValue(v.Index(i)))
 		}
 		return out
@@ -31,7 +34,7 @@ func copyValue(v reflect.Value) reflect.Value {
 			out.SetMapIndex(k, copyValue(v.MapIndex(k)))
 		}
 		return out
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if v.IsNil() {
 			return v
 		}
@@ -40,7 +43,7 @@ func copyValue(v reflect.Value) reflect.Value {
 		return out
 	case reflect.Struct:
 		out := reflect.New(v.Type()).Elem()
-		for i := 0; i < v.NumField(); i++ {
+		for i := range v.NumField() {
 			if f := out.Field(i); f.CanSet() {
 				f.Set(copyValue(v.Field(i)))
 			}

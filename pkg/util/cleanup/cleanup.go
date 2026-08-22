@@ -2,7 +2,11 @@
 // that isn't tied to a function's scope (e.g. handed back to a caller to run later).“
 package cleanup
 
-import "github.com/s12chung/ccbox/pkg/util/log"
+import (
+	"slices"
+
+	"github.com/s12chung/ccbox/pkg/util/log"
+)
 
 // Stack holds named teardown steps and runs them in reverse order.
 type Stack struct {
@@ -16,7 +20,7 @@ func (s *Stack) Push(what string, fn func() error) {
 
 // Run runs the pushed steps in reverse (LIFO), the order defer would.
 func (s *Stack) Run() {
-	for i := len(s.steps) - 1; i >= 0; i-- {
-		s.steps[i]()
+	for _, step := range slices.Backward(s.steps) {
+		step()
 	}
 }

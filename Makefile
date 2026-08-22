@@ -8,8 +8,7 @@ lint:
 	hadolint Dockerfile
 	shellcheck docker/image/entrypoint.sh pkg/harness/clis/claude/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/harness/clis -name '*.json' -exec jq empty {} +
-	gofmt -l . | (! grep .)
-	go vet ./...
+	golangci-lint run
 
 ci: test
 test.all: test test.docker

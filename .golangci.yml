@@ -1,12 +1,10 @@
-run:
-  # timeout for analysis, e.g. 30s, 5m, default is 1m
-  timeout: 2m
+version: "2"
 linters:
-  disable-all: true
+  # all available linters as of golangci-lint 2.13.1
+  default: none
   enable:
     # enabled by default
     - errcheck
-    - gosimple
     - govet
     - ineffassign
     - staticcheck
@@ -16,190 +14,186 @@ linters:
     - asciicheck
     - bidichk
     - bodyclose
+    - canonicalheader
     - containedctx
     - contextcheck
     - copyloopvar
     - cyclop
-    # - deadcode [deprecated]
     - decorder
-    # - depguard # not using whitelist of external packages
     - dogsled
     - dupl
     - dupword
     - durationcheck
+    - embeddedstructfieldcheck
     - errchkjson
     - errname
     - errorlint
-    - execinquery
     - exhaustive
-    # - exhaustivestruct [deprecated]
-    # - exhaustruct # use constructors to handle empty fields instead of tags
-    - exportloopref
+    - exptostd
+    - fatcontext
     - forbidigo
     - forcetypeassert
     - funlen
-    - gci
-    # - ginkgolinter # not using ginkgo
     - gocheckcompilerdirectives
-    # - gochecknoglobals # globals are ok
-    # - gochecknoinits # init() is ok
     - gochecksumtype
     - gocognit
     - goconst
     - gocritic
     - gocyclo
-    # - godot # comments without periods are fine
     - godox
-    # - goerr113 # want non-stick errors
-    - gofmt
-    # - gofumpt # too strict formatting
-    # - goheader # not using a header
-    - goimports
-    # - golint [deprecated]
-    # - gomnd # magic numbers are ok
     - gomoddirectives
-    # - gomodguard # not using whitelist of external packages
     - goprintffuncname
     - gosec
-    # - gosmopolitan # not using i18n, using it on front end
     - grouper
-    # - ifshort [deprecated]
+    - iface
     - importas
     - inamedparam
     - interfacebloat
-    # - interfacer [deprecated]
     - intrange
-    # - ireturn # return interfaces are fine
+    - iotamixing
     - lll
-    # - loggercheck # not using these logs
     - maintidx
     - makezero
-    # - maligned [deprecated]
     - mirror
     - misspell
+    - modernize
     - musttag
     - nakedret
     - nestif
     - nilerr
+    - nilnesserr
     - nilnil
-    # - nlreturn # don't need newline before return
     - noctx
-    # - nolintlint # need this
     - nonamedreturns
-    # - nosnakecase [deprecated]
     - nosprintfhostport
-    # - paralleltest # not making every test parallel
     - perfsprint
     - prealloc
     - predeclared
-    # - promlinter # not using prometheus
     - protogetter
     - reassign
+    - recvcheck
     - revive
     - rowserrcheck
-    # - scopelint [deprecated]
     - sloglint
     - spancheck
     - sqlclosecheck
-    # - structcheck [deprecated]
-    - stylecheck
     - tagalign
     - tagliatelle
-    - tenv
-    # - testableexamples # no output comments are ok
     - testifylint
-    # - testpackage # _test packages are not preferred
-    # - thelper # no need to clean up call stack for tests
     - tparallel
     - unconvert
     - unparam
     - usestdlibvars
-    # - varcheck [deprecated]
-    # - varnamelen # short names are fine
+    - usetesting
     - wastedassign
     - whitespace
+    # disabled
+    # - arangolint # not using ArangoDB
+    # - clickhouselint # not using ClickHouse
+    # - depguard # not using allow/deny lists of external packages
+    # - err113 # want sticky errors
+    # - exhaustruct_v5 # use constructors to handle empty fields instead of tags
+    # - funcorder # function/method ordering churn
+    # - ginkgolinter # not using ginkgo
+    # - gochecknoglobals # globals are ok
+    # - gochecknoinits # init() is ok
+    # - godoclint # doc coverage not enforced
+    # - godot # comments without periods are fine
+    # - goheader # not using a header
+    # - gomodguard_v2 # not using allow/deny lists of external packages
+    # - gosmopolitan # not using i18n
+    # - ireturn # return interfaces are fine
+    # - loggercheck # not using these log libs
+    # - mnd # magic numbers are ok
+    # - nlreturn # don't need newline before return
+    # - noinlineerr # inline errors are idiomatic
+    # - nolintlint # nolint directives are fine
+    # - paralleltest # not making every test parallel
+    # - promlinter # not using prometheus
+    # - testableexamples # no output comments are ok
+    # - testpackage # _test packages are preferred
+    # - thelper # no need to clean up call stack for tests
+    # - unqueryvet # not using SQL, SELECT * is fine anyway
+    # - varnamelen # short names are fine
     # - wrapcheck # don't want to always wrap errors
-    # - wsl # too strict whitespace stuff
+    # - wsl_v5 # too strict whitespace stuff
     # - zerologlint # not using zerolog
 
-# all available settings of specific linters
-linters-settings:
-  lll:
-    # Max line length, lines longer will be reported.
-    # '\t' is counted as 1 character by default, and can be changed with the tab-width option.
-    # Default: 120.
-    line-length: 150
-    # Tab width in spaces.
-    # Default: 1
-    tab-width: 1
-  cyclop:
-    # The maximal code complexity to report.
-    # Default: 10
-    max-complexity: 16
-  errorlint:
-    # Check for plain error comparisons.
-    # Default: true
-    comparison: false
-  forbidigo:
-    # Forbid the following identifiers (list of regexp).
-    # Default: ["^(fmt\\.Print(|f|ln)|print|println)$"]
-    forbid:
-      - "^(fmt\\.Print(|f|ln)|print|println)$"
-      - "^(slog\\.(Debug|Info|Warn|Error)(Context)?)$"
-      - "^(slog\\.Default)$"
-      - "^(logg\\.Default)$"
-      - "^(context\\.Background)$"
-  gci:
-    # Section configuration to compare against.
-    # Section names are case-insensitive and may contain parameters in ().
-    # The default order of sections is `standard > default > custom > blank > dot`,
-    # If `custom-order` is `true`, it follows the order of `sections` option.
-    # Default: ["standard", "default"]
-    sections:
-      - standard # Standard section: captures all standard packages.
-      - default # Default section: contains all imports that could not be matched to another section type.
-      - prefix(github.com/s12chung/text2anki) # Custom section: groups all imports with the specified Prefix.
-  tagliatelle:
-    # Check the struct tag name case.
-    case:
-      # `camel` is used for `json` and `yaml`, and `header` is used for `header` (can be overridden)
-      # Default: {}
-      rules:
-        # Any struct tag type can be used.
-        # Support string case: `camel`, `pascal`, `kebab`, `snake`, `goCamel`, `goPascal`, `goKebab`, `goSnake`, `upper`, `lower`, `header`
-        json: snake
-issues:
-  # golangci has its own rules to ignore certain lint rules. See `golangci-lint run --help`.
-  # Default value for this option is true.
-  exclude-use-default: false
+  settings:
+    lll:
+      # Max line length, lines longer will be reported.
+      # '\t' is counted as 1 character by default, and can be changed with the tab-width option.
+      # Default: 120.
+      line-length: 150
+      # Tab width in spaces.
+      # Default: 1
+      tab-width: 1
+    cyclop:
+      # The maximal code complexity to report.
+      # Default: 10
+      max-complexity: 16
+    errorlint:
+      # Check for plain error comparisons.
+      # Default: true
+      comparison: false
+    exhaustive:
+      # a switch with a default case is exhaustive: listing every reflect.Kind to
+      # "return v" for scalars would be noise
+      default-signifies-exhaustive: true
+    forbidigo:
+      # print through pkg/util/log, never fmt/print/slog directly
+      forbid:
+        - pattern: ^(fmt\.Print(|f|ln)|print|println)$
+        - pattern: ^(slog\.(Debug|Info|Warn|Error)(Context)?|slog\.Default)$
+    tagliatelle:
+      # Check the struct tag name case. snake matches the .ccbox.yaml key convention.
+      case:
+        rules:
+          json: snake
+          yaml: snake
 
-  exclude-rules:
-    # code for humans instead of machines until you scale up
-    - text: fieldalignment
-      linters:
-        - govet
-    # I like my zeros
-    - text: "var-declaration: should drop = 0 from declaration of var"
-      linters:
-        - revive
-    # easier to manipulate, even if longer
-    - text: "if-return: redundant if ...; err != nil check, just return error instead"
-      linters:
-        - revive
-    # it's fine in tests
-    - text: "context.Background"
-      path: '(.+)_test\.go'
-      linters:
-        - forbidigo
-    # Does not apply for go 1.22
-    - text: "G601: Implicit memory aliasing in for loop."
-      linters:
-        - gosec
-    # context is not needed, should be used in the wrapper function
-    - source: 'jhttp\.ReturnModelOr500\(func\(\) \(any, error\)'
-      linters:
-        - contextcheck
-    # context is not needed, should be used in the wrapper function
-    - source: 'rs\.runOr500\(r, func\(r \*http\.Request, tx db\.TxQs\) error'
-      linters:
-        - contextcheck
+  exclusions:
+    # golangci has its own rules to ignore certain lint rules. See `golangci-lint run --help`.
+    generated: lax
+    rules:
+      # I like my zeros
+      - text: "var-declaration: should drop = 0 from declaration of var"
+        linters:
+          - revive
+      # easier to manipulate, even if longer
+      - text: "if-return: redundant if ...; err != nil check, just return error instead"
+        linters:
+          - revive
+      # tests repeat literals freely; named constants obscure the fixtures
+      - path: _test\.go
+        linters:
+          - goconst
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+
+formatters:
+  enable:
+    - gci
+    - gofmt
+    - goimports
+  settings:
+    gci:
+      # Section configuration to compare against.
+      # Section names are case-insensitive and may contain parameters in ().
+      sections:
+        - standard # Standard section: captures all standard packages.
+        - default # Default section: contains all imports that could not be matched to another section type.
+        - prefix(github.com/s12chung/ccbox) # Custom section: groups all imports with the specified Prefix.
+  # disabled
+  # - gofumpt # too strict formatting
+  # - golines # lines stay under lll's limit by hand
+  # - swaggo # not using swagger
+
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

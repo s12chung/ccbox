@@ -24,9 +24,10 @@ var ErrNoChanges = errors.New("seed: all files identical")
 // destination files are backed up to <base>.old<ext> before being overwritten; the
 // backed-up paths are returned. A pre-existing backup is never clobbered — it's a hard error.
 // When every file is left untouched, ErrNoChanges is returned.
-func Tree(src fs.FS, destDir string, renames map[string]string) (renamed []string, err error) {
+func Tree(src fs.FS, destDir string, renames map[string]string) ([]string, error) {
+	var renamed []string
 	var changed int
-	err = fs.WalkDir(src, ".", func(p string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(src, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
@@ -43,7 +44,7 @@ func Tree(src fs.FS, destDir string, renames map[string]string) (renamed []strin
 		if err := os.MkdirAll(filepath.Dir(dest), perm.Dir); err != nil {
 			return err
 		}
-		if existing, err := os.ReadFile(dest); err == nil {
+		if existing, err := os.ReadFile(dest); err == nil { // #nosec G304 -- dest is the seeded tree's own path
 			if bytes.Equal(existing, body) {
 				return nil
 			}

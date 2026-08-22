@@ -134,17 +134,17 @@ func TestTreeCodexRenames(t *testing.T) {
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
+	require.NoError(t, os.WriteFile(path, []byte(body), perm.File))
 }
 
 func mkdirAll(t *testing.T, path string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(path, 0o755))
+	require.NoError(t, os.MkdirAll(path, perm.Dir))
 }
 
 func assertFile(t *testing.T, path, want string) {
 	t.Helper()
-	got, err := os.ReadFile(path)
+	got, err := os.ReadFile(path) // #nosec G304 -- reads the caller-specified fixture path
 	require.NoErrorf(t, err, "read %s", path)
 	assert.Equal(t, want, string(got), path)
 }
