@@ -4,6 +4,7 @@ package seed
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -15,12 +16,18 @@ import (
 
 const SourceDir = "docker/seed"
 
+// ErrNoChanges reports that Tree made no changes: every destination already
+// matched its source, so nothing was written or backed up.
+var ErrNoChanges = errors.New("seed: all files identical")
+
 // Tree seeds a config tree onto destDir (creating it), preserving the tree
 // and applying renames (source path -> destination name) where present. A destination
 // already matching the source is left untouched. Other existing
 // destination files are backed up to <base>.old<ext> before being overwritten; the
 // backed-up paths are returned. A pre-existing backup is never clobbered — it's a hard error.
+// When every file is left untouched, ErrNoChanges is returned.
 func Tree(src fs.FS, destDir string, renames map[string]string) (renamed []string, err error) {
+	var changed int
 	err = fs.WalkDir(src, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
@@ -53,8 +60,12 @@ func Tree(src fs.FS, destDir string, renames map[string]string) (renamed []strin
 			}
 			renamed = append(renamed, backup)
 		}
+		changed++
 		return os.WriteFile(dest, body, fileMode(dest))
 	})
+	if err == nil && changed == 0 {
+		err = ErrNoChanges
+	}
 	return renamed, err
 }
 

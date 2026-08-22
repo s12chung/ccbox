@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path"
@@ -64,6 +65,7 @@ func safeSeed(root fs.FS, dst string, confirm bool, srcs ...seedSrc) (string, er
 		return dst, err
 	}
 
+	noChanges := true
 	var renamed []string
 	for _, s := range srcs {
 		src, err := fs.Sub(root, path.Join(seed.SourceDir, s.sub))
@@ -71,12 +73,17 @@ func safeSeed(root fs.FS, dst string, confirm bool, srcs ...seedSrc) (string, er
 			return dst, err
 		}
 		r, err := seedTreeFn(src, dst, s.renames)
-		if err != nil {
+		if err != nil && !errors.Is(err, seed.ErrNoChanges) {
 			return dst, err
+		}
+		if !errors.Is(err, seed.ErrNoChanges) {
+			noChanges = false
 		}
 		renamed = append(renamed, r...)
 	}
-	if len(renamed) == 0 {
+	if noChanges {
+		log.Infof("no seed changes")
+	} else if len(renamed) == 0 {
 		log.Infof("seeded: %s with no overwritten files", dst)
 	} else {
 		rel := make([]string, len(renamed))

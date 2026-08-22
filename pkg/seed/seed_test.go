@@ -73,7 +73,7 @@ func TestTreeSkipsIdentical(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
 	renamed, err := Tree(srcFS(), dest, claudeRenames)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrNoChanges)
 	assert.Empty(t, renamed, "identical files should back up nothing")
 
 	// Untouched: contents stay, no backups created.
@@ -82,6 +82,20 @@ func TestTreeSkipsIdentical(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 	assertNotExist(t, filepath.Join(dest, "CLAUDE.old.md"))
 	assertNotExist(t, filepath.Join(dest, "settings.old.json"))
+}
+
+func TestTreePartiallyIdentical(t *testing.T) {
+	dest := t.TempDir()
+	// One dest matches its source; another differs.
+	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
+
+	renamed, err := Tree(srcFS(), dest, claudeRenames)
+	require.NoError(t, err, "a change alongside identical files is not ErrNoChanges")
+	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, renamed)
+
+	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 }
 
 func TestTreeBackupExistsErrors(t *testing.T) {
