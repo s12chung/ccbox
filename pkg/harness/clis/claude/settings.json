@@ -4,6 +4,10 @@
     "command": "bash \"$CLAUDE_CONFIG_DIR/statusline.sh\""
   },
   "permissions": {
+    "allow": [
+      "Write(//tmp/**)",
+      "Edit(//tmp/**)"
+    ],
     "deny": [
       "Read(.env)",
       "Read(.env.*)",

@@ -47,6 +47,7 @@ var cacheVolumes = map[string]string{
 	"npm":        "/home/ccbox/.npm",        // npm download cache
 	"npm-global": "/home/ccbox/.npm-global", // global npm packages
 	"local":      "/home/ccbox/.local",      // pip --user installs and opencode state
+	"tmp":        "/tmp",                    // agent tmp workspace to try things out
 }
 
 // cacheVolumeName is hostCwd's named volume for a given cacheVolumes suffix.

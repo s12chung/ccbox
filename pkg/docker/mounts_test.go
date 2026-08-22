@@ -55,5 +55,6 @@ func TestCacheVolumeBinds(t *testing.T) {
 		"ccbox-Users-me-code-project_name-local:/home/ccbox/.local",
 		"ccbox-Users-me-code-project_name-npm-global:/home/ccbox/.npm-global",
 		"ccbox-Users-me-code-project_name-npm:/home/ccbox/.npm",
+		"ccbox-Users-me-code-project_name-tmp:/tmp",
 	}, got)
 }

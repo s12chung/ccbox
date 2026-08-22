@@ -30,6 +30,10 @@
       "*.ssh/*": "ask",
       "*.ccbox.yaml": "ask",
       "*.ccbox.local.yaml": "ask"
+    },
+    "external_directory": {
+      "/tmp": "allow",
+      "/tmp/*": "allow"
     }
   }
 }

@@ -7,11 +7,11 @@
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
 
 Before implementing:
+- If something is unclear, stop. Name what's confusing. Ask.
 - State your assumptions explicitly. If uncertain, ask.
 - Find parts of the design that you're least confident about and core integration points
 - If multiple interpretations exist, present them - don't pick silently.
 - If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
 
 Mid-task: the moment something goes sideways, STOP and re-plan - don't keep pushing a failing path.
 
@@ -48,13 +48,6 @@ Transform tasks into verifiable goals:
 - "Fix the bug" → "Write a test that reproduces it, then make it pass"
 - "Refactor X" → "Ensure tests pass before and after"
 
-For multi-step tasks, state a brief plan:
-```
-1. [Step] → verify: [check]
-2. [Step] → verify: [check]
-3. [Step] → verify: [check]
-```
-
 Verify by the stated checks: run tests, read logs, and diff behavior against `main` when a change could alter runtime behavior.
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
@@ -72,15 +65,14 @@ Code for elegance:
 - Let the code speak for itself through structure (such as grouped decoupled abstractions), syntax terseness/spacing, folder/file/function structure, folder/file/function/variable names, and common assumptions.
 
 On comments:
-- When the code is opaque and can't speak for itself, such as gotchas and hard to read code, go into detail on the opaque parts. Only when this occurs, write long comments.
+- When the code is opaque and can't speak for itself, such as gotchas and hard to read code, go into detail on the opaque parts. Strictly only when this occurs, long comments are permitted and preferred.
 - Group listed constants/strings/variables by intent and write a title comment for that
-- Never write comments that restate code, relist constants/strings/variables, or state where it is used
+- Never write comments that restate code/comments, relist constants/strings/variables, or state where it is used
 
 Code with grouped decoupled abstractions, for example:
-- Spend thinking finding "wood grain" or root cause of the code, if you're working around or repeating something, you're likely modelling the code with the wrong shape or "cutting against the wood grain"
-- Upweight object-oriented style, including object-oriented methods (ex. `arr.get(1)`) over the static function calls (ex. `array.get(arr, 1)`)
+- Spend thinking finding "wood grain" or root cause of the code, if you're working around or repeating something, you're likely "cutting against the wood grain"
+- Upweight object-oriented style, including object-oriented methods (ex. `arr.get(1)`). Downweight static function calls (ex. `array.get(arr, 1)`).
 - Group code with the same intent together
-- Define all the "switches and knobs" of the code together, such as pulling out custom literals into global constants
 - Break down functions into separate functions for each step, even small functions comprising mostly a loop
 
 ---

@@ -16,7 +16,7 @@ deny = [
 
 # Soft tripwire over Bash (hygiene, NOT a boundary)
 ask = [
-  "Bash(*.env*)",        # .env / .env.* / .envrc (also ".environment" etc)
+  "Bash(*.env*)", # .env / .env.* / .envrc (also ".environment" etc)
   "Bash(*secrets/*)",
   "Bash(*.pem*)",
   "Bash(*.key*)",
