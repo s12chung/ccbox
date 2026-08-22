@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/pkg/dock"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/dockerutil"
 )
 
 var cleanCmd = &cobra.Command{
@@ -18,7 +18,7 @@ var cleanCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		ctxD, err := dockerutil.NewCtxD(cmd.Context())
+		ctxD, err := dock.NewCtxD(cmd.Context())
 		if err != nil {
 			return err
 		}

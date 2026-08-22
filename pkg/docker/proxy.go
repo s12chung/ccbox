@@ -18,7 +18,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/pkg/cleanup"
-	"github.com/s12chung/ccbox/pkg/dockerutil"
+	"github.com/s12chung/ccbox/pkg/dock"
 	"github.com/s12chung/ccbox/pkg/embedfs"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/prompt"
@@ -41,7 +41,7 @@ type ProxyOptions struct {
 
 // Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
 // streaming its logs until interrupted. Blocks until SIGINT/SIGTERM stops it.
-func Proxy(ctxD *dockerutil.CtxD, o ProxyOptions) error {
+func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	// Wall exits on its own (logFn closes stop).
 	stop := make(chan struct{})
 	cleanup, err := proxyStart(ctxD, o, func(logs io.ReadCloser) error {
@@ -87,7 +87,7 @@ func tinyproxyLevelColor(line string) prompt.Color {
 // CLI, never auto-pulls on create). Inspect resolves the digest-pinned ref that a
 // reference filter would miss, so a cached image isn't re-pulled (or wrongly
 // reported absent when the host is offline) each run.
-func ensureImage(ctxD *dockerutil.CtxD, ref string) error {
+func ensureImage(ctxD *dock.CtxD, ref string) error {
 	if _, err := ctxD.D.ImageInspect(ctxD.Ctx, ref); err == nil {
 		return nil
 	}
@@ -101,7 +101,7 @@ func ensureImage(ctxD *dockerutil.CtxD, ref string) error {
 
 // ensureNetwork creates the internal wall network if absent. Like the Makefile's
 // `docker network create ... || true`, a pre-existing network is not an error.
-func ensureNetwork(ctxD *dockerutil.CtxD) {
+func ensureNetwork(ctxD *dock.CtxD) {
 	_, _ = ctxD.D.NetworkCreate(ctxD.Ctx, networkName, network.CreateOptions{
 		Driver:   "bridge",
 		Internal: true,
@@ -110,7 +110,7 @@ func ensureNetwork(ctxD *dockerutil.CtxD) {
 
 // ProxyClean removes the wall network. A missing network is already clean (not an error);
 // an in-use one still errors.
-func ProxyClean(ctxD *dockerutil.CtxD) error {
+func ProxyClean(ctxD *dock.CtxD) error {
 	if err := ctxD.D.NetworkRemove(ctxD.Ctx, networkName); err != nil && !errdefs.IsNotFound(err) {
 		return err
 	}
@@ -118,7 +118,7 @@ func ProxyClean(ctxD *dockerutil.CtxD) error {
 }
 
 // proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
-func proxyStart(ctxD *dockerutil.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (teardown func() error, err error) {
+func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (teardown func() error, err error) {
 	var stack cleanup.Stack
 	// Unwind partial setup if we bail before returning teardown.
 	defer func() {

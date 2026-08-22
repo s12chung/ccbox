@@ -10,7 +10,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/volume"
 
-	"github.com/s12chung/ccbox/pkg/dockerutil"
+	"github.com/s12chung/ccbox/pkg/dock"
 )
 
 const (
@@ -80,7 +80,7 @@ func cacheVolumeBinds(hostCwd string) []string {
 }
 
 // ensureCacheVolumes creates hostCwd's cache volumes labeled with the project and returns their binds.
-func ensureCacheVolumes(ctxD *dockerutil.CtxD, hostCwd string) ([]string, error) {
+func ensureCacheVolumes(ctxD *dock.CtxD, hostCwd string) ([]string, error) {
 	for suffix := range cacheVolumes {
 		opts := volume.CreateOptions{Name: cacheVolumeName(hostCwd, suffix), Labels: volumeLabels(hostCwd)}
 		if _, err := ctxD.D.VolumeCreate(ctxD.Ctx, opts); err != nil {
@@ -111,13 +111,13 @@ func namedVolumeMasks(hostCwd string, hostPaths []string) (binds, names []string
 }
 
 // ensureNamedVolumeMasks builds the mask binds and ensures each volume exists owned by the container user.
-func ensureNamedVolumeMasks(ctxD *dockerutil.CtxD, hostCwd, imageTag string, hostPaths []string) ([]string, error) {
+func ensureNamedVolumeMasks(ctxD *dock.CtxD, hostCwd, imageTag string, hostPaths []string) ([]string, error) {
 	binds, names, err := namedVolumeMasks(hostCwd, hostPaths)
 	if err != nil {
 		return nil, err
 	}
 	for _, name := range names {
-		if err := dockerutil.EnsureOwnedVolume(ctxD, imageTag, name, containerUID, volumeLabels(hostCwd)); err != nil {
+		if err := dock.EnsureOwnedVolume(ctxD, imageTag, name, containerUID, volumeLabels(hostCwd)); err != nil {
 			return nil, err
 		}
 	}
@@ -125,7 +125,7 @@ func ensureNamedVolumeMasks(ctxD *dockerutil.CtxD, hostCwd, imageTag string, hos
 }
 
 // VolumeClean removes hostCwd's cache volumes and the mask volumes for maskDirs
-func VolumeClean(ctxD *dockerutil.CtxD, hostCwd string, maskDirs []string) error {
+func VolumeClean(ctxD *dock.CtxD, hostCwd string, maskDirs []string) error {
 	names := make([]string, 0, len(cacheVolumes)+len(maskDirs))
 	for suffix := range cacheVolumes {
 		names = append(names, cacheVolumeName(hostCwd, suffix))

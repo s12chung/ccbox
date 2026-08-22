@@ -8,8 +8,8 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/pkg/dock"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/dockerutil"
 	"github.com/s12chung/ccbox/pkg/git"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
@@ -80,7 +80,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	absentDefaults := masksOnHost(m.cwd, projectcfg.MaskDefaults(), false)
 	defer warnCreatedMasks(m.cwd, absentDefaults)
 
-	ctxD, err := dockerutil.NewCtxD(cmd.Context())
+	ctxD, err := dock.NewCtxD(cmd.Context())
 	if err != nil {
 		return err
 	}

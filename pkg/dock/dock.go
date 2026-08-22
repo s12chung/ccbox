@@ -1,6 +1,6 @@
-// Package dockerutil holds generic Docker Engine operations, independent of the devbox
+// Package dock holds generic Docker Engine operations, independent of the devbox
 // lifecycle — things that can only be done from inside a container the daemon spawns.
-package dockerutil
+package dock
 
 import (
 	"context"

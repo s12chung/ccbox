@@ -15,7 +15,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
-	"github.com/s12chung/ccbox/pkg/dockerutil"
+	"github.com/s12chung/ccbox/pkg/dock"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/perm"
@@ -63,7 +63,7 @@ func runConfig(hostOptions RunOptions) *container.Config {
 	}
 }
 
-func runHostConfig(ctxD *dockerutil.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
+func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
 	tmpfs, err := tmpfsMasks(hostOptions.Cwd, hostOptions.Tmpfs)
 	if err != nil {
 		return nil, err
@@ -112,7 +112,7 @@ func ProjectSlug(hostCwd string) string {
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
 // returns its exit code. proxyStart brings the wall up for the session (see AutoProxy); the
 // container is removed on return, before any wall proxyStart owns is torn down.
-func Run(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
+func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	running, err := proxyRunning(ctxD)
 	if err != nil {
 		return 0, err
@@ -123,7 +123,7 @@ func Run(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
 	return runWithProxy(ctxD, hostOptions)
 }
 
-func runWithProxy(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
+func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	file, err := os.OpenFile(hostOptions.ProxyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, perm.File)
 	if err != nil {
 		return 0, err
@@ -142,7 +142,7 @@ func runWithProxy(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
 	return code, errors.Join(runErr, cleanup())
 }
 
-func runDevbox(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
+func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", egressName, nil) // silently ignore errors
 
 	hostConfig, err := runHostConfig(ctxD, hostOptions)
@@ -164,7 +164,7 @@ func runDevbox(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
 
 // proxyRunning reports whether the egress container is up. A missing or stopped wall is
 // false, not an error.
-func proxyRunning(ctxD *dockerutil.CtxD) (bool, error) {
+func proxyRunning(ctxD *dock.CtxD) (bool, error) {
 	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, egressName)
 	if errdefs.IsNotFound(err) {
 		return false, nil
@@ -182,7 +182,7 @@ func proxyRunning(ctxD *dockerutil.CtxD) (bool, error) {
 // Discipline: every exit path must restore the terminal, so this returns errors
 // rather than calling os.Exit/log.Fatal (which skip defers). On a kill/hangup it
 // stops the container instead of exiting, so this same unwind still runs.
-func runInteractive(ctxD *dockerutil.CtxD, id string) (int, error) {
+func runInteractive(ctxD *dock.CtxD, id string) (int, error) {
 	att, err := ctxD.D.ContainerAttach(ctxD.Ctx, id, container.AttachOptions{
 		Stream: true, Stdin: true, Stdout: true, Stderr: true,
 	})
