@@ -27,6 +27,11 @@ func (n Npm) Latest() (string, error) {
 	return latestAt(npmRegistry, n.Package)
 }
 
+// Arg renders the npm scheme of the PKGER build arg.
+func (n Npm) Arg() string {
+	return "npm:" + n.Package
+}
+
 func latestAt(registry, pkg string) (string, error) {
 	url := fmt.Sprintf("%s/%s/latest", registry, pkg)
 	resp, err := http.Get(url)

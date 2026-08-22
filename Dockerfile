@@ -68,38 +68,45 @@ RUN echo 'export PATH="'"$PATH"'"' > /etc/profile.d/ccbox-path.sh; \
 
 # Coding CLI last for version bumping and clear mise cache.
 #
+# PKGER encodes the install source, rendered by pkg/pkger for the configured CLI:
+# - npm:<package>
+# - versionurl:<latest_version_url>|<linux-x64-url>|<linux-arm64-url>, whose urls embed a
+#   literal $version swapped in below once CLI_VERSION resolves
+#
 # npm_args: --ignore-scripts=false re-runs the postinstall mise's npm backend skips;
 # --allow-scripts adds it to npm 11's separate allowlist, else npm warns each install.
 #
-# grok: http backend needs a concrete version to build the URL, so resolve "latest" like the
-# upstream installer does (x.ai/cli/<channel> returns the version); bin renames the raw binary.
-# mise's http backend can't reverse-resolve its own shim without MISE_DATA_DIR in the env (which we
-# leave unset so ccbox's `mise use` targets ~/.local), so re-do the shim via. symlink.
+# http backend (versionurl): bin renames the raw binary. mise can't reverse-resolve its own shim
+# without MISE_DATA_DIR in the env (which we leave unset so ccbox's `mise use` targets ~/.local),
+# so re-do the shim via. symlink.
 ARG CLI=claude
 ARG CLI_VERSION=latest
+ARG PKGER
 RUN set -eux; \
     cfg=/etc/mise/config.toml; \
-    case "$CLI" in \
-    grok) \
-        tool='http:grok'; \
-        ver="$CLI_VERSION"; \
-        if [ "$ver" = latest ]; then ver=$(curl -fsSL https://x.ai/cli/stable); fi; \
-        mise config set --file "$cfg" "tools.$tool.version" "$ver"; \
-        mise config set --file "$cfg" "tools.$tool.bin" grok; \
-        mise config set --file "$cfg" "tools.$tool.platforms.linux-x64.url" "https://x.ai/cli/grok-$ver-linux-x86_64"; \
-        mise config set --file "$cfg" "tools.$tool.platforms.linux-arm64.url" "https://x.ai/cli/grok-$ver-linux-aarch64"; \
-        ;; \
-    *) \
-        if [ "$CLI" = codex ]; then pkg='@openai/codex'; \
-        elif [ "$CLI" = opencode ]; then pkg='opencode-ai'; \
-        else pkg='@anthropic-ai/claude-code'; fi; \
-        tool="npm:$pkg"; \
+    scheme="${PKGER%%:*}"; \
+    pkgData="${PKGER#*:}"; \
+    case "$scheme" in \
+    npm) \
+        tool="npm:$pkgData"; \
         mise config set --file "$cfg" "tools.$tool.version" "${CLI_VERSION}"; \
-        mise config set --file "$cfg" "tools.$tool.npm_args" -- "--ignore-scripts=false --allow-scripts=$pkg"; \
+        mise config set --file "$cfg" "tools.$tool.npm_args" -- "--ignore-scripts=false --allow-scripts=$pkgData"; \
         ;; \
+    versionurl) \
+        latest_url="${pkgData%%|*}"; pair="${pkgData#*|}"; \
+        x64_tpl="${pair%%|*}"; arm64_tpl="${pair#*|}"; \
+        ver="$CLI_VERSION"; \
+        if [ "$ver" = latest ]; then ver=$(curl -fsSL "$latest_url"); fi; \
+        tool="http:$CLI"; \
+        mise config set --file "$cfg" "tools.$tool.version" "$ver"; \
+        mise config set --file "$cfg" "tools.$tool.bin" "$CLI"; \
+        mise config set --file "$cfg" "tools.$tool.platforms.linux-x64.url" "${x64_tpl%%\$version*}$ver${x64_tpl#*\$version}"; \
+        mise config set --file "$cfg" "tools.$tool.platforms.linux-arm64.url" "${arm64_tpl%%\$version*}$ver${arm64_tpl#*\$version}"; \
+        ;; \
+    *) echo "unknown pkger scheme: $scheme" >&2; exit 1;; \
     esac; \
     MISE_DATA_DIR=/usr/local/share/mise mise install "$tool"; \
-    if [ "$CLI" = grok ]; then ln -sf /usr/local/share/mise/installs/http-grok/latest/grok /usr/local/share/mise/shims/grok; fi; \
+    if [ "$scheme" = versionurl ]; then ln -sf "/usr/local/share/mise/installs/http-$CLI/latest/$CLI" "/usr/local/share/mise/shims/$CLI"; fi; \
     rm -rf /root/.cache
 
 USER ccbox

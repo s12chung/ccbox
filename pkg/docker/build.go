@@ -26,7 +26,8 @@ import (
 type BuildOptions struct {
 	Tag        string
 	CLIName    harness.Name // CLIName build arg: which coding cli to install
-	CLIVersion string       // CLI_VERSION build arg: version of the selected CLIName's npm package
+	CLIVersion string       // CLI_VERSION build arg: pinned version of the CLIName's release channel
+	Pkger      string       // PKGER build arg: install source rendered by pkger.Pkger.Arg
 }
 
 // Build builds the devbox image from the embedded build context (src) on BuildKit,
@@ -89,6 +90,9 @@ func buildArgs(o BuildOptions) map[string]string {
 	}
 	if o.CLIVersion != "" {
 		args["CLI_VERSION"] = o.CLIVersion
+	}
+	if o.Pkger != "" {
+		args["PKGER"] = o.Pkger
 	}
 	return args
 }

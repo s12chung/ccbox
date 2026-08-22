@@ -28,9 +28,8 @@ func All() []CLI {
 type CLI struct {
 	Name Name
 
-	// Pinner resolves "latest" into the concrete version the image build records
-	// (CLI_VERSION arg).
-	Pinner pkger.Pinner
+	// Pkger locates the CLI's install source
+	Pkger pkger.Pkger
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
 	// mounted config is found with no override; ConfigDirEnvKey points the CLI's env var at it.
@@ -65,7 +64,7 @@ type CLI struct {
 // Claude is Claude Code (Anthropic).
 var Claude = CLI{
 	Name:            NameClaude,
-	Pinner:          pkger.Npm{Package: "@anthropic-ai/claude-code"},
+	Pkger:           pkger.Npm{Package: "@anthropic-ai/claude-code"},
 	ConfigHomeMount: ".claude",
 	ConfigDirEnvKey: "CLAUDE_CONFIG_DIR",
 	Env: map[string]string{
@@ -89,7 +88,7 @@ var Claude = CLI{
 // Codex is Codex (OpenAI).
 var Codex = CLI{
 	Name:            NameCodex,
-	Pinner:          pkger.Npm{Package: "@openai/codex"},
+	Pkger:           pkger.Npm{Package: "@openai/codex"},
 	ConfigHomeMount: ".codex",
 	ConfigDirEnvKey: "CODEX_HOME",
 	SeedSrcFolder:   "codex-config",
@@ -107,7 +106,7 @@ var Codex = CLI{
 // OpenCode is OpenCode (Anomaly).
 var OpenCode = CLI{
 	Name:            NameOpenCode,
-	Pinner:          pkger.Npm{Package: "opencode-ai"},
+	Pkger:           pkger.Npm{Package: "opencode-ai"},
 	ConfigHomeMount: ".config/opencode",
 	SeedSrcFolder:   "opencode-config",
 	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
@@ -124,8 +123,12 @@ var OpenCode = CLI{
 
 // Grok is Grok Build (xAI).
 var Grok = CLI{
-	Name:            NameGrok,
-	Pinner:          pkger.VersionURL{URL: "https://x.ai/cli/stable"},
+	Name: NameGrok,
+	Pkger: pkger.VersionURL{
+		URL:           "https://x.ai/cli/stable",
+		LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
+		LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
+	},
 	ConfigHomeMount: ".grok",
 	SeedSrcFolder:   "grok-config",
 	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},

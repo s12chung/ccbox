@@ -13,9 +13,14 @@ func TestBuildArgs(t *testing.T) {
 	assert.Equal(t, map[string]string{}, buildArgs(BuildOptions{}))
 
 	// Test with non-Empty BuildOptions, no other cases needed as the logic is simple
-	got := buildArgs(BuildOptions{CLIName: harness.NameCodex, CLIVersion: "1.2.3"})
+	got := buildArgs(BuildOptions{
+		CLIName:    harness.NameCodex,
+		CLIVersion: "1.2.3",
+		Pkger:      "npm:@openai/codex",
+	})
 	assert.Equal(t, map[string]string{
 		"CLI":         "codex",
 		"CLI_VERSION": "1.2.3",
+		"PKGER":       "npm:@openai/codex",
 	}, got)
 }

@@ -9,6 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestVersionURLArg(t *testing.T) {
+	u := VersionURL{
+		URL:           "https://x.ai/cli/stable",
+		LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
+		LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
+	}
+	assert.Equal(t,
+		"versionurl:https://x.ai/cli/stable|https://x.ai/cli/grok-$version-linux-x86_64|https://x.ai/cli/grok-$version-linux-aarch64",
+		u.Arg())
+}
+
 func TestVersionURLLatest(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -9,6 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNpmArg(t *testing.T) {
+	assert.Equal(t, "npm:@scope/pkg", Npm{Package: "@scope/pkg"}.Arg())
+}
+
 func TestNpmLatest(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

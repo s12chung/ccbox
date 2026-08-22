@@ -6,3 +6,10 @@ package pkger
 type Pinner interface {
 	Latest() (string, error)
 }
+
+// Pkger describes a CLI's install source: pinning plus the scheme the image
+// build's PKGER arg carries, rendered by Arg.
+type Pkger interface {
+	Pinner
+	Arg() string
+}

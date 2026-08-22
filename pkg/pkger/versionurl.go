@@ -11,9 +11,12 @@ import (
 )
 
 // VersionURL pins via a URL whose body is a bare version — xAI's channel
-// endpoints, e.g. https://x.ai/cli/stable -> 1.0.5.
+// endpoints, e.g. https://x.ai/cli/stable -> 1.0.5. The download URL templates
+// carry a literal $version, substituted by the image build after pinning.
 type VersionURL struct {
-	URL string
+	URL           string
+	LinuxX64URL   string
+	LinuxArm64URL string
 }
 
 // versionRe guards the pin: a version endpoint serves a bare semver, so anything
@@ -23,6 +26,12 @@ var versionRe = regexp.MustCompile(`^\d+(\.\d+)*([-+].+)?$`)
 // Latest returns the bare version the endpoint serves.
 func (u VersionURL) Latest() (string, error) {
 	return versionAt(u.URL)
+}
+
+// Arg renders the versionurl scheme of the PKGER build arg: the pin endpoint
+// followed by the per-platform download templates, pipe-joined.
+func (u VersionURL) Arg() string {
+	return "versionurl:" + strings.Join([]string{u.URL, u.LinuxX64URL, u.LinuxArm64URL}, "|")
 }
 
 func versionAt(url string) (string, error) {
