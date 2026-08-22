@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/util/perm"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 // ErrNoChanges reports that Tree made no changes: every destination already
@@ -41,7 +41,7 @@ func Tree(src fs.FS, destDir string, renames map[string]string) ([]string, error
 			name = to
 		}
 		dest := filepath.Join(destDir, name)
-		if err := os.MkdirAll(filepath.Dir(dest), perm.Dir); err != nil {
+		if err := os.MkdirAll(filepath.Dir(dest), ioutil.Dir); err != nil {
 			return err
 		}
 		if existing, err := os.ReadFile(dest); err == nil { // #nosec G304 -- dest is the seeded tree's own path
@@ -77,7 +77,7 @@ func backupPath(p string) string {
 // fileMode makes shell scripts executable; everything else is a regular file.
 func fileMode(p string) os.FileMode {
 	if filepath.Ext(p) == ".sh" {
-		return perm.ExecFile
+		return ioutil.ExecFile
 	}
-	return perm.File
+	return ioutil.File
 }

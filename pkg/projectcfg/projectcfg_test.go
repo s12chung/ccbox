@@ -11,14 +11,14 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
-	"github.com/s12chung/ccbox/pkg/util/perm"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 // mkDefaultDirs creates the tmpfsDefaults under dir so they get prepended.
 func mkDefaultDirs(t *testing.T, dir string) {
 	t.Helper()
 	for _, d := range tmpfsDefaults {
-		require.NoError(t, os.Mkdir(filepath.Join(dir, d), perm.Dir))
+		require.NoError(t, os.Mkdir(filepath.Join(dir, d), ioutil.Dir))
 	}
 }
 
@@ -27,7 +27,7 @@ func TestLoadParses(t *testing.T) {
 	mkDefaultDirs(t, dir)
 	body := "cli: codex\ntmpfs:\n  - dist\n  - build\nenv:\n  FOO: bar\n" +
 		"allowlist:\n  - ccbox-defaults\n  - example.com\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(body), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(body), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -50,7 +50,7 @@ func TestLoadUnsetGetsDefaults(t *testing.T) {
 			dir := t.TempDir()
 			mkDefaultDirs(t, dir)
 			if tt.write {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), perm.File))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), ioutil.File))
 			}
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
@@ -78,8 +78,8 @@ func TestDefaultedSkipsAbsentTmpfsDefaults(t *testing.T) {
 
 func TestDefaultedVolumesPresentPrepended(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "node_modules"), perm.Dir))
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "vendor", "bundle"), perm.Dir)) // nested default
+	require.NoError(t, os.Mkdir(filepath.Join(dir, "node_modules"), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "vendor", "bundle"), ioutil.Dir)) // nested default
 
 	c := Defaulted(dir, Config{Volumes: []string{"target"}})
 	// only present defaults prepended (.venv absent), user entry kept after
@@ -90,12 +90,6 @@ func TestDefaultedSkipsAbsentVolumeDefaults(t *testing.T) {
 	dir := t.TempDir() // no node_modules/.venv/vendor on disk
 	c := Defaulted(dir, Config{})
 	assert.Empty(t, c.Volumes) // absent defaults not prepended
-}
-
-func TestVolumeCleanupDirs(t *testing.T) {
-	// all defaults regardless of presence, plus explicit config volumes, deduped
-	c := Config{Volumes: []string{"node_modules", "target"}}
-	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupDirs())
 }
 
 func TestInitWritesLoadableDefault(t *testing.T) {
@@ -113,7 +107,7 @@ func TestInitWritesLoadableDefault(t *testing.T) {
 
 func TestInitRefusesExisting(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("tmpfs: []\n"), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("tmpfs: []\n"), ioutil.File))
 
 	_, err := Init(dir)
 	assert.ErrorContains(t, err, "already exists")
@@ -127,7 +121,7 @@ func TestDefaultedAllowlistNilVsEmpty(t *testing.T) {
 
 func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("allowlist: []\n"), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("allowlist: []\n"), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -139,8 +133,8 @@ func TestLoadMergesLocalOverride(t *testing.T) {
 	mkDefaultDirs(t, dir)
 	base := "cli: claude\ntmpfs:\n  - dist\nenv:\n  FOO: base\n  BAR: base\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n"
 	local := "cli: codex\ntmpfs:\n  - build\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(base), perm.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte(local), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(base), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte(local), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -154,7 +148,7 @@ func TestLoadMergesLocalOverride(t *testing.T) {
 func TestLoadLocalOnly(t *testing.T) {
 	dir := t.TempDir() // no base .ccbox.yaml
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName),
-		[]byte("allowlist:\n  - example.com\n"), perm.File))
+		[]byte("allowlist:\n  - example.com\n"), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -165,7 +159,7 @@ func TestLoadInvalidErrors(t *testing.T) {
 	for _, name := range []string{fileName, localFileName} { // malformed yaml in either file errors
 		t.Run(name, func(t *testing.T) {
 			dir := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("tmpfs: ["), perm.File))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("tmpfs: ["), ioutil.File))
 
 			_, err := Load(dir, Config{})
 			assert.Error(t, err)
@@ -213,7 +207,7 @@ func TestMergeIsPure(t *testing.T) {
 
 func TestLoadRejectsUnknownCLI(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: emacs\n"), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: emacs\n"), ioutil.File))
 
 	_, err := Load(dir, Config{})
 	assert.ErrorContains(t, err, "emacs")
@@ -221,8 +215,8 @@ func TestLoadRejectsUnknownCLI(t *testing.T) {
 
 func TestLoadFlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: claude\n"), perm.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), perm.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: claude\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), ioutil.File))
 
 	c, err := Load(dir, Config{CLI: harness.NameGrok})
 	require.NoError(t, err)

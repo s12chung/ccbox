@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/perm"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 func TestXDGConfigDir(t *testing.T) {
@@ -37,15 +37,15 @@ func TestXDGConfigDir(t *testing.T) {
 	}{
 		{"present dir is returned", func(t *testing.T, base string) string {
 			dir := filepath.Join(base, "git")
-			require.NoError(t, os.MkdirAll(dir, perm.Dir))
+			require.NoError(t, os.MkdirAll(dir, ioutil.Dir))
 			return dir
 		}},
 		{"absent yields empty", func(_ *testing.T, _ string) string {
 			return ""
 		}},
 		{"a file is skipped", func(t *testing.T, base string) string {
-			require.NoError(t, os.MkdirAll(base, perm.Dir))
-			require.NoError(t, os.WriteFile(filepath.Join(base, "git"), nil, perm.File)) // file, not dir
+			require.NoError(t, os.MkdirAll(base, ioutil.Dir))
+			require.NoError(t, os.WriteFile(filepath.Join(base, "git"), nil, ioutil.File)) // file, not dir
 			return ""
 		}},
 	}

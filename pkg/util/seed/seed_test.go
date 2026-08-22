@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/perm"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 func srcFS() fstest.MapFS {
@@ -36,8 +36,8 @@ func TestTreeFresh(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
 	assertNotExist(t, filepath.Join(dest, "AGENTS.user.md"))
-	assertMode(t, filepath.Join(dest, "hooks/tripwire.sh"), perm.ExecFile)
-	assertMode(t, filepath.Join(dest, "settings.json"), perm.File)
+	assertMode(t, filepath.Join(dest, "hooks/tripwire.sh"), ioutil.ExecFile)
+	assertMode(t, filepath.Join(dest, "settings.json"), ioutil.File)
 }
 
 func TestTreeBacksUpExisting(t *testing.T) {
@@ -129,17 +129,17 @@ func TestTreeCodexRenames(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	assertFile(t, filepath.Join(dest, "config.toml"), "new config")
 	assertNotExist(t, filepath.Join(dest, "AGENTS.user.md"))
-	assertMode(t, filepath.Join(dest, "config.toml"), perm.File)
+	assertMode(t, filepath.Join(dest, "config.toml"), ioutil.File)
 }
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(body), perm.File))
+	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
 }
 
 func mkdirAll(t *testing.T, path string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(path, perm.Dir))
+	require.NoError(t, os.MkdirAll(path, ioutil.Dir))
 }
 
 func assertFile(t *testing.T, path, want string) {

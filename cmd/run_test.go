@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/perm"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 const testWorkspace = "/work/myproj"
@@ -65,7 +65,7 @@ func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
 func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
 	cacheDir := t.TempDir()
 	wantDir := projectDir(cacheDir, testWorkspace)
-	require.NoError(t, os.MkdirAll(wantDir, perm.Dir))
+	require.NoError(t, os.MkdirAll(wantDir, ioutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
@@ -91,9 +91,9 @@ func TestSafeSeedProjectDirPropagatesSeedError(t *testing.T) {
 
 func TestMasksOnHost(t *testing.T) {
 	cwd := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(cwd, "vendor", "bundle"), perm.Dir))
-	require.NoError(t, os.Mkdir(filepath.Join(cwd, "node_modules"), perm.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(cwd, "afile"), nil, perm.File)) // a file, not a dir
+	require.NoError(t, os.MkdirAll(filepath.Join(cwd, "vendor", "bundle"), ioutil.Dir))
+	require.NoError(t, os.Mkdir(filepath.Join(cwd, "node_modules"), ioutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(cwd, "afile"), nil, ioutil.File)) // a file, not a dir
 
 	dirs := []string{"node_modules", "dist", "vendor/bundle", "typo", "afile"}
 	assert.Equal(t, []string{"dist", "typo", "afile"}, masksOnHost(cwd, dirs, false))        // absent as a dir (file counts as absent)

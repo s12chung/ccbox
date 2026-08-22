@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/util/perm"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 // stubSeedTreeFn swaps the seed step for a test double and returns a restore func.
@@ -62,7 +62,7 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 func TestSafeSeedConfigExistingSkips(t *testing.T) {
 	cacheDir := t.TempDir()
 	configDir := filepath.Join(cacheDir, "claude")
-	require.NoError(t, os.MkdirAll(configDir, perm.Dir))
+	require.NoError(t, os.MkdirAll(configDir, ioutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {

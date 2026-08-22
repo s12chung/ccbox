@@ -38,6 +38,67 @@ type ProxyOptions struct {
 	Overrides map[string][]byte
 }
 
+// proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
+func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (func() error, error) {
+	var err error
+	var stack cleanup.Stack
+	defer func() {
+		if err != nil {
+			stack.Run()
+		}
+	}()
+
+	ensureNetwork(ctxD)
+	stack.Push("remove wall network", func() error {
+		return tearIdleNetwork(ctxD)
+	})
+
+	if err = dock.EnsureImageExists(ctxD, proxyImage); err != nil {
+		return nil, err
+	}
+	// Clear any stale egress container so the fixed name is free.
+	_ = ctxD.D.ContainerRemove(ctxD.Ctx, egressName, container.RemoveOptions{Force: true})
+
+	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
+		&container.Config{Image: proxyImage},
+		&container.HostConfig{NetworkMode: networkName},
+		nil, nil, egressName)
+	if err != nil {
+		return nil, err
+	}
+	id := resp.ID
+	stack.Push("remove container", func() error {
+		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
+	})
+
+	configTar, err := embedfs.ToTar(o.Config, o.Overrides)
+	if err != nil {
+		return nil, err
+	}
+	if err = ctxD.D.CopyToContainer(ctxD.Ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
+		return nil, err
+	}
+	if err = ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
+		return nil, err
+	}
+	stack.Push("container stop", func() error {
+		timeout := 5
+		return ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
+	})
+
+	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+	if err != nil {
+		return nil, err
+	}
+	stack.Push("close logs", logs.Close)
+
+	logDone := streamLogs(logFn, logs)
+	return func() error {
+		stack.Run()
+		return <-logDone
+	}, nil
+}
+
 // Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
 // streaming its logs until interrupted. Blocks until SIGINT/SIGTERM stops it.
 func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
@@ -126,63 +187,15 @@ func ProxyClean(ctxD *dock.CtxD) error {
 	return nil
 }
 
-// proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
-func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (func() error, error) {
-	var err error
-	var stack cleanup.Stack
-	defer func() {
-		if err != nil {
-			stack.Run()
-		}
-	}()
-
-	ensureNetwork(ctxD)
-	stack.Push("remove wall network", func() error {
-		return tearIdleNetwork(ctxD)
-	})
-
-	if err = dock.EnsureImageExists(ctxD, proxyImage); err != nil {
-		return nil, err
+// isProxyRunning reports whether the egress container is up. A missing or stopped wall is
+// false, not an error.
+func isProxyRunning(ctxD *dock.CtxD) (bool, error) {
+	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, egressName)
+	if errdefs.IsNotFound(err) {
+		return false, nil
 	}
-	// Clear any stale egress container so the fixed name is free.
-	_ = ctxD.D.ContainerRemove(ctxD.Ctx, egressName, container.RemoveOptions{Force: true})
-
-	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
-		&container.Config{Image: proxyImage},
-		&container.HostConfig{NetworkMode: networkName},
-		nil, nil, egressName)
 	if err != nil {
-		return nil, err
+		return false, err
 	}
-	id := resp.ID
-	stack.Push("remove container", func() error {
-		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
-	})
-
-	configTar, err := embedfs.ToTar(o.Config, o.Overrides)
-	if err != nil {
-		return nil, err
-	}
-	if err = ctxD.D.CopyToContainer(ctxD.Ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
-		return nil, err
-	}
-	if err = ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
-		return nil, err
-	}
-	stack.Push("container stop", func() error {
-		timeout := 5
-		return ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
-	})
-
-	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
-	if err != nil {
-		return nil, err
-	}
-	stack.Push("close logs", logs.Close)
-
-	logDone := streamLogs(logFn, logs)
-	return func() error {
-		stack.Run()
-		return <-logDone
-	}, nil
+	return info.State.Running, nil
 }

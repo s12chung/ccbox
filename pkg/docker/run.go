@@ -5,21 +5,14 @@ import (
 	"errors"
 	"io"
 	"os"
-	"os/signal"
-	"path"
-	"path/filepath"
-	"strings"
-	"syscall"
 
-	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
-	"github.com/s12chung/ccbox/pkg/util/perm"
-	"github.com/s12chung/ccbox/pkg/util/prompt"
 )
 
 const proxyPort = "8888"
@@ -93,38 +86,22 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	}, nil
 }
 
-// configMount is the in-container path the persisted config dir binds to for cliName
-func configMount(cliName harness.Name) string {
-	return path.Join(containerHome, harness.MustFor(cliName).ConfigHomeMount)
-}
-
-// WorkspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
-func WorkspaceMount(hostCwd string) string {
-	return filepath.Join(containerHome, filepath.Base(hostCwd))
-}
-
-// ProjectSlug is ccbox's per-project key: the host cwd slugified (e.g. /Users/me/app → -Users-me-app).
-// Distinct from Claude Code's .claude/projects slug, which CC derives from its container cwd.
-func ProjectSlug(hostCwd string) string {
-	return strings.ReplaceAll(hostCwd, "/", "-")
-}
-
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
 // returns its exit code. proxyStart brings the wall up for the session (see AutoProxy); the
 // container is removed on return, before any wall proxyStart owns is torn down.
 func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
-	running, err := proxyRunning(ctxD)
+	proxyRunning, err := isProxyRunning(ctxD)
 	if err != nil {
 		return 0, err
 	}
-	if running {
+	if proxyRunning {
 		return runDevbox(ctxD, hostOptions)
 	}
 	return runWithProxy(ctxD, hostOptions)
 }
 
 func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
-	file, err := os.OpenFile(hostOptions.ProxyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, perm.File)
+	file, err := os.OpenFile(hostOptions.ProxyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, ioutil.File)
 	if err != nil {
 		return 0, err
 	}
@@ -159,83 +136,5 @@ func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 		// context.Background() so a cancelled ctx can't block cleanup
 		return ctxD.D.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
 	})
-	return runInteractive(ctxD, resp.ID)
-}
-
-// proxyRunning reports whether the egress container is up. A missing or stopped wall is
-// false, not an error.
-func proxyRunning(ctxD *dock.CtxD) (bool, error) {
-	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, egressName)
-	if errdefs.IsNotFound(err) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return info.State.Running, nil
-}
-
-// runInteractive wires the local terminal to the container: raw mode, a hijacked
-// bidirectional stream, and SIGWINCH-driven resize. docker (the daemon) owns the
-// pty; we only shuttle bytes and window sizes.
-//
-// Discipline: every exit path must restore the terminal, so this returns errors
-// rather than calling os.Exit/log.Fatal (which skip defers). On a kill/hangup it
-// stops the container instead of exiting, so this same unwind still runs.
-func runInteractive(ctxD *dock.CtxD, id string) (int, error) {
-	att, err := ctxD.D.ContainerAttach(ctxD.Ctx, id, container.AttachOptions{
-		Stream: true, Stdin: true, Stdout: true, Stderr: true,
-	})
-	if err != nil {
-		return 0, err
-	}
-	defer att.Close()
-
-	if restore, ok := prompt.RawTerminal(); ok {
-		defer log.Defer("restore terminal", restore)
-	}
-
-	// Register the wait before start so a fast exit isn't missed. NextExit (not
-	// NotRunning) is essential: a created, not-yet-started container already satisfies
-	// "not running", so NotRunning returns immediately with a bogus exit code 0.
-	statusCh, errCh := ctxD.D.ContainerWait(ctxD.Ctx, id, container.WaitConditionNextExit)
-
-	if err := ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
-		return 0, err
-	}
-
-	// Forward window resizes to the container's tty.
-	stopResizes := prompt.ForwardResizes(func(h, w uint) {
-		_ = ctxD.D.ContainerResize(ctxD.Ctx, id, container.ResizeOptions{Height: h, Width: w})
-	})
-	defer stopResizes()
-
-	// On a kill/hangup, stop the container; that EOFs the output copy below, so the
-	// normal unwind restores the terminal and (via Run's defer) removes the container.
-	// Raw-mode Ctrl-C already goes to the container, so SIGINT here only fires for
-	// non-tty stdin / `kill -INT`.
-	kill := make(chan os.Signal, 1)
-	signal.Notify(kill, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
-	defer signal.Stop(kill)
-	go func() {
-		<-kill
-		timeout := 5
-		_ = ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
-	}()
-
-	// Stdin → container (leaks on the os.Stdin read at process exit — fine for a CLI).
-	go func() {
-		_, _ = io.Copy(att.Conn, os.Stdin)
-		_ = att.CloseWrite()
-	}()
-	// Container → stdout (tty merges stdout+stderr). Blocks until the container exits,
-	// flushing all output before the deferred terminal restore.
-	_, _ = io.Copy(os.Stdout, att.Reader)
-
-	select {
-	case err := <-errCh:
-		return 0, err
-	case st := <-statusCh:
-		return int(st.StatusCode), nil
-	}
+	return dock.RunInteractive(ctxD, resp.ID)
 }
