@@ -15,9 +15,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/seed"
 )
 
-// seedTreeFn is seed.Tree, indirected so tests can stub out the file-copying step.
-var seedTreeFn = seed.Tree
-
 var reseedCmd = &cobra.Command{
 	Use:   "reseed",
 	Short: "Seed the host config dir for the configured CLI from the embedded seed, backing up overwrites",
@@ -30,37 +27,45 @@ var reseedCmd = &cobra.Command{
 // safeSeedConfig seeds cli's host config dir in cacheDir and returns that dir
 func safeSeedConfig(cacheDir string, cliName harness.Name, confirm bool) (string, error) {
 	cli := harness.MustFor(cliName)
-	configDir := filepath.Join(cacheDir, cli.SeedSrcFolder)
+	return safeSeed(seedConfigs[cli.Name], cli.SeedSrcFolder, filepath.Join(cacheDir, cli.SeedSrcFolder), cli.SeedRenames, confirm)
+}
 
-	switch _, err := os.Stat(configDir); {
+// seedTreeFn is seed.Tree, indirected so tests can stub out the file-copying step.
+var seedTreeFn = seed.Tree
+
+// safeSeed seeds dst from root's embedded tree at srcSub under seed.SourceDir when dst
+// doesn't exist yet, applying renames — or re-seeds after confirmation when confirm is
+// set, backing up overwritten files.
+func safeSeed(root fs.FS, srcSub, dst string, renames map[string]string, confirm bool) (string, error) {
+	switch _, err := os.Stat(dst); {
 	case err == nil: // exists
 		if !confirm {
-			return configDir, nil
+			return dst, nil
 		}
-		if !prompt.Confirm(configDir + " exists; reseed and back up overwritten files?") {
+		if !prompt.Confirm(dst + " exists; reseed and back up overwritten files?") {
 			log.Info("reseed aborted")
-			return configDir, nil
+			return dst, nil
 		}
 	case !os.IsNotExist(err): // stat failed for some other reason
-		return configDir, err
+		return dst, err
 	}
 
-	src, err := fs.Sub(seedConfigs[cli.Name], path.Join(seed.SourceDir, cli.SeedSrcFolder))
+	src, err := fs.Sub(root, path.Join(seed.SourceDir, srcSub))
 	if err != nil {
-		return configDir, err
+		return dst, err
 	}
-	renamed, err := seedTreeFn(src, configDir, cli.SeedRenames)
+	renamed, err := seedTreeFn(src, dst, renames)
 	if err != nil {
-		return configDir, err
+		return dst, err
 	}
 	if len(renamed) == 0 {
-		log.Infof("seeded, nothing to back up: %s", configDir)
+		log.Infof("seeded: %s", dst)
 	} else {
 		rel := make([]string, len(renamed))
 		for i, p := range renamed {
-			rel[i], _ = filepath.Rel(configDir, p)
+			rel[i], _ = filepath.Rel(dst, p)
 		}
-		log.Infof("seeded %s, backed up overwritten files:\n%s", configDir, strings.Join(rel, "\n"))
+		log.Infof("seeded %s, backed up overwritten files:\n%s", dst, strings.Join(rel, "\n"))
 	}
-	return configDir, nil
+	return dst, nil
 }

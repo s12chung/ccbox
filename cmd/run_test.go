@@ -17,13 +17,6 @@ import (
 
 const testWorkspace = "/work/myproj"
 
-// stubSeedProjectFn swaps the project seed step for a test double and returns a restore func.
-func stubSeedProjectFn(fn func(fs.FS, string) ([]string, error)) func() {
-	orig := seedProjectFn
-	seedProjectFn = fn
-	return func() { seedProjectFn = orig }
-}
-
 func TestContainerCmd(t *testing.T) {
 	defer func() { flagContinue, flagResume, flagShell = false, false, false }()
 
@@ -83,16 +76,18 @@ func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
 	wantDir := projectDir(cacheDir, testWorkspace)
 
 	var gotDir string
+	var gotRenames map[string]string
 	called := false
-	defer stubSeedProjectFn(func(_ fs.FS, dest string) ([]string, error) {
-		called, gotDir = true, dest
+	defer stubSeedTreeFn(func(_ fs.FS, dest string, renames map[string]string) ([]string, error) {
+		called, gotDir, gotRenames = true, dest, renames
 		return nil, nil
 	})()
 
 	dir, err := safeSeedProjectDir(cacheDir, testWorkspace)
 	require.NoError(t, err)
-	assert.True(t, called, "seedProjectFn not called for missing dir")
+	assert.True(t, called, "seedTreeFn not called for missing dir")
 	assert.Equal(t, wantDir, gotDir, "seeded dir")
+	assert.Nil(t, gotRenames, "project seed renames")
 	assert.Equal(t, wantDir, dir)
 }
 
@@ -102,20 +97,20 @@ func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
 	require.NoError(t, os.MkdirAll(wantDir, perm.Dir))
 
 	called := false
-	defer stubSeedProjectFn(func(fs.FS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
 		called = true
 		return nil, nil
 	})()
 
 	dir, err := safeSeedProjectDir(cacheDir, testWorkspace)
 	require.NoError(t, err)
-	assert.False(t, called, "seedProjectFn called for existing dir")
+	assert.False(t, called, "seedTreeFn called for existing dir")
 	assert.Equal(t, wantDir, dir)
 }
 
 func TestSafeSeedProjectDirPropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
-	defer stubSeedProjectFn(func(fs.FS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
 		return nil, wantErr
 	})()
 

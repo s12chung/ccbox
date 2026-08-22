@@ -2,9 +2,7 @@ package cmd
 
 import (
 	"errors"
-	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -15,11 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/seed"
 )
-
-// seedProjectFn is seed.Project, indirected so tests can stub out the file-copying step.
-var seedProjectFn = seed.Project
 
 // Run flags.
 var (
@@ -176,23 +170,7 @@ func hostGitConfigDir() (string, error) {
 // safeSeedProjectDir seeds projectDir() if missing
 func safeSeedProjectDir(cacheDir, cwd string) (string, error) {
 	dir := projectDir(cacheDir, cwd)
-
-	switch _, err := os.Stat(dir); {
-	case err == nil: // exists
-		return dir, nil
-	case !os.IsNotExist(err): // stat failed for some other reason
-		return dir, err
-	}
-
-	src, err := fs.Sub(seedProject, path.Join(seed.SourceDir, "project-slug"))
-	if err != nil {
-		return dir, err
-	}
-	if _, err := seedProjectFn(src, dir); err != nil {
-		return dir, err
-	}
-	log.Infof("seeded fresh project dir: %s", dir)
-	return dir, nil
+	return safeSeed(seedProject, "project-slug", dir, nil, false)
 }
 
 // projectDir is the host state dir for a project: cacheDir/projects/<slug>

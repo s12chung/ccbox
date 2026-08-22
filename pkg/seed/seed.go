@@ -15,11 +15,6 @@ import (
 
 const SourceDir = "docker/seed"
 
-// Project seeds a project tree as-is (no filename remapping).
-func Project(src fs.FS, destDir string) ([]string, error) {
-	return Tree(src, destDir, nil)
-}
-
 // Tree seeds a config tree onto destDir (creating it), preserving the tree
 // and applying renames (source path -> destination name) where present. A destination
 // already matching the source is left untouched. Other existing

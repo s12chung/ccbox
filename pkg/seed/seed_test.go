@@ -118,24 +118,6 @@ func TestTreeCodexRenames(t *testing.T) {
 	assertMode(t, filepath.Join(dest, "config.toml"), perm.File)
 }
 
-func TestProject(t *testing.T) {
-	dest := t.TempDir()
-	src := fstest.MapFS{
-		"lessons.md":     {Data: []byte("lessons")},
-		"hooks/setup.sh": {Data: []byte("hook")}, // nested → exercises tree + .sh mode
-	}
-
-	renamed, err := Project(src, dest)
-	require.NoError(t, err)
-	assert.Empty(t, renamed)
-
-	// Project files keep their names (no CLAUDE remap), with correct modes.
-	assertFile(t, filepath.Join(dest, "lessons.md"), "lessons")
-	assertFile(t, filepath.Join(dest, "hooks/setup.sh"), "hook")
-	assertMode(t, filepath.Join(dest, "lessons.md"), perm.File)
-	assertMode(t, filepath.Join(dest, "hooks/setup.sh"), perm.ExecFile)
-}
-
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(body), 0o644))
