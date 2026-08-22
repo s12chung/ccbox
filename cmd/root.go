@@ -11,8 +11,8 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // Injected from main (package main can't be imported, so the embed FSes come in here).

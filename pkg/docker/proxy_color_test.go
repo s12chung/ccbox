@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/s12chung/ccbox/pkg/prompt"
+	"github.com/s12chung/ccbox/pkg/util/prompt"
 )
 
 func TestTinyproxyLevelColor(t *testing.T) {

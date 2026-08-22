@@ -15,11 +15,11 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
-	"github.com/s12chung/ccbox/pkg/dock"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/log"
-	"github.com/s12chung/ccbox/pkg/perm"
-	"github.com/s12chung/ccbox/pkg/prompt"
+	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/ccbox/pkg/util/perm"
+	"github.com/s12chung/ccbox/pkg/util/prompt"
 )
 
 const proxyPort = "8888"

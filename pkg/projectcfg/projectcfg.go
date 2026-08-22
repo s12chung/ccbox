@@ -13,8 +13,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/mergeempty"
-	"github.com/s12chung/ccbox/pkg/perm"
+	"github.com/s12chung/ccbox/pkg/util/mergeempty"
+	"github.com/s12chung/ccbox/pkg/util/perm"
 )
 
 const fileName = ".ccbox.yaml"

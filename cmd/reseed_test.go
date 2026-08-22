@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/perm"
+	"github.com/s12chung/ccbox/pkg/util/perm"
 )
 
 // stubSeedTreeFn swaps the seed step for a test double and returns a restore func.

@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // VersionURL pins via a URL whose body is a bare version — xAI's channel

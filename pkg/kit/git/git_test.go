@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/perm"
+	"github.com/s12chung/ccbox/pkg/util/perm"
 )
 
 func TestXDGConfigDir(t *testing.T) {

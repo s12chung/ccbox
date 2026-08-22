@@ -10,7 +10,7 @@ import (
 
 	"github.com/moby/term"
 
-	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // Confirm prints question on stdout and returns true only on y/yes.

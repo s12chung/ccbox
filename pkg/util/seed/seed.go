@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/perm"
+	"github.com/s12chung/ccbox/pkg/util/perm"
 )
 
 // ErrNoChanges reports that Tree made no changes: every destination already

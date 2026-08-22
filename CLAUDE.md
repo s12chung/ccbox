@@ -14,7 +14,7 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/image/*`) and proxy configs (`docker/tinyproxy/*`) into the binary, then hands off to `cmd`.
 - **`cmd/`** — thin cobra commands: gather flags/env and call one `pkg/docker` operation each.
 - **`pkg/`**
-  - `harness/` — individual harness/cli related code; embeds its seed trees under `clis/`, seeded by `pkg/seed/`: it lays these onto the host config dir which is then mounted to the container. Only the configured CLI's config dir is seeded and mounted.
+  - `harness/` — individual harness/cli related code; embeds its seed trees under `clis/`: it lays these onto the host config dir which is then mounted to the container. Only the configured CLI's config dir is seeded and mounted.
     - `shared/` — shared across CLIs: one `AGENTS.user.md`, renamed to the CLI's live memory file on seed (`CLAUDE.md` / `AGENTS.md`)
     - `(per-CLI directories)/` — each CLI's native config, `~/.ccbox/<cli>` → `~/ccbox/.<config>` (e.g. `.claude`)
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK

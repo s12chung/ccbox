@@ -11,7 +11,7 @@ import (
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
 
-	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // CtxD pairs a D Engine client with the context its calls run under.

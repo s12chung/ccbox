@@ -18,8 +18,8 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/progress/progressui"
 
-	"github.com/s12chung/ccbox/pkg/embedfs"
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/util/embedfs"
 )
 
 // BuildOptions configures an image build.

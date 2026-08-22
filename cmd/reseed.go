@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/log"
-	"github.com/s12chung/ccbox/pkg/prompt"
-	"github.com/s12chung/ccbox/pkg/seed"
+	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/ccbox/pkg/util/prompt"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 var reseedCmd = &cobra.Command{

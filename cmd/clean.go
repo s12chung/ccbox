@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/pkg/dock"
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/kit/dock"
 )
 
 var cleanCmd = &cobra.Command{

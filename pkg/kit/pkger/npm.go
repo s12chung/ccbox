@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // Npm pins via the npm registry's "latest" dist-tag.

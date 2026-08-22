@@ -8,13 +8,13 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/pkg/dock"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/git"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/log"
+	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/projectstate"
+	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // Run flags.

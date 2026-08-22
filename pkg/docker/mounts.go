@@ -10,7 +10,7 @@ import (
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/volume"
 
-	"github.com/s12chung/ccbox/pkg/dock"
+	"github.com/s12chung/ccbox/pkg/kit/dock"
 )
 
 const (

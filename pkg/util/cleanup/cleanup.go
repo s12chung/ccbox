@@ -2,7 +2,7 @@
 // that isn't tied to a function's scope (e.g. handed back to a caller to run later).“
 package cleanup
 
-import "github.com/s12chung/ccbox/pkg/log"
+import "github.com/s12chung/ccbox/pkg/util/log"
 
 // Stack holds named teardown steps and runs them in reverse order.
 type Stack struct {

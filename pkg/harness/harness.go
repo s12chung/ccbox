@@ -8,7 +8,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/pkger"
+	"github.com/s12chung/ccbox/pkg/kit/pkger"
 )
 
 // Name is the coding CLI's identity — the .ccbox.yaml cli value.

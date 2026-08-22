@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/deepcopy"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/perm"
+	"github.com/s12chung/ccbox/pkg/util/deepcopy"
+	"github.com/s12chung/ccbox/pkg/util/perm"
 )
 
 func ptr[T any](v T) *T { return &v }
