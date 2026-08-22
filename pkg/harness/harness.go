@@ -167,7 +167,11 @@ func MustFor(name Name) CLI {
 
 // SessionCmd maps the run flags to the CLI's session syntax: continue the last
 // session, resume one (bare for the picker, or named via args), or launch fresh.
-func (c CLI) SessionCmd(cont, resume bool, args []string) []string {
+func (c CLI) SessionCmd(shell, cont, resume bool, args []string) []string {
+	if shell {
+		return nil
+	}
+
 	cmd := []string{c.Cmd}
 	switch {
 	case cont:

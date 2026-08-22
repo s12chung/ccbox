@@ -14,25 +14,39 @@ import (
 	"github.com/s12chung/ccbox/pkg/log"
 )
 
+// CtxD pairs a D Engine client with the context its calls run under.
+type CtxD struct {
+	Ctx context.Context
+	D   *client.Client
+}
+
+func NewCtxD(ctx context.Context) (*CtxD, error) {
+	cli, err := client.NewClientWithOpts(client.FromEnv, client.WithAPIVersionNegotiation())
+	if err != nil {
+		return nil, err
+	}
+	return &CtxD{Ctx: ctx, D: cli}, nil
+}
+
 // EnsureOwnedVolume creates the named volume (with labels) if absent and chowns it to uid
-func EnsureOwnedVolume(ctx context.Context, cli *client.Client, image, volumeName, uid string, labels map[string]string) error {
-	switch _, err := cli.VolumeInspect(ctx, volumeName); {
+func EnsureOwnedVolume(ctxD *CtxD, image, volumeName, uid string, labels map[string]string) error {
+	switch _, err := ctxD.D.VolumeInspect(ctxD.Ctx, volumeName); {
 	case err == nil:
 		return nil
 	case !errdefs.IsNotFound(err):
 		return err
 	}
-	if _, err := cli.VolumeCreate(ctx, volume.CreateOptions{Name: volumeName, Labels: labels}); err != nil {
+	if _, err := ctxD.D.VolumeCreate(ctxD.Ctx, volume.CreateOptions{Name: volumeName, Labels: labels}); err != nil {
 		return err
 	}
-	return ChownVolume(ctx, cli, image, volumeName, uid+":"+uid)
+	return ChownVolume(ctxD, image, volumeName, uid+":"+uid)
 }
 
 // ChownVolume chown's volume to owner ("uid:gid") via a throwaway root container  running image.
-func ChownVolume(ctx context.Context, cli *client.Client, image, volumeName, owner string) error {
+func ChownVolume(ctxD *CtxD, image, volumeName, owner string) error {
 	mountPoint := "/mnt"
 
-	resp, err := cli.ContainerCreate(ctx,
+	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
 		&container.Config{
 			Image:      image,
 			User:       "0:0",
@@ -47,12 +61,12 @@ func ChownVolume(ctx context.Context, cli *client.Client, image, volumeName, own
 		return err
 	}
 	defer log.Defer("remove chown container", func() error {
-		return cli.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
+		return ctxD.D.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
 	})
 
 	// Register the wait before start so a fast exit isn't missed.
-	statusCh, errCh := cli.ContainerWait(ctx, resp.ID, container.WaitConditionNextExit)
-	if err := cli.ContainerStart(ctx, resp.ID, container.StartOptions{}); err != nil {
+	statusCh, errCh := ctxD.D.ContainerWait(ctxD.Ctx, resp.ID, container.WaitConditionNextExit)
+	if err := ctxD.D.ContainerStart(ctxD.Ctx, resp.ID, container.StartOptions{}); err != nil {
 		return err
 	}
 	select {

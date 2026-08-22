@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/dockerutil"
 )
 
 var cleanCmd = &cobra.Command{
@@ -17,10 +18,14 @@ var cleanCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c, err := docker.New()
+		ctxD, err := dockerutil.NewCtxD(cmd.Context())
 		if err != nil {
 			return err
 		}
-		return errors.Join(c.VolumeClean(cmd.Context(), cwd, projectCfg.VolumeCleanupDirs()), c.ProxyClean(cmd.Context()))
+
+		return errors.Join(
+			docker.VolumeClean(ctxD, cwd, projectCfg.VolumeCleanupDirs()),
+			docker.ProxyClean(ctxD),
+		)
 	},
 }

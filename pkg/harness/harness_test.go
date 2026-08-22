@@ -47,11 +47,13 @@ func TestEnv(t *testing.T) {
 func TestSessionCmd(t *testing.T) {
 	tests := []struct {
 		cli    CLI
+		shell  bool
 		cont   bool
 		resume bool
 		args   []string
 		want   []string
 	}{
+		{cli: Claude, shell: true, want: nil},
 		{cli: Claude, want: []string{"claude"}},
 		{cli: Claude, cont: true, want: []string{"claude", "-c"}},
 		{cli: Claude, resume: true, want: []string{"claude", "--resume"}},
@@ -75,7 +77,7 @@ func TestSessionCmd(t *testing.T) {
 		{cli: Grok, resume: true, args: []string{"abc-uuid"}, want: []string{"grok", "--resume", "abc-uuid"}},
 	}
 	for _, tt := range tests {
-		got := tt.cli.SessionCmd(tt.cont, tt.resume, tt.args)
-		assert.Equal(t, tt.want, got, "%s cont=%v resume=%v", tt.cli.Name, tt.cont, tt.resume)
+		got := tt.cli.SessionCmd(tt.shell, tt.cont, tt.resume, tt.args)
+		assert.Equal(t, tt.want, got, "%s shell=%v cont=%v resume=%v", tt.cli.Name, tt.shell, tt.cont, tt.resume)
 	}
 }

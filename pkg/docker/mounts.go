@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -81,10 +80,10 @@ func cacheVolumeBinds(hostCwd string) []string {
 }
 
 // ensureCacheVolumes creates hostCwd's cache volumes labeled with the project and returns their binds.
-func (c *Client) ensureCacheVolumes(ctx context.Context, hostCwd string) ([]string, error) {
+func ensureCacheVolumes(ctxD *dockerutil.CtxD, hostCwd string) ([]string, error) {
 	for suffix := range cacheVolumes {
 		opts := volume.CreateOptions{Name: cacheVolumeName(hostCwd, suffix), Labels: volumeLabels(hostCwd)}
-		if _, err := c.cli.VolumeCreate(ctx, opts); err != nil {
+		if _, err := ctxD.D.VolumeCreate(ctxD.Ctx, opts); err != nil {
 			return nil, err
 		}
 	}
@@ -112,13 +111,13 @@ func namedVolumeMasks(hostCwd string, hostPaths []string) (binds, names []string
 }
 
 // ensureNamedVolumeMasks builds the mask binds and ensures each volume exists owned by the container user.
-func (c *Client) ensureNamedVolumeMasks(ctx context.Context, hostCwd, imageTag string, hostPaths []string) ([]string, error) {
+func ensureNamedVolumeMasks(ctxD *dockerutil.CtxD, hostCwd, imageTag string, hostPaths []string) ([]string, error) {
 	binds, names, err := namedVolumeMasks(hostCwd, hostPaths)
 	if err != nil {
 		return nil, err
 	}
 	for _, name := range names {
-		if err := dockerutil.EnsureOwnedVolume(ctx, c.cli, imageTag, name, containerUID, volumeLabels(hostCwd)); err != nil {
+		if err := dockerutil.EnsureOwnedVolume(ctxD, imageTag, name, containerUID, volumeLabels(hostCwd)); err != nil {
 			return nil, err
 		}
 	}
@@ -126,7 +125,7 @@ func (c *Client) ensureNamedVolumeMasks(ctx context.Context, hostCwd, imageTag s
 }
 
 // VolumeClean removes hostCwd's cache volumes and the mask volumes for maskDirs
-func (c *Client) VolumeClean(ctx context.Context, hostCwd string, maskDirs []string) error {
+func VolumeClean(ctxD *dockerutil.CtxD, hostCwd string, maskDirs []string) error {
 	names := make([]string, 0, len(cacheVolumes)+len(maskDirs))
 	for suffix := range cacheVolumes {
 		names = append(names, cacheVolumeName(hostCwd, suffix))
@@ -137,7 +136,7 @@ func (c *Client) VolumeClean(ctx context.Context, hostCwd string, maskDirs []str
 
 	var errs []error
 	for _, name := range names {
-		if err := c.cli.VolumeRemove(ctx, name, false); err != nil && !errdefs.IsNotFound(err) {
+		if err := ctxD.D.VolumeRemove(ctxD.Ctx, name, false); err != nil && !errdefs.IsNotFound(err) {
 			errs = append(errs, err)
 		}
 	}

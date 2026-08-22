@@ -5,44 +5,15 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/perm"
 )
 
 const testWorkspace = "/work/myproj"
-
-func TestContainerCmd(t *testing.T) {
-	defer func() { flagContinue, flagResume, flagShell = false, false, false }()
-
-	// Per-CLI session syntax lives in pkg/harness; here just the flag plumbing into it.
-	tests := []struct {
-		cli                 harness.Name
-		cont, resume, shell bool
-		args                []string
-		want                []string
-	}{
-		{cli: harness.NameClaude, want: []string{"claude"}},
-		{cli: harness.NameOpenCode, cont: true, want: []string{"opencode", "-c"}},
-		{cli: harness.NameOpenCode, resume: true, args: []string{"abc123"}, want: []string{"opencode", "--session", "abc123"}},
-		{cli: harness.NameClaude, shell: true, want: nil}, // --shell wins over cli, dropping to the image default
-	}
-	for _, tt := range tests {
-		name := strings.Join(tt.want, " ")
-		if tt.shell {
-			name = "shell"
-		}
-		t.Run(name, func(t *testing.T) {
-			flagContinue, flagResume, flagShell = tt.cont, tt.resume, tt.shell
-			assert.Equal(t, tt.want, containerCmd(tt.cli, tt.args))
-		})
-	}
-}
 
 func TestResumeArgs(t *testing.T) {
 	defer func() { flagResume = false }()

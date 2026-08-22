@@ -15,6 +15,7 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
+	"github.com/s12chung/ccbox/pkg/dockerutil"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/perm"
@@ -48,6 +49,50 @@ const (
 	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
 )
 
+func runConfig(hostOptions RunOptions) *container.Config {
+	return &container.Config{
+		Image:        hostOptions.Tag,
+		Cmd:          hostOptions.Cmd,
+		WorkingDir:   WorkspaceMount(hostOptions.Cwd),
+		Tty:          true,
+		OpenStdin:    true,
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
+		Env:          envString(hostOptions),
+	}
+}
+
+func runHostConfig(ctxD *dockerutil.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
+	tmpfs, err := tmpfsMasks(hostOptions.Cwd, hostOptions.Tmpfs)
+	if err != nil {
+		return nil, err
+	}
+	volumeMaskBinds, err := ensureNamedVolumeMasks(ctxD, hostOptions.Cwd, hostOptions.Tag, hostOptions.Volumes)
+	if err != nil {
+		return nil, err
+	}
+	cacheBinds, err := ensureCacheVolumes(ctxD, hostOptions.Cwd)
+	if err != nil {
+		return nil, err
+	}
+	var gitBinds []string
+	if hostOptions.GitConfigDir != "" {
+		gitBinds = []string{hostOptions.GitConfigDir + ":" + gitConfigMount + ":ro"}
+	}
+	return &container.HostConfig{
+		NetworkMode: networkName,
+		CapDrop:     []string{"ALL"},
+		SecurityOpt: []string{"no-new-privileges"},
+		Binds: append(append(append([]string{
+			hostOptions.ConfigDir + ":" + configMount(hostOptions.CLI),
+			hostOptions.CcboxDir + ":" + ccboxMount,
+			hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
+		}, cacheBinds...), volumeMaskBinds...), gitBinds...),
+		Tmpfs: tmpfs,
+	}, nil
+}
+
 // configMount is the in-container path the persisted config dir binds to for cliName
 func configMount(cliName harness.Name) string {
 	return path.Join(containerHome, harness.MustFor(cliName).ConfigHomeMount)
@@ -67,25 +112,25 @@ func ProjectSlug(hostCwd string) string {
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
 // returns its exit code. proxyStart brings the wall up for the session (see AutoProxy); the
 // container is removed on return, before any wall proxyStart owns is torn down.
-func (c *Client) Run(ctx context.Context, hostOptions RunOptions) (int, error) {
-	running, err := c.proxyRunning(ctx)
+func Run(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
+	running, err := proxyRunning(ctxD)
 	if err != nil {
 		return 0, err
 	}
 	if running {
-		return c.runDevbox(ctx, hostOptions)
+		return runDevbox(ctxD, hostOptions)
 	}
-	return c.runWithProxy(ctx, hostOptions)
+	return runWithProxy(ctxD, hostOptions)
 }
 
-func (c *Client) runWithProxy(ctx context.Context, hostOptions RunOptions) (int, error) {
+func runWithProxy(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
 	file, err := os.OpenFile(hostOptions.ProxyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, perm.File)
 	if err != nil {
 		return 0, err
 	}
 	defer log.Defer("close log file", file.Close)
 
-	cleanup, err := c.proxyStart(ctx, hostOptions.Proxy, func(logs io.ReadCloser) error {
+	cleanup, err := proxyStart(ctxD, hostOptions.Proxy, func(logs io.ReadCloser) error {
 		_, logErr := stdcopy.StdCopy(file, file, logs)
 		return logErr
 	})
@@ -93,53 +138,18 @@ func (c *Client) runWithProxy(ctx context.Context, hostOptions RunOptions) (int,
 		return 0, err
 	}
 
-	code, runErr := c.runDevbox(ctx, hostOptions)
+	code, runErr := runDevbox(ctxD, hostOptions)
 	return code, errors.Join(runErr, cleanup())
 }
 
-func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, error) {
-	_ = c.cli.NetworkConnect(ctx, "bridge", egressName, nil) // silently ignore errors
+func runDevbox(ctxD *dockerutil.CtxD, hostOptions RunOptions) (int, error) {
+	_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", egressName, nil) // silently ignore errors
 
-	tmpfs, err := tmpfsMasks(hostOptions.Cwd, hostOptions.Tmpfs)
+	hostConfig, err := runHostConfig(ctxD, hostOptions)
 	if err != nil {
 		return 0, err
 	}
-	volumeMaskBinds, err := c.ensureNamedVolumeMasks(ctx, hostOptions.Cwd, hostOptions.Tag, hostOptions.Volumes)
-	if err != nil {
-		return 0, err
-	}
-	cacheBinds, err := c.ensureCacheVolumes(ctx, hostOptions.Cwd)
-	if err != nil {
-		return 0, err
-	}
-	var gitBinds []string
-	if hostOptions.GitConfigDir != "" {
-		gitBinds = []string{hostOptions.GitConfigDir + ":" + gitConfigMount + ":ro"}
-	}
-	resp, err := c.cli.ContainerCreate(ctx,
-		&container.Config{
-			Image:        hostOptions.Tag,
-			Cmd:          hostOptions.Cmd,
-			WorkingDir:   WorkspaceMount(hostOptions.Cwd),
-			Tty:          true,
-			OpenStdin:    true,
-			AttachStdin:  true,
-			AttachStdout: true,
-			AttachStderr: true,
-			Env:          envString(hostOptions),
-		},
-		&container.HostConfig{
-			NetworkMode: networkName,
-			CapDrop:     []string{"ALL"},
-			SecurityOpt: []string{"no-new-privileges"},
-			Binds: append(append(append([]string{
-				hostOptions.ConfigDir + ":" + configMount(hostOptions.CLI),
-				hostOptions.CcboxDir + ":" + ccboxMount,
-				hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
-			}, cacheBinds...), volumeMaskBinds...), gitBinds...),
-			Tmpfs: tmpfs,
-		},
-		nil, nil, "")
+	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx, runConfig(hostOptions), hostConfig, nil, nil, "")
 	if err != nil {
 		return 0, err
 	}
@@ -147,15 +157,15 @@ func (c *Client) runDevbox(ctx context.Context, hostOptions RunOptions) (int, er
 	// --rm: remove on return regardless of how we got here
 	defer log.Defer("remove container", func() error {
 		// context.Background() so a cancelled ctx can't block cleanup
-		return c.cli.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
+		return ctxD.D.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
 	})
-	return c.runInteractive(ctx, resp.ID)
+	return runInteractive(ctxD, resp.ID)
 }
 
 // proxyRunning reports whether the egress container is up. A missing or stopped wall is
 // false, not an error.
-func (c *Client) proxyRunning(ctx context.Context) (bool, error) {
-	info, err := c.cli.ContainerInspect(ctx, egressName)
+func proxyRunning(ctxD *dockerutil.CtxD) (bool, error) {
+	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, egressName)
 	if errdefs.IsNotFound(err) {
 		return false, nil
 	}
@@ -172,8 +182,8 @@ func (c *Client) proxyRunning(ctx context.Context) (bool, error) {
 // Discipline: every exit path must restore the terminal, so this returns errors
 // rather than calling os.Exit/log.Fatal (which skip defers). On a kill/hangup it
 // stops the container instead of exiting, so this same unwind still runs.
-func (c *Client) runInteractive(ctx context.Context, id string) (int, error) {
-	att, err := c.cli.ContainerAttach(ctx, id, container.AttachOptions{
+func runInteractive(ctxD *dockerutil.CtxD, id string) (int, error) {
+	att, err := ctxD.D.ContainerAttach(ctxD.Ctx, id, container.AttachOptions{
 		Stream: true, Stdin: true, Stdout: true, Stderr: true,
 	})
 	if err != nil {
@@ -188,15 +198,15 @@ func (c *Client) runInteractive(ctx context.Context, id string) (int, error) {
 	// Register the wait before start so a fast exit isn't missed. NextExit (not
 	// NotRunning) is essential: a created, not-yet-started container already satisfies
 	// "not running", so NotRunning returns immediately with a bogus exit code 0.
-	statusCh, errCh := c.cli.ContainerWait(ctx, id, container.WaitConditionNextExit)
+	statusCh, errCh := ctxD.D.ContainerWait(ctxD.Ctx, id, container.WaitConditionNextExit)
 
-	if err := c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
+	if err := ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
 		return 0, err
 	}
 
 	// Forward window resizes to the container's tty.
 	stopResizes := prompt.ForwardResizes(func(h, w uint) {
-		_ = c.cli.ContainerResize(ctx, id, container.ResizeOptions{Height: h, Width: w})
+		_ = ctxD.D.ContainerResize(ctxD.Ctx, id, container.ResizeOptions{Height: h, Width: w})
 	})
 	defer stopResizes()
 
@@ -210,7 +220,7 @@ func (c *Client) runInteractive(ctx context.Context, id string) (int, error) {
 	go func() {
 		<-kill
 		timeout := 5
-		_ = c.cli.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
+		_ = ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
 	}()
 
 	// Stdin → container (leaks on the os.Stdin read at process exit — fine for a CLI).

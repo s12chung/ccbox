@@ -30,6 +30,21 @@ type BuildOptions struct {
 	Pkger      string       // PKGER build arg: install source rendered by pkger.Pkger.Arg
 }
 
+// buildArgs maps BuildOptions to Dockerfile ARGs
+func buildArgs(o BuildOptions) map[string]string {
+	args := map[string]string{}
+	if o.CLIName != "" {
+		args["CLI"] = string(o.CLIName)
+	}
+	if o.CLIVersion != "" {
+		args["CLI_VERSION"] = o.CLIVersion
+	}
+	if o.Pkger != "" {
+		args["PKGER"] = o.Pkger
+	}
+	return args
+}
+
 // Build builds the devbox image from the embedded build context (src) on BuildKit,
 // in-process via the buildx library, streaming progress to stderr and loading the
 // result into the local daemon's image store. src must hold the Dockerfile and every
@@ -80,19 +95,4 @@ func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
 		buildErr = waitErr
 	}
 	return buildErr
-}
-
-// buildArgs maps BuildOptions to Dockerfile ARGs
-func buildArgs(o BuildOptions) map[string]string {
-	args := map[string]string{}
-	if o.CLIName != "" {
-		args["CLI"] = string(o.CLIName)
-	}
-	if o.CLIVersion != "" {
-		args["CLI_VERSION"] = o.CLIVersion
-	}
-	if o.Pkger != "" {
-		args["PKGER"] = o.Pkger
-	}
-	return args
 }

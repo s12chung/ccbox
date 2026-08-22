@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/dockerutil"
 	"github.com/s12chung/ccbox/pkg/git"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/log"
@@ -33,13 +34,34 @@ func resumeArgs(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-// containerCmd is the command the entrypoint execs: the configured CLI by default
-// or the image default (shell) with --shell.
-func containerCmd(cliName harness.Name, args []string) []string {
-	if flagShell {
-		return nil
+func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
+	gitConfigDir, err := hostGitConfigDir()
+	if err != nil {
+		return docker.RunOptions{}, err
 	}
-	return harness.MustFor(cliName).SessionCmd(flagContinue, flagResume, args)
+	proxyFS, err := proxyConfigFS()
+	if err != nil {
+		return docker.RunOptions{}, err
+	}
+
+	return docker.RunOptions{
+		Tag:          flagTag,
+		CLI:          projectCfg.CLI,
+		ConfigDir:    m.config,
+		CcboxDir:     m.ccbox,
+		Cwd:          m.cwd,
+		GHToken:      os.Getenv("GH_TOKEN"),
+		GitConfigDir: gitConfigDir,
+		Env:          projectCfg.Env,
+		Tmpfs:        projectCfg.Tmpfs,
+		Volumes:      projectCfg.Volumes,
+		Cmd:          harness.MustFor(projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
+		Proxy: docker.ProxyOptions{
+			Config:    proxyFS,
+			Overrides: docker.AllowOverride(projectCfg.Allowlist),
+		},
+		ProxyLogPath: filepath.Join(flagCacheDir, "proxy.log"),
+	}, nil
 }
 
 // runDevbox builds the image then runs the devbox container interactively behind the
@@ -52,43 +74,21 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	gitConfigDir, err := hostGitConfigDir()
-	if err != nil {
-		return err
-	}
-
 	// A default mask dir absent now isn't masked this run, but gets masked once it exists.
 	// Snapshot the absent ones, then warn after the run for any the container created.
 	defer printMasks()
 	absentDefaults := masksOnHost(m.cwd, projectcfg.MaskDefaults(), false)
 	defer warnCreatedMasks(m.cwd, absentDefaults)
 
-	proxyFS, err := proxyConfigFS()
+	ctxD, err := dockerutil.NewCtxD(cmd.Context())
 	if err != nil {
 		return err
 	}
-	c, err := docker.New()
+	runOpts, err := runOptions(m, args)
 	if err != nil {
 		return err
 	}
-	code, err := c.Run(cmd.Context(), docker.RunOptions{
-		Tag:          flagTag,
-		CLI:          projectCfg.CLI,
-		ConfigDir:    m.config,
-		CcboxDir:     m.ccbox,
-		Cwd:          m.cwd,
-		GHToken:      os.Getenv("GH_TOKEN"),
-		GitConfigDir: gitConfigDir,
-		Env:          projectCfg.Env,
-		Tmpfs:        projectCfg.Tmpfs,
-		Volumes:      projectCfg.Volumes,
-		Cmd:          containerCmd(projectCfg.CLI, args),
-		Proxy: docker.ProxyOptions{
-			Config:    proxyFS,
-			Overrides: docker.AllowOverride(projectCfg.Allowlist),
-		},
-		ProxyLogPath: filepath.Join(flagCacheDir, "proxy.log"),
-	})
+	code, err := docker.Run(ctxD, runOpts)
 	if err != nil {
 		return err
 	}

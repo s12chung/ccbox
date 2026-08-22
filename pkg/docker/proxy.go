@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/pkg/cleanup"
+	"github.com/s12chung/ccbox/pkg/dockerutil"
 	"github.com/s12chung/ccbox/pkg/embedfs"
 	"github.com/s12chung/ccbox/pkg/log"
 	"github.com/s12chung/ccbox/pkg/prompt"
@@ -40,10 +41,10 @@ type ProxyOptions struct {
 
 // Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
 // streaming its logs until interrupted. Blocks until SIGINT/SIGTERM stops it.
-func (c *Client) Proxy(ctx context.Context, o ProxyOptions) error {
+func Proxy(ctxD *dockerutil.CtxD, o ProxyOptions) error {
 	// Wall exits on its own (logFn closes stop).
 	stop := make(chan struct{})
-	cleanup, err := c.proxyStart(ctx, o, func(logs io.ReadCloser) error {
+	cleanup, err := proxyStart(ctxD, o, func(logs io.ReadCloser) error {
 		_, err := stdcopy.StdCopy(proxyColorWriter(os.Stdout), proxyColorWriter(os.Stderr), logs)
 		close(stop)
 		return err
@@ -86,11 +87,11 @@ func tinyproxyLevelColor(line string) prompt.Color {
 // CLI, never auto-pulls on create). Inspect resolves the digest-pinned ref that a
 // reference filter would miss, so a cached image isn't re-pulled (or wrongly
 // reported absent when the host is offline) each run.
-func (c *Client) ensureImage(ctx context.Context, ref string) error {
-	if _, err := c.cli.ImageInspect(ctx, ref); err == nil {
+func ensureImage(ctxD *dockerutil.CtxD, ref string) error {
+	if _, err := ctxD.D.ImageInspect(ctxD.Ctx, ref); err == nil {
 		return nil
 	}
-	readCloser, err := c.cli.ImagePull(ctx, ref, image.PullOptions{})
+	readCloser, err := ctxD.D.ImagePull(ctxD.Ctx, ref, image.PullOptions{})
 	if err != nil {
 		return err
 	}
@@ -100,8 +101,8 @@ func (c *Client) ensureImage(ctx context.Context, ref string) error {
 
 // ensureNetwork creates the internal wall network if absent. Like the Makefile's
 // `docker network create ... || true`, a pre-existing network is not an error.
-func (c *Client) ensureNetwork(ctx context.Context) {
-	_, _ = c.cli.NetworkCreate(ctx, networkName, network.CreateOptions{
+func ensureNetwork(ctxD *dockerutil.CtxD) {
+	_, _ = ctxD.D.NetworkCreate(ctxD.Ctx, networkName, network.CreateOptions{
 		Driver:   "bridge",
 		Internal: true,
 	})
@@ -109,15 +110,15 @@ func (c *Client) ensureNetwork(ctx context.Context) {
 
 // ProxyClean removes the wall network. A missing network is already clean (not an error);
 // an in-use one still errors.
-func (c *Client) ProxyClean(ctx context.Context) error {
-	if err := c.cli.NetworkRemove(ctx, networkName); err != nil && !errdefs.IsNotFound(err) {
+func ProxyClean(ctxD *dockerutil.CtxD) error {
+	if err := ctxD.D.NetworkRemove(ctxD.Ctx, networkName); err != nil && !errdefs.IsNotFound(err) {
 		return err
 	}
 	return nil
 }
 
 // proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
-func (c *Client) proxyStart(ctx context.Context, o ProxyOptions, logFn func(logs io.ReadCloser) error) (teardown func() error, err error) {
+func proxyStart(ctxD *dockerutil.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (teardown func() error, err error) {
 	var stack cleanup.Stack
 	// Unwind partial setup if we bail before returning teardown.
 	defer func() {
@@ -126,11 +127,11 @@ func (c *Client) proxyStart(ctx context.Context, o ProxyOptions, logFn func(logs
 		}
 	}()
 
-	c.ensureNetwork(ctx)
+	ensureNetwork(ctxD)
 	// Tear the network down only if we're its last user. A still-running devbox keeps
 	// the wall attached (expected) — leave it; `proxy clean` can clean it.
 	stack.Push("remove wall network", func() error {
-		err := c.ProxyClean(context.Background())
+		err := ProxyClean(ctxD)
 		if errdefs.IsPermissionDenied(err) {
 			log.Infof("keeping wall network around: %v", err)
 			return nil
@@ -138,40 +139,40 @@ func (c *Client) proxyStart(ctx context.Context, o ProxyOptions, logFn func(logs
 		return err
 	})
 
-	if err = c.ensureImage(ctx, proxyImage); err != nil {
+	if err = ensureImage(ctxD, proxyImage); err != nil {
 		return nil, err
 	}
 	// Clear any stale egress container so the fixed name is free.
-	_ = c.cli.ContainerRemove(ctx, egressName, container.RemoveOptions{Force: true})
+	_ = ctxD.D.ContainerRemove(ctxD.Ctx, egressName, container.RemoveOptions{Force: true})
 
-	resp, err := c.cli.ContainerCreate(ctx,
+	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
 		&container.Config{Image: proxyImage},
-		&container.HostConfig{NetworkMode: container.NetworkMode(networkName)},
+		&container.HostConfig{NetworkMode: networkName},
 		nil, nil, egressName)
 	if err != nil {
 		return nil, err
 	}
 	id := resp.ID
 	stack.Push("remove container", func() error {
-		return c.cli.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
+		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
 	configTar, err := embedfs.ToTar(o.Config, o.Overrides)
 	if err != nil {
 		return nil, err
 	}
-	if err = c.cli.CopyToContainer(ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
+	if err = ctxD.D.CopyToContainer(ctxD.Ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
 		return nil, err
 	}
-	if err = c.cli.ContainerStart(ctx, id, container.StartOptions{}); err != nil {
+	if err = ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
 		return nil, err
 	}
 	stack.Push("container stop", func() error {
 		timeout := 5
-		return c.cli.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
+		return ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
 	})
 
-	logs, err := c.cli.ContainerLogs(ctx, id, container.LogsOptions{
+	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{
 		ShowStdout: true, ShowStderr: true, Follow: true,
 	})
 	if err != nil {

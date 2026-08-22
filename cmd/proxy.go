@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/dockerutil"
 )
 
 var proxyCmd = &cobra.Command{
@@ -16,11 +17,11 @@ var proxyCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		c, err := docker.New()
+		ctxD, err := dockerutil.NewCtxD(cmd.Context())
 		if err != nil {
 			return err
 		}
-		return c.Proxy(cmd.Context(), docker.ProxyOptions{
+		return docker.Proxy(ctxD, docker.ProxyOptions{
 			Config:    configFS,
 			Overrides: docker.AllowOverride(projectCfg.Allowlist),
 		})
