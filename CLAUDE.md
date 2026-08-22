@@ -27,8 +27,8 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
     - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
   - `tinyproxy/` — the egress wall configs
   - `seed/` — config, used only by `pkg/seed/`: it seeds these onto the host config dir and mounted to the container. Only the configured CLI's config dir is seeded and mounted.
-    - `claude-config/` — the Claude config, `~/.ccbox/claude-config` → `~/ccbox/.claude`
-    - `codex-config/` — the Codex config, `~/.ccbox/codex-config` → `~/ccbox/.codex`
+    - `all/` — shared across CLIs: one `AGENTS.user.md`, renamed to the CLI's live memory file on seed (`CLAUDE.md` / `AGENTS.md`)
+    - `(other directories)/` — each CLI's native config, `~/.ccbox/<cli>` → `~/ccbox/.<config>` (e.g. `.claude`)
     - `project-slug/` — ccbox project data, `~/.ccbox/projects/-project-slug` (see below) → `~/ccbox/.ccbox/project`
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:

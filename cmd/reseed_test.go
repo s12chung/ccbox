@@ -21,43 +21,47 @@ func stubSeedTreeFn(fn func(fs.FS, string, map[string]string) ([]string, error))
 	return func() { seedTreeFn = orig }
 }
 
-// Each CLI seeds its own config dir leaf with its own renames.
+// Each CLI seeds the shared tree first (its memory doc renamed into place), then its own.
 func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 	cases := []struct {
-		name string
-		cli  harness.Name
+		name      string
+		cli       harness.Name
+		memoryDst string
 	}{
-		{"claude", harness.NameClaude},
-		{"codex", harness.NameCodex},
+		{name: "claude", cli: harness.NameClaude, memoryDst: "CLAUDE.md"},
+		{name: "codex", cli: harness.NameCodex, memoryDst: "AGENTS.md"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cacheDir := t.TempDir()
-			spec, requireOK := harness.For(tc.cli)
+			cli, requireOK := harness.For(tc.cli)
 			require.True(t, requireOK)
-			wantDir := filepath.Join(cacheDir, spec.SeedSrcFolder)
+			wantDir := filepath.Join(cacheDir, string(cli.Name))
 
-			var gotDir string
-			var gotRenames map[string]string
-			called := false
+			type call struct {
+				dest    string
+				renames map[string]string
+			}
+			var calls []call
 			defer stubSeedTreeFn(func(_ fs.FS, dest string, renames map[string]string) ([]string, error) {
-				called, gotDir, gotRenames = true, dest, renames
+				calls = append(calls, call{dest, renames})
 				return nil, nil
 			})()
 
 			dir, err := safeSeedConfig(cacheDir, tc.cli, false)
 			require.NoError(t, err)
-			assert.True(t, called, "seed fn not called for missing dir")
-			assert.Equal(t, wantDir, gotDir, "seeded dir")
-			assert.Equal(t, spec.SeedRenames, gotRenames, "seed renames")
 			assert.Equal(t, wantDir, dir)
+			assert.Equal(t, []call{
+				{wantDir, map[string]string{harness.AgentsFileName: cli.SeedAgentsFilename}},
+				{wantDir, nil},
+			}, calls, "shared then per-CLI tree seeded into the config dir")
 		})
 	}
 }
 
 func TestSafeSeedConfigExistingSkips(t *testing.T) {
 	cacheDir := t.TempDir()
-	configDir := filepath.Join(cacheDir, "claude-config")
+	configDir := filepath.Join(cacheDir, "claude")
 	require.NoError(t, os.MkdirAll(configDir, perm.Dir))
 
 	called := false

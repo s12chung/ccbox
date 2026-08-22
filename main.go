@@ -15,21 +15,9 @@ var buildContext embed.FS
 //go:embed docker/tinyproxy/*
 var proxyConfig embed.FS
 
-//go:embed docker/seed/claude-config
-var seedClaudeConfig embed.FS
-
-//go:embed docker/seed/codex-config
-var seedCodexConfig embed.FS
-
-//go:embed docker/seed/opencode-config
-var seedOpenCodeConfig embed.FS
-
-//go:embed docker/seed/grok-config
-var seedGrokConfig embed.FS
-
-//go:embed docker/seed/project-slug
-var seedProject embed.FS
+//go:embed docker/seed
+var seedFS embed.FS
 
 func main() {
-	os.Exit(cmd.Execute(buildContext, proxyConfig, seedClaudeConfig, seedCodexConfig, seedOpenCodeConfig, seedGrokConfig, seedProject))
+	os.Exit(cmd.Execute(buildContext, proxyConfig, seedFS))
 }

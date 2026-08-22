@@ -19,6 +19,11 @@ const (
 	NameGrok     Name = "grok"
 )
 
+const SharedSeedPath = "shared"
+
+// AgentsFileName is the shared user AGENTS.md
+const AgentsFileName = "AGENTS.user.md"
+
 // All lists every supported CLI, in stable order.
 func All() []CLI {
 	return []CLI{Claude, Codex, OpenCode, Grok}
@@ -43,13 +48,9 @@ type CLI struct {
 	// every run of this CLI.
 	Env map[string]string
 
-	// SeedSrcFolder locates the embedded seed tree for this CLI's config dir;
-	// the host config dir reuses its leaf (e.g. .../codex-config -> codex-config).
-	SeedSrcFolder string
-
-	// SeedRenames remaps seed paths (source path -> destination name), e.g. the
-	// user-editable *.user.md lands as the CLI's live memory file.
-	SeedRenames map[string]string
+	// SeedAgentsFilename is the destination name of the shared all/ memory doc
+	// (AgentsFileName) in the host config dir — this CLI's live memory file.
+	SeedAgentsFilename string
 
 	// Cmd is the launch argv prefix; ContinueArgs/ResumeArgs extend it for the
 	// run flags (-c/--resume) in each CLI's own session syntax.
@@ -71,11 +72,10 @@ var Claude = CLI{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 		"DISABLE_AUTOUPDATER":                      "1",
 	},
-	SeedSrcFolder: "claude-config",
-	SeedRenames:   map[string]string{"CLAUDE.user.md": "CLAUDE.md"},
-	Cmd:           "claude",
-	ContinueArgs:  "-c",
-	ResumeArgs:    "--resume",
+	SeedAgentsFilename: "CLAUDE.md",
+	Cmd:                "claude",
+	ContinueArgs:       "-c",
+	ResumeArgs:         "--resume",
 	AllowDomains: []string{
 		"platform.claude.com",
 		"api.anthropic.com",
@@ -87,15 +87,14 @@ var Claude = CLI{
 
 // Codex is Codex (OpenAI).
 var Codex = CLI{
-	Name:            NameCodex,
-	Pkger:           pkger.Npm{Package: "@openai/codex"},
-	ConfigHomeMount: ".codex",
-	ConfigDirEnvKey: "CODEX_HOME",
-	SeedSrcFolder:   "codex-config",
-	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
-	Cmd:             "codex --sandbox danger-full-access", // run without bubblewrap, which is buggy atm without root
-	ContinueArgs:    "resume --last",
-	ResumeArgs:      "resume",
+	Name:               NameCodex,
+	Pkger:              pkger.Npm{Package: "@openai/codex"},
+	ConfigHomeMount:    ".codex",
+	ConfigDirEnvKey:    "CODEX_HOME",
+	SeedAgentsFilename: "AGENTS.md",
+	Cmd:                "codex --sandbox danger-full-access", // run without bubblewrap, which is buggy atm without root
+	ContinueArgs:       "resume --last",
+	ResumeArgs:         "resume",
 	AllowDomains: []string{
 		"api.openai.com",
 		"auth.openai.com",
@@ -105,13 +104,12 @@ var Codex = CLI{
 
 // OpenCode is OpenCode (Anomaly).
 var OpenCode = CLI{
-	Name:            NameOpenCode,
-	Pkger:           pkger.Npm{Package: "opencode-ai"},
-	ConfigHomeMount: ".config/opencode",
-	SeedSrcFolder:   "opencode-config",
-	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
-	Cmd:             "opencode",
-	ContinueArgs:    "-c",
+	Name:               NameOpenCode,
+	Pkger:              pkger.Npm{Package: "opencode-ai"},
+	ConfigHomeMount:    ".config/opencode",
+	SeedAgentsFilename: "AGENTS.md",
+	Cmd:                "opencode",
+	ContinueArgs:       "-c",
 	// No picker flag exists; bare --session errors, so -r needs a session id.
 	ResumeArgs: "--session",
 	Env:        map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"},
@@ -129,11 +127,10 @@ var Grok = CLI{
 		LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
 		LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
 	},
-	ConfigHomeMount: ".grok",
-	SeedSrcFolder:   "grok-config",
-	SeedRenames:     map[string]string{"AGENTS.user.md": "AGENTS.md"},
-	Cmd:             "grok",
-	ContinueArgs:    "-c",
+	ConfigHomeMount:    ".grok",
+	SeedAgentsFilename: "AGENTS.md",
+	Cmd:                "grok",
+	ContinueArgs:       "-c",
 	// Bare --resume resumes the most recent session — no picker flag exists.
 	ResumeArgs: "--resume",
 	Env:        map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"},

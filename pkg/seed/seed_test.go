@@ -14,14 +14,14 @@ import (
 
 func srcFS() fstest.MapFS {
 	return fstest.MapFS{
-		"CLAUDE.user.md":    {Data: []byte("new claude")},
+		"AGENTS.user.md":    {Data: []byte("new claude")},
 		"settings.json":     {Data: []byte("new settings")},
 		"hooks/tripwire.sh": {Data: []byte("new hook")}, // nested → exercises tree + .sh mode
 	}
 }
 
-// claudeRenames is harness.Claude.SeedRenames's remap, inlined to keep this pkg harness-free.
-var claudeRenames = map[string]string{"CLAUDE.user.md": "CLAUDE.md"}
+// claudeRenames is the shared AGENTS.md into Claude's live file, inlined to keep this pkg harness-free.
+var claudeRenames = map[string]string{"AGENTS.user.md": "CLAUDE.md"}
 
 func TestTreeFresh(t *testing.T) {
 	dest := t.TempDir()
@@ -30,12 +30,12 @@ func TestTreeFresh(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
-	// CLAUDE.user.md lands as CLAUDE.md; nested file preserved.
+	// AGENTS.user.md lands as CLAUDE.md; nested file preserved.
 	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	assertNotExist(t, filepath.Join(dest, "CLAUDE.user.md"))
+	assertNotExist(t, filepath.Join(dest, "AGENTS.user.md"))
 	assertMode(t, filepath.Join(dest, "hooks/tripwire.sh"), perm.ExecFile)
 	assertMode(t, filepath.Join(dest, "settings.json"), perm.File)
 }
@@ -66,7 +66,7 @@ func TestTreeBacksUpExisting(t *testing.T) {
 
 func TestTreeSkipsIdentical(t *testing.T) {
 	dest := t.TempDir()
-	// Each dest already holds the source contents (CLAUDE.md is the renamed CLAUDE.user.md).
+	// Each dest already holds the source contents (CLAUDE.md is the renamed AGENTS.user.md).
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	mkdirAll(t, filepath.Join(dest, "hooks"))
@@ -89,8 +89,8 @@ func TestTreeBackupExistsErrors(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
 
-	// CLAUDE.user.md → CLAUDE.md collides with the live file, whose backup already exists.
-	src := fstest.MapFS{"CLAUDE.user.md": {Data: []byte("new claude")}}
+	// AGENTS.user.md → CLAUDE.md collides with the live file, whose backup already exists.
+	src := fstest.MapFS{"AGENTS.user.md": {Data: []byte("new claude")}}
 	_, err := Tree(src, dest, claudeRenames)
 	require.Error(t, err)
 

@@ -170,7 +170,7 @@ func hostGitConfigDir() (string, error) {
 // safeSeedProjectDir seeds projectDir() if missing
 func safeSeedProjectDir(cacheDir, cwd string) (string, error) {
 	dir := projectDir(cacheDir, cwd)
-	return safeSeed(seedProject, "project-slug", dir, nil, false)
+	return safeSeed(seedFS, dir, false, seedSrc{sub: "project-slug"})
 }
 
 // projectDir is the host state dir for a project: cacheDir/projects/<slug>

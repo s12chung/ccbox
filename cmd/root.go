@@ -19,11 +19,8 @@ import (
 var (
 	buildContext embed.FS // Dockerfile + docker/image/* — the build context
 	proxyConfig  embed.FS // docker/tinyproxy/* — the egress wall configs
-	seedProject  embed.FS // docker/seed/project-slug — the seedable per-project tree
+	seedFS       embed.FS // docker/seed/* — the seedable trees (all/, per-CLI, project-slug)
 )
-
-// seedConfigs holds each CLI's config seed, keyed by its harness.CLI.SeedSrcPrefix.
-var seedConfigs = map[harness.Name]embed.FS{}
 
 // Shared flags.
 var (
@@ -57,14 +54,10 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute runs the CLI and returns the process exit code.
-func Execute(build, proxy, claudeConfig, codexConfig, openCodeConfig, grokConfig, project embed.FS) int {
+func Execute(build, proxy, seed embed.FS) int {
 	buildContext = build
 	proxyConfig = proxy
-	seedConfigs[harness.Claude.Name] = claudeConfig
-	seedConfigs[harness.Codex.Name] = codexConfig
-	seedConfigs[harness.OpenCode.Name] = openCodeConfig
-	seedConfigs[harness.Grok.Name] = grokConfig
-	seedProject = project
+	seedFS = seed
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)
 		return 1
