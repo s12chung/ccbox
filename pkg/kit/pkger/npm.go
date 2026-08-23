@@ -12,7 +12,7 @@ import (
 
 // Npm pins via the npm registry's "latest" dist-tag.
 type Npm struct {
-	Package string
+	Package string `yaml:"package"`
 }
 
 // npmRegistry is the registry Npm reads dist-tags from.

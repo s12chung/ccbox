@@ -26,9 +26,9 @@ var reseedCmd = &cobra.Command{
 
 // safeSeedConfig seeds cli's host config dir in cacheDir and returns that dir:
 // the shared/ tree first (renamed to cli's live memory file), then cli's own tree.
-func safeSeedConfig(cacheDir string, cliName harness.Name, confirm bool) (string, error) {
+func safeSeedConfig(cacheDir, cliName string, confirm bool) (string, error) {
 	cli := harness.MustFor(cliName)
-	name := string(cli.Name)
+	name := cli.Name
 	return safeSeed(harness.SeedFS(), filepath.Join(cacheDir, name), confirm,
 		seedSrc{
 			sub:     filepath.Join(harness.SharedSeedPath, harness.SeedConfigDir),

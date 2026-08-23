@@ -1,0 +1,20 @@
+# Grok Build (xAI).
+versionurl:
+  url: "https://x.ai/cli/stable"
+  linux_x64_url: "https://x.ai/cli/grok-$version-linux-x86_64"
+  linux_arm64_url: "https://x.ai/cli/grok-$version-linux-aarch64"
+
+config_home_mount: ".grok"
+
+cmd: "grok"
+continue_args: "-c"
+# Bare --resume resumes the most recent session — no picker flag exists.
+resume_args: "--resume"
+env:
+  GROK_DISABLE_AUTOUPDATER: "1"
+
+allow_domains:
+  - x.ai
+  - cli-chat-proxy.grok.com
+  - code.grok.com
+  - assets.grok.com

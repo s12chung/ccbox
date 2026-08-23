@@ -9,7 +9,6 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
@@ -20,7 +19,7 @@ const proxyPort = "8888"
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
 	Tag          string
-	CLI          harness.Name      // selects the config mount target (each CLI's native default dir)
+	CLI          string            // selects the config mount target (each CLI's native default dir)
 	ConfigDir    string            // host dir bind-mounted at the CLI's configMount
 	CcboxDir     string            // host dir bind-mounted at ccboxMount
 	Cwd          string            // host dir bind-mounted at workspaceMount

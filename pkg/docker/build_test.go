@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/s12chung/ccbox/pkg/harness"
 )
 
 func TestBuildArgs(t *testing.T) {
@@ -14,7 +12,7 @@ func TestBuildArgs(t *testing.T) {
 
 	// Test with non-Empty BuildOptions, no other cases needed as the logic is simple
 	got := buildArgs(BuildOptions{
-		CLIName:    harness.NameCodex,
+		CLIName:    "codex",
 		CLIVersion: "1.2.3",
 		Pkger:      "npm:@openai/codex",
 	})

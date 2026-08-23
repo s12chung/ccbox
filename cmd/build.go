@@ -25,7 +25,7 @@ func build(ctx context.Context) error {
 
 	// Pin "latest" now so the image records the concrete version, not a moving tag.
 	if flagCLIVersion == "latest" {
-		v, err := cli.Pkger.Latest()
+		v, err := cli.Pkger().Latest()
 		if err != nil {
 			return err
 		}
@@ -36,7 +36,7 @@ func build(ctx context.Context) error {
 		Tag:        flagTag,
 		CLIName:    cli.Name,
 		CLIVersion: flagCLIVersion,
-		Pkger:      cli.Pkger.Arg(),
+		Pkger:      cli.Pkger().Arg(),
 	})
 }
 

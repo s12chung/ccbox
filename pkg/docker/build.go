@@ -16,23 +16,22 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/progress/progressui"
 
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/embedfs"
 )
 
 // BuildOptions configures an image build.
 type BuildOptions struct {
 	Tag        string
-	CLIName    harness.Name // CLIName build arg: which coding cli to install
-	CLIVersion string       // CLI_VERSION build arg: pinned version of the CLIName's release channel
-	Pkger      string       // PKGER build arg: install source rendered by pkger.Pkger.Arg
+	CLIName    string // CLIName build arg: which coding cli to install
+	CLIVersion string // CLI_VERSION build arg: pinned version of the CLIName's release channel
+	Pkger      string // PKGER build arg: install source rendered by pkger.Pkger.Arg
 }
 
 // buildArgs maps BuildOptions to Dockerfile ARGs
 func buildArgs(o BuildOptions) map[string]string {
 	args := map[string]string{}
 	if o.CLIName != "" {
-		args["CLI"] = string(o.CLIName)
+		args["CLI"] = o.CLIName
 	}
 	if o.CLIVersion != "" {
 		args["CLI_VERSION"] = o.CLIVersion

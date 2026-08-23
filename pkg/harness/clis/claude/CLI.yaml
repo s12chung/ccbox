@@ -1,0 +1,21 @@
+# Claude Code (Anthropic).
+npm:
+  package: "@anthropic-ai/claude-code"
+
+config_home_mount: ".claude"
+config_dir_env_key: "CLAUDE_CONFIG_DIR"
+env:
+  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+  DISABLE_AUTOUPDATER: "1"
+seed_agents_filename: "CLAUDE.md"
+
+cmd: "claude"
+continue_args: "-c"
+resume_args: "--resume"
+
+allow_domains:
+  - platform.claude.com
+  - api.anthropic.com
+  - mcp-proxy.anthropic.com
+  - statsig.anthropic.com
+  - sentry.io

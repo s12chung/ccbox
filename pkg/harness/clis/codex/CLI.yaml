@@ -1,0 +1,16 @@
+# Codex (OpenAI).
+npm:
+  package: "@openai/codex"
+
+config_home_mount: ".codex"
+config_dir_env_key: "CODEX_HOME"
+
+# run without bubblewrap, which is buggy atm without root
+cmd: "codex --sandbox danger-full-access"
+continue_args: "resume --last"
+resume_args: "resume"
+
+allow_domains:
+  - api.openai.com
+  - auth.openai.com
+  - chatgpt.com

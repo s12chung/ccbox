@@ -16,9 +16,9 @@ import (
 // endpoints, e.g. https://x.ai/cli/stable -> 1.0.5. The download URL templates
 // carry a literal $version, substituted by the image build after pinning.
 type VersionURL struct {
-	URL           string
-	LinuxX64URL   string
-	LinuxArm64URL string
+	URL           string `yaml:"url"`
+	LinuxX64URL   string `yaml:"linux_x64_url"`
+	LinuxArm64URL string `yaml:"linux_arm64_url"`
 }
 
 // versionRe guards the pin: a version endpoint serves a bare semver, so anything

@@ -2,37 +2,34 @@
 package harness
 
 import (
+	"bytes"
 	"embed"
 	"fmt"
 	"io/fs"
+	"path"
 	"slices"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/kit/pkger"
 )
 
-// Name is the coding CLI's identity — the .ccbox.yaml cli value.
-type Name string
+var all []CLI
 
-// Supported coding CLIs.
+func init() { all = MustLoad() }
+
+// All lists every supported CLI, in stable order.
+func All() []CLI { return slices.Clone(all) }
+
 const (
-	NameClaude   Name = "claude"
-	NameCodex    Name = "codex"
-	NameOpenCode Name = "opencode"
-	NameGrok     Name = "grok"
+	// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
+	SeedConfigDir = "config"
+	// SharedSeedPath is the seed subtree shared across every CLI.
+	SharedSeedPath = "shared"
+	// AgentsFileName is the shared user AGENTS.md
+	AgentsFileName = "AGENTS.user.md"
 )
-
-// SharedSeedPath is the seed subtree shared across every CLI.
-const SharedSeedPath = "shared"
-
-// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
-const SeedConfigDir = "config"
-
-// agentsMD is the live memory filename most CLIs rename the shared doc into.
-const agentsMD = "AGENTS.md"
-
-// AgentsFileName is the shared user AGENTS.md
-const AgentsFileName = "AGENTS.user.md"
 
 //go:embed clis
 var clisFS embed.FS
@@ -47,126 +44,100 @@ func SeedFS() fs.FS {
 	return sub
 }
 
-// All lists every supported CLI, in stable order.
-func All() []CLI {
-	return []CLI{Claude, Codex, OpenCode, Grok}
+// MustLoad parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,
+// ordered by name. It panics on any parse error.
+func MustLoad() []CLI {
+	paths, err := fs.Glob(clisFS, "clis/*/CLI.yaml")
+	if err != nil {
+		panic(err) // unreachable: the pattern above is a valid glob
+	}
+
+	clis := make([]CLI, 0, len(paths))
+	for _, p := range paths {
+		body, err := fs.ReadFile(clisFS, p)
+		if err != nil {
+			panic(err) // unreachable: the path comes from Glob above
+		}
+		clis = append(clis, mustParse(p, body))
+	}
+	if len(clis) == 0 {
+		panic("harness: no clis/*/CLI.yaml found")
+	}
+	return clis
+}
+
+// mustParse decodes one CLI.yaml into its CLI, named after its directory.
+func mustParse(p string, body []byte) CLI {
+	var c CLI
+	dec := yaml.NewDecoder(bytes.NewReader(body))
+	dec.KnownFields(true)
+	if err := dec.Decode(&c); err != nil {
+		panic(fmt.Sprintf("harness: parse %s: %v", p, err))
+	}
+
+	c.Pkger() // fail at startup, not on first use
+	c.Name = path.Base(path.Dir(p))
+	return parseDefaulted(c)
+}
+
+// parseDefaulted
+func parseDefaulted(c CLI) CLI {
+	if c.SeedAgentsFilename == "" {
+		c.SeedAgentsFilename = "AGENTS.md"
+	}
+	return c
 }
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {
-	Name Name
+	Name string `yaml:"-"`
 
-	// Pkger locates the CLI's install source
-	Pkger pkger.Pkger
+	// Npm installs from the npm registry. Exactly one of Npm or VersionURL is set;
+	// Pkger returns whichever it is.
+	Npm        *pkger.Npm        `yaml:"npm"`
+	VersionURL *pkger.VersionURL `yaml:"versionurl"`
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
 	// mounted config is found with no override; ConfigDirEnvKey points the CLI's env var at it.
-	ConfigHomeMount string
+	ConfigHomeMount string `yaml:"config_home_mount"`
 
 	// ConfigDirEnvKey is the env var naming the mounted config path for this CLI
 	// (e.g. CLAUDE_CONFIG_DIR), set per run by pkg/docker; "" = none.
-	ConfigDirEnvKey string
+	ConfigDirEnvKey string `yaml:"config_dir_env_key"`
 
 	// Env is fixed container env the CLI requires (updater/traffic toggles), merged into
 	// every run of this CLI.
-	Env map[string]string
+	Env map[string]string `yaml:"env"`
 
-	// SeedAgentsFilename is the destination name of the shared all/ memory doc
-	// (AgentsFileName) in the host config dir — this CLI's live memory file.
-	SeedAgentsFilename string
+	// SeedAgentsFilename is the destination name of the shared/ AGENTS.md
+	//
+	// Empty defaults to AGENTS.md at parse.
+	SeedAgentsFilename string `yaml:"seed_agents_filename"`
 
 	// Cmd is the launch argv prefix; ContinueArgs/ResumeArgs extend it for the
 	// run flags (-c/--resume) in each CLI's own session syntax.
-	Cmd          string
-	ContinueArgs string
-	ResumeArgs   string
+	Cmd          string `yaml:"cmd"`
+	ContinueArgs string `yaml:"continue_args"`
+	ResumeArgs   string `yaml:"resume_args"`
 
 	// AllowDomains are the egress wall domains this CLI talks to.
-	AllowDomains []string
+	AllowDomains []string `yaml:"allow_domains"`
 }
 
-// Claude is Claude Code (Anthropic).
-var Claude = CLI{
-	Name:            NameClaude,
-	Pkger:           pkger.Npm{Package: "@anthropic-ai/claude-code"},
-	ConfigHomeMount: ".claude",
-	ConfigDirEnvKey: "CLAUDE_CONFIG_DIR",
-	Env: map[string]string{
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		"DISABLE_AUTOUPDATER":                      "1",
-	},
-	SeedAgentsFilename: "CLAUDE.md",
-	Cmd:                "claude",
-	ContinueArgs:       "-c",
-	ResumeArgs:         "--resume",
-	AllowDomains: []string{
-		"platform.claude.com",
-		"api.anthropic.com",
-		"mcp-proxy.anthropic.com",
-		"statsig.anthropic.com",
-		"sentry.io",
-	},
-}
-
-// Codex is Codex (OpenAI).
-var Codex = CLI{
-	Name:               NameCodex,
-	Pkger:              pkger.Npm{Package: "@openai/codex"},
-	ConfigHomeMount:    ".codex",
-	ConfigDirEnvKey:    "CODEX_HOME",
-	SeedAgentsFilename: agentsMD,
-	Cmd:                "codex --sandbox danger-full-access", // run without bubblewrap, which is buggy atm without root
-	ContinueArgs:       "resume --last",
-	ResumeArgs:         "resume",
-	AllowDomains: []string{
-		"api.openai.com",
-		"auth.openai.com",
-		"chatgpt.com",
-	},
-}
-
-// OpenCode is OpenCode (Anomaly).
-var OpenCode = CLI{
-	Name:               NameOpenCode,
-	Pkger:              pkger.Npm{Package: "opencode-ai"},
-	ConfigHomeMount:    ".config/opencode",
-	SeedAgentsFilename: agentsMD,
-	Cmd:                "opencode",
-	ContinueArgs:       "-c",
-	// No picker flag exists; bare --session errors, so -r needs a session id.
-	ResumeArgs: "--session",
-	Env:        map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"},
-	AllowDomains: []string{
-		"opencode.ai",
-		"models.dev",
-	},
-}
-
-// Grok is Grok Build (xAI).
-var Grok = CLI{
-	Name: NameGrok,
-	Pkger: pkger.VersionURL{
-		URL:           "https://x.ai/cli/stable",
-		LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
-		LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
-	},
-	ConfigHomeMount:    ".grok",
-	SeedAgentsFilename: agentsMD,
-	Cmd:                "grok",
-	ContinueArgs:       "-c",
-	// Bare --resume resumes the most recent session — no picker flag exists.
-	ResumeArgs: "--resume",
-	Env:        map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"},
-	AllowDomains: []string{
-		"x.ai",
-		"cli-chat-proxy.grok.com",
-		"code.grok.com",
-		"assets.grok.com",
-	},
+// Pkger returns the install source this CLI declares: Npm or VersionURL.
+func (c CLI) Pkger() pkger.Pkger {
+	switch {
+	case c.Npm != nil && c.VersionURL == nil:
+		return *c.Npm
+	case c.VersionURL != nil && c.Npm == nil:
+		return *c.VersionURL
+	default:
+		panic("pkger: want exactly one of npm, versionurl") // unreachable: MustLoad rejects such YAML
+	}
 }
 
 // For looks up the CLI by name. ok is false for an unknown name.
-func For(name Name) (CLI, bool) {
+func For(name string) (CLI, bool) {
 	for _, c := range All() {
 		if c.Name == name {
 			return c, true
@@ -177,7 +148,7 @@ func For(name Name) (CLI, bool) {
 
 // MustFor is For for names already validated (projectcfg.Load rejects unknown
 // cli values); it panics on an unknown name.
-func MustFor(name Name) CLI {
+func MustFor(name string) CLI {
 	c, ok := For(name)
 	if !ok {
 		panic(fmt.Sprintf("harness: unknown cli %q", name))

@@ -10,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
@@ -47,7 +46,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		projectCfg, err = projectcfg.Load(cwd, projectcfg.Config{CLI: harness.Name(flagCLI)})
+		projectCfg, err = projectcfg.Load(cwd, projectcfg.Config{CLI: flagCLI})
 		return err
 	},
 }

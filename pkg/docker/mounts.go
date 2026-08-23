@@ -112,7 +112,7 @@ func namedVolumeMasks(hostCwd string, hostPaths []string) ([]string, []string, e
 }
 
 // configMount is the in-container path the persisted config dir binds to for cliName
-func configMount(cliName harness.Name) string {
+func configMount(cliName string) string {
 	return path.Join(containerHome, harness.MustFor(cliName).ConfigHomeMount)
 }
 

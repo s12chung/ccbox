@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -31,7 +30,7 @@ func TestLoadParses(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, harness.NameCodex, c.CLI)
+	assert.Equal(t, "codex", c.CLI)
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs) // present defaults prepended
 	assert.Equal(t, map[string]string{"FOO": "bar"}, c.Env)
 	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // token expanded
@@ -54,7 +53,7 @@ func TestLoadUnsetGetsDefaults(t *testing.T) {
 			}
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, harness.NameClaude, c.CLI)  // unset cli → claude
+			assert.Equal(t, "claude", c.CLI)            // unset cli → claude
 			assert.Equal(t, tmpfsDefaults, c.Tmpfs)     // present always-on masks
 			assert.Equal(t, allowDefaults, c.Allowlist) // unset allowlist → the built-ins
 		})
@@ -138,7 +137,7 @@ func TestLoadMergesLocalOverride(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, harness.NameCodex, c.CLI)                                                 // scalar override, local wins
+	assert.Equal(t, "codex", c.CLI)                                                           // scalar override, local wins
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)                   // lists append, base first
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env)                  // env overlays, local wins
 	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // merged, then token expanded
@@ -169,7 +168,7 @@ func TestLoadInvalidErrors(t *testing.T) {
 
 func TestMergeIsPure(t *testing.T) {
 	src := Config{
-		CLI:           harness.NameClaude,
+		CLI:           "claude",
 		Tmpfs:         []string{"dist"},
 		Volumes:       []string{"target"},
 		Env:           map[string]string{"FOO": "base", "BAR": "base"},
@@ -177,7 +176,7 @@ func TestMergeIsPure(t *testing.T) {
 		HostGitConfig: new(true),
 	}
 	other := Config{
-		CLI:           harness.NameCodex,
+		CLI:           "codex",
 		Tmpfs:         []string{"build"},
 		Volumes:       []string{"cache"},
 		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
@@ -202,7 +201,7 @@ func TestMergeIsPure(t *testing.T) {
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
 	assert.Equal(t, new(false), got.HostGitConfig) // scalar: other (local) wins when set
-	assert.Equal(t, harness.NameCodex, got.CLI)    // scalar: other (local) wins when set
+	assert.Equal(t, "codex", got.CLI)              // scalar: other (local) wins when set
 }
 
 func TestLoadRejectsUnknownCLI(t *testing.T) {
@@ -218,13 +217,13 @@ func TestLoadFlagsOverrideFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: claude\n"), ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), ioutil.File))
 
-	c, err := Load(dir, Config{CLI: harness.NameGrok})
+	c, err := Load(dir, Config{CLI: "grok"})
 	require.NoError(t, err)
-	assert.Equal(t, harness.NameGrok, c.CLI) // a set flag wins over both files
+	assert.Equal(t, "grok", c.CLI) // a set flag wins over both files
 
 	c, err = Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, harness.NameCodex, c.CLI) // an unset flag keeps the files' layering
+	assert.Equal(t, "codex", c.CLI) // an unset flag keeps the files' layering
 
 	_, err = Load(dir, Config{CLI: "emacs"})
 	assert.ErrorContains(t, err, "emacs") // the flag value validates like a file's

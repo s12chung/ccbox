@@ -25,18 +25,18 @@ func stubSeedTreeFn(fn func(fs.FS, string, map[string]string) ([]string, error))
 func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 	cases := []struct {
 		name      string
-		cli       harness.Name
+		cli       string
 		memoryDst string
 	}{
-		{name: "claude", cli: harness.NameClaude, memoryDst: "CLAUDE.md"},
-		{name: "codex", cli: harness.NameCodex, memoryDst: "AGENTS.md"},
+		{name: "claude", cli: "claude", memoryDst: "CLAUDE.md"},
+		{name: "codex", cli: "codex", memoryDst: "AGENTS.md"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			cacheDir := t.TempDir()
 			cli, requireOK := harness.For(tc.cli)
 			require.True(t, requireOK)
-			wantDir := filepath.Join(cacheDir, string(cli.Name))
+			wantDir := filepath.Join(cacheDir, cli.Name)
 
 			type call struct {
 				dest    string
@@ -70,7 +70,7 @@ func TestSafeSeedConfigExistingSkips(t *testing.T) {
 		return nil, nil
 	})()
 
-	dir, err := safeSeedConfig(cacheDir, harness.NameClaude, false)
+	dir, err := safeSeedConfig(cacheDir, "claude", false)
 	require.NoError(t, err)
 	assert.False(t, called, "seed fn called for existing dir without confirm")
 	assert.Equal(t, configDir, dir)
@@ -82,6 +82,6 @@ func TestSafeSeedConfigPropagatesSeedError(t *testing.T) {
 		return nil, wantErr
 	})()
 
-	_, err := safeSeedConfig(t.TempDir(), harness.NameClaude, false)
+	_, err := safeSeedConfig(t.TempDir(), "claude", false)
 	assert.ErrorIs(t, err, wantErr)
 }

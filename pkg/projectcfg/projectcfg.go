@@ -25,7 +25,7 @@ const (
 	// DefaultsToken listed in allowlist, expands in place to allowDefaults
 	DefaultsToken = "ccbox-defaults" // #nosec G101 -- config expansion keyword, not a credential
 	// defaultCliName is the coding CLI when .ccbox.yaml doesn't say.
-	defaultCliName = harness.NameClaude
+	defaultCliName = "claude"
 )
 
 var (
@@ -74,7 +74,7 @@ func Load(workspaceDir string, flags Config) (Config, error) {
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLI           harness.Name      `yaml:"cli"`             // coding CLI to install + launch (default claude)
+	CLI           string            `yaml:"cli"`             // coding CLI to install + launch (default claude)
 	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git; nil = default on, resolved by Defaulted
 	Tmpfs         []string          `yaml:"tmpfs"`           // workspace-relative dirs to mask with a writable tmpfs
 	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume
@@ -103,7 +103,7 @@ func (c Config) validate() error {
 		all := harness.All()
 		names := make([]string, 0, len(all))
 		for _, cli := range all {
-			names = append(names, string(cli.Name))
+			names = append(names, cli.Name)
 		}
 		return fmt.Errorf("cli: unknown value %q (want %q)", c.CLI, strings.Join(names, ", "))
 	}

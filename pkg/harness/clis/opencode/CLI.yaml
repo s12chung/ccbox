@@ -1,0 +1,16 @@
+# OpenCode (Anomaly).
+npm:
+  package: "opencode-ai"
+
+config_home_mount: ".config/opencode"
+
+cmd: "opencode"
+continue_args: "-c"
+# No picker flag exists; bare --session errors, so -r needs a session id.
+resume_args: "--session"
+env:
+  OPENCODE_DISABLE_AUTOUPDATE: "1"
+
+allow_domains:
+  - opencode.ai
+  - models.dev
