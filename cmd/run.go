@@ -38,7 +38,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 	if err != nil {
 		return docker.RunOptions{}, err
 	}
-	proxyFS, err := proxyConfigFS()
+	proxyOps, err := proxyOptions()
 	if err != nil {
 		return docker.RunOptions{}, err
 	}
@@ -55,10 +55,8 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		Tmpfs:        projectCfg.Tmpfs,
 		Volumes:      projectCfg.Volumes,
 		Cmd:          harness.MustFor(projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
-		Proxy: docker.ProxyOptions{
-			Config:    proxyFS,
-			Overrides: docker.AllowOverride(projectCfg.Allowlist),
-		},
+
+		Proxy:        proxyOps,
 		ProxyLogPath: filepath.Join(flagCacheDir, "proxy.log"),
 	}, nil
 }
