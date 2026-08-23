@@ -57,8 +57,9 @@ Offload independent work (especially research, exploration, and analysis), one t
 
 ## Persistence Between Tasks
 
-### 1. Autonomous Bug Fixing
-- The moment you stumble on bugs from the logs, errors, failing tests (locally or CI), create a `/home/ccbox/.ccbox/project/bug-<bug_name>.md`, where you describe the bug, reproduction steps, expected behavior, expected bug result, and reproduction results. Tell the user you did so.
+### Autonomous Bug Fixing
+
+The moment you stumble on bugs from the logs, errors, failing tests (locally or CI), create a `/home/ccbox/.ccbox/project/bug-<bug_name>.md`, where you describe the bug, reproduction steps, expected behavior, expected bug result, and reproduction results. Tell the user you did so. Do NOT document resolved bugs or bugs to be resolved immediately.
 
 ## Code Principles and Styling
 Code for elegance:
