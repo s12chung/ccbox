@@ -6,7 +6,7 @@ build:
 
 lint:
 	hadolint Dockerfile
-	shellcheck docker/image/entrypoint.sh pkg/harness/clis/claude/statusline.sh tests/test_helper.bash tests/*.bats
+	shellcheck docker/image/entrypoint.sh pkg/harness/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/harness/clis -name '*.json' -exec jq empty {} +
 	golangci-lint run
 

@@ -31,10 +31,10 @@ func safeSeedConfig(cacheDir string, cliName harness.Name, confirm bool) (string
 	name := string(cli.Name)
 	return safeSeed(harness.SeedFS(), filepath.Join(cacheDir, name), confirm,
 		seedSrc{
-			sub:     harness.SharedSeedPath,
+			sub:     filepath.Join(harness.SharedSeedPath, harness.SeedConfigDir),
 			renames: map[string]string{harness.AgentsFileName: cli.SeedAgentsFilename},
 		},
-		seedSrc{sub: name},
+		seedSrc{sub: filepath.Join(name, harness.SeedConfigDir)},
 	)
 }
 

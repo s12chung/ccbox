@@ -25,6 +25,9 @@ const (
 // SharedSeedPath is the seed subtree shared across every CLI.
 const SharedSeedPath = "shared"
 
+// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
+const SeedConfigDir = "config"
+
 // agentsMD is the live memory filename most CLIs rename the shared doc into.
 const agentsMD = "AGENTS.md"
 
