@@ -9,14 +9,16 @@ import (
 
 // envString renders the container's environment as KEY=VALUE
 func envString(o RunOptions) []string {
-	base := []string{
-		"http_proxy=http://" + egressName + ":" + proxyPort,
-		"https_proxy=http://" + egressName + ":" + proxyPort,
-		// Loopback never leaves the container, so route it direct — else local dev servers
-		// and browsers hit the wall and get refused.
-		"no_proxy=localhost,127.0.0.1,::1",
-		"NO_PROXY=localhost,127.0.0.1,::1",
-		"GH_TOKEN=" + o.GHToken,
+	base := []string{"GH_TOKEN=" + o.GHToken}
+	if !o.NoProxy {
+		base = append([]string{
+			"http_proxy=http://" + egressName + ":" + proxyPort,
+			"https_proxy=http://" + egressName + ":" + proxyPort,
+			// Loopback never leaves the container, so route it direct — else local dev servers
+			// and browsers hit the wall and get refused.
+			"no_proxy=localhost,127.0.0.1,::1",
+			"NO_PROXY=localhost,127.0.0.1,::1",
+		}, base...)
 	}
 
 	// Later entries override when conflicting

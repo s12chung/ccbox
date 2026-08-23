@@ -33,6 +33,7 @@ type RunOptions struct {
 
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
 	ProxyLogPath string       // file an auto-started wall's logs are appended to
+	NoProxy      bool         // run on plain bridge networking, no wall or proxy env
 }
 
 const (
@@ -73,8 +74,14 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	if hostOptions.GitConfigDir != "" {
 		gitBinds = []string{hostOptions.GitConfigDir + ":" + gitConfigMount + ":ro"}
 	}
+
+	// The egress wall network by default; --no-proxy runs on the engine's default bridge instead.
+	networkMode := container.NetworkMode(networkName)
+	if hostOptions.NoProxy {
+		networkMode = "bridge"
+	}
 	return &container.HostConfig{
-		NetworkMode: networkName,
+		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
 		Binds: append(append(append([]string{
@@ -90,6 +97,10 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 // returns its exit code. proxyStart brings the wall up for the session (see AutoProxy); the
 // container is removed on return, before any wall proxyStart owns is torn down.
 func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
+	if hostOptions.NoProxy {
+		return runDevbox(ctxD, hostOptions)
+	}
+
 	proxyRunning, err := isProxyRunning(ctxD)
 	if err != nil {
 		return 0, err
@@ -120,7 +131,9 @@ func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 }
 
 func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
-	_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", egressName, nil) // silently ignore errors
+	if !hostOptions.NoProxy {
+		_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", egressName, nil) // silently ignore errors
+	}
 
 	hostConfig, err := runHostConfig(ctxD, hostOptions)
 	if err != nil {

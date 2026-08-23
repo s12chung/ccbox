@@ -31,6 +31,21 @@ func TestEnvStringBaseWins(t *testing.T) {
 	}, got)
 }
 
+func TestEnvStringNoProxy(t *testing.T) {
+	got := envString(RunOptions{
+		CLI:     harness.NameClaude,
+		GHToken: "gh",
+		NoProxy: true,
+	})
+
+	// No wall, no proxy vars — just the CLI defaults and the token.
+	assert.Equal(t, []string{
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
+		"DISABLE_AUTOUPDATER=1",
+		"GH_TOKEN=gh",
+	}, got)
+}
+
 func TestEnvStringCLIDefaults(t *testing.T) {
 	tests := []struct {
 		cli  harness.Name

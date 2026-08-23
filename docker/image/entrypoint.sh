@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Fail-closed identity + egress verification. Runs at container start, inside the
-# real --internal network with the proxy env vars live (the only place the wall
-# actually exists). If any check fails, the container refuses to start.
+# Fail-closed identity + egress verification. Runs at container start. The egress checks
+# apply only when the proxy env vars are live (the only place the wall actually exists) —
+# `ccbox --no-proxy` runs on plain bridge networking without them. If any check fails,
+# the container refuses to start.
 set -euo pipefail
 
 fail() { echo "security-entrypoint: FAIL — $1" >&2; exit 1; }
@@ -22,27 +23,30 @@ if [ -d "$GIT_CONFIG_MOUNT" ]; then
   esac
 fi
 
-# api.github.com returns 200 unauthenticated and matches the proxy allowlist,
-# so it makes a clean positive probe. Overridable for other allowlists.
-ALLOWED_URL="${WALL_ALLOWED_URL:-https://api.github.com}"
-BLOCKED_URL="${WALL_BLOCKED_URL:-https://example.com}"
-DIRECT_URL="${WALL_DIRECT_URL:-https://1.1.1.1}"
+# Wall probes, only when the proxy env is live (no proxy env = no wall to verify).
+if [ -n "${http_proxy:-}" ]; then
+  # api.github.com returns 200 unauthenticated and matches the proxy allowlist,
+  # so it makes a clean positive probe. Overridable for other allowlists.
+  ALLOWED_URL="${WALL_ALLOWED_URL:-https://api.github.com}"
+  BLOCKED_URL="${WALL_BLOCKED_URL:-https://example.com}"
+  DIRECT_URL="${WALL_DIRECT_URL:-https://1.1.1.1}"
 
-# 1. Positive: an allowlisted host must be reachable through the proxy.
-curl -fsS --max-time 5 -o /dev/null "$ALLOWED_URL" \
-  || fail "allowed host unreachable ($ALLOWED_URL) — proxy or network is down"
+  # 1. Positive: an allowlisted host must be reachable through the proxy.
+  curl -fsS --max-time 5 -o /dev/null "$ALLOWED_URL" \
+    || fail "allowed host unreachable ($ALLOWED_URL) — proxy or network is down"
 
-# 2. Negative (proxy filter): a non-allowlisted host must be rejected by tinyproxy.
-#    No -S: curl failing here is the success case and must stay silent.
-if curl -fs --max-time 5 -o /dev/null "$BLOCKED_URL"; then
-  fail "blocked host reachable through proxy ($BLOCKED_URL) — allowlist not enforced"
-fi
+  # 2. Negative (proxy filter): a non-allowlisted host must be rejected by tinyproxy.
+  #    No -S: curl failing here is the success case and must stay silent.
+  if curl -fs --max-time 5 -o /dev/null "$BLOCKED_URL"; then
+    fail "blocked host reachable through proxy ($BLOCKED_URL) — allowlist not enforced"
+  fi
 
-# 3. Negative (isolation): bypassing the proxy must have no route at all.
-#    Catches tools that ignore http_proxy/https_proxy; proves --internal holds.
-#    No -S: curl failing here is the success case and must stay silent.
-if curl -fs --max-time 5 -o /dev/null --noproxy '*' "$DIRECT_URL"; then
-  fail "direct egress works ($DIRECT_URL) — network is not --internal"
+  # 3. Negative (isolation): bypassing the proxy must have no route at all.
+  #    Catches tools that ignore http_proxy/https_proxy; proves --internal holds.
+  #    No -S: curl failing here is the success case and must stay silent.
+  if curl -fs --max-time 5 -o /dev/null --noproxy '*' "$DIRECT_URL"; then
+    fail "direct egress works ($DIRECT_URL) — network is not --internal"
+  fi
 fi
 
 exec "$@"

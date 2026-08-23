@@ -6,7 +6,7 @@ You run inside the container this Dockerfile builds, and we often swap container
 
 ### Key components
 The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang files map to `cmd/`, which talks to the Docker Engine SDK in-process. Commands:
-  - `ccbox` (no subcommand) — runs the devbox container interactively behind the wall, wiring the local terminal to the container's pty; launches the configured CLI by default (`--shell` for a plain shell). Maps to `cmd/run.go`.
+  - `ccbox` (no subcommand) — runs the devbox container interactively behind the wall, wiring the local terminal to the container's pty; launches the configured CLI by default (`--shell` for a plain shell, `--no-proxy` to skip the wall for direct egress). Maps to `cmd/run.go`.
   - `ccbox proxy` — runs the `tinyproxy` egress wall in the foreground
   - `ccbox config` - prints the effective .ccbox.yaml with tmpfs, volumes, and allowlist defaults applied
 

@@ -4,7 +4,7 @@ A hardened Docker devbox for running an LLM CLI — Claude Code or Codex, select
 
 ## Usage
 
-Run `ccbox` from a repo root: it builds the image if needed, then drops you into the devbox behind the egress wall and launches the configured CLI. Use `ccbox --shell` to open a shell instead.
+Run `ccbox` from a repo root: it builds the image if needed, then drops you into the devbox behind the egress wall and launches the configured CLI. Use `ccbox --shell` to open a shell instead. Use `ccbox --no-proxy` to run without the egress wall — direct network access, no allowlist.
 
 ## Philosophy: lock down everything, trust the mount
 

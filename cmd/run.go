@@ -20,6 +20,7 @@ var (
 	flagContinue bool // -c: continue the last session
 	flagResume   bool // -r: resume a session — the picker, or an id from the positional arg
 	flagShell    bool // drop into the image's default shell instead of launching the CLI
+	flagNoProxy  bool // skip the egress wall: direct network access
 )
 
 // resumeArgs allows a single positional session name, and only alongside -r/--resume.
@@ -58,6 +59,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 
 		Proxy:        proxyOps,
 		ProxyLogPath: filepath.Join(flagCacheDir, "proxy.log"),
+		NoProxy:      flagNoProxy,
 	}, nil
 }
 
@@ -98,6 +100,7 @@ func init() {
 	f.BoolVarP(&flagContinue, "continue", "c", false, "continue the last session")
 	f.BoolVarP(&flagResume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
 	f.BoolVar(&flagShell, "shell", false, "drop into a shell instead of launching the harness CLI")
+	f.BoolVar(&flagNoProxy, "no-proxy", false, "run without the egress wall: direct network access")
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume", "shell")
 }
 
