@@ -1,4 +1,4 @@
-// Package embedfs turns an embedded file tree into a tar stream.
+// Package embedfs provides utilities for io/fs
 package embedfs
 
 import (
@@ -9,6 +9,16 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
+
+// MustSub returns fsys rooted at dir (see fs.Sub), panicking on error. The
+// error is unreachable when dir names a compile-time //go:embed pattern root.
+func MustSub(fsys fs.FS, dir string) fs.FS {
+	sub, err := fs.Sub(fsys, dir)
+	if err != nil {
+		panic(err)
+	}
+	return sub
+}
 
 // ToTar packs every file in src into an in-memory tar, skipping directories and
 // giving each file mode 0644. It buffers, so it's for small trees (e.g. embeds).

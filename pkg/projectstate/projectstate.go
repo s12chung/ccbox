@@ -5,16 +5,12 @@ package projectstate
 import (
 	"embed"
 	"io/fs"
+
+	"github.com/s12chung/ccbox/pkg/util/embedfs"
 )
 
 //go:embed project-slug
 var stateFS embed.FS
 
 // SeedFS returns the embedded state tree, rooted at its content.
-func SeedFS() fs.FS {
-	sub, err := fs.Sub(stateFS, "project-slug")
-	if err != nil {
-		panic(err) // unreachable: the //go:embed pattern above guarantees project-slug exists
-	}
-	return sub
-}
+func SeedFS() fs.FS { return embedfs.MustSub(stateFS, "project-slug") }

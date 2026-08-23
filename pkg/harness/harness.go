@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/kit/pkger"
+	"github.com/s12chung/ccbox/pkg/util/embedfs"
 )
 
 var all []CLI
@@ -36,13 +37,7 @@ var clisFS embed.FS
 
 // SeedFS returns the embedded seed trees (shared/, per-CLI), rooted at their
 // common parent.
-func SeedFS() fs.FS {
-	sub, err := fs.Sub(clisFS, "clis")
-	if err != nil {
-		panic(err) // unreachable: the //go:embed pattern above guarantees clis exists
-	}
-	return sub
-}
+func SeedFS() fs.FS { return embedfs.MustSub(clisFS, "clis") }
 
 // MustLoad parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,
 // ordered by name. It panics on any parse error.
