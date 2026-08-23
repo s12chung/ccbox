@@ -5,7 +5,6 @@
   },
   "permissions": {
     "allow": [
-      "Write(//tmp/**)",
       "Edit(//tmp/**)"
     ],
     "deny": [
@@ -16,9 +15,7 @@
       "Read(**/*.pem)",
       "Read(**/*.key)",
 
-      "Write(.ccbox.yaml)",
       "Edit(.ccbox.yaml)",
-      "Write(.ccbox.local.yaml)",
       "Edit(.ccbox.local.yaml)"
     ]
   },
