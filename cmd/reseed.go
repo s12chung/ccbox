@@ -19,17 +19,17 @@ var reseedCmd = &cobra.Command{
 	Use:   "reseed",
 	Short: "Seed the host config dir for the configured CLI from the embedded seed, backing up overwrites",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		_, err := safeSeedConfig(flagCacheDir, projectCfg.CLI, true)
+		_, err := safeSeedConfig(flagUserDir, projectCfg.CLI, true)
 		return err
 	},
 }
 
-// safeSeedConfig seeds cli's host config dir in cacheDir and returns that dir:
+// safeSeedConfig seeds cli's host config dir in userDir and returns that dir:
 // the shared/ tree first (renamed to cli's live memory file), then cli's own tree.
-func safeSeedConfig(cacheDir, cliName string, confirm bool) (string, error) {
+func safeSeedConfig(userDir, cliName string, confirm bool) (string, error) {
 	cli := harness.MustFor(cliName)
 	name := cli.Name
-	return safeSeed(harness.SeedFS(), filepath.Join(cacheDir, name), confirm,
+	return safeSeed(harness.SeedFS(), filepath.Join(userDir, name), confirm,
 		seedSrc{
 			sub:     filepath.Join(harness.SharedSeedPath, harness.SeedConfigDir),
 			renames: map[string]string{harness.AgentsFileName: cli.SeedAgentsFilename},

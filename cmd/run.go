@@ -58,7 +58,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		Cmd:          harness.MustFor(projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,
-		ProxyLogPath: filepath.Join(flagCacheDir, "proxy.log"),
+		ProxyLogPath: filepath.Join(flagUserDir, "proxy.log"),
 		NoProxy:      flagNoProxy,
 	}, nil
 }
@@ -69,7 +69,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err := build(cmd.Context()); err != nil {
 		return err
 	}
-	m, err := resolveHostMounts(flagCacheDir)
+	m, err := resolveHostMounts(flagUserDir)
 	if err != nil {
 		return err
 	}
@@ -109,17 +109,17 @@ type hostMounts struct {
 	cwd, config, ccbox string
 }
 
-// resolveHostMounts seeds the config dir and resolves the per-project state dir from cwd.
-func resolveHostMounts(cacheDir string) (hostMounts, error) {
+// resolveHostMounts seeds the userDir and resolves the per-project state dir from cwd.
+func resolveHostMounts(userDir string) (hostMounts, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return hostMounts{}, err
 	}
-	config, err := safeSeedConfig(cacheDir, projectCfg.CLI, false)
+	config, err := safeSeedConfig(userDir, projectCfg.CLI, false)
 	if err != nil {
 		return hostMounts{}, err
 	}
-	ccbox, err := safeSeedProjectDir(cacheDir, cwd)
+	ccbox, err := safeSeedProjectDir(userDir, cwd)
 	if err != nil {
 		return hostMounts{}, err
 	}
@@ -137,12 +137,12 @@ func hostGitConfigDir() (string, error) {
 }
 
 // safeSeedProjectDir seeds projectDir() if missing
-func safeSeedProjectDir(cacheDir, cwd string) (string, error) {
-	dir := projectDir(cacheDir, cwd)
+func safeSeedProjectDir(userDir, cwd string) (string, error) {
+	dir := projectDir(userDir, cwd)
 	return safeSeed(projectstate.SeedFS(), dir, false, seedSrc{sub: "."})
 }
 
-// projectDir is the host state dir for a project: cacheDir/projects/<slug>
-func projectDir(cacheDir, cwd string) string {
-	return filepath.Join(cacheDir, "projects", docker.ProjectSlug(cwd))
+// projectDir is the host state dir for a project: userDir/projects/<slug>
+func projectDir(userDir, cwd string) string {
+	return filepath.Join(userDir, "projects", docker.ProjectSlug(cwd))
 }

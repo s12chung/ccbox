@@ -22,9 +22,9 @@ var (
 
 // Shared flags.
 var (
-	flagTag      string
-	flagCacheDir string
-	flagCLI      string
+	flagTag     string
+	flagUserDir string
+	flagCLI     string
 )
 
 // exitCode lets `run` propagate the container's exit status out through Execute.
@@ -66,7 +66,7 @@ func init() {
 	home, _ := os.UserHomeDir()
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
-	pf.StringVar(&flagCacheDir, "cache-dir", filepath.Join(home, ".ccbox"), "ccbox cache directory")
+	pf.StringVar(&flagUserDir, "user-dir", filepath.Join(home, ".ccbox"), "ccbox user directory for configs and persistent storage")
 	pf.StringVar(&flagCLI, "cli", "", "override the coding CLI set in .ccbox.yaml")
 
 	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)

@@ -33,10 +33,10 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			cacheDir := t.TempDir()
+			userDir := t.TempDir()
 			cli, requireOK := harness.For(tc.cli)
 			require.True(t, requireOK)
-			wantDir := filepath.Join(cacheDir, cli.Name)
+			wantDir := filepath.Join(userDir, cli.Name)
 
 			type call struct {
 				dest    string
@@ -48,7 +48,7 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 				return nil, nil
 			})()
 
-			dir, err := safeSeedConfig(cacheDir, tc.cli, false)
+			dir, err := safeSeedConfig(userDir, tc.cli, false)
 			require.NoError(t, err)
 			assert.Equal(t, wantDir, dir)
 			assert.Equal(t, []call{
@@ -60,8 +60,8 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 }
 
 func TestSafeSeedConfigExistingSkips(t *testing.T) {
-	cacheDir := t.TempDir()
-	configDir := filepath.Join(cacheDir, "claude")
+	userDir := t.TempDir()
+	configDir := filepath.Join(userDir, "claude")
 	require.NoError(t, os.MkdirAll(configDir, ioutil.Dir))
 
 	called := false
@@ -70,7 +70,7 @@ func TestSafeSeedConfigExistingSkips(t *testing.T) {
 		return nil, nil
 	})()
 
-	dir, err := safeSeedConfig(cacheDir, "claude", false)
+	dir, err := safeSeedConfig(userDir, "claude", false)
 	require.NoError(t, err)
 	assert.False(t, called, "seed fn called for existing dir without confirm")
 	assert.Equal(t, configDir, dir)

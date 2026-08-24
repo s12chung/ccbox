@@ -43,8 +43,8 @@ func TestResumeArgs(t *testing.T) {
 }
 
 func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
-	cacheDir := t.TempDir()
-	wantDir := projectDir(cacheDir, testWorkspace)
+	userDir := t.TempDir()
+	wantDir := projectDir(userDir, testWorkspace)
 
 	var gotDir string
 	var gotRenames map[string]string
@@ -54,7 +54,7 @@ func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
 		return nil, nil
 	})()
 
-	dir, err := safeSeedProjectDir(cacheDir, testWorkspace)
+	dir, err := safeSeedProjectDir(userDir, testWorkspace)
 	require.NoError(t, err)
 	assert.True(t, called, "seedTreeFn not called for missing dir")
 	assert.Equal(t, wantDir, gotDir, "seeded dir")
@@ -63,8 +63,8 @@ func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
 }
 
 func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
-	cacheDir := t.TempDir()
-	wantDir := projectDir(cacheDir, testWorkspace)
+	userDir := t.TempDir()
+	wantDir := projectDir(userDir, testWorkspace)
 	require.NoError(t, os.MkdirAll(wantDir, ioutil.Dir))
 
 	called := false
@@ -73,7 +73,7 @@ func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
 		return nil, nil
 	})()
 
-	dir, err := safeSeedProjectDir(cacheDir, testWorkspace)
+	dir, err := safeSeedProjectDir(userDir, testWorkspace)
 	require.NoError(t, err)
 	assert.False(t, called, "seedTreeFn called for existing dir")
 	assert.Equal(t, wantDir, dir)
