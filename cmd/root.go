@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"embed"
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -22,10 +23,12 @@ var (
 
 // Shared flags.
 var (
-	flagTag     string
-	flagUserDir string
-	flagCLI     string
+	flagTag string
+	flagCLI string
 )
+
+// userDir is the ccbox user directory for configs and persistent storage: ~/.ccbox.
+var userDir string
 
 // exitCode lets `run` propagate the container's exit status out through Execute.
 var exitCode int
@@ -63,10 +66,14 @@ func Execute(build, proxy embed.FS) int {
 }
 
 func init() {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil {
+		panic(fmt.Sprintf("userDir: %v", err))
+	}
+	userDir = filepath.Join(home, ".ccbox")
+
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
-	pf.StringVar(&flagUserDir, "user-dir", filepath.Join(home, ".ccbox"), "ccbox user directory for configs and persistent storage")
 	pf.StringVar(&flagCLI, "cli", "", "override the coding CLI set in .ccbox.yaml")
 
 	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)

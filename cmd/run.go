@@ -59,7 +59,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		Cmd:          harness.MustFor(projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,
-		ProxyLogPath: filepath.Join(flagUserDir, "proxy.log"),
+		ProxyLogPath: filepath.Join(userDir, "proxy.log"),
 		NoProxy:      flagNoProxy,
 	}, nil
 }
@@ -70,7 +70,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err := build(cmd.Context()); err != nil {
 		return err
 	}
-	m, err := resolveHostMounts(flagUserDir)
+	m, err := resolveHostMounts(userDir)
 	if err != nil {
 		return err
 	}
