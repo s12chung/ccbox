@@ -1,4 +1,4 @@
-package embedfs
+package fsutil
 
 import (
 	"archive/tar"

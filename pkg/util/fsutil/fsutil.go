@@ -1,5 +1,5 @@
-// Package embedfs provides utilities for io/fs
-package embedfs
+// Package fsutil provides utilities for io/fs
+package fsutil
 
 import (
 	"archive/tar"

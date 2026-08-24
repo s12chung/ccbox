@@ -16,7 +16,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/progress/progressui"
 
-	"github.com/s12chung/ccbox/pkg/util/embedfs"
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 )
 
 // BuildOptions configures an image build.
@@ -47,7 +47,7 @@ func buildArgs(o BuildOptions) map[string]string {
 // result into the local daemon's image store. src must hold the Dockerfile and every
 // path it COPYs.
 func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
-	contextTar, err := embedfs.ToTar(src, nil)
+	contextTar, err := fsutil.ToTar(src, nil)
 	if err != nil {
 		return err
 	}
