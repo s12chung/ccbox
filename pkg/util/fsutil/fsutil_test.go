@@ -11,18 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNewRenamedFSes(t *testing.T) {
-	a := fstest.MapFS{"a.txt": {Data: []byte("A")}}
-	b := fstest.MapFS{"b.txt": {Data: []byte("B")}}
-
-	got := NewRenamedFSes(a, b)
-	require.Len(t, got.FSes, 2)
-	assert.Nil(t, got.FSes[0].Renames, "no renames by default")
-	assert.Nil(t, got.FSes[1].Renames, "no renames by default")
-	assert.NoError(t, fstest.TestFS(got.FSes[0].FS, "a.txt"))
-	assert.NoError(t, fstest.TestFS(got.FSes[1].FS, "b.txt"))
-}
-
 func TestToTar(t *testing.T) {
 	src := fstest.MapFS{
 		"a.txt":     {Data: []byte("A")},

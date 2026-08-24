@@ -9,34 +9,29 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 func srcFS() fstest.MapFS {
 	return fstest.MapFS{
-		"AGENTS.user.md":    {Data: []byte("new claude")},
+		"CLAUDE.md":         {Data: []byte("new claude")},
 		"settings.json":     {Data: []byte("new settings")},
 		"hooks/tripwire.sh": {Data: []byte("new hook")}, // nested → exercises tree + .sh mode
 	}
 }
 
-// claudeRenames is the shared AGENTS.md into Claude's live file, inlined to keep this pkg harness-free.
-var claudeRenames = map[string]string{"AGENTS.user.md": "CLAUDE.md"}
-
 func TestTreeFresh(t *testing.T) {
 	dest := t.TempDir()
 
-	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
+	renamed, err := Tree(srcFS(), dest)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
-	// AGENTS.user.md lands as CLAUDE.md; nested file preserved.
+	// Nested file preserved; modes set by extension.
 	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	assertNotExist(t, filepath.Join(dest, "AGENTS.user.md"))
 	assertMode(t, filepath.Join(dest, "hooks/tripwire.sh"), ioutil.ExecFile)
 	assertMode(t, filepath.Join(dest, "settings.json"), ioutil.File)
 }
@@ -46,7 +41,7 @@ func TestTreeBacksUpExisting(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
+	renamed, err := Tree(srcFS(), dest)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
@@ -67,13 +62,13 @@ func TestTreeBacksUpExisting(t *testing.T) {
 
 func TestTreeSkipsIdentical(t *testing.T) {
 	dest := t.TempDir()
-	// Each dest already holds the source contents (CLAUDE.md is the renamed AGENTS.user.md).
+	// Each dest already holds its source contents.
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	mkdirAll(t, filepath.Join(dest, "hooks"))
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
+	renamed, err := Tree(srcFS(), dest)
 	require.ErrorIs(t, err, ErrNoChanges)
 	assert.Empty(t, renamed, "identical files should back up nothing")
 
@@ -91,7 +86,7 @@ func TestTreePartiallyIdentical(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
+	renamed, err := Tree(srcFS(), dest)
 	require.NoError(t, err, "a change alongside identical files is not ErrNoChanges")
 	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, renamed)
 
@@ -104,33 +99,14 @@ func TestTreeBackupExistsErrors(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
 
-	// AGENTS.user.md → CLAUDE.md collides with the live file, whose backup already exists.
-	src := fstest.MapFS{"AGENTS.user.md": {Data: []byte("new claude")}}
-	_, err := Tree(fsutil.RenamedFS{FS: src, Renames: claudeRenames}, dest)
+	// The live file's backup already exists.
+	src := fstest.MapFS{"CLAUDE.md": {Data: []byte("new claude")}}
+	_, err := Tree(src, dest)
 	require.Error(t, err)
 
 	// Neither the live file nor the pre-existing backup was touched.
 	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	assertFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
-}
-
-func TestTreeCodexRenames(t *testing.T) {
-	dest := t.TempDir()
-	src := fstest.MapFS{
-		"AGENTS.user.md": {Data: []byte("new agents")},
-		"config.toml":    {Data: []byte("new config")},
-	}
-	renames := map[string]string{"AGENTS.user.md": "AGENTS.md"}
-
-	renamed, err := Tree(fsutil.RenamedFS{FS: src, Renames: renames}, dest)
-	require.NoError(t, err)
-	assert.Empty(t, renamed, "fresh seed should back up nothing")
-
-	// AGENTS.user.md lands as AGENTS.md; config.toml is a regular file.
-	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
-	assertFile(t, filepath.Join(dest, "config.toml"), "new config")
-	assertNotExist(t, filepath.Join(dest, "AGENTS.user.md"))
-	assertMode(t, filepath.Join(dest, "config.toml"), ioutil.File)
 }
 
 func writeFile(t *testing.T, path, body string) {

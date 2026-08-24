@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -19,29 +18,24 @@ import (
 // matched its source, so nothing was written or backed up.
 var ErrNoChanges = errors.New("seed: all files identical")
 
-// Tree seeds a config tree onto destDir (creating it), preserving the tree
-// and applying fs's renames (source path -> destination name) where present. A destination
-// already matching the source is left untouched. Other existing
+// Tree seeds fsys's tree onto destDir (creating it), preserving the tree.
+// A destination already matching the source is left untouched. Other existing
 // destination files are backed up to <base>.old<ext> before being overwritten; the
 // backed-up paths are returned. A pre-existing backup is never clobbered — it's a hard error.
 // When every file is left untouched, ErrNoChanges is returned.
-func Tree(renamedFS fsutil.RenamedFS, destDir string) ([]string, error) {
+func Tree(fsys fs.FS, destDir string) ([]string, error) {
 	var renamed []string
 	var changed int
-	err := fs.WalkDir(renamedFS.FS, ".", func(p string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			return err
 		}
-		body, err := fs.ReadFile(renamedFS.FS, p)
+		body, err := fs.ReadFile(fsys, p)
 		if err != nil {
 			return err
 		}
 
-		name := p
-		if to, ok := renamedFS.Renames[p]; ok {
-			name = to
-		}
-		dest := filepath.Join(destDir, name)
+		dest := filepath.Join(destDir, p)
 		if err := os.MkdirAll(filepath.Dir(dest), ioutil.Dir); err != nil {
 			return err
 		}

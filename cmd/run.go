@@ -137,7 +137,7 @@ func hostGitConfigDir() (string, error) {
 
 // safeSeedProjectDir seeds projectDir() if missing
 func safeSeedProjectDir(userDir, cwd string) error {
-	return safeSeed(fsutil.NewRenamedFSes(projectstate.SeedFS()), projectDir(userDir, cwd), false)
+	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), projectDir(userDir, cwd), false)
 }
 
 // projectDir is the host state dir for a project: userDir/projects/<slug>

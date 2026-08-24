@@ -23,8 +23,7 @@ var reseedCmd = &cobra.Command{
 	},
 }
 
-// safeSeedCLIConfig seeds cli's host config dir in userDir: the shared tree first
-// (renamed to cli's live memory file), then cli's own tree.
+// safeSeedCLIConfig seeds cli's host config dir in userDir
 func safeSeedCLIConfig(userDir, cliName string, confirm bool) error {
 	return safeSeed(harness.SeedCLIFS(cliName), cliConfigDir(userDir, cliName), confirm)
 }
@@ -37,9 +36,9 @@ func cliConfigDir(userDir, cliName string) string {
 // seedTreeFn is seed.Tree, indirected so tests can stub out the file-copying step.
 var seedTreeFn = seed.Tree
 
-// safeSeed seeds dst from fses when dst doesn't exist yet — or re-seeds after
-// confirmation when confirm is set, backing up overwritten files across all trees.
-func safeSeed(fses fsutil.RenamedFSes, dst string, confirm bool) error {
+// safeSeed seeds dst from fsys when dst doesn't exist yet — or re-seeds after
+// confirmation when confirm is set, backing up overwritten files.
+func safeSeed(fsys *fsutil.FS, dst string, confirm bool) error {
 	switch _, err := os.Stat(dst); {
 	case err == nil: // exists
 		if !confirm {
@@ -53,21 +52,12 @@ func safeSeed(fses fsutil.RenamedFSes, dst string, confirm bool) error {
 		return err
 	}
 
-	noChanges := true
-	var renamed []string
-	for _, fsys := range fses.FSes {
-		r, err := seedTreeFn(fsys, dst)
-		if err != nil && !errors.Is(err, seed.ErrNoChanges) {
-			return err
-		}
-		if !errors.Is(err, seed.ErrNoChanges) {
-			noChanges = false
-		}
-		renamed = append(renamed, r...)
-	}
+	renamed, err := seedTreeFn(fsys, dst)
 	switch {
-	case noChanges:
+	case errors.Is(err, seed.ErrNoChanges):
 		log.Infof("no seed changes")
+	case err != nil:
+		return err
 	case len(renamed) == 0:
 		log.Infof("seeded: %s with no overwritten files", dst)
 	default:

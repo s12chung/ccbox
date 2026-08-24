@@ -37,16 +37,15 @@ var (
 	sharedCLIFS embed.FS
 )
 
-// SeedCLIFS returns cli's final seed fs (shared + clis) - shared is first, so it will be overwritten later by seed.SeedTree
-func SeedCLIFS(cliName string) fsutil.RenamedFSes {
+// SeedCLIFS returns cli's final seed fs (shared with renames + clis) merged into one tree.
+// The cli's own tree merges last, so it owns colliding paths when seeded.
+func SeedCLIFS(cliName string) *fsutil.FS {
 	cli := MustFor(cliName)
-	return fsutil.RenamedFSes{FSes: []fsutil.RenamedFS{
-		{
-			FS:      fsutil.MustSub(sharedCLIFS, path.Join("shared-clis", SeedConfigDir)),
-			Renames: map[string]string{AgentsFileName: cli.SeedAgentsFilename},
-		},
-		{FS: fsutil.MustSub(clisFS, path.Join("clis", cliName, SeedConfigDir))},
-	}}
+	fsys := fsutil.MustNewFS(fsutil.MustSub(sharedCLIFS, path.Join("shared-clis", SeedConfigDir)))
+	if err := fsys.Rename(AgentsFileName, cli.SeedAgentsFilename); err != nil {
+		panic(err) // unreachable: the source is a compile-time embed constant
+	}
+	return fsys.MustMerge(fsutil.MustSub(clisFS, path.Join("clis", cliName, SeedConfigDir)))
 }
 
 // MustLoad parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,

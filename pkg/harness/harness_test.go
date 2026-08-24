@@ -1,12 +1,14 @@
 package harness
 
 import (
-	"path/filepath"
+	"io/fs"
+	"slices"
 	"testing"
-	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 )
 
 func TestAllAlphaOrder(t *testing.T) {
@@ -19,21 +21,29 @@ func TestAllAlphaOrder(t *testing.T) {
 
 func TestSeedCLIFS(t *testing.T) {
 	for _, c := range All() {
-		fsList := SeedCLIFS(c.Name)
-		require.Len(t, fsList.FSes, 2)
-
-		// Shared is always first
-		shared := fsList.FSes[0]
-		assert.Equal(t, map[string]string{AgentsFileName: c.SeedAgentsFilename}, shared.Renames)
-		require.NoErrorf(t, fstest.TestFS(shared.FS, AgentsFileName), c.Name)
-
-		assert.Nil(t, fsList.FSes[1].Renames)
+		fsys := SeedCLIFS(c.Name)
+		assert.Containsf(t, seedPaths(t, fsys), c.SeedAgentsFilename, "shared AGENTS doc renamed into place: %s", c.Name)
 	}
 
-	own := SeedCLIFS("claude").FSes[1].FS // per-CLI tree rooted at its config dir
-	require.NoError(t, fstest.TestFS(own, "settings.json", filepath.Join("hooks", "secret-tripwire.sh")))
+	claudeFS := SeedCLIFS("claude") // per-CLI tree rooted at its config dir
+	want := []string{"CLAUDE.md", "hooks/secret-tripwire.sh", "settings.json", "statusline.sh"}
+	assert.Equal(t, want, seedPaths(t, claudeFS))
 
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { SeedCLIFS("emacs") })
+}
+
+func seedPaths(t *testing.T, fsys *fsutil.FS) []string {
+	t.Helper()
+	var paths []string
+	require.NoError(t, fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
+		require.NoError(t, err)
+		if !d.IsDir() {
+			paths = append(paths, p)
+		}
+		return nil
+	}))
+	slices.Sort(paths)
+	return paths
 }
 
 func TestFor(t *testing.T) {

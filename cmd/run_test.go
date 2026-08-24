@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -47,17 +47,15 @@ func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
 	wantDir := projectDir(userDir, testWorkspace)
 
 	var gotDir string
-	var gotRenames map[string]string
 	called := false
-	defer stubSeedTreeFn(func(src fsutil.RenamedFS, dest string) ([]string, error) {
-		called, gotDir, gotRenames = true, dest, src.Renames
+	defer stubSeedTreeFn(func(_ fs.FS, dest string) ([]string, error) {
+		called, gotDir = true, dest
 		return nil, nil
 	})()
 
 	require.NoError(t, safeSeedProjectDir(userDir, testWorkspace))
 	assert.True(t, called, "seedTreeFn not called for missing dir")
 	assert.Equal(t, wantDir, gotDir, "seeded dir")
-	assert.Nil(t, gotRenames, "project seed renames")
 }
 
 func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
@@ -65,7 +63,7 @@ func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
 	require.NoError(t, os.MkdirAll(projectDir(userDir, testWorkspace), ioutil.Dir))
 
 	called := false
-	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
 		called = true
 		return nil, nil
 	})()
@@ -76,7 +74,7 @@ func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
 
 func TestSafeSeedProjectDirPropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
-	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
 		return nil, wantErr
 	})()
 

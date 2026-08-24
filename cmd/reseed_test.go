@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,26 +11,25 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 // stubSeedTreeFn swaps the seed step for a test double and returns a restore func.
-func stubSeedTreeFn(fn func(fsutil.RenamedFS, string) ([]string, error)) func() {
+func stubSeedTreeFn(fn func(fs.FS, string) ([]string, error)) func() {
 	orig := seedTreeFn
 	seedTreeFn = fn
 	return func() { seedTreeFn = orig }
 }
 
-// Each CLI seeds the shared tree first (its memory doc renamed into place), then its own.
+// Each CLI seeds the merged tree (shared + per-CLI) into its config dir.
 func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 	cases := []struct {
-		name      string
-		cli       string
-		memoryDst string
+		name    string
+		cli     string
+		ownFile string
 	}{
-		{name: "claude", cli: "claude", memoryDst: "CLAUDE.md"},
-		{name: "codex", cli: "codex", memoryDst: "AGENTS.md"},
+		{name: "claude", cli: "claude", ownFile: "settings.json"},
+		{name: "codex", cli: "codex", ownFile: "config.toml"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -38,21 +38,26 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 			require.True(t, requireOK)
 			wantDir := filepath.Join(userDir, cli.Name)
 
-			type call struct {
-				dest    string
-				renames map[string]string
-			}
-			var calls []call
-			defer stubSeedTreeFn(func(src fsutil.RenamedFS, dest string) ([]string, error) {
-				calls = append(calls, call{dest, src.Renames})
+			var gotDest string
+			var gotFS fs.FS
+			defer stubSeedTreeFn(func(fsys fs.FS, dest string) ([]string, error) {
+				gotDest, gotFS = dest, fsys
 				return nil, nil
 			})()
 
 			require.NoError(t, safeSeedCLIConfig(userDir, tc.cli, false))
-			assert.Equal(t, []call{
-				{wantDir, map[string]string{harness.AgentsFileName: cli.SeedAgentsFilename}},
-				{wantDir, nil},
-			}, calls, "shared then per-CLI tree seeded into the config dir")
+			assert.Equal(t, wantDir, gotDest, "config dir seeded")
+
+			var paths []string
+			require.NoError(t, fs.WalkDir(gotFS, ".", func(p string, d fs.DirEntry, err error) error {
+				require.NoError(t, err)
+				if !d.IsDir() {
+					paths = append(paths, p)
+				}
+				return nil
+			}))
+			assert.Contains(t, paths, cli.SeedAgentsFilename, "shared AGENTS doc renamed into place")
+			assert.Contains(t, paths, tc.ownFile, "per-CLI tree merged in")
 		})
 	}
 }
@@ -63,7 +68,7 @@ func TestSafeSeedConfigExistingSkips(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, ioutil.Dir))
 
 	called := false
-	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
 		called = true
 		return nil, nil
 	})()
@@ -74,7 +79,7 @@ func TestSafeSeedConfigExistingSkips(t *testing.T) {
 
 func TestSafeSeedConfigPropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
-	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
+	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
 		return nil, wantErr
 	})()
 
