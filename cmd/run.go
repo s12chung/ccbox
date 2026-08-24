@@ -13,6 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/projectstate"
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 )
 
 // Run flags.
@@ -115,15 +116,13 @@ func resolveHostMounts(userDir string) (hostMounts, error) {
 	if err != nil {
 		return hostMounts{}, err
 	}
-	config, err := safeSeedConfig(userDir, projectCfg.CLI, false)
-	if err != nil {
+	if err := safeSeedCLIConfig(userDir, projectCfg.CLI, false); err != nil {
 		return hostMounts{}, err
 	}
-	ccbox, err := safeSeedProjectDir(userDir, cwd)
-	if err != nil {
+	if err := safeSeedProjectDir(userDir, cwd); err != nil {
 		return hostMounts{}, err
 	}
-	return hostMounts{cwd: cwd, config: config, ccbox: ccbox}, nil
+	return hostMounts{cwd: cwd, config: cliConfigDir(userDir, projectCfg.CLI), ccbox: projectDir(userDir, cwd)}, nil
 }
 
 // hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when
@@ -137,9 +136,8 @@ func hostGitConfigDir() (string, error) {
 }
 
 // safeSeedProjectDir seeds projectDir() if missing
-func safeSeedProjectDir(userDir, cwd string) (string, error) {
-	dir := projectDir(userDir, cwd)
-	return safeSeed(projectstate.SeedFS(), dir, false, seedSrc{sub: "."})
+func safeSeedProjectDir(userDir, cwd string) error {
+	return safeSeed(fsutil.NewRenamedFSes(projectstate.SeedFS()), projectDir(userDir, cwd), false)
 }
 
 // projectDir is the host state dir for a project: userDir/projects/<slug>

@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -10,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -49,44 +49,38 @@ func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
 	var gotDir string
 	var gotRenames map[string]string
 	called := false
-	defer stubSeedTreeFn(func(_ fs.FS, dest string, renames map[string]string) ([]string, error) {
-		called, gotDir, gotRenames = true, dest, renames
+	defer stubSeedTreeFn(func(src fsutil.RenamedFS, dest string) ([]string, error) {
+		called, gotDir, gotRenames = true, dest, src.Renames
 		return nil, nil
 	})()
 
-	dir, err := safeSeedProjectDir(userDir, testWorkspace)
-	require.NoError(t, err)
+	require.NoError(t, safeSeedProjectDir(userDir, testWorkspace))
 	assert.True(t, called, "seedTreeFn not called for missing dir")
 	assert.Equal(t, wantDir, gotDir, "seeded dir")
 	assert.Nil(t, gotRenames, "project seed renames")
-	assert.Equal(t, wantDir, dir)
 }
 
 func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
 	userDir := t.TempDir()
-	wantDir := projectDir(userDir, testWorkspace)
-	require.NoError(t, os.MkdirAll(wantDir, ioutil.Dir))
+	require.NoError(t, os.MkdirAll(projectDir(userDir, testWorkspace), ioutil.Dir))
 
 	called := false
-	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
+	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
 		called = true
 		return nil, nil
 	})()
 
-	dir, err := safeSeedProjectDir(userDir, testWorkspace)
-	require.NoError(t, err)
+	require.NoError(t, safeSeedProjectDir(userDir, testWorkspace))
 	assert.False(t, called, "seedTreeFn called for existing dir")
-	assert.Equal(t, wantDir, dir)
 }
 
 func TestSafeSeedProjectDirPropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
-	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
+	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
 		return nil, wantErr
 	})()
 
-	_, err := safeSeedProjectDir(t.TempDir(), testWorkspace)
-	assert.ErrorIs(t, err, wantErr)
+	assert.ErrorIs(t, safeSeedProjectDir(t.TempDir(), testWorkspace), wantErr)
 }
 
 func TestMasksOnHost(t *testing.T) {

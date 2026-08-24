@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,11 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 // stubSeedTreeFn swaps the seed step for a test double and returns a restore func.
-func stubSeedTreeFn(fn func(fs.FS, string, map[string]string) ([]string, error)) func() {
+func stubSeedTreeFn(fn func(fsutil.RenamedFS, string) ([]string, error)) func() {
 	orig := seedTreeFn
 	seedTreeFn = fn
 	return func() { seedTreeFn = orig }
@@ -43,14 +43,12 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 				renames map[string]string
 			}
 			var calls []call
-			defer stubSeedTreeFn(func(_ fs.FS, dest string, renames map[string]string) ([]string, error) {
-				calls = append(calls, call{dest, renames})
+			defer stubSeedTreeFn(func(src fsutil.RenamedFS, dest string) ([]string, error) {
+				calls = append(calls, call{dest, src.Renames})
 				return nil, nil
 			})()
 
-			dir, err := safeSeedConfig(userDir, tc.cli, false)
-			require.NoError(t, err)
-			assert.Equal(t, wantDir, dir)
+			require.NoError(t, safeSeedCLIConfig(userDir, tc.cli, false))
 			assert.Equal(t, []call{
 				{wantDir, map[string]string{harness.AgentsFileName: cli.SeedAgentsFilename}},
 				{wantDir, nil},
@@ -65,23 +63,20 @@ func TestSafeSeedConfigExistingSkips(t *testing.T) {
 	require.NoError(t, os.MkdirAll(configDir, ioutil.Dir))
 
 	called := false
-	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
+	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
 		called = true
 		return nil, nil
 	})()
 
-	dir, err := safeSeedConfig(userDir, "claude", false)
-	require.NoError(t, err)
+	require.NoError(t, safeSeedCLIConfig(userDir, "claude", false))
 	assert.False(t, called, "seed fn called for existing dir without confirm")
-	assert.Equal(t, configDir, dir)
 }
 
 func TestSafeSeedConfigPropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
-	defer stubSeedTreeFn(func(fs.FS, string, map[string]string) ([]string, error) {
+	defer stubSeedTreeFn(func(fsutil.RenamedFS, string) ([]string, error) {
 		return nil, wantErr
 	})()
 
-	_, err := safeSeedConfig(t.TempDir(), "claude", false)
-	assert.ErrorIs(t, err, wantErr)
+	assert.ErrorIs(t, safeSeedCLIConfig(t.TempDir(), "claude", false), wantErr)
 }

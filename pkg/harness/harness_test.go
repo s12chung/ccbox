@@ -1,9 +1,12 @@
 package harness
 
 import (
+	"path/filepath"
 	"testing"
+	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAllAlphaOrder(t *testing.T) {
@@ -12,6 +15,25 @@ func TestAllAlphaOrder(t *testing.T) {
 		names = append(names, c.Name)
 	}
 	assert.Equal(t, []string{"claude", "codex", "grok", "opencode"}, names)
+}
+
+func TestSeedCLIFS(t *testing.T) {
+	for _, c := range All() {
+		fsList := SeedCLIFS(c.Name)
+		require.Len(t, fsList.FSes, 2)
+
+		// Shared is always first
+		shared := fsList.FSes[0]
+		assert.Equal(t, map[string]string{AgentsFileName: c.SeedAgentsFilename}, shared.Renames)
+		require.NoErrorf(t, fstest.TestFS(shared.FS, AgentsFileName), c.Name)
+
+		assert.Nil(t, fsList.FSes[1].Renames)
+	}
+
+	own := SeedCLIFS("claude").FSes[1].FS // per-CLI tree rooted at its config dir
+	require.NoError(t, fstest.TestFS(own, "settings.json", filepath.Join("hooks", "secret-tripwire.sh")))
+
+	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { SeedCLIFS("emacs") })
 }
 
 func TestFor(t *testing.T) {

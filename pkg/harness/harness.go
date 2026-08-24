@@ -26,18 +26,28 @@ func All() []CLI { return slices.Clone(all) }
 const (
 	// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
 	SeedConfigDir = "config"
-	// SharedSeedPath is the seed subtree shared across every CLI.
-	SharedSeedPath = "shared"
 	// AgentsFileName is the shared user AGENTS.md
 	AgentsFileName = "AGENTS.user.md"
 )
 
-//go:embed clis
-var clisFS embed.FS
+var (
+	//go:embed clis
+	clisFS embed.FS
+	//go:embed shared-clis
+	sharedCLIFS embed.FS
+)
 
-// SeedFS returns the embedded seed trees (shared/, per-CLI), rooted at their
-// common parent.
-func SeedFS() fs.FS { return fsutil.MustSub(clisFS, "clis") }
+// SeedCLIFS returns cli's final seed fs (shared + clis) - shared is first, so it will be overwritten later by seed.SeedTree
+func SeedCLIFS(cliName string) fsutil.RenamedFSes {
+	cli := MustFor(cliName)
+	return fsutil.RenamedFSes{FSes: []fsutil.RenamedFS{
+		{
+			FS:      fsutil.MustSub(sharedCLIFS, path.Join("shared-clis", SeedConfigDir)),
+			Renames: map[string]string{AgentsFileName: cli.SeedAgentsFilename},
+		},
+		{FS: fsutil.MustSub(clisFS, path.Join("clis", cliName, SeedConfigDir))},
+	}}
+}
 
 // MustLoad parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,
 // ordered by name. It panics on any parse error.

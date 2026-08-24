@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -26,7 +27,7 @@ var claudeRenames = map[string]string{"AGENTS.user.md": "CLAUDE.md"}
 func TestTreeFresh(t *testing.T) {
 	dest := t.TempDir()
 
-	renamed, err := Tree(srcFS(), dest, claudeRenames)
+	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
@@ -45,7 +46,7 @@ func TestTreeBacksUpExisting(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Tree(srcFS(), dest, claudeRenames)
+	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
@@ -72,7 +73,7 @@ func TestTreeSkipsIdentical(t *testing.T) {
 	mkdirAll(t, filepath.Join(dest, "hooks"))
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	renamed, err := Tree(srcFS(), dest, claudeRenames)
+	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
 	require.ErrorIs(t, err, ErrNoChanges)
 	assert.Empty(t, renamed, "identical files should back up nothing")
 
@@ -90,7 +91,7 @@ func TestTreePartiallyIdentical(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Tree(srcFS(), dest, claudeRenames)
+	renamed, err := Tree(fsutil.RenamedFS{FS: srcFS(), Renames: claudeRenames}, dest)
 	require.NoError(t, err, "a change alongside identical files is not ErrNoChanges")
 	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, renamed)
 
@@ -105,7 +106,7 @@ func TestTreeBackupExistsErrors(t *testing.T) {
 
 	// AGENTS.user.md → CLAUDE.md collides with the live file, whose backup already exists.
 	src := fstest.MapFS{"AGENTS.user.md": {Data: []byte("new claude")}}
-	_, err := Tree(src, dest, claudeRenames)
+	_, err := Tree(fsutil.RenamedFS{FS: src, Renames: claudeRenames}, dest)
 	require.Error(t, err)
 
 	// Neither the live file nor the pre-existing backup was touched.
@@ -121,7 +122,7 @@ func TestTreeCodexRenames(t *testing.T) {
 	}
 	renames := map[string]string{"AGENTS.user.md": "AGENTS.md"}
 
-	renamed, err := Tree(src, dest, renames)
+	renamed, err := Tree(fsutil.RenamedFS{FS: src, Renames: renames}, dest)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 

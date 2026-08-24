@@ -20,6 +20,26 @@ func MustSub(fsys fs.FS, dir string) fs.FS {
 	return sub
 }
 
+// RenamedFS is an fs.FS whose files land under other names when laid onto a dest.
+type RenamedFS struct {
+	FS      fs.FS
+	Renames map[string]string // source path -> destination name
+}
+
+// RenamedFSes is an ordered set of trees seeded onto one dest dir.
+type RenamedFSes struct {
+	FSes []RenamedFS
+}
+
+// NewRenamedFSes wraps each fsys as a rename-less RenamedFS.
+func NewRenamedFSes(fsyses ...fs.FS) RenamedFSes {
+	fsList := make([]RenamedFS, len(fsyses))
+	for i, fsys := range fsyses {
+		fsList[i] = RenamedFS{FS: fsys}
+	}
+	return RenamedFSes{FSes: fsList}
+}
+
 // ToTar packs every file in src into an in-memory tar, skipping directories and
 // giving each file mode 0644. It buffers, so it's for small trees (e.g. embeds).
 // overrides (nil ok) map a path to its bytes, replacing that file in src or adding it.
