@@ -12,7 +12,7 @@ There are other directories that are mounted as persistent per-project volumes:
 - Generic paths: `~/.cache` and `~/.local`
 - Runtime-specific caches and install directories, such as npm's `~/.npm` and `~/.npm-global` (Golang, Ruby, and Python are covered the same way)
 
-Most importantly, `/tmp` is persistent too — treat it as your scratch space to try things out freely.
+Most importantly, `/tmp` is persistent too and shared with other sessions — treat it as your scratch space to try things out freely.
 
 Any other directory is **ephemeral**, gone next run. You can still install per-user in any ecosystem with no root (e.g. `npm i -g`) — it survives only if it lands on a volume above.
 

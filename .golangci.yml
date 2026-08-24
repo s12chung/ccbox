@@ -19,7 +19,6 @@ linters:
     - contextcheck
     - copyloopvar
     - cyclop
-    - decorder
     - dogsled
     - dupl
     - dupword
@@ -44,9 +43,7 @@ linters:
     - gomoddirectives
     - goprintffuncname
     - gosec
-    - grouper
     - iface
-    - importas
     - inamedparam
     - interfacebloat
     - intrange
@@ -69,14 +66,9 @@ linters:
     - perfsprint
     - prealloc
     - predeclared
-    - protogetter
     - reassign
     - recvcheck
     - revive
-    - rowserrcheck
-    - sloglint
-    - spancheck
-    - sqlclosecheck
     - tagalign
     - tagliatelle
     - testifylint
@@ -90,6 +82,7 @@ linters:
     # disabled
     # - arangolint # not using ArangoDB
     # - clickhouselint # not using ClickHouse
+    # - decorder # declaration order is ordering based on keywords (const, var, etc.)
     # - depguard # not using allow/deny lists of external packages
     # - err113 # want sticky errors
     # - exhaustruct_v5 # use constructors to handle empty fields instead of tags
@@ -102,6 +95,8 @@ linters:
     # - goheader # not using a header
     # - gomodguard_v2 # not using allow/deny lists of external packages
     # - gosmopolitan # not using i18n
+    # - grouper # forces grouping structs, even if they're multi-line
+    # - importas # needs custom configurations, to handle imports like k8s v1alpha1 type conflicts
     # - ireturn # return interfaces are fine
     # - loggercheck # not using these log libs
     # - mnd # magic numbers are ok
@@ -110,6 +105,11 @@ linters:
     # - nolintlint # nolint directives are fine
     # - paralleltest # not making every test parallel
     # - promlinter # not using prometheus
+    # - protogetter # not using protobuf-generated code
+    # - rowserrcheck # not using database/sql
+    # - spancheck # not using OpenTelemetry
+    # - sloglint # no using direct slog calls
+    # - sqlclosecheck # not using database/sql
     # - testableexamples # no output comments are ok
     # - testpackage # _test packages are preferred
     # - thelper # no need to clean up call stack for tests
@@ -146,7 +146,6 @@ linters:
         - pattern: ^(fmt\.Print(|f|ln)|print|println)$
         - pattern: ^(slog\.(Debug|Info|Warn|Error)(Context)?|slog\.Default)$
     tagliatelle:
-      # Check the struct tag name case. snake matches the .ccbox.yaml key convention.
       case:
         rules:
           json: snake
@@ -176,7 +175,7 @@ linters:
 formatters:
   enable:
     - gci
-    - gofmt
+    - gofumpt
     - goimports
   settings:
     gci:
@@ -187,7 +186,7 @@ formatters:
         - default # Default section: contains all imports that could not be matched to another section type.
         - prefix(github.com/s12chung/ccbox) # Custom section: groups all imports with the specified Prefix.
   # disabled
-  # - gofumpt # too strict formatting
+  # - gofmt # gofumpt is stricter
   # - golines # lines stay under lll's limit by hand
   # - swaggo # not using swagger
 

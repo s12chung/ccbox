@@ -14,3 +14,4 @@ env:
 allow_domains:
   - opencode.ai
   - models.dev
+  - openrouter.ai

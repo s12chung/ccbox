@@ -107,13 +107,15 @@ RUN set -eux; \
     esac; \
     MISE_DATA_DIR=/usr/local/share/mise mise install "$tool"; \
     if [ "$scheme" = versionurl ]; then ln -sf "/usr/local/share/mise/installs/http-$CLI/latest/$CLI" "/usr/local/share/mise/shims/$CLI"; fi; \
-    rm -rf /root/.cache
+    rm -rf /root/.cache /tmp; mkdir -p /tmp/opencode; \
+    chmod 1777 /tmp && chown ccbox:ccbox /tmp/opencode # standard 1777, force opencode CLI's scratch w-access (CLI makes it only root-w)
 
 USER ccbox
 # Pre-create cache mountpoints so per-project named volumes inherit uid 1000 (else root-owned, unwritable)
-# Mapped to pkg/docker/run.go
+# Mapped to pkg/docker/mounts.go, `/tmp` is created above
 RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
-             /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local /home/ccbox/.config
+             /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local \
+             /home/ccbox/.config # opencode uses .config
 
 COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
