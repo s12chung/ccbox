@@ -153,6 +153,22 @@ func (f *FS) ReadDir(name string) ([]fs.DirEntry, error) {
 	return dir.ReadDir(-1)
 }
 
+// Sub implements fs.SubFS: it returns the tree rooted at dir as its own FS,
+// sharing content ownership with f.
+func (f *FS) Sub(dir string) (fs.FS, error) {
+	if dir == "." {
+		return f, nil
+	}
+	node, _, err := f.lookup("sub", dir)
+	if err != nil {
+		return nil, err
+	}
+	if !node.isDir() {
+		return nil, &fs.PathError{Op: "sub", Path: dir, Err: errors.New("not a directory")}
+	}
+	return &FS{fses: f.fses, tree: *node}, nil
+}
+
 // lookup finds the node naming p and its parent (nil for "."), validating p
 // per io/fs rules.
 func (f *FS) lookup(op, p string) (*fsnode, *fsnode, error) {

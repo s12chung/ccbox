@@ -222,6 +222,51 @@ func TestInvalidPaths(t *testing.T) {
 	}
 }
 
+func TestSub(t *testing.T) {
+	fsys := MustNewFS(fstest.MapFS{
+		"a.txt":          {Data: []byte("A")},
+		"sub/b.txt":      {Data: []byte("B")},
+		"sub/deep/c.txt": {Data: []byte("C")},
+	}).MustMerge(fstest.MapFS{"sub/b.txt": {Data: []byte("from B")}})
+
+	sub, err := fsys.Sub("sub")
+	require.NoError(t, err)
+	require.NoError(t, fstest.TestFS(sub, "b.txt", "deep/c.txt"))
+
+	body, err := fs.ReadFile(sub, "b.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "from B", string(body), "content serves from its owner")
+
+	body, err = fs.ReadFile(sub, "deep/c.txt")
+	require.NoError(t, err)
+	assert.Equal(t, "C", string(body))
+
+	var got []string
+	require.NoError(t, fs.WalkDir(sub, ".", func(p string, _ fs.DirEntry, err error) error {
+		require.NoError(t, err)
+		got = append(got, p)
+		return nil
+	}))
+	assert.Equal(t, []string{".", "b.txt", "deep", "deep/c.txt"}, got)
+}
+
+func TestSubErrors(t *testing.T) {
+	fsys := MustNewFS(fstest.MapFS{"a.txt": {Data: []byte("A")}})
+
+	same, err := fsys.Sub(".")
+	require.NoError(t, err)
+	assert.Same(t, fsys, same, `"." is the filesystem itself`)
+
+	_, err = fsys.Sub("missing.txt")
+	require.ErrorIs(t, err, fs.ErrNotExist)
+	_, err = fsys.Sub("a.txt")
+	require.ErrorContains(t, err, "not a directory")
+	for _, p := range []string{"../evil", ""} {
+		_, err = fsys.Sub(p)
+		require.ErrorIsf(t, err, fs.ErrInvalid, "%q", p)
+	}
+}
+
 func TestNewFSError(t *testing.T) {
 	fsys, err := NewFS(errFS{})
 	require.Error(t, err)
