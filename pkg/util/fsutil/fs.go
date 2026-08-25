@@ -7,6 +7,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
@@ -22,6 +23,17 @@ type fsnode struct {
 }
 
 const emptyIndex = -1
+
+// fs.PathError operation names of FS methods.
+const (
+	opMkdir   = "mkdir"
+	opOpen    = "open"
+	opRead    = "read"
+	opReaddir = "readdir"
+	opRename  = "rename"
+	opStat    = "stat"
+	opSub     = "sub"
+)
 
 // isDir reports whether n is a directory: dirs are tree-served and carry no origin.
 func (n *fsnode) isDir() bool { return n.originPath == "" }
@@ -90,19 +102,39 @@ func (f *FS) MustMerge(fsys fs.FS) *FS {
 	return f
 }
 
+// MkdirAll creates tree-only directories along name; a file at name or along
+// the way fails with not-a-directory, naming that file.
+func (f *FS) MkdirAll(path string) error {
+	if !fs.ValidPath(path) {
+		return &fs.PathError{Op: opMkdir, Path: path, Err: fs.ErrInvalid}
+	}
+	return f.ensureDir(opMkdir, path, true)
+}
+
 // Rename moves oldPath's subtree to newPath; each file keeps its originPath, so
-// content serves from its owner wherever it lands. A node already at newPath is
-// replaced.
+// content serves from its owner wherever it lands. Missing dirs along newPath
+// are created; an existing same-kind node at newPath is replaced, a different
+// kind fails like rename(2).
 func (f *FS) Rename(oldPath, newPath string) error {
 	switch {
 	case !fs.ValidPath(newPath): // !fs.ValidPath(oldPath) runs in f.lookup() just below
 		return fmt.Errorf("fsutil: invalid rename destination %q", newPath)
 	case oldPath == "." || newPath == ".":
 		return fmt.Errorf("fsutil: cannot rename %q", ".")
+	case newPath == oldPath:
+		return nil
+	case strings.HasPrefix(newPath, oldPath+"/"):
+		return &fs.PathError{Op: opRename, Path: newPath, Err: syscall.EINVAL} // a dir into its own subtree
 	}
-	node, parent, err := f.lookup("rename", oldPath)
+	node, parent, err := f.lookup(opRename, oldPath)
 	if err != nil {
 		return fmt.Errorf("fsutil: rename source %q not found", oldPath)
+	}
+	if err := f.ensureDir(opRename, path.Dir(newPath), false); err != nil {
+		return err
+	}
+	if err := f.checkRenameDest(node, newPath); err != nil {
+		return err
 	}
 
 	moved := *node // value copy: detaching shifts parent's children
@@ -113,10 +145,54 @@ func (f *FS) Rename(oldPath, newPath string) error {
 	return nil
 }
 
+// ensureDir walks p from the tree root, failing on any file along it with
+// not-a-directory naming that file. Missing dirs are created when create,
+// skipped otherwise.
+func (f *FS) ensureDir(op, p string, create bool) error {
+	prefix, node := "", &f.tree
+	for seg := range strings.SplitSeq(p, "/") {
+		child, i := node.child(seg)
+		if child != nil && !child.isDir() {
+			return &fs.PathError{Op: op, Path: prefix + seg, Err: syscall.ENOTDIR}
+		}
+		if child == nil {
+			if !create {
+				return nil // nothing below exists yet
+			}
+			node.children = slices.Insert(node.children, i, fsnode{name: seg, fsindex: emptyIndex})
+			child = &node.children[i]
+		}
+		prefix += seg + "/"
+		node = child
+	}
+	return nil
+}
+
+// checkRenameDest rejects a destination rename(2) would refuse: a file over an
+// existing dir (EISDIR), a dir over an existing file (ENOTDIR), or a dir over
+// a non-empty dir (ENOTEMPTY).
+func (f *FS) checkRenameDest(node *fsnode, newPath string) error {
+	existing, _, err := f.lookup(opRename, newPath)
+	if err != nil && !errors.Is(err, fs.ErrNotExist) { // unreachable: newPath is valid and not "."
+		return err
+	}
+	switch {
+	case existing == nil:
+		return nil
+	case !node.isDir() && existing.isDir():
+		return &fs.PathError{Op: opRename, Path: newPath, Err: syscall.EISDIR}
+	case node.isDir() && !existing.isDir():
+		return &fs.PathError{Op: opRename, Path: newPath, Err: syscall.ENOTDIR}
+	case len(existing.children) > 0:
+		return &fs.PathError{Op: opRename, Path: newPath, Err: syscall.ENOTEMPTY}
+	}
+	return nil
+}
+
 // Open opens the file or directory at name; files serve content from their
 // owner at originPath.
 func (f *FS) Open(name string) (fs.File, error) {
-	node, _, err := f.lookup("open", name)
+	node, _, err := f.lookup(opOpen, name)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +208,7 @@ func (f *FS) Open(name string) (fs.File, error) {
 
 // Stat implements fs.StatFS.
 func (f *FS) Stat(name string) (fs.FileInfo, error) {
-	node, _, err := f.lookup("stat", name)
+	node, _, err := f.lookup(opStat, name)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +224,7 @@ func (f *FS) ReadDir(name string) ([]fs.DirEntry, error) {
 	defer log.Defer("readDir file close", file.Close)
 	dir, ok := file.(fs.ReadDirFile)
 	if !ok {
-		return nil, &fs.PathError{Op: "readdir", Path: name, Err: errors.New("not a directory")}
+		return nil, &fs.PathError{Op: opReaddir, Path: name, Err: errors.New("not a directory")}
 	}
 	return dir.ReadDir(-1)
 }
@@ -159,12 +235,12 @@ func (f *FS) Sub(dir string) (fs.FS, error) {
 	if dir == "." {
 		return f, nil
 	}
-	node, _, err := f.lookup("sub", dir)
+	node, _, err := f.lookup(opSub, dir)
 	if err != nil {
 		return nil, err
 	}
 	if !node.isDir() {
-		return nil, &fs.PathError{Op: "sub", Path: dir, Err: errors.New("not a directory")}
+		return nil, &fs.PathError{Op: opSub, Path: dir, Err: errors.New("not a directory")}
 	}
 	return &FS{fses: f.fses, tree: *node}, nil
 }

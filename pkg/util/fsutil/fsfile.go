@@ -20,7 +20,7 @@ type fakeDir struct {
 func (d *fakeDir) Stat() (fs.FileInfo, error) { return d.fsys.statNode(d.node, d.path) }
 
 func (d *fakeDir) Read([]byte) (int, error) {
-	return 0, &fs.PathError{Op: "read", Path: d.path, Err: errors.New("is a directory")}
+	return 0, &fs.PathError{Op: opRead, Path: d.path, Err: errors.New("is a directory")}
 }
 
 func (d *fakeDir) Close() error { return nil }
@@ -30,7 +30,7 @@ func (d *fakeDir) ReadDir(n int) ([]fs.DirEntry, error) {
 	for _, child := range d.node.children {
 		info, err := d.fsys.statNode(&child, path.Join(d.path, child.name))
 		if err != nil {
-			return nil, &fs.PathError{Op: "readdir", Path: d.path, Err: err}
+			return nil, &fs.PathError{Op: opReaddir, Path: d.path, Err: err}
 		}
 		entries = append(entries, namedEntry{name: child.name, info: info})
 	}
