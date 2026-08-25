@@ -10,7 +10,7 @@ lint:
 	find pkg/harness/clis -name '*.json' -exec jq empty {} +
 	golangci-lint run --fix $(TEST)
 
-ci: test
+ci: lint test
 test.all: test test.docker
 
 test: lint
