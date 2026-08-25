@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -33,7 +34,7 @@ func TestLoadParses(t *testing.T) {
 	assert.Equal(t, "codex", c.CLI)
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs) // present defaults prepended
 	assert.Equal(t, map[string]string{"FOO": "bar"}, c.Env)
-	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // token expanded
+	assert.Equal(t, append(allowDefaults(), "example.com"), c.Allowlist) // token expanded
 }
 
 func TestLoadUnsetGetsDefaults(t *testing.T) {
@@ -53,9 +54,9 @@ func TestLoadUnsetGetsDefaults(t *testing.T) {
 			}
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, "claude", c.CLI)            // unset cli → claude
-			assert.Equal(t, tmpfsDefaults, c.Tmpfs)     // present always-on masks
-			assert.Equal(t, allowDefaults, c.Allowlist) // unset allowlist → the built-ins
+			assert.Equal(t, "claude", c.CLI)              // unset cli → claude
+			assert.Equal(t, tmpfsDefaults, c.Tmpfs)       // present always-on masks
+			assert.Equal(t, allowDefaults(), c.Allowlist) // unset allowlist → the built-ins
 		})
 	}
 }
@@ -114,8 +115,8 @@ func TestInitRefusesExisting(t *testing.T) {
 
 func TestDefaultedAllowlistNilVsEmpty(t *testing.T) {
 	dir := t.TempDir()
-	assert.Equal(t, allowDefaults, Defaulted(dir, Config{Allowlist: nil}).Allowlist) // unset → built-ins
-	assert.Empty(t, Defaulted(dir, Config{Allowlist: []string{}}).Allowlist)         // explicit [] → nothing
+	assert.Equal(t, allowDefaults(), Defaulted(dir, Config{Allowlist: nil}).Allowlist) // unset → built-ins
+	assert.Empty(t, Defaulted(dir, Config{Allowlist: []string{}}).Allowlist)           // explicit [] → nothing
 }
 
 func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
@@ -125,6 +126,16 @@ func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	assert.Empty(t, c.Allowlist) // an explicit [] is not the built-ins
+}
+
+func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
+	// every loaded cli's domains count — embedded or user-defined, they all sit in All()
+	for _, c := range harness.All() {
+		for _, d := range c.AllowDomains {
+			assert.Containsf(t, allowDefaults(), d, "%s: %s", c.Name, d)
+			assert.Containsf(t, Defaulted(t.TempDir(), Config{}).Allowlist, d, "%s: %s", c.Name, d)
+		}
+	}
 }
 
 func TestLoadMergesLocalOverride(t *testing.T) {
@@ -137,11 +148,11 @@ func TestLoadMergesLocalOverride(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", c.CLI)                                                           // scalar override, local wins
-	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)                   // lists append, base first
-	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env)                  // env overlays, local wins
-	assert.Equal(t, append(append([]string{}, allowDefaults...), "example.com"), c.Allowlist) // merged, then token expanded
-	assert.Equal(t, new(false), c.HostGitConfig)                                              // scalar override, local wins
+	assert.Equal(t, "codex", c.CLI)                                          // scalar override, local wins
+	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)  // lists append, base first
+	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env) // env overlays, local wins
+	assert.Equal(t, append(allowDefaults(), "example.com"), c.Allowlist)     // merged, then token expanded
+	assert.Equal(t, new(false), c.HostGitConfig)                             // scalar override, local wins
 }
 
 func TestLoadLocalOnly(t *testing.T) {

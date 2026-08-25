@@ -13,6 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/projectstate"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 )
 
@@ -59,7 +60,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		Cmd:          harness.MustFor(projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,
-		ProxyLogPath: filepath.Join(userDir, "proxy.log"),
+		ProxyLogPath: filepath.Join(userdir.Dir(), "proxy.log"),
 		NoProxy:      flagNoProxy,
 	}, nil
 }
@@ -70,7 +71,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err := build(cmd.Context()); err != nil {
 		return err
 	}
-	m, err := resolveHostMounts(userDir)
+	m, err := resolveHostMounts(userdir.Dir())
 	if err != nil {
 		return err
 	}

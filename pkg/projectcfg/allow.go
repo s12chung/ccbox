@@ -3,8 +3,11 @@ package projectcfg
 import "github.com/s12chung/ccbox/pkg/harness"
 
 // allowDefaults are the egress domains DefaultsToken expands to: the wall's built-in
-// allow — shared defaults plus every supported CLI's own domains.
-var allowDefaults = append(append([]string{}, sharedAllowDefaults...), cliAllowDomains()...)
+// allow — shared defaults plus every supported CLI's own domains, computed per call
+// from the loaded cli set.
+func allowDefaults() []string {
+	return append(append([]string{}, sharedAllowDefaults...), cliAllowDomains()...)
+}
 
 // sharedAllowDefaults are the CLI-independent egress domains.
 var sharedAllowDefaults = []string{
@@ -69,7 +72,7 @@ func expandAllowlist(domains []string) []string {
 	var out []string
 	for _, d := range domains {
 		if d == DefaultsToken {
-			out = append(out, allowDefaults...)
+			out = append(out, allowDefaults()...)
 			continue
 		}
 		out = append(out, d)

@@ -4,14 +4,14 @@ package cmd
 
 import (
 	"embed"
-	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
@@ -26,9 +26,6 @@ var (
 	flagTag string
 	flagCLI string
 )
-
-// userDir is the ccbox user directory for configs and persistent storage: ~/.ccbox.
-var userDir string
 
 // exitCode lets `run` propagate the container's exit status out through Execute.
 var exitCode int
@@ -45,6 +42,9 @@ var rootCmd = &cobra.Command{
 	Args:          resumeArgs,
 	RunE:          runDevbox,
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+		if err := safeSeedUserClis(); err != nil {
+			return err
+		}
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
@@ -66,15 +66,14 @@ func Execute(build, proxy embed.FS) int {
 }
 
 func init() {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		panic(fmt.Sprintf("userDir: %v", err))
-	}
-	userDir = filepath.Join(home, ".ccbox")
-
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.StringVar(&flagCLI, "cli", "", "override the coding CLI set in .ccbox.yaml")
 
 	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
+}
+
+// safeSeedUserClis seeds harness.UserCLIsDir() if missing
+func safeSeedUserClis() error {
+	return safeSeed(fsutil.MustNewFS(harness.SeedUserClisFS()), harness.UserCLIsDir(), false)
 }

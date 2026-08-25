@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
@@ -19,7 +20,7 @@ var reseedCmd = &cobra.Command{
 	Use:   "reseed",
 	Short: "Seed the host config dir for the configured CLI from the embedded seed, backing up overwrites",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return safeSeedCLIConfig(userDir, projectCfg.CLI, true)
+		return safeSeedCLIConfig(userdir.Dir(), projectCfg.CLI, true)
 	},
 }
 

@@ -2,6 +2,8 @@ package harness
 
 import (
 	"io/fs"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 
@@ -9,14 +11,117 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
-func TestAllAlphaOrder(t *testing.T) {
+func TestMain(m *testing.M) {
+	all = mustLoadEmbedCLIs() // ignore any user clis on this machine: tests pin the embedded set
+	os.Exit(m.Run())
+}
+
+// resetAll redirects the user clis tree to a fresh temp dir, restoring the swapped
+// globals afterwards; it returns the temp tree's root.
+func resetAll(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	savedAll, savedRoot := all, userConfigDir
+	t.Cleanup(func() { all, userConfigDir = savedAll, savedRoot })
+	userConfigDir = dir
+	return dir
+}
+
+const userCliYAML = "npm:\n  package: mycli\n\nconfig_home_mount: \".mycli\"\n\n" +
+	"cmd: \"mycli\"\ncontinue_args: \"-c\"\nresume_args: \"--resume\"\n\nallow_domains:\n  - mycli.dev\n"
+
+// writeUserCli lays out a user cli at dir/clis/<name> like the embedded clis tree:
+// CLI.yaml plus optional config files under config/.
+func writeUserCli(t *testing.T, dir, name, yamlBody string, configFiles map[string]string) {
+	t.Helper()
+	root := filepath.Join(dir, "clis", name)
+	require.NoError(t, os.MkdirAll(root, ioutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "CLI.yaml"), []byte(yamlBody), ioutil.File))
+	for p, body := range configFiles {
+		dest := filepath.Join(root, p)
+		require.NoError(t, os.MkdirAll(filepath.Dir(dest), ioutil.Dir))
+		require.NoError(t, os.WriteFile(dest, []byte(body), ioutil.File))
+	}
+}
+
+func TestLoadUser(t *testing.T) {
+	t.Run("merges valid clis into All, in name order", func(t *testing.T) {
+		dir := resetAll(t)
+		writeUserCli(t, dir, "mycli", userCliYAML, nil)
+		all = mustLoadAll()
+
+		names := make([]string, 0, len(all))
+		for _, c := range all {
+			names = append(names, c.Name)
+		}
+		assert.Equal(t, []string{"claude", "codex", "grok", "mycli", "opencode"}, names)
+
+		c, ok := For("mycli")
+		require.True(t, ok)
+		assert.Equal(t, ".mycli", c.ConfigHomeMount)
+		assert.Equal(t, []string{"mycli.dev"}, c.AllowDomains)
+	})
+
+	t.Run("missing dir loads nothing", func(t *testing.T) {
+		resetAll(t)
+		all = mustLoadAll()
+		assert.Len(t, all, 4)
+	})
+
+	t.Run("skips bad clis with a warning", func(t *testing.T) {
+		for _, tt := range []struct {
+			name    string
+			body    string
+			configs map[string]string
+		}{
+			{name: "mycli", body: userCliYAML}, // sanity: a good cli does merge
+			{name: "claude", body: userCliYAML},
+			{name: "bad", body: "bogus: true\n"},
+			{name: "dual", body: "npm:\n  package: x\nversionurl:\n  url: y\n"},
+			{name: "filecfg", body: userCliYAML, configs: map[string]string{"config": "junk"}}, // seed config is a file
+		} {
+			t.Run(tt.name, func(t *testing.T) { testLoadUserSkips(t, tt.name, tt.body, tt.configs) })
+		}
+	})
+}
+
+// testLoadUserSkips loads a single user cli and pins how loading treats it.
+func testLoadUserSkips(t *testing.T, name, body string, configs map[string]string) {
+	t.Helper()
+	dir := resetAll(t)
+	writeUserCli(t, dir, name, body, configs)
+	all = mustLoadAll()
+
+	switch name {
+	case "mycli":
+		assert.Contains(t, allNames(), "mycli")
+		assert.Len(t, all, 5)
+	case "claude":
+		claudes := 0
+		for _, c := range all {
+			if c.Name == "claude" {
+				claudes++
+			}
+		}
+		assert.Equal(t, 1, claudes,
+			"the embedded cli stays; the conflicting user one is not merged")
+		assert.Len(t, all, 4)
+	default: // skip cases
+		assert.NotContains(t, allNames(), name)
+		assert.Len(t, all, 4)
+	}
+}
+
+// allNames lists every loaded cli's name.
+func allNames() []string {
 	names := make([]string, 0, len(all))
 	for _, c := range all {
 		names = append(names, c.Name)
 	}
-	assert.Equal(t, []string{"claude", "codex", "grok", "opencode"}, names)
+	return names
 }
 
 func TestSeedCLIFS(t *testing.T) {
@@ -30,6 +135,21 @@ func TestSeedCLIFS(t *testing.T) {
 	assert.Equal(t, want, seedPaths(t, claudeFS))
 
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { SeedCLIFS("emacs") })
+}
+
+func TestSeedCLIFSUserTree(t *testing.T) {
+	dir := resetAll(t)
+	writeUserCli(t, dir, "mycli", userCliYAML, map[string]string{"config/settings.toml": "[x]\n"})
+	writeUserCli(t, dir, "bare", userCliYAML, nil)
+	all = mustLoadAll()
+
+	fsys := SeedCLIFS("mycli")
+	assert.Equal(t, []string{"AGENTS.md", "settings.toml"}, seedPaths(t, fsys),
+		"shared AGENTS renamed in, user config tree merged")
+
+	// no config tree laid down: SeedCLIFS mkdirs an empty one, so only the shared AGENTS doc lands
+	bareFS := SeedCLIFS("bare")
+	assert.Equal(t, []string{"AGENTS.md"}, seedPaths(t, bareFS))
 }
 
 func seedPaths(t *testing.T, fsys *fsutil.FS) []string {
