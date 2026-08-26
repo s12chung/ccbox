@@ -11,7 +11,7 @@ FROM debian:trixie-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
-        git curl less procps pkg-config nano unzip bind9-dnsutils \
+        git curl less procps pkg-config unzip bind9-dnsutils \
         libssl3t64 libyaml-0-2 zlib1g libffi8 libreadline8t64 libgmp10 libzstd1 \
         libatomic1 \
     && rm -rf /var/lib/apt/lists/*
@@ -42,11 +42,7 @@ ENV DEVCONTAINER=true
 # Managed-policy CLAUDE.md: org-wide memory, highest precedence, loaded every session for all users.
 COPY docker/image/CLAUDE.admin.md /etc/claude-code/CLAUDE.md
 
-# Make delta git's diff pager. --system writes /etc/gitconfig so it applies to all users.
-RUN git config --system core.pager delta && git config --system interactive.diffFilter 'delta --color-only' && git config --system delta.navigate true
 ENV TZ="America/New_York"
-ENV EDITOR=nano
-ENV VISUAL=nano
 
 # Let ccbox install packages in every ecosystem with no root
 ENV NPM_CONFIG_PREFIX=/home/ccbox/.npm-global

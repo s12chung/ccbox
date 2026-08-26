@@ -2,7 +2,7 @@
 
 This project is a hardened Docker devbox wrapper for an LLM CLI — Claude Code or Codex, selected per project via `.ccbox.yaml`'s `cli` key. You are currently running inside of it, you already loaded its brief specifications in your managed-policy CLAUDE.md.
 
-You run inside the container this Dockerfile builds, and we often swap containers as the Dockerfile changes, especially mid-debug — so the running image may not match the file on disk. Re-read the Dockerfile before answering "what's this line/file" (never reconstruct from git or memory), and when container/Dockerfile changes come up, ask whether the state is old or new.
+You run inside the container defined at `Dockerfile`, and we often swap containers as the Dockerfile changes, especially mid-debug — so the running image may not match the file on disk. When container/Dockerfile changes come up, ask whether the state is old or new.
 
 ### Key components
 The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang files map to `cmd/`, which talks to the Docker Engine SDK in-process. Commands:

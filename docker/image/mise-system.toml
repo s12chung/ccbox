@@ -12,8 +12,6 @@ go     = "1.26"
 ripgrep = "15.1.0"
 jq      = "1.8.1"
 yq      = "4.53.3"
-gh      = "2.94.0"
-delta   = "0.19.2"
 
 # Test + lint tooling
 shellcheck    = "0.11.0"

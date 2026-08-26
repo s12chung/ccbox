@@ -1,29 +1,22 @@
 # Your Container (ccbox)
 
-You run as the unprivileged [ccbox](https://github.com/s12chung/ccbox) user inside a disposable container. No root, no `sudo`, no Docker daemon. The container is `--rm`: **everything is wiped on exit except these bind mounts**, which persist on the host:
-- `/home/ccbox/<project>` — your working dir (the host repo you're in)
-- `/home/ccbox/.ccbox/project` — per-project devbox state
-- The agent harness CLI default config directory, which varies depending on harness CLI
+You run as the unprivileged [ccbox](https://github.com/s12chung/ccbox) user inside a disposable container. No root, no `sudo`, no Docker daemon.
 
-## Persistent per-project volumes
+## File System Persistence
 
-There are other directories that are mounted as persistent per-project volumes:
+Built into the container are language runtimes and CLIs via `mise` defined at the system config `/etc/mise/config.toml`.
 
-- Generic paths: `~/.cache` and `~/.local`
-- Runtime-specific caches and install directories, such as npm's `~/.npm` and `~/.npm-global` (Golang, Ruby, and Python are covered the same way)
+These 2 directories bind mounted, which persist on the host:
 
-Most importantly, `/tmp` is persistent too and shared with other sessions — treat it as your scratch space to try things out freely.
+1. `/home/ccbox/<project>` — your working dir (the host repo you're in), where stale entries in the git index/cache are safe to ignore
+2. `/home/ccbox/.ccbox/project` — project state
 
-Any other directory is **ephemeral**, gone next run. You can still install per-user in any ecosystem with no root (e.g. `npm i -g`) — it survives only if it lands on a volume above.
+Most importantly, `/tmp` is a persistent volume — treat it as your scratch space to try things out freely.
 
-## What's already installed
-Recent build/base tooling are installed via `apt-get`. Language runtimes and CLIs via `mise` defined at the system config `/etc/mise/config.toml`. Useful CLIs to navigate around include `ripgrep`, `gh`, `jq`, and `yq`.
+ALL other directories are **wiped on exit** via `docker run --rm`.
 
-## Network: walled, allowlist-only
-There is no general internet. All egress is forced through a proxy that **denies by default**; direct (non-proxy) traffic has no route at all. Loopback (`localhost`, `127.0.0.1`, `::1`) is pre-exempted from the proxy via `no_proxy`, so local dev servers and browsers reach it directly.
+## Network is walled, allowlist-only
 
-Allow domains include package registries, GitHub, Anthropic (APIs only), canonical man text, etc. This is configurable. When a request fails on the network, **tell me which domain it needed** so I can decide whether to add it. Don't silently work around it.
+All egress is forced through a proxy that **denies by default**, EXCEPT loopback (`localhost`, `127.0.0.1`, `::1`) via `no_proxy`.
 
-## Git
-
-Stale entries in the git index/cache whose underlying file no longer exists are safe to ignore — IDEs are sharing this repo's `.git`, so leftover cache/lock artifacts from one side aren't real problems for the other.
+Allow domains include package registries, GitHub, Anthropic (APIs only), canonical man text, etc. When encountering network errors, DO NOT WORK AROUND THE FIREWALL, instead tell me what domain failed.
