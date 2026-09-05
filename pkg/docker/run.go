@@ -89,8 +89,8 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
-		// Loopback-only: the client is TLS+password-protected, but its cert is self-signed
-		// and the password is a baked-in default, so keep it off the network.
+		// Loopback-only: the web client is basic-auth over plain HTTP with the baked
+		// default creds (ccboxvnc/ccboxvnc), so keep it off the network.
 		PortBindings: nat.PortMap{desktopWebPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopWebPort}}},
 		Binds: append(append(append([]string{
 			hostOptions.ConfigDir + ":" + configMount(hostOptions.CLI),

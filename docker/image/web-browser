@@ -1,0 +1,18 @@
+#!/bin/sh
+# Default GUI browser: the playwright-managed Chromium. Its sandbox stays off in the
+# devbox (no user namespaces) and GPU compositing off (no GPU).
+CHROME=""
+for chrome in \
+  "${PLAYWRIGHT_BROWSERS_PATH:-}"/*/*/chrome \
+  "$HOME"/.cache/ms-playwright/*/*/chrome
+do
+  if [ -f "$chrome" ]; then
+    CHROME="$chrome"
+    break
+  fi
+done
+if [ -z "$CHROME" ]; then
+  echo "web-browser: no playwright chromium found (looked in PLAYWRIGHT_BROWSERS_PATH, ~/.cache/ms-playwright)" >&2
+  exit 1
+fi
+exec "$CHROME" --no-sandbox --test-type --disable-dev-shm-usage "$@"

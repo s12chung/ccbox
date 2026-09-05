@@ -22,5 +22,6 @@ golangci-lint = "2.13.1"
 # Installs a lot of version independent apt-get packages
 [tools."npm:playwright"]
 version     = "latest"
-# Chromium system libs (no browser binaries)
-postinstall = "playwright install-deps chromium"
+# Chromium system libs (no browser binaries) + the browser itself, into
+# PLAYWRIGHT_BROWSERS_PATH (see Dockerfile) so the whole image shares one copy
+postinstall = "playwright install-deps chromium && playwright install chromium"

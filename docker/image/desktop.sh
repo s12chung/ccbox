@@ -11,7 +11,7 @@ export \
   KASM_VNC_PATH=/usr/share/kasmvnc \
   DISPLAY=:1 \
   VNC_PORT=5901 NO_VNC_PORT=6901 \
-  VNC_PW="${VNC_PW:-vncpassword}" VNC_VIEW_ONLY_PW="${VNC_VIEW_ONLY_PW:-vncviewonlypassword}" \
+  VNC_PW="${VNC_PW:-ccboxvnc}" VNC_VIEW_ONLY_PW="${VNC_VIEW_ONLY_PW:-vncviewonlypassword}" \
   VNC_COL_DEPTH=24 VNC_RESOLUTION="${VNC_RESOLUTION:-1280x1024}" MAX_FRAME_RATE=24 \
   VNCOPTIONS="-PreferBandwidth -DynamicQualityMin=4 -DynamicQualityMax=7 -DLP_ClipDelay=0" \
   KASMVNC_AUTO_RECOVER=true \
