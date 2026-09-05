@@ -1,6 +1,8 @@
 FROM ghcr.io/jdx/mise:2026.6.9 AS mise
 
-FROM debian:trixie-slim
+# kasmweb core is Debian + the KasmVNC desktop stack (/dockerstartup): GUI apps are usable
+# over VNC/web on 6901, started in the background by docker/image/desktop.sh.
+FROM kasmweb/core-debian-bookworm:1.19.0
 
 # Each row is a section:
 # - build toolchain
@@ -12,7 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         git curl less procps pkg-config unzip bind9-dnsutils \
-        libssl3t64 libyaml-0-2 zlib1g libffi8 libreadline8t64 libgmp10 libzstd1 \
+        libssl3 libyaml-0-2 zlib1g libffi8 libreadline8 libgmp10 libzstd1 \
         libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,8 +37,43 @@ RUN set -eux; \
     apt-get purge -y --auto-remove $buildDeps; \
     rm -rf /var/lib/apt/lists/*
 
-# Dedicated, unprivileged user. uid/gid 1000 matches the typical host user for bind-mount ownership.
-RUN groupadd --gid 1000 ccbox && useradd --uid 1000 --gid ccbox --shell /bin/bash --create-home ccbox
+# Desktop app: install the vendor .deb (Electron; apt resolves its deps) for the target
+# arch. Electron's sandbox needs setuid/user-namespaces, both gone in the devbox, so a
+# wrapper pins --no-sandbox and the .desktop launcher routes through it too. Autostart in
+# the VNC session rides the desktop stack's custom hook (docker/image/zcode-autostart.sh).
+ARG TARGETARCH
+ARG ZCODE_VERSION=3.11.2
+RUN set -eux; \
+    case "$TARGETARCH" in \
+    amd64) appArch=x64 ;; \
+    arm64) appArch=arm64 ;; \
+    *) echo "unsupported TARGETARCH: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL -o /tmp/app.deb "https://cdn-zcode.z.ai/zcode/electron/releases/${ZCODE_VERSION}/linux-${appArch}/ZCode-${ZCODE_VERSION}-linux-${appArch}.deb"; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends /tmp/app.deb; \
+    rm -f /tmp/app.deb; \
+    printf '#!/bin/sh\nexec /opt/ZCode/zcode --no-sandbox "$@"\n' > /usr/local/bin/zcode; \
+    chmod 755 /usr/local/bin/zcode; \
+    sed -i 's|^Exec=.*|Exec=zcode --no-sandbox %U|' /usr/share/applications/*.desktop; \
+    rm -rf /var/lib/apt/lists/*
+COPY --chmod=755 docker/image/zcode-autostart.sh /dockerstartup/custom_startup.sh
+
+# Dedicated, unprivileged user. uid/gid 1000 matches the typical host user for bind-mount
+# ownership; the desktop stack's stock user already holds the uid, so rename it in place
+# and move its home to the ccbox layout. Re-running the profile step populates the home
+# from the stack's template (re-owned to uid 1000) and re-points the VNC web root's
+# Downloads symlink; the sweep rewrites home configs still holding the old path. Pipeline
+# status is xargs's, so grep's no-match exit is fine to drop. The bashrc line's $STARTUPDIR
+# is quoted literally — it's expanded by the shell that sources the line at runtime.
+# hadolint ignore=DL4006,SC2016
+RUN groupmod -n ccbox kasm-user \
+    && usermod -l ccbox -s /bin/bash -d /home/ccbox -m kasm-user \
+    && rm -f /home/ccbox/.bashrc \
+    && HOME=/home/ccbox bash /dockerstartup/kasm_default_profile.sh true \
+    && echo 'source $STARTUPDIR/generate_container_user' >> /home/ccbox/.bashrc \
+    && chown -R ccbox:ccbox /home/ccbox \
+    && grep -rl /home/kasm-user /home/ccbox | xargs -r sed -i s#/home/kasm-user#/home/ccbox#g
 ENV DEVCONTAINER=true
 
 # Managed-policy CLAUDE.md: org-wide memory, highest precedence, loaded every session for all users.

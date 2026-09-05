@@ -49,4 +49,11 @@ if [ -n "${http_proxy:-}" ]; then
   fi
 fi
 
+# Desktop (if the image has one): serve the GUI over VNC in the background. DISPLAY
+# exports so ad-hoc GUI apps launched from the terminal session land on the desktop too.
+if [ -x /usr/local/bin/desktop ]; then
+  /usr/local/bin/desktop &
+  export DISPLAY=:1
+fi
+
 exec "$@"

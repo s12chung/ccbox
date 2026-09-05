@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/docker/go-connections/nat"
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -15,6 +16,11 @@ import (
 )
 
 const proxyPort = "8888"
+
+// desktopWebPort is the port the image's desktop serves its browser client on (VNC over
+// web). Published on the host loopback, so the GUI is at https://localhost:6901 when the
+// image ships a desktop; nothing listens behind the port when it doesn't.
+const desktopWebPort = "6901"
 
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
@@ -83,6 +89,9 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
+		// Loopback-only: the client is TLS+password-protected, but its cert is self-signed
+		// and the password is a baked-in default, so keep it off the network.
+		PortBindings: nat.PortMap{desktopWebPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopWebPort}}},
 		Binds: append(append(append([]string{
 			hostOptions.ConfigDir + ":" + configMount(hostOptions.CLI),
 			hostOptions.CcboxDir + ":" + ccboxMount,
