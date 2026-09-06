@@ -22,12 +22,57 @@ func mkDefaultDirs(t *testing.T, dir string) {
 	}
 }
 
+// useUserConfigFile points userConfigFile at dir/ccbox.yaml, restoring after the test.
+func useUserConfigFile(t *testing.T, dir string) {
+	t.Helper()
+	saved := userConfigFile
+	t.Cleanup(func() { userConfigFile = saved })
+	userConfigFile = filepath.Join(dir, userFileName)
+}
+
+// writeConfig writes body to the named config file in dir, wiring the user file to its
+// own temp dir. Returns the path written.
+func writeConfig(t *testing.T, dir string, name string, body string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	if name == userFileName {
+		useUserConfigFile(t, t.TempDir())
+		path = userConfigFile
+	}
+	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+	return path
+}
+
+// configFiles lists the config files by level term and file name, in load order
+// (lowest precedence first)
+var configFiles = []struct {
+	term string // user, project, local
+	name string
+}{
+	{"user", userFileName},
+	{"project", projectFileName},
+	{"local", localFileName},
+}
+
+// TestMain defaults userConfigFile to a nonexistent temp path, so tests don't read the
+// developer's real user-level config; useUserConfigFile overrides per-test.
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "projectcfg")
+	if err != nil {
+		panic(err)
+	}
+	userConfigFile = filepath.Join(dir, userFileName)
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
+
 func TestLoadParses(t *testing.T) {
 	dir := t.TempDir()
 	mkDefaultDirs(t, dir)
 	body := "cli: codex\ntmpfs:\n  - dist\n  - build\nenv:\n  FOO: bar\n" +
 		"allowlist:\n  - ccbox-defaults\n  - example.com\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(body), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -50,7 +95,7 @@ func TestLoadUnsetGetsDefaults(t *testing.T) {
 			dir := t.TempDir()
 			mkDefaultDirs(t, dir)
 			if tt.write {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), ioutil.File))
+				require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(""), ioutil.File))
 			}
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
@@ -96,7 +141,7 @@ func TestInitWritesLoadableDefault(t *testing.T) {
 	dir := t.TempDir()
 	path, err := Init(dir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, fileName), path)
+	assert.Equal(t, filepath.Join(dir, projectFileName), path)
 
 	c, err := Load(dir, Config{}) // the written scaffold must resolve to the no-file behavior
 	require.NoError(t, err)
@@ -107,7 +152,7 @@ func TestInitWritesLoadableDefault(t *testing.T) {
 
 func TestInitRefusesExisting(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("tmpfs: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfs: []\n"), ioutil.File))
 
 	_, err := Init(dir)
 	assert.ErrorContains(t, err, "already exists")
@@ -121,7 +166,7 @@ func TestDefaultedAllowlistNilVsEmpty(t *testing.T) {
 
 func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("allowlist: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("allowlist: []\n"), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -138,41 +183,50 @@ func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
 	}
 }
 
-func TestLoadMergesLocalOverride(t *testing.T) {
+func TestLoadLayersFiles(t *testing.T) {
 	dir := t.TempDir()
 	mkDefaultDirs(t, dir)
-	base := "cli: claude\ntmpfs:\n  - dist\nenv:\n  FOO: base\n  BAR: base\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n"
-	local := "cli: codex\ntmpfs:\n  - build\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(base), ioutil.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte(local), ioutil.File))
+	bodies := map[string]string{ // one entry per configFiles term
+		"user":    "cli: grok\ntmpfs:\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
+		"project": "cli: claude\ntmpfs:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
+		"local":   "cli: codex\ntmpfs:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",
+	}
+	for _, cf := range configFiles {
+		writeConfig(t, dir, cf.name, bodies[cf.term])
+	}
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", c.CLI)                                          // scalar override, local wins
-	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs)  // lists append, base first
-	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base"}, c.Env) // env overlays, local wins
-	assert.Equal(t, append(allowDefaults(), "example.com"), c.Allowlist)     // merged, then token expanded
-	assert.Equal(t, new(false), c.HostGitConfig)                             // scalar override, local wins
+	assert.Equal(t, "codex", c.CLI)                                                                               // scalars: later layer wins
+	assert.Equal(t, []string{".idea", ".vscode", "dist", "build", "cache"}, c.Tmpfs)                              // lists append, lowest layer first
+	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)                    // env overlays, later wins
+	assert.Equal(t, append(append([]string{"user.example.dev"}, allowDefaults()...), "example.com"), c.Allowlist) // lists append, token expands in place
+	assert.Equal(t, new(false), c.HostGitConfig)                                                                  // scalars: later layer wins
 }
 
-func TestLoadLocalOnly(t *testing.T) {
-	dir := t.TempDir() // no base .ccbox.yaml
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName),
-		[]byte("allowlist:\n  - example.com\n"), ioutil.File))
+func TestLoadSingleFileOnly(t *testing.T) {
+	for _, cf := range configFiles { // the other files are absent
+		t.Run(cf.term, func(t *testing.T) {
+			dir := t.TempDir()
+			writeConfig(t, dir, cf.name, "cli: grok\nallowlist:\n  - example.com\n")
 
-	c, err := Load(dir, Config{})
-	require.NoError(t, err)
-	assert.Equal(t, []string{"example.com"}, c.Allowlist) // no base, no token → just the override
+			c, err := Load(dir, Config{})
+			require.NoError(t, err)
+			assert.Equal(t, "grok", c.CLI)
+			assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
+		})
+	}
 }
 
 func TestLoadInvalidErrors(t *testing.T) {
-	for _, name := range []string{fileName, localFileName} { // malformed yaml in either file errors
-		t.Run(name, func(t *testing.T) {
+	for _, cf := range configFiles { // malformed yaml in any file errors
+		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("tmpfs: ["), ioutil.File))
+			path := writeConfig(t, dir, cf.name, "tmpfs: [")
 
 			_, err := Load(dir, Config{})
-			assert.Error(t, err)
+			require.Error(t, err)
+			assert.ErrorContains(t, err, path) // the error names the offending file
 		})
 	}
 }
@@ -211,13 +265,13 @@ func TestMergeIsPure(t *testing.T) {
 	assert.Equal(t, []string{"target", "cache"}, got.Volumes)
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
-	assert.Equal(t, new(false), got.HostGitConfig) // scalar: other (local) wins when set
-	assert.Equal(t, "codex", got.CLI)              // scalar: other (local) wins when set
+	assert.Equal(t, new(false), got.HostGitConfig) // scalar: other (the later layer) wins when set
+	assert.Equal(t, "codex", got.CLI)              // scalar: other (the later layer) wins when set
 }
 
 func TestLoadRejectsUnknownCLI(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: emacs\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("cli: emacs\n"), ioutil.File))
 
 	_, err := Load(dir, Config{})
 	require.ErrorContains(t, err, "is not one of [claude codex grok opencode]")
@@ -239,7 +293,7 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(tt.body), ioutil.File))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(tt.body), ioutil.File))
 
 			_, err := Load(dir, Config{})
 			require.Error(t, err)
@@ -251,25 +305,24 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 }
 
 func TestLoadRejectsUnknownKeys(t *testing.T) {
-	for _, name := range []string{fileName, localFileName} {
-		t.Run(name, func(t *testing.T) {
+	for _, cf := range configFiles {
+		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			body := "cli: claude\nbogus: true\n"
-			if name == localFileName {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), ioutil.File))
+			if cf.term == "local" { // empty project file so the error attributes to local
+				writeConfig(t, dir, projectFileName, "")
 			}
-			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), ioutil.File))
+			writeConfig(t, dir, cf.name, "cli: claude\nbogus: true\n")
 
 			_, err := Load(dir, Config{})
 			require.ErrorContains(t, err, "field bogus not found")
-			assert.ErrorContains(t, err, name) // the error names the offending file
+			assert.ErrorContains(t, err, cf.name) // the error names the offending file
 		})
 	}
 }
 
 func TestLoadFlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: claude\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("cli: claude\n"), ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), ioutil.File))
 
 	c, err := Load(dir, Config{CLI: "grok"})

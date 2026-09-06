@@ -14,11 +14,19 @@ The one deliberate exception is **what you mount**. Whatever you bind-mount into
 
 As a safety net for accidents, the CLI is also seeded to refuse reading common secret files (`.env`, `*.pem`, `*.key`, `secrets/`) and to ask before shell commands touch them. These don't add protection beyond the mount — anything inside it can still be reached.
 
-## Per-project config (`.ccbox.yaml`)
+## Config
 
-`ccbox` has an internal default. `ccbox config` prints the effective config with defaults applied. `ccbox config init` creates a documented default. The `cli` key picks which CLI to install and launch: `claude` (default) or `codex`. For git-ignoring, `.ccbox.local.yaml` (same format) is merged for machine-local overrides — top level arrays are appended.
+The config level hierarchy is:
+
+- Internal Defaults
+- User - `~/.ccbox/config/ccbox.yaml` (no dot)
+- Project - `project_dir/.ccbox.yaml`
+- Project Local - `project_dir/.ccbox.local.yaml` (for git ignore)
+- `ccbox` flags
+
+`ccbox` has an internal default. `ccbox config` prints the effective config with defaults applied. `ccbox config init` creates a documented default. When merging configs, arrays are appended and maps are merged for `tmpfs`, `volumes`, `env`, and `allowlist`.
 
 ## Docs
 
 - **[`docker/image/CLAUDE.admin.md`](docker/image/CLAUDE.admin.md)** — start here: the container the CLI runs inside (user, network wall, what's installed).
-- **[`CLAUDE.md`](CLAUDE.md)** — the project layout: the `ccbox` CLI, the build inputs, and how to build/test.
+- **[`AGENTS.md`](AGENTS.md)** — the project layout: the `ccbox` CLI, the build inputs, and how to build/test.

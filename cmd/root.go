@@ -30,7 +30,8 @@ var (
 // exitCode lets `run` propagate the container's exit status out through Execute.
 var exitCode int
 
-// projectCfg is the cwd's .ccbox.yaml, loaded once before any command runs.
+// projectCfg is the layered config (user < project < local < flags), loaded once
+// before any command runs.
 var projectCfg projectcfg.Config
 
 var rootCmd = &cobra.Command{

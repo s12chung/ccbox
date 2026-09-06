@@ -1,4 +1,5 @@
-// Package projectcfg loads the per-project .ccbox.yaml from a workspace repo root
+// Package projectcfg loads the config file layers — user (ConfigDir), project
+// (workspace repo root), local (git-ignored) — lowest precedence first
 package projectcfg
 
 import (
@@ -17,14 +18,17 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
 
-const fileName = ".ccbox.yaml"
-
 const (
-	// localFileName is for git-ignored override merged onto fileName: lists append, env overlays.
+	// userFileName is the user-level config's name under ConfigDir (no dot)
+	userFileName = "ccbox.yaml"
+	// projectFileName is the project-level config's name at the workspace repo root
+	projectFileName = ".ccbox.yaml"
+	// localFileName is the project-local, git-ignored override
 	localFileName = ".ccbox.local.yaml"
 	// DefaultsToken listed in allowlist, expands in place to allowDefaults
 	DefaultsToken = "ccbox-defaults" // #nosec G101 -- config expansion keyword, not a credential
@@ -47,7 +51,7 @@ var defaultYAML string
 // Init writes defaultYAML to workspaceDir/.ccbox.yaml and returns its path.
 // It refuses to clobber an existing file.
 func Init(workspaceDir string) (string, error) {
-	path := filepath.Join(workspaceDir, fileName)
+	path := filepath.Join(workspaceDir, projectFileName)
 	switch _, err := os.Stat(path); {
 	case err == nil:
 		return "", fmt.Errorf("%s already exists", path)
@@ -57,11 +61,18 @@ func Init(workspaceDir string) (string, error) {
 	return path, os.WriteFile(path, []byte(defaultYAML), ioutil.File)
 }
 
-// Load reads workspaceDir/.ccbox.yaml, layers .ccbox.local.yaml onto it, then
-// CLI flags. Both files are optional — absent ones contribute the zero
-// Config, so repos without either keep working.
+// userConfigFile is the user-level config's path. Tests point it at a temp tree.
+var userConfigFile = filepath.Join(userdir.ConfigDir(), userFileName)
+
+// Load reads the user file, then the project's .ccbox.yaml, layers the local override
+// onto it, then CLI flags. All files are optional — absent ones contribute the zero
+// Config, so repos without any keep working.
 func Load(workspaceDir string, flags Config) (Config, error) {
-	base, err := read(filepath.Join(workspaceDir, fileName))
+	user, err := read(userConfigFile)
+	if err != nil {
+		return Config{}, err
+	}
+	project, err := read(filepath.Join(workspaceDir, projectFileName))
 	if err != nil {
 		return Config{}, err
 	}
@@ -69,7 +80,7 @@ func Load(workspaceDir string, flags Config) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	c := Defaulted(workspaceDir, base.merge(local).merge(flags))
+	c := Defaulted(workspaceDir, user.merge(project).merge(local).merge(flags))
 	if errMap := firm.ValidateAny(c); errMap != nil {
 		return Config{}, errMap
 	}
@@ -131,9 +142,10 @@ func (c Config) merge(other Config) Config {
 	return c
 }
 
-// read parses the .ccbox.yaml at path. A missing file yields the zero Config
+// read parses one layer's config file: user, project, or local. A missing file yields
+// the zero Config
 func read(path string) (Config, error) {
-	body, err := os.ReadFile(path) // #nosec G304 -- path is the workspace's own .ccbox.yaml
+	body, err := os.ReadFile(path) // #nosec G304 -- path is the user's or project's own ccbox.yaml
 	if errors.Is(err, fs.ErrNotExist) {
 		return Config{}, nil
 	}
