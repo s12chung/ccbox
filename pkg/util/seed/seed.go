@@ -1,5 +1,5 @@
-// Package seed lays embedded config trees onto host directories, backing up
-// any files it would overwrite.
+// Package seed lays config content onto host paths: whole trees, backing up any
+// files it would overwrite, and single files that never touch existing ones.
 package seed
 
 import (
@@ -13,6 +13,25 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
+
+// ErrExists reports that File's path already exists: an existing file is never
+// touched, so there is nothing to seed.
+var ErrExists = errors.New("seed: file already exists")
+
+// File seeds path with body when absent, creating its parent dir. An existing file
+// is never touched: the returned error wraps ErrExists, carrying the path.
+func File(path, body string) error {
+	switch _, err := os.Stat(path); {
+	case err == nil:
+		return fmt.Errorf("%s: %w", path, ErrExists)
+	case !errors.Is(err, fs.ErrNotExist):
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), ioutil.Dir); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(body), ioutil.File)
+}
 
 // ErrNoChanges reports that Tree made no changes: every destination already
 // matched its source, so nothing was written or backed up.

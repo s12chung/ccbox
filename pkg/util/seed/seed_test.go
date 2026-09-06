@@ -109,6 +109,25 @@ func TestTreeBackupExistsErrors(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
 }
 
+func TestFileSeeds(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config", "ccbox.yaml") // parent dir absent
+
+	require.NoError(t, File(path, "new body"))
+
+	assertFile(t, path, "new body")
+	assertMode(t, path, ioutil.File)
+}
+
+func TestFileSkipsExisting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ccbox.yaml")
+	writeFile(t, path, "user's own config")
+
+	err := File(path, "new body")
+	assert.ErrorIs(t, err, ErrExists)
+	assert.ErrorContains(t, err, path, "the error carries the path")
+	assertFile(t, path, "user's own config")
+}
+
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))

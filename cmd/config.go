@@ -26,7 +26,7 @@ var configCmd = &cobra.Command{
 
 var configInitCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Write a starter .ccbox.yaml with the documented defaults",
+	Short: "Write a starter .ccbox.yaml template to fill in",
 	RunE: func(_ *cobra.Command, _ []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {

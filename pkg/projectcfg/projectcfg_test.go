@@ -12,6 +12,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 // mkDefaultDirs creates the tmpfsDefaults under dir so they get prepended.
@@ -76,7 +77,7 @@ func TestLoadParses(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", c.CLI)
+	assert.Equal(t, "codex", *c.CLI)
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs) // present defaults prepended
 	assert.Equal(t, map[string]string{"FOO": "bar"}, c.Env)
 	assert.Equal(t, append(allowDefaults(), "example.com"), c.Allowlist) // token expanded
@@ -99,7 +100,7 @@ func TestLoadUnsetGetsDefaults(t *testing.T) {
 			}
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, "claude", c.CLI)              // unset cli → claude
+			assert.Equal(t, "claude", *c.CLI)             // unset cli → claude
 			assert.Equal(t, tmpfsDefaults, c.Tmpfs)       // present always-on masks
 			assert.Equal(t, allowDefaults(), c.Allowlist) // unset allowlist → the built-ins
 		})
@@ -143,11 +144,12 @@ func TestInitWritesLoadableDefault(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, projectFileName), path)
 
-	c, err := Load(dir, Config{}) // the written scaffold must resolve to the no-file behavior
+	// the written scaffold must resolve exactly like no file at all
+	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, Defaulted(dir, Config{}).Tmpfs, c.Tmpfs)
-	assert.Equal(t, Defaulted(dir, Config{}).Allowlist, c.Allowlist)
-	assert.Empty(t, c.Env)
+	fresh, err := Load(t.TempDir(), Config{})
+	require.NoError(t, err)
+	assert.Equal(t, fresh, c)
 }
 
 func TestInitRefusesExisting(t *testing.T) {
@@ -155,7 +157,79 @@ func TestInitRefusesExisting(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfs: []\n"), ioutil.File))
 
 	_, err := Init(dir)
-	assert.ErrorContains(t, err, "already exists")
+	assert.ErrorIs(t, err, seed.ErrExists)
+}
+
+func TestSeedUserConfigSeeds(t *testing.T) {
+	dir := t.TempDir()
+	useUserConfigFile(t, dir)
+
+	path, err := SeedUserConfig()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, userFileName), path)
+
+	// the seed must load exactly like no user file at all
+	seeded, err := Load(dir, Config{})
+	require.NoError(t, err)
+	useUserConfigFile(t, t.TempDir()) // now missing
+	fresh, err := Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, fresh, seeded)
+}
+
+func TestSeedUserConfigSkipsExisting(t *testing.T) {
+	dir := t.TempDir()
+	useUserConfigFile(t, dir)
+	writeConfig(t, dir, userFileName, "cli: codex\n")
+
+	path, err := SeedUserConfig()
+	require.NoError(t, err)
+	assert.Empty(t, path)
+}
+
+func TestRenderConfigVariants(t *testing.T) {
+	seed, err := renderConfig(userSeedConfig())
+	require.NoError(t, err)
+	assert.Contains(t, seed, "cli: claude\n")
+	assert.Contains(t, seed, "host_git_config: true\n")
+	assert.Contains(t, seed, "allowlist:\n  - ccbox-defaults\n")
+
+	scaffold, err := renderConfig(Config{})
+	require.NoError(t, err)
+	assert.Contains(t, scaffold, "cli:")
+	assert.NotContains(t, scaffold, "cli: claude") // unset keys stay bare
+	assert.NotContains(t, scaffold, "host_git_config: true")
+	assert.Contains(t, scaffold, "  # - example.com") // examples stay commented
+}
+
+// TestRenderConfigFixtures pins the render output to the committed testdata fixtures,
+// which `make lint` yq-checks as YAML. Regenerate with:
+// `UPDATE_FIXTURES=1 go test ./pkg/projectcfg/ -run TestRenderConfigFixtures`
+// (an env var, not a flag: the go tool doesn't forward -update reliably)
+func TestRenderConfigFixtures(t *testing.T) {
+	for _, tt := range []struct {
+		name string // fixture name: testdata/<name>.ccbox.yaml
+		c    Config
+	}{
+		{"init", Config{}},              // `ccbox config init`'s fill-in scaffold
+		{"user-seed", userSeedConfig()}, // the safe-seeded user-level config
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := renderConfig(tt.c)
+			require.NoError(t, err)
+
+			path := filepath.Join("testdata", tt.name+".ccbox.yaml")
+			if os.Getenv("UPDATE_FIXTURES") != "" {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
+				require.NoError(t, os.WriteFile(path, []byte(got), ioutil.File))
+			}
+
+			// #nosec G304 -- the package's own fixture path
+			want, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, string(want), got)
+		})
+	}
 }
 
 func TestDefaultedAllowlistNilVsEmpty(t *testing.T) {
@@ -197,7 +271,7 @@ func TestLoadLayersFiles(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", c.CLI)                                                                               // scalars: later layer wins
+	assert.Equal(t, "codex", *c.CLI)                                                                              // scalars: later layer wins
 	assert.Equal(t, []string{".idea", ".vscode", "dist", "build", "cache"}, c.Tmpfs)                              // lists append, lowest layer first
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)                    // env overlays, later wins
 	assert.Equal(t, append(append([]string{"user.example.dev"}, allowDefaults()...), "example.com"), c.Allowlist) // lists append, token expands in place
@@ -212,7 +286,7 @@ func TestLoadSingleFileOnly(t *testing.T) {
 
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, "grok", c.CLI)
+			assert.Equal(t, "grok", *c.CLI)
 			assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
 		})
 	}
@@ -233,7 +307,7 @@ func TestLoadInvalidErrors(t *testing.T) {
 
 func TestMergeIsPure(t *testing.T) {
 	src := Config{
-		CLI:           "claude",
+		CLI:           new("claude"),
 		Tmpfs:         []string{"dist"},
 		Volumes:       []string{"target"},
 		Env:           map[string]string{"FOO": "base", "BAR": "base"},
@@ -241,7 +315,7 @@ func TestMergeIsPure(t *testing.T) {
 		HostGitConfig: new(true),
 	}
 	other := Config{
-		CLI:           "codex",
+		CLI:           new("codex"),
 		Tmpfs:         []string{"build"},
 		Volumes:       []string{"cache"},
 		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
@@ -266,7 +340,7 @@ func TestMergeIsPure(t *testing.T) {
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
 	assert.Equal(t, new(false), got.HostGitConfig) // scalar: other (the later layer) wins when set
-	assert.Equal(t, "codex", got.CLI)              // scalar: other (the later layer) wins when set
+	assert.Equal(t, "codex", *got.CLI)             // scalar: other (the later layer) wins when set
 }
 
 func TestLoadRejectsUnknownCLI(t *testing.T) {
@@ -325,14 +399,14 @@ func TestLoadFlagsOverrideFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("cli: claude\n"), ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), ioutil.File))
 
-	c, err := Load(dir, Config{CLI: "grok"})
+	c, err := Load(dir, Config{CLI: new("grok")})
 	require.NoError(t, err)
-	assert.Equal(t, "grok", c.CLI) // a set flag wins over both files
+	assert.Equal(t, "grok", *c.CLI) // a set flag wins over both files
 
 	c, err = Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", c.CLI) // an unset flag keeps the files' layering
+	assert.Equal(t, "codex", *c.CLI) // an unset flag keeps the files' layering
 
-	_, err = Load(dir, Config{CLI: "emacs"})
+	_, err = Load(dir, Config{CLI: new("emacs")})
 	assert.ErrorContains(t, err, "is not one of") // the flag value validates like a file's
 }

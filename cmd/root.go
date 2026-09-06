@@ -11,6 +11,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
@@ -24,7 +25,7 @@ var (
 // Shared flags.
 var (
 	flagTag string
-	flagCLI string
+	flagCLI *string
 )
 
 // exitCode lets `run` propagate the container's exit status out through Execute.
@@ -44,6 +45,9 @@ var rootCmd = &cobra.Command{
 	RunE:          runDevbox,
 	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 		if err := safeSeedUserClis(); err != nil {
+			return err
+		}
+		if err := safeSeedUserConfig(); err != nil {
 			return err
 		}
 		cwd, err := os.Getwd()
@@ -69,7 +73,7 @@ func Execute(build, proxy embed.FS) int {
 func init() {
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
-	pf.StringVar(&flagCLI, "cli", "", "override the coding CLI set in .ccbox.yaml")
+	pf.Var(flagutils.StringPtr(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
 
 	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
 }
@@ -77,4 +81,14 @@ func init() {
 // safeSeedUserClis seeds harness.UserCLIsDir() if missing
 func safeSeedUserClis() error {
 	return safeSeed(fsutil.MustNewFS(harness.SeedUserClisFS()), harness.UserCLIsDir(), false)
+}
+
+// safeSeedUserConfig seeds the user-level config template if missing
+func safeSeedUserConfig() error {
+	seeded, err := projectcfg.SeedUserConfig()
+	if err != nil || seeded == "" { // "" = the file already existed: no seed, so no log
+		return err
+	}
+	log.Infof("seeded %s", seeded)
+	return nil
 }

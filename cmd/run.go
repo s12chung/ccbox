@@ -48,7 +48,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 
 	return docker.RunOptions{
 		Tag:          flagTag,
-		CLI:          projectCfg.CLI,
+		CLI:          *projectCfg.CLI,
 		ConfigDir:    m.config,
 		CcboxDir:     m.ccbox,
 		Cwd:          m.cwd,
@@ -57,7 +57,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		Env:          projectCfg.Env,
 		Tmpfs:        projectCfg.Tmpfs,
 		Volumes:      projectCfg.Volumes,
-		Cmd:          harness.MustFor(projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
+		Cmd:          harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,
 		ProxyLogPath: filepath.Join(userdir.Dir(), "proxy.log"),
@@ -117,13 +117,13 @@ func resolveHostMounts(userDir string) (hostMounts, error) {
 	if err != nil {
 		return hostMounts{}, err
 	}
-	if err := safeSeedCLIConfig(userDir, projectCfg.CLI, false); err != nil {
+	if err := safeSeedCLIConfig(userDir, *projectCfg.CLI, false); err != nil {
 		return hostMounts{}, err
 	}
 	if err := safeSeedProjectDir(userDir, cwd); err != nil {
 		return hostMounts{}, err
 	}
-	return hostMounts{cwd: cwd, config: cliConfigDir(userDir, projectCfg.CLI), ccbox: projectDir(userDir, cwd)}, nil
+	return hostMounts{cwd: cwd, config: cliConfigDir(userDir, *projectCfg.CLI), ccbox: projectDir(userDir, cwd)}, nil
 }
 
 // hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when

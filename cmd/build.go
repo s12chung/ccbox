@@ -21,7 +21,7 @@ var buildCmd = &cobra.Command{
 
 // build builds the devbox image; `run` calls it too, mirroring the old `run: build`.
 func build(ctx context.Context) error {
-	cli := harness.MustFor(projectCfg.CLI)
+	cli := harness.MustFor(*projectCfg.CLI)
 
 	// Pin "latest" now so the image records the concrete version, not a moving tag.
 	if flagCLIVersion == "latest" {
