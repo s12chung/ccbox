@@ -9,12 +9,12 @@ cli:{{yaml .CLI}}
 # honors your global ignore/config/attributes
 host_git_config:{{yaml .HostGitConfig}}
 
-# tmpfs: workspace-relative dirs masked with a tmpfs, so in-container writes never reach the host
+# tmpfs: project-relative dirs masked with a tmpfs, so in-container writes never reach the host
 # Useful for protecting directories from the container
 tmpfs:{{yaml .Tmpfs}}
   # - dist
 
-# volumes: workspace-relative dirs masked with a PERSISTENT per-project volume to avoid collisions with host
+# volumes: project-relative dirs masked with a PERSISTENT per-project volume to avoid collisions with host
 volumes:{{yaml .Volumes}}
   # - vendor/bundle
 

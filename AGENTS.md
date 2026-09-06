@@ -15,7 +15,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`cmd/`** — thin cobra commands: gather flags/env and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
-  - `projectcfg/` — related to `.ccbox.yaml` from a workspace repo root, also contains any defaulting
+  - `projectcfg/` — related to `ccbox` Config as described in the README
   - `harness/` — individual harness/cli related code; embeds its seed trees under `clis/`: it lays these onto the host config dir which is then mounted to the container. Only the configured CLI's config dir is seeded and mounted.
     - `shared/` — shared across CLIs: one `AGENTS.user.md`, renamed to the CLI's live memory file on seed (`CLAUDE.md` / `AGENTS.md`)
     - `(per-CLI directories)/` — each CLI's native config, `~/.ccbox/<cli>` → `~/ccbox/.<config>` (e.g. `.claude`)

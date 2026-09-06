@@ -22,12 +22,12 @@ type RunOptions struct {
 	CLI          string            // selects the config mount target (each CLI's native default dir)
 	ConfigDir    string            // host dir bind-mounted at the CLI's configMount
 	CcboxDir     string            // host dir bind-mounted at ccboxMount
-	Cwd          string            // host dir bind-mounted at workspaceMount
+	Cwd          string            // host project dir bind-mounted at workspaceMount
 	GitConfigDir string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
 	GHToken      string            // GH_TOKEN passed through for gh
 	Env          map[string]string // extra container env
-	Tmpfs        []string          // workspace-relative dirs to mask with an ephemeral tmpfs
-	Volumes      []string          // workspace-relative dirs to mask with a persistent per-project volume
+	Tmpfs        []string          // project-relative dirs to mask with an ephemeral tmpfs
+	Volumes      []string          // project-relative dirs to mask with a persistent per-project volume
 	Cmd          []string          // command the entrypoint execs; nil uses the image default (shell)
 
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
@@ -36,7 +36,7 @@ type RunOptions struct {
 }
 
 const (
-	containerHome = "/home/ccbox"                // the workspace mounts under containerHome at a per-project leaf
+	containerHome = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
 	ccboxMount    = "/home/ccbox/.ccbox/project" // per-project devbox state (e.g. lessons)
 
 	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)

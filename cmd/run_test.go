@@ -13,7 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
-const testWorkspace = "/work/myproj"
+const testProjectDir = "/work/myproj"
 
 func TestResumeArgs(t *testing.T) {
 	defer func() { flagResume = false }()
@@ -42,9 +42,9 @@ func TestResumeArgs(t *testing.T) {
 	}
 }
 
-func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
+func TestSafeSeedProjectStateDirMissingSeeds(t *testing.T) {
 	userDir := t.TempDir()
-	wantDir := projectDir(userDir, testWorkspace)
+	wantDir := projectStateDir(userDir, testProjectDir)
 
 	var gotDir string
 	called := false
@@ -53,14 +53,14 @@ func TestSafeSeedProjectDirMissingSeeds(t *testing.T) {
 		return nil, nil
 	})()
 
-	require.NoError(t, safeSeedProjectDir(userDir, testWorkspace))
+	require.NoError(t, safeSeedProjectStateDir(userDir, testProjectDir))
 	assert.True(t, called, "seedTreeFn not called for missing dir")
 	assert.Equal(t, wantDir, gotDir, "seeded dir")
 }
 
-func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
+func TestSafeSeedProjectStateDirExistingSkips(t *testing.T) {
 	userDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(projectDir(userDir, testWorkspace), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(projectStateDir(userDir, testProjectDir), ioutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
@@ -68,17 +68,17 @@ func TestSafeSeedProjectDirExistingSkips(t *testing.T) {
 		return nil, nil
 	})()
 
-	require.NoError(t, safeSeedProjectDir(userDir, testWorkspace))
+	require.NoError(t, safeSeedProjectStateDir(userDir, testProjectDir))
 	assert.False(t, called, "seedTreeFn called for existing dir")
 }
 
-func TestSafeSeedProjectDirPropagatesSeedError(t *testing.T) {
+func TestSafeSeedProjectStateDirPropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
 		return nil, wantErr
 	})()
 
-	assert.ErrorIs(t, safeSeedProjectDir(t.TempDir(), testWorkspace), wantErr)
+	assert.ErrorIs(t, safeSeedProjectStateDir(t.TempDir(), testProjectDir), wantErr)
 }
 
 func TestMasksOnHost(t *testing.T) {

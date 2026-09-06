@@ -120,10 +120,10 @@ func resolveHostMounts(userDir string) (hostMounts, error) {
 	if err := safeSeedCLIConfig(userDir, *projectCfg.CLI, false); err != nil {
 		return hostMounts{}, err
 	}
-	if err := safeSeedProjectDir(userDir, cwd); err != nil {
+	if err := safeSeedProjectStateDir(userDir, cwd); err != nil {
 		return hostMounts{}, err
 	}
-	return hostMounts{cwd: cwd, config: cliConfigDir(userDir, *projectCfg.CLI), ccbox: projectDir(userDir, cwd)}, nil
+	return hostMounts{cwd: cwd, config: cliConfigDir(userDir, *projectCfg.CLI), ccbox: projectStateDir(userDir, cwd)}, nil
 }
 
 // hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when
@@ -135,12 +135,12 @@ func hostGitConfigDir() (string, error) {
 	return git.XDGConfigDir()
 }
 
-// safeSeedProjectDir seeds projectDir() if missing
-func safeSeedProjectDir(userDir, cwd string) error {
-	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), projectDir(userDir, cwd), false)
+// safeSeedProjectStateDir seeds projectStateDir() if missing
+func safeSeedProjectStateDir(userDir, cwd string) error {
+	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), projectStateDir(userDir, cwd), false)
 }
 
-// projectDir is the host state dir for a project: userDir/projects/<slug>
-func projectDir(userDir, cwd string) string {
+// projectStateDir is the host state dir for a project: userDir/projects/<slug>
+func projectStateDir(userDir, cwd string) string {
 	return filepath.Join(userDir, "projects", docker.ProjectSlug(cwd))
 }

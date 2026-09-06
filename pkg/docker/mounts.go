@@ -21,11 +21,11 @@ const (
 	containerUID = "1000"
 )
 
-// tmpfsOpts makes a workspace tmpfs writable+executable by that user, so masked build
+// tmpfsOpts makes a masked project dir's tmpfs writable+executable by that user, so masked build
 // outputs (e.g. dist/) can be written and run — Docker's default is root-owned noexec.
 var tmpfsOpts = fmt.Sprintf("uid=%s,gid=%s,exec", containerUID, containerUID)
 
-// tmpfsMasks maps each workspace-relative path to its tmpfs options.
+// tmpfsMasks maps each project-relative path to its tmpfs options.
 func tmpfsMasks(hostCwd string, hostPaths []string) (map[string]string, error) {
 	workspaceMount := WorkspaceMount(hostCwd)
 	tmpfs := map[string]string{}
@@ -76,7 +76,7 @@ func cacheVolumeBinds(hostCwd string) []string {
 	return binds
 }
 
-// maskVolumeName is hostCwd's persistent volume for a workspace-relative masked dir
+// maskVolumeName is hostCwd's persistent volume for a project-relative masked dir
 func maskVolumeName(hostCwd, rel string) string {
 	return cacheVolumeName(hostCwd, strings.ReplaceAll(rel, "/", "-"))
 }
@@ -132,7 +132,7 @@ func volumeLabels(hostCwd string) map[string]string {
 	return map[string]string{ccboxLabel: "true", projectLabel: hostCwd}
 }
 
-// safeContainerPath joins a workspace-relative path under workspaceMount
+// safeContainerPath joins a project-relative path under workspaceMount
 // rejecting unsafe paths ("..", absolute)
 func safeContainerPath(workspaceMount, hostPath string) (string, error) {
 	dest := filepath.Join(workspaceMount, hostPath)

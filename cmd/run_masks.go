@@ -8,7 +8,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
-// printMasks tells the user which workspace dirs are shadowed, so a hidden dir is no surprise.
+// printMasks tells the user which project dirs are shadowed, so a hidden dir is no surprise.
 func printMasks() {
 	if len(projectCfg.Tmpfs) > 0 {
 		log.Infof("during run, masked (ephemeral tmpfs): %s", strings.Join(projectCfg.Tmpfs, ", "))
@@ -18,7 +18,7 @@ func printMasks() {
 	}
 }
 
-// masksOnHost returns the mask dirs whose existence as a dir in the host workspace cwd matches
+// masksOnHost returns the mask dirs whose existence as a dir in the host project cwd matches
 // present (dir-only, mirroring projectcfg's mask present-filter, so a stray file never counts).
 func masksOnHost(cwd string, dirs []string, present bool) []string {
 	var out []string

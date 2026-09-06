@@ -14,7 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
-// mkDirs creates the given workspace-relative dirs under dir, so presence-sensitive
+// mkDirs creates the given project-relative dirs under dir, so presence-sensitive
 // defaults pick them up.
 func mkDirs(t *testing.T, dir string, dirs ...string) {
 	t.Helper()
@@ -140,13 +140,13 @@ func TestExpandDefaults(t *testing.T) {
 	mkDirs(t, present, "node_modules", "vendor/bundle")
 	absent := t.TempDir()
 
-	// the mask tokens (tmpfs/volumes) expand against the workspace's present dirs; the
-	// allowlist token expands against the built-in domains, no workspace involved
+	// the mask tokens (tmpfs/volumes) expand against the project's present dirs; the
+	// allowlist token expands against the built-in domains, no project dir involved
 	tests := []struct {
-		name         string
-		workspaceDir string
-		in           Config
-		want         Config
+		name       string
+		projectDir string
+		in         Config
+		want       Config
 	}{
 		{
 			"an all-nil config expands every list to the built-ins", present,
@@ -158,7 +158,7 @@ func TestExpandDefaults(t *testing.T) {
 			},
 		},
 		{
-			"nil mask lists expand to the workspace's present dirs", present,
+			"nil mask lists expand to the project's present dirs", present,
 			Config{Allowlist: []string{}},
 			Config{Tmpfs: tmpfsDefaults, Volumes: []string{"node_modules", "vendor/bundle"}}, // .venv absent
 		},
@@ -211,7 +211,7 @@ func TestExpandDefaults(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, ExpandDefaults(tt.workspaceDir, tt.in))
+			assert.Equal(t, tt.want, ExpandDefaults(tt.projectDir, tt.in))
 		})
 	}
 }

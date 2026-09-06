@@ -1,6 +1,6 @@
 package projectcfg
 
-// MaskDefaults are the built-in dirs masked when present in the workspace: tmpfs then volume.
+// MaskDefaults are the built-in dirs masked when present in the project: tmpfs then volume.
 // Exposed so callers can spot a run creating one that future runs will start masking.
 func MaskDefaults() []string {
 	return append(append([]string{}, tmpfsDefaults...), volumeDefaults...)

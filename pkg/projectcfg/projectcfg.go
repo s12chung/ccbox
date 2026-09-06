@@ -1,5 +1,5 @@
 // Package projectcfg loads the config file layers — user (ConfigDir), project
-// (workspace repo root), local (git-ignored) — lowest precedence first
+// (project repo root), local (git-ignored) — lowest precedence first
 package projectcfg
 
 import (
@@ -29,7 +29,7 @@ import (
 const (
 	// userFileName is the user-level config's name under ConfigDir (no dot)
 	userFileName = "ccbox.yaml"
-	// projectFileName is the project-level config's name at the workspace repo root
+	// projectFileName is the project-level config's name at the project repo root
 	projectFileName = ".ccbox.yaml"
 	// localFileName is the project-local, git-ignored override
 	localFileName = ".ccbox.local.yaml"
@@ -40,9 +40,9 @@ const (
 )
 
 var (
-	// tmpfsDefaults always-masked dirs, prepended only when present in the workspace (to prevent host creation)
+	// tmpfsDefaults always-masked dirs, prepended only when present in the project (to prevent host creation)
 	tmpfsDefaults = []string{".idea", ".vscode"}
-	// volumeDefaults for persistent volume masked dirs only when present in the workspace (to prevent host creation)
+	// volumeDefaults for persistent volume masked dirs only when present in the project (to prevent host creation)
 	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
 )
 
@@ -65,9 +65,9 @@ func renderConfig(c Config) (string, error) {
 	return b.String(), nil
 }
 
-// Init writes to workspaceDir/.ccbox.yaml and returns its path.
-func Init(workspaceDir string) (string, error) {
-	path := filepath.Join(workspaceDir, projectFileName)
+// Init writes to projectDir/.ccbox.yaml and returns its path.
+func Init(projectDir string) (string, error) {
+	path := filepath.Join(projectDir, projectFileName)
 	body, err := renderConfig(Config{})
 	if err != nil {
 		return "", err
@@ -111,20 +111,20 @@ var userConfigFile = filepath.Join(userdir.ConfigDir(), userFileName)
 // Load reads the user file, then the project's .ccbox.yaml, layers the local override
 // onto it, then CLI flags. All files are optional — absent ones contribute the zero
 // Config
-func Load(workspaceDir string, flags Config) (Config, error) {
+func Load(projectDir string, flags Config) (Config, error) {
 	user, err := read(userConfigFile)
 	if err != nil {
 		return Config{}, err
 	}
-	project, err := read(filepath.Join(workspaceDir, projectFileName))
+	project, err := read(filepath.Join(projectDir, projectFileName))
 	if err != nil {
 		return Config{}, err
 	}
-	local, err := read(filepath.Join(workspaceDir, localFileName))
+	local, err := read(filepath.Join(projectDir, localFileName))
 	if err != nil {
 		return Config{}, err
 	}
-	c := ExpandDefaults(workspaceDir, user.merge(project).merge(local).merge(flags))
+	c := ExpandDefaults(projectDir, user.merge(project).merge(local).merge(flags))
 	if errMap := firm.ValidateAny(c); errMap != nil {
 		return Config{}, errMap
 	}
@@ -135,8 +135,8 @@ func Load(workspaceDir string, flags Config) (Config, error) {
 type Config struct {
 	CLI           *string           `yaml:"cli"`             // coding CLI to install + launch
 	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git
-	Tmpfs         []string          `yaml:"tmpfs"`           // workspace-relative dirs to mask with a writable tmpfs
-	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume
+	Tmpfs         []string          `yaml:"tmpfs"`           // project-relative dirs to mask with a writable tmpfs
+	Volumes       []string          `yaml:"volumes"`         // project-relative dirs to mask with a persistent per-project volume
 	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
 	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains
 }
@@ -147,7 +147,7 @@ func init() {
 		Validates(firm.RuleMap{
 			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
 
-			// mask dirs are workspace-relative: no absolute paths, no ".." traversal
+			// mask dirs are project-relative: no absolute paths, no ".." traversal
 			"Tmpfs":   {firm.Elems[[]string](firmrule.MaskPath)},
 			"Volumes": {firm.Elems[[]string](firmrule.MaskPath)},
 			"Env": {
@@ -159,9 +159,9 @@ func init() {
 }
 
 // ExpandDefaults expands the DefaultsToken in each list field in place
-func ExpandDefaults(workspaceDir string, c Config) Config {
-	c.Tmpfs = expandList(c.Tmpfs, ioutil.DirsPresentInSrc(workspaceDir, tmpfsDefaults))
-	c.Volumes = expandList(c.Volumes, ioutil.DirsPresentInSrc(workspaceDir, volumeDefaults))
+func ExpandDefaults(projectDir string, c Config) Config {
+	c.Tmpfs = expandList(c.Tmpfs, ioutil.DirsPresentInSrc(projectDir, tmpfsDefaults))
+	c.Volumes = expandList(c.Volumes, ioutil.DirsPresentInSrc(projectDir, volumeDefaults))
 	c.Allowlist = expandList(c.Allowlist, allowDefaults())
 	return c
 }

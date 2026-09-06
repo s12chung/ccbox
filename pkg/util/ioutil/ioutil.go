@@ -13,7 +13,7 @@ const (
 	ExecFile os.FileMode = 0o755 // executable files (e.g. shell scripts)
 )
 
-// DirsPresentInSrc returns the entries of dirs that exist as directories under workspaceDir.
+// DirsPresentInSrc returns the entries of dirs that exist as directories under src.
 func DirsPresentInSrc(src string, dirs []string) []string {
 	var out []string
 	for _, d := range dirs {
