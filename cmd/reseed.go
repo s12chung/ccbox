@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
-	"github.com/s12chung/ccbox/pkg/util/prompt"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -45,7 +45,11 @@ func safeSeed(fsys *fsutil.FS, dst string, confirm bool) error {
 		if !confirm {
 			return nil
 		}
-		if !prompt.Confirm(dst + " exists; reseed and back up overwritten files?") {
+		confirmed, err := pick.Confirm(dst + " exists; reseed and back up overwritten files?")
+		if err != nil {
+			return err
+		}
+		if !confirmed {
 			log.Info("reseed aborted")
 			return nil
 		}

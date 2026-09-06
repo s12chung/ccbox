@@ -35,8 +35,6 @@ const (
 	localFileName = ".ccbox.local.yaml"
 	// DefaultsToken listed in allowlist, expands in place to allowDefaults
 	DefaultsToken = "ccbox-defaults" // #nosec G101 -- config expansion keyword, not a credential
-	// defaultCliName is the coding CLI when .ccbox.yaml doesn't say.
-	defaultCliName = "claude"
 )
 
 var (
@@ -79,9 +77,9 @@ func Init(projectDir string) (string, error) {
 }
 
 // userSeedConfig is the user-level seed's data with ccbox defaults--referenced in tests
-func userSeedConfig() Config {
+func userSeedConfig(cli string) Config {
 	return Config{
-		CLI:           new(defaultCliName),
+		CLI:           new(cli),
 		HostGitConfig: new(true),
 		Tmpfs:         []string{DefaultsToken},
 		Volumes:       []string{DefaultsToken},
@@ -89,21 +87,34 @@ func userSeedConfig() Config {
 	}
 }
 
-// SeedUserConfig safe-seeds the user-level config with ccbox's own defaults. An existing file is never touched.
-// Returns the path seeded, or "" when it already exists.
-func SeedUserConfig() (string, error) {
-	body, err := renderConfig(userSeedConfig())
+// SeedUserConfig safe-seeds the user-level config with ccbox's own defaults, naming the
+// seeded cli. An existing file is never touched. Returns the path seeded, or "" when it
+// already exists.
+func SeedUserConfig(cli string) (string, error) {
+	if !UserConfigNeedsSeed() {
+		return "", nil // the no-op path: no seed, no log
+	}
+	body, err := renderConfig(userSeedConfig(cli))
 	if err != nil {
 		return "", err
 	}
 	if err := seed.File(userConfigFile, body); err != nil {
-		if errors.Is(err, seed.ErrExists) { // the no-op path: no seed, no log
+		if errors.Is(err, seed.ErrExists) { // lost a seed race: no seed, no log
 			return "", nil
 		}
 		return "", err
 	}
 	return userConfigFile, nil
 }
+
+// UserConfigNeedsSeed reports whether the user-level config is missing
+func UserConfigNeedsSeed() bool {
+	_, err := os.Stat(userConfigFile)
+	return errors.Is(err, fs.ErrNotExist)
+}
+
+// UserConfigFile is the user-level config's path
+func UserConfigFile() string { return userConfigFile }
 
 // userConfigFile is the user-level config's path. Tests point it at a temp tree.
 var userConfigFile = filepath.Join(userdir.ConfigDir(), userFileName)

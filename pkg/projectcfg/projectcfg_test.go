@@ -64,7 +64,7 @@ func TestMain(m *testing.M) {
 		panic(err)
 	}
 	userConfigFile = filepath.Join(dir, userFileName)
-	if _, err := SeedUserConfig(); err != nil {
+	if _, err := SeedUserConfig("claude"); err != nil {
 		panic(err)
 	}
 	code := m.Run()
@@ -78,7 +78,7 @@ func TestSeedUserConfig(t *testing.T) {
 	mkDirs(t, dir, volumeDefaults...)
 	useUserConfigFile(t, dir)
 
-	path, err := SeedUserConfig()
+	path, err := SeedUserConfig("claude")
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, userFileName), path)
 
@@ -104,7 +104,7 @@ func TestSeedUserConfigSkipsExisting(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, userFileName, "cli: codex\n")
 
-	path, err := SeedUserConfig()
+	path, err := SeedUserConfig("claude")
 	require.NoError(t, err)
 	assert.Empty(t, path)
 
@@ -112,6 +112,27 @@ func TestSeedUserConfigSkipsExisting(t *testing.T) {
 	body, err := os.ReadFile(userConfigFile)
 	require.NoError(t, err)
 	assert.Equal(t, "cli: codex\n", string(body)) // the user's own file is never touched
+}
+
+func TestSeedUserConfigChoosesCLI(t *testing.T) {
+	dir := t.TempDir()
+	useUserConfigFile(t, dir)
+
+	path, err := SeedUserConfig("codex")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, userFileName), path)
+
+	body, err := os.ReadFile(userConfigFile) // #nosec G304 -- the package's own temp user file
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "cli: codex\n")
+}
+
+func TestUserConfigNeedsSeed(t *testing.T) {
+	useUserConfigFile(t, t.TempDir())
+	assert.True(t, UserConfigNeedsSeed())
+
+	require.NoError(t, os.WriteFile(userConfigFile, []byte("cli: codex\n"), ioutil.File))
+	assert.False(t, UserConfigNeedsSeed())
 }
 
 func TestLoadUnsetRequiredErrors(t *testing.T) {
@@ -247,8 +268,8 @@ func TestRenderConfigFixtures(t *testing.T) {
 		name string // fixture name: testdata/<name>.ccbox.yaml
 		c    Config
 	}{
-		{"init", Config{}},              // `ccbox config init`'s fill-in scaffold
-		{"user-seed", userSeedConfig()}, // the safe-seeded user-level config
+		{"init", Config{}},                      // `ccbox config init`'s fill-in scaffold
+		{"user-seed", userSeedConfig("claude")}, // the safe-seeded user-level config
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := renderConfig(tt.c)

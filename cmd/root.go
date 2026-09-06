@@ -4,13 +4,17 @@ package cmd
 
 import (
 	"embed"
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
@@ -85,8 +89,24 @@ func safeSeedUserClis() error {
 
 // safeSeedUserConfig seeds the user-level config template if missing
 func safeSeedUserConfig() error {
-	seeded, err := projectcfg.SeedUserConfig()
-	if err != nil || seeded == "" { // "" = the file already existed: no seed, so no log
+	if !projectcfg.UserConfigNeedsSeed() {
+		return nil // the file already existed: no seed, so no prompt, no log
+	}
+	cli, err := pick.Select(
+		"Select a harness CLI",
+		[]string{
+			fmt.Sprintf("(stored in %s)", userdir.Tilde(projectcfg.UserConfigFile())),
+			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(harness.UserCLIsDir(), "README.md"))),
+		},
+		harness.Names())
+	if err != nil {
+		return err
+	}
+	if cli == "" { // no terminal to show the picker
+		return fmt.Errorf("no harness CLI selected: rerun in a terminal to pick one, or set cli in %s", projectcfg.UserConfigFile())
+	}
+	seeded, err := projectcfg.SeedUserConfig(cli)
+	if err != nil || seeded == "" { // "" = lost a seed race: no seed, so no log
 		return err
 	}
 	log.Infof("seeded %s", seeded)
