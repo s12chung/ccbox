@@ -2,17 +2,21 @@
 package projectcfg
 
 import (
+	"bytes"
 	_ "embed"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 
+	"github.com/s12chung/firm"
+	"github.com/s12chung/firm/rule"
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
@@ -66,8 +70,8 @@ func Load(workspaceDir string, flags Config) (Config, error) {
 		return Config{}, err
 	}
 	c := Defaulted(workspaceDir, base.merge(local).merge(flags))
-	if err := c.validate(); err != nil {
-		return Config{}, err
+	if errMap := firm.ValidateAny(c); errMap != nil {
+		return Config{}, errMap
 	}
 	return c, nil
 }
@@ -80,6 +84,21 @@ type Config struct {
 	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume
 	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
 	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains; "ccbox-defaults" expands to the built-ins
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[Config]().Validates(firm.RuleMap{
+		"CLI": {rule.OneOf[string]{Values: harness.Names()}},
+
+		// mask dirs are workspace-relative: no absolute paths, no ".." traversal
+		"Tmpfs":   {firm.Elems[[]string](firmrule.MaskPath)},
+		"Volumes": {firm.Elems[[]string](firmrule.MaskPath)},
+		"Env": {
+			firm.Keys[map[string]string](firmrule.EnvVar),
+			firm.Values[map[string]string](rule.Present{}),
+		},
+		"Allowlist": {firm.Elems[[]string](firmrule.Domain)},
+	}))
 }
 
 // Defaulted resolves c against its workspace. Applied once by Load.
@@ -95,19 +114,6 @@ func Defaulted(workspaceDir string, c Config) Config {
 		c.HostGitConfig = &on
 	}
 	return c
-}
-
-// validate rejects an unknown cli, the one field whose value must be a known enum.
-func (c Config) validate() error {
-	if _, ok := harness.For(c.CLI); !ok {
-		all := harness.All()
-		names := make([]string, 0, len(all))
-		for _, cli := range all {
-			names = append(names, cli.Name)
-		}
-		return fmt.Errorf("cli: unknown value %q (want %q)", c.CLI, strings.Join(names, ", "))
-	}
-	return nil
 }
 
 // merge layers other onto c and returns a fresh Config
@@ -135,8 +141,13 @@ func read(path string) (Config, error) {
 		return Config{}, err
 	}
 	var c Config
-	if err := yaml.Unmarshal(body, &c); err != nil {
-		return Config{}, err
+	dec := yaml.NewDecoder(bytes.NewReader(body))
+	dec.KnownFields(true) // a typo'd key must error, not silently no-op
+	switch err := dec.Decode(&c); {
+	case errors.Is(err, io.EOF): // an empty file is "unset" like a missing one
+		return Config{}, nil
+	case err != nil:
+		return Config{}, fmt.Errorf("projectcfg: parse %s: %w", path, err)
 	}
 	return c, nil
 }

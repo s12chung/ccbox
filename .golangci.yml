@@ -167,6 +167,10 @@ linters:
       - path: _test\.go
         linters:
           - goconst
+      # test tables read long; the fixture rows dominate the line count
+      - path: _test\.go
+        linters:
+          - funlen
     paths:
       - third_party$
       - builtin$

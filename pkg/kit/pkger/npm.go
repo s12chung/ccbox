@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/s12chung/firm"
+
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/httputil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
@@ -13,6 +16,12 @@ import (
 // Npm pins via the npm registry's "latest" dist-tag.
 type Npm struct {
 	Package string `yaml:"package"`
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[Npm]().Validates(firm.RuleMap{
+		"Package": {firmrule.NpmPackage},
+	}))
 }
 
 // npmRegistry is the registry Npm reads dist-tags from.

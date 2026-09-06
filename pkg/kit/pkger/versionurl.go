@@ -8,6 +8,9 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/s12chung/firm"
+
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/httputil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
@@ -19,6 +22,14 @@ type VersionURL struct {
 	URL           string `yaml:"url"`
 	LinuxX64URL   string `yaml:"linux_x64_url"`
 	LinuxArm64URL string `yaml:"linux_arm64_url"`
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[VersionURL]().Validates(firm.RuleMap{
+		"URL":           {firmrule.HTTPSURL},
+		"LinuxX64URL":   {firmrule.HTTPSURL},
+		"LinuxArm64URL": {firmrule.HTTPSURL},
+	}))
 }
 
 // versionRe guards the pin: a version endpoint serves a bare semver, so anything

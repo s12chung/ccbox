@@ -220,7 +220,51 @@ func TestLoadRejectsUnknownCLI(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte("cli: emacs\n"), ioutil.File))
 
 	_, err := Load(dir, Config{})
-	assert.ErrorContains(t, err, "emacs")
+	require.ErrorContains(t, err, "is not one of [claude codex grok opencode]")
+}
+
+func TestLoadRejectsInvalidValues(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{"absolute tmpfs", "tmpfs:\n  - /etc\n", []string{"Tmpfs", "Match"}},
+		{"tmpfs traversal", "tmpfs:\n  - ../escape\n", []string{"Tmpfs", "Match"}},
+		{"absolute volume", "volumes:\n  - /var\n", []string{"Volumes", "Match"}},
+		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
+		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
+		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(tt.body), ioutil.File))
+
+			_, err := Load(dir, Config{})
+			require.Error(t, err)
+			for _, want := range tt.want {
+				assert.ErrorContains(t, err, want)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsUnknownKeys(t *testing.T) {
+	for _, name := range []string{fileName, localFileName} {
+		t.Run(name, func(t *testing.T) {
+			dir := t.TempDir()
+			body := "cli: claude\nbogus: true\n"
+			if name == localFileName {
+				require.NoError(t, os.WriteFile(filepath.Join(dir, fileName), []byte(""), ioutil.File))
+			}
+			require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte(body), ioutil.File))
+
+			_, err := Load(dir, Config{})
+			require.ErrorContains(t, err, "field bogus not found")
+			assert.ErrorContains(t, err, name) // the error names the offending file
+		})
+	}
 }
 
 func TestLoadFlagsOverrideFiles(t *testing.T) {
@@ -237,5 +281,5 @@ func TestLoadFlagsOverrideFiles(t *testing.T) {
 	assert.Equal(t, "codex", c.CLI) // an unset flag keeps the files' layering
 
 	_, err = Load(dir, Config{CLI: "emacs"})
-	assert.ErrorContains(t, err, "emacs") // the flag value validates like a file's
+	assert.ErrorContains(t, err, "is not one of") // the flag value validates like a file's
 }

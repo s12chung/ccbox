@@ -7,7 +7,7 @@
 //     dir are done, _effectively guaranteeing_ valid CLI structs and workable config/ dir onwards
 //  2. on cmd.rootCmd.PersistentPreRunE():
 //     a. SeedUserClisFS() seeds the UserCLIsDir()
-//     b. projectcfg.Load() calls projectcfg.Config.validate(), which given 1b., _effectively guarantees_ any
+//     b. projectcfg.Load() validates projectcfg.Config, which given 1b., _effectively guarantees_ any
 //     cliName passed down will match a CLI in All()
 //  3. MustFor() is also called in multiple places. 2b. should be the earliest guard for cliName passed down
 //  4. SeedCLIFS() for seeding the config to configure the running containerized CLI
@@ -25,20 +25,32 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/s12chung/firm"
+	"github.com/s12chung/firm/rule"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/pkger"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
+// all is every known CLI, loaded in the init() at the bottom of this file.
 var all []CLI
-
-func init() { all = mustLoadAll() }
 
 // All lists every supported CLI, in stable order.
 func All() []CLI { return slices.Clone(all) }
+
+// Names lists every supported CLI's name, in All's order.
+func Names() []string {
+	all := All()
+	names := make([]string, 0, len(all))
+	for _, c := range all {
+		names = append(names, c.Name)
+	}
+	return names
+}
 
 const (
 	// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
@@ -179,14 +191,22 @@ func parse(p string, body []byte) (CLI, error) {
 		return CLI{}, fmt.Errorf("harness: parse %s: %w", p, err)
 	}
 
-	if err := c.validate(); err != nil { // fail at startup, not on first use
-		return CLI{}, fmt.Errorf("harness: parse %s: %w", p, err)
+	c = defaulted(p, c)
+	if errMap := firm.ValidateAny(c); errMap != nil { // fail at startup, not on first use
+		return CLI{}, fmt.Errorf("harness: parse %s: %w", p, errMap)
 	}
-	c.Name = cliNameFromPath(p)
-	return parseDefaulted(c), nil
+	return c, nil
 }
 
 func cliNameFromPath(p string) string { return path.Base(path.Dir(p)) }
+
+func defaulted(p string, c CLI) CLI {
+	c.Name = cliNameFromPath(p)
+	if c.SeedAgentsFilename == "" {
+		c.SeedAgentsFilename = "AGENTS.md"
+	}
+	return c
+}
 
 // validateSeedConfigDir checks <cliDir>/config: for user trees it may be absent, but must not be a file;
 // embed trees also require existence — their contents are compile-time constants.
@@ -201,14 +221,6 @@ func validateSeedConfigDir(fsys fs.FS, cliDir string, fromUserDir bool) error {
 		return fmt.Errorf("%s: not a directory", path.Join(cliDir, SeedConfigDir))
 	}
 	return nil
-}
-
-// parseDefaulted
-func parseDefaulted(c CLI) CLI {
-	if c.SeedAgentsFilename == "" {
-		c.SeedAgentsFilename = "AGENTS.md"
-	}
-	return c
 }
 
 // CLI holds everything ccbox does differently per coding CLI.
@@ -227,8 +239,8 @@ type CLI struct {
 	ConfigHomeMount string `yaml:"config_home_mount"`
 
 	// ConfigDirEnvKey is the env var naming the mounted config path for this CLI
-	// (e.g. CLAUDE_CONFIG_DIR), set per run by pkg/docker; "" = none.
-	ConfigDirEnvKey string `yaml:"config_dir_env_key"`
+	// (e.g. CLAUDE_CONFIG_DIR), set per run by pkg/docker.
+	ConfigDirEnvKey *string `yaml:"config_dir_env_key"`
 
 	// Env is fixed container env the CLI requires (updater/traffic toggles), merged into
 	// every run of this CLI.
@@ -249,10 +261,26 @@ type CLI struct {
 	AllowDomains []string `yaml:"allow_domains"`
 }
 
-// validate checks the fields whose values must be a known, exclusive set.
-func (c CLI) validate() error {
-	_, err := c.pkger()
-	return err
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[CLI]().
+		ValidatesSelf(firmrule.DefinedOnce{Fields: []string{"Npm", "VersionURL"}}).
+		Validates(firm.RuleMap{
+			"Npm":        {firm.Backed()},
+			"VersionURL": {firm.Backed()},
+
+			"Cmd":          {rule.Present{}},
+			"ContinueArgs": {rule.Present{}},
+			"ResumeArgs":   {rule.Present{}},
+
+			"ConfigHomeMount":    {firmrule.HomePath},
+			"ConfigDirEnvKey":    {firmrule.EnvVar},
+			"SeedAgentsFilename": {firmrule.FileName},
+			"Env": {
+				firm.Keys[map[string]string](firmrule.EnvVar),
+				firm.Values[map[string]string](rule.Present{}),
+			},
+			"AllowDomains": {firm.Elems[[]string](firmrule.Domain)},
+		}))
 }
 
 // Pkger returns the install source this CLI declares: Npm or VersionURL.
@@ -318,3 +346,6 @@ func (c CLI) SessionCmd(shell, cont, resume bool, args []string) []string {
 	})
 	return strings.Split(strings.Join(cmd, " "), " ")
 }
+
+// init() loads after the firm registration following the CLI struct, which parse() validates against.
+func init() { all = mustLoadAll() }

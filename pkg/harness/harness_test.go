@@ -124,6 +124,84 @@ func allNames() []string {
 	return names
 }
 
+func TestNames(t *testing.T) {
+	assert.Equal(t, []string{"claude", "codex", "grok", "opencode"}, Names())
+}
+
+// validCliYAML is a valid CLI.yaml, mutated one bad field at a time in parseRejectsTests
+const validCliYAML = "npm:\n  package: mycli\nconfig_home_mount: \".mycli\"\ncmd: \"mycli\"\n" +
+	"continue_args: \"-c\"\nresume_args: \"--resume\"\n"
+
+func TestParseRejects(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		body string
+		want []string
+	}{
+		{
+			"no install source", "cmd: mycli\n",
+			[]string{"CLI.DefinedOnce", "want exactly one of [Npm VersionURL], got []"},
+		},
+		{
+			"both install sources", "npm:\n  package: mycli\nversionurl:\n  url: https://x\n",
+			[]string{"CLI.DefinedOnce", "want exactly one of [Npm VersionURL], got [Npm VersionURL]"},
+		},
+		{
+			"empty npm package", "npm:\n  package: \"\"\n",
+			[]string{"Npm.Package.Match"},
+		},
+		{
+			"bad npm package", "npm:\n  package: \"My CLI\"\n",
+			[]string{"Npm.Package.Match"},
+		},
+		{
+			"partial versionurl urls", "versionurl:\n  url: https://x\n",
+			[]string{"LinuxX64URL.Match", "LinuxArm64URL.Match"},
+		},
+		{
+			"non-https versionurl url", "versionurl:\n  url: \"ftp://x\"\n  linux_x64_url: https://x\n  linux_arm64_url: https://x\n",
+			[]string{"URL.Match"},
+		},
+		{
+			"missing session args", "npm:\n  package: mycli\ncmd: \"mycli\"\nconfig_home_mount: \".mycli\"\n",
+			[]string{"ContinueArgs.Present", "ResumeArgs.Present"},
+		},
+		{
+			"absolute config home mount", "npm:\n  package: mycli\nconfig_home_mount: \"/etc/mycli\"\ncmd: \"mycli\"\n" +
+				"continue_args: \"-c\"\nresume_args: \"--resume\"\n",
+			[]string{"ConfigHomeMount.Match"},
+		},
+		{
+			"bad config dir env key", validCliYAML + "config_dir_env_key: \"bad-key\"\n",
+			[]string{"ConfigDirEnvKey.Match"},
+		},
+		{
+			"bad env key", validCliYAML + "env:\n  bad-key: \"1\"\n",
+			[]string{"Env", "Match"},
+		},
+		{
+			"empty env value", validCliYAML + "env:\n  FOO: \"\"\n",
+			[]string{"Env", "Present"},
+		},
+		{
+			"bad allow domain", validCliYAML + "allow_domains:\n  - \"https://x.dev\"\n",
+			[]string{"AllowDomains", "Match"},
+		},
+		{
+			"unknown key", "npm:\n  package: mycli\nbogus: true\n",
+			[]string{"field bogus not found"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parse("clis/mycli/CLI.yaml", []byte(tt.body))
+			require.Error(t, err)
+			for _, want := range tt.want {
+				assert.ErrorContains(t, err, want)
+			}
+		})
+	}
+}
+
 func TestSeedCLIFS(t *testing.T) {
 	for _, c := range All() {
 		fsys := SeedCLIFS(c.Name)
@@ -203,19 +281,19 @@ func TestSeedAgentsFilename(t *testing.T) {
 func TestEnv(t *testing.T) {
 	// Config-dir overrides point at the CLI's native config mount; toggles disable
 	// update checks / nonessential traffic. pkg/docker merges these into every run.
-	assert.Equal(t, "CLAUDE_CONFIG_DIR", MustFor("claude").ConfigDirEnvKey)
+	assert.Equal(t, "CLAUDE_CONFIG_DIR", *MustFor("claude").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 		"DISABLE_AUTOUPDATER":                      "1",
 	}, MustFor("claude").Env)
 
-	assert.Equal(t, "CODEX_HOME", MustFor("codex").ConfigDirEnvKey)
+	assert.Equal(t, "CODEX_HOME", *MustFor("codex").ConfigDirEnvKey)
 	assert.Empty(t, MustFor("codex").Env)
 
-	assert.Empty(t, MustFor("opencode").ConfigDirEnvKey)
+	assert.Nil(t, MustFor("opencode").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Env)
 
-	assert.Empty(t, MustFor("grok").ConfigDirEnvKey)
+	assert.Nil(t, MustFor("grok").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, MustFor("grok").Env)
 }
 
