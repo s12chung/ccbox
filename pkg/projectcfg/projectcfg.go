@@ -83,6 +83,8 @@ func userSeedConfig() Config {
 	return Config{
 		CLI:           new(defaultCliName),
 		HostGitConfig: new(true),
+		Tmpfs:         []string{DefaultsToken},
+		Volumes:       []string{DefaultsToken},
 		Allowlist:     []string{DefaultsToken},
 	}
 }
@@ -108,7 +110,7 @@ var userConfigFile = filepath.Join(userdir.ConfigDir(), userFileName)
 
 // Load reads the user file, then the project's .ccbox.yaml, layers the local override
 // onto it, then CLI flags. All files are optional — absent ones contribute the zero
-// Config, so repos without any keep working.
+// Config
 func Load(workspaceDir string, flags Config) (Config, error) {
 	user, err := read(userConfigFile)
 	if err != nil {
@@ -122,7 +124,7 @@ func Load(workspaceDir string, flags Config) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	c := Defaulted(workspaceDir, user.merge(project).merge(local).merge(flags))
+	c := ExpandDefaults(workspaceDir, user.merge(project).merge(local).merge(flags))
 	if errMap := firm.ValidateAny(c); errMap != nil {
 		return Config{}, errMap
 	}
@@ -131,42 +133,64 @@ func Load(workspaceDir string, flags Config) (Config, error) {
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLI           *string           `yaml:"cli"`             // coding CLI to install + launch; nil = default claude, resolved by Defaulted
-	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git; nil = default on, resolved by Defaulted
+	CLI           *string           `yaml:"cli"`             // coding CLI to install + launch
+	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git
 	Tmpfs         []string          `yaml:"tmpfs"`           // workspace-relative dirs to mask with a writable tmpfs
 	Volumes       []string          `yaml:"volumes"`         // workspace-relative dirs to mask with a persistent per-project volume
 	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
-	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains; "ccbox-defaults" expands to the built-ins
+	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains
 }
 
 func init() {
-	firm.MustRegisterType(firm.NewDefinition[Config]().Validates(firm.RuleMap{
-		"CLI": {rule.OneOf[string]{Values: harness.Names()}},
+	firm.MustRegisterType(firm.NewDefinition[Config]().
+		NotNil("CLI", "HostGitConfig").
+		Validates(firm.RuleMap{
+			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
 
-		// mask dirs are workspace-relative: no absolute paths, no ".." traversal
-		"Tmpfs":   {firm.Elems[[]string](firmrule.MaskPath)},
-		"Volumes": {firm.Elems[[]string](firmrule.MaskPath)},
-		"Env": {
-			firm.Keys[map[string]string](firmrule.EnvVar),
-			firm.Values[map[string]string](rule.Present{}),
-		},
-		"Allowlist": {firm.Elems[[]string](firmrule.Domain)},
-	}))
+			// mask dirs are workspace-relative: no absolute paths, no ".." traversal
+			"Tmpfs":   {firm.Elems[[]string](firmrule.MaskPath)},
+			"Volumes": {firm.Elems[[]string](firmrule.MaskPath)},
+			"Env": {
+				firm.Keys[map[string]string](firmrule.EnvVar),
+				firm.Values[map[string]string](rule.Present{}),
+			},
+			"Allowlist": {firm.Elems[[]string](firmrule.Domain)},
+		}))
 }
 
-// Defaulted resolves c against its workspace. Applied once by Load.
-func Defaulted(workspaceDir string, c Config) Config {
-	c.Tmpfs = append(ioutil.DirsPresentInSrc(workspaceDir, tmpfsDefaults), c.Tmpfs...)
-	c.Volumes = append(ioutil.DirsPresentInSrc(workspaceDir, volumeDefaults), c.Volumes...)
-	c.Allowlist = expandAllowlist(c.Allowlist)
-	if c.CLI == nil {
-		c.CLI = new(defaultCliName)
-	}
-	if c.HostGitConfig == nil { // resolve the default-on so the effective config prints it
-		on := true
-		c.HostGitConfig = &on
-	}
+// ExpandDefaults expands the DefaultsToken in each list field in place
+func ExpandDefaults(workspaceDir string, c Config) Config {
+	c.Tmpfs = expandList(c.Tmpfs, ioutil.DirsPresentInSrc(workspaceDir, tmpfsDefaults))
+	c.Volumes = expandList(c.Volumes, ioutil.DirsPresentInSrc(workspaceDir, volumeDefaults))
+	c.Allowlist = expandList(c.Allowlist, allowDefaults())
 	return c
+}
+
+// expandList replaces each DefaultsToken with defaults, preserving entry order and
+// dropping repeat entries.
+func expandList(list, defaults []string) []string {
+	if list == nil {
+		list = []string{DefaultsToken}
+	}
+	var out []string
+	seen := map[string]bool{}
+	add := func(entries ...string) {
+		for _, e := range entries {
+			if seen[e] {
+				continue
+			}
+			seen[e] = true
+			out = append(out, e)
+		}
+	}
+	for _, d := range list {
+		if d == DefaultsToken {
+			add(defaults...)
+			continue
+		}
+		add(d)
+	}
+	return out
 }
 
 // merge layers other onto c and returns a fresh Config

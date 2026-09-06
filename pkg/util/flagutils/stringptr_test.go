@@ -11,7 +11,7 @@ import (
 
 // parser is the Parse shape shared by flag.FlagSet and pflag.FlagSet.
 type parser interface {
-	Parse([]string) error
+	Parse(args []string) error
 }
 
 // TestStringPtr runs the flag behavior through both flag libraries: the stdlib

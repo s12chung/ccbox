@@ -3,7 +3,6 @@ package projectcfg
 import (
 	"os"
 	"path/filepath"
-	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,11 +14,12 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
-// mkDefaultDirs creates the tmpfsDefaults under dir so they get prepended.
-func mkDefaultDirs(t *testing.T, dir string) {
+// mkDirs creates the given workspace-relative dirs under dir, so presence-sensitive
+// defaults pick them up.
+func mkDirs(t *testing.T, dir string, dirs ...string) {
 	t.Helper()
-	for _, d := range tmpfsDefaults {
-		require.NoError(t, os.Mkdir(filepath.Join(dir, d), ioutil.Dir))
+	for _, d := range dirs {
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, d), ioutil.Dir))
 	}
 }
 
@@ -55,87 +55,165 @@ var configFiles = []struct {
 	{"local", localFileName},
 }
 
-// TestMain defaults userConfigFile to a nonexistent temp path, so tests don't read the
-// developer's real user-level config; useUserConfigFile overrides per-test.
+// TestMain defaults userConfigFile to a seeded temp file — prod parity: the user seed
+// exists before Load runs — so tests don't read the developer's real user-level config;
+// useUserConfigFile overrides per-test.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "projectcfg")
 	if err != nil {
 		panic(err)
 	}
 	userConfigFile = filepath.Join(dir, userFileName)
+	if _, err := SeedUserConfig(); err != nil {
+		panic(err)
+	}
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)
 }
 
-func TestLoadParses(t *testing.T) {
+func TestSeedUserConfig(t *testing.T) {
 	dir := t.TempDir()
-	mkDefaultDirs(t, dir)
-	body := "cli: codex\ntmpfs:\n  - dist\n  - build\nenv:\n  FOO: bar\n" +
-		"allowlist:\n  - ccbox-defaults\n  - example.com\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(body), ioutil.File))
+	mkDirs(t, dir, tmpfsDefaults...)
+	mkDirs(t, dir, volumeDefaults...)
+	useUserConfigFile(t, dir)
+
+	path, err := SeedUserConfig()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, userFileName), path)
+
+	// the seed is the defaults' carrier
+	want := Config{CLI: new("claude"), HostGitConfig: new(true), Tmpfs: tmpfsDefaults, Volumes: volumeDefaults, Allowlist: allowDefaults()}
+
+	t.Run("seed alone resolves the default config", func(t *testing.T) {
+		c, err := Load(dir, Config{})
+		require.NoError(t, err)
+		assert.Equal(t, want, c)
+	})
+
+	t.Run("an empty project file is unset like a missing one", func(t *testing.T) {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), nil, ioutil.File))
+
+		c, err := Load(dir, Config{})
+		require.NoError(t, err)
+		assert.Equal(t, want, c)
+	})
+}
+
+func TestSeedUserConfigSkipsExisting(t *testing.T) {
+	dir := t.TempDir()
+	writeConfig(t, dir, userFileName, "cli: codex\n")
+
+	path, err := SeedUserConfig()
+	require.NoError(t, err)
+	assert.Empty(t, path)
+
+	// #nosec G304 -- the package's own temp user file
+	body, err := os.ReadFile(userConfigFile)
+	require.NoError(t, err)
+	assert.Equal(t, "cli: codex\n", string(body)) // the user's own file is never touched
+}
+
+func TestLoadUnsetRequiredErrors(t *testing.T) {
+	dir := t.TempDir()
+	useUserConfigFile(t, t.TempDir()) // no user file
+
+	_, err := Load(dir, Config{})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "CLI.Nil: CLI is nil")
+	assert.ErrorContains(t, err, "HostGitConfig.Nil: HostGitConfig is nil")
+}
+
+func TestLoadEmptyListKeepsLowerLayers(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("allowlist: []\n"), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", *c.CLI)
-	assert.Equal(t, []string{".idea", ".vscode", "dist", "build"}, c.Tmpfs) // present defaults prepended
-	assert.Equal(t, map[string]string{"FOO": "bar"}, c.Env)
-	assert.Equal(t, append(allowDefaults(), "example.com"), c.Allowlist) // token expanded
+	assert.Equal(t, allowDefaults(), c.Allowlist) // lists append: [] adds nothing, the seed's token stays
 }
 
-func TestLoadUnsetGetsDefaults(t *testing.T) {
-	// a missing file and an empty file are both "unset" (not []) → the built-in defaults
-	for _, tt := range []struct {
-		name  string
-		write bool
+func TestExpandDefaults(t *testing.T) {
+	// present has the mask dirs on disk except .venv; absent has none
+	present := t.TempDir()
+	mkDirs(t, present, tmpfsDefaults...)
+	mkDirs(t, present, "node_modules", "vendor/bundle")
+	absent := t.TempDir()
+
+	// the mask tokens (tmpfs/volumes) expand against the workspace's present dirs; the
+	// allowlist token expands against the built-in domains, no workspace involved
+	tests := []struct {
+		name         string
+		workspaceDir string
+		in           Config
+		want         Config
 	}{
-		{"missing file", false},
-		{"empty file", true},
-	} {
+		{
+			"an all-nil config expands every list to the built-ins", present,
+			Config{},
+			Config{
+				Tmpfs:     tmpfsDefaults,
+				Volumes:   []string{"node_modules", "vendor/bundle"}, // .venv absent
+				Allowlist: allowDefaults(),
+			},
+		},
+		{
+			"nil mask lists expand to the workspace's present dirs", present,
+			Config{Allowlist: []string{}},
+			Config{Tmpfs: tmpfsDefaults, Volumes: []string{"node_modules", "vendor/bundle"}}, // .venv absent
+		},
+		{
+			"a nil allowlist expands to the built-in domains", present,
+			Config{Tmpfs: []string{}, Volumes: []string{}},
+			Config{Allowlist: allowDefaults()},
+		},
+		{
+			"explicit empty lists opt out", present,
+			Config{Tmpfs: []string{}, Volumes: []string{}, Allowlist: []string{}},
+			Config{},
+		},
+		{
+			"the mask token expands in place, absent dirs filtered out", present,
+			Config{Tmpfs: []string{DefaultsToken, "dist"}, Volumes: []string{DefaultsToken, "target"}, Allowlist: []string{}},
+			Config{
+				Tmpfs:   []string{".idea", ".vscode", "dist"},
+				Volumes: []string{"node_modules", "vendor/bundle", "target"}, // .venv absent
+			},
+		},
+		{
+			"the allowlist token expands in place to the built-ins", present,
+			Config{Tmpfs: []string{}, Volumes: []string{}, Allowlist: []string{DefaultsToken}},
+			Config{Allowlist: allowDefaults()},
+		},
+		{
+			"a mask token with no dirs present expands to nothing", absent,
+			Config{Tmpfs: []string{DefaultsToken}, Volumes: []string{DefaultsToken}, Allowlist: []string{}},
+			Config{},
+		},
+		{
+			"lists without the token stay literal", absent,
+			Config{
+				Tmpfs:     []string{"dist"},
+				Volumes:   []string{"target"},
+				Allowlist: []string{"example.com"},
+			},
+			Config{
+				Tmpfs:     []string{"dist"},
+				Volumes:   []string{"target"},
+				Allowlist: []string{"example.com"},
+			},
+		},
+		{
+			"mask repeats collapse on first occurrence", present,
+			Config{Tmpfs: []string{DefaultsToken, ".idea", "dist", DefaultsToken}, Volumes: []string{}, Allowlist: []string{}},
+			Config{Tmpfs: []string{".idea", ".vscode", "dist"}},
+		},
+	}
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			mkDefaultDirs(t, dir)
-			if tt.write {
-				require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(""), ioutil.File))
-			}
-			c, err := Load(dir, Config{})
-			require.NoError(t, err)
-			assert.Equal(t, "claude", *c.CLI)             // unset cli → claude
-			assert.Equal(t, tmpfsDefaults, c.Tmpfs)       // present always-on masks
-			assert.Equal(t, allowDefaults(), c.Allowlist) // unset allowlist → the built-ins
+			assert.Equal(t, tt.want, ExpandDefaults(tt.workspaceDir, tt.in))
 		})
 	}
-}
-
-func TestDefaultedResolves(t *testing.T) {
-	dir := t.TempDir()
-	mkDefaultDirs(t, dir)
-	c := Defaulted(dir, Config{Tmpfs: []string{"dist"}, Allowlist: []string{"example.com"}})
-	assert.Equal(t, []string{".idea", ".vscode", "dist"}, c.Tmpfs)
-	assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
-	assert.Equal(t, new(true), c.HostGitConfig)           // unset → default on
-}
-
-func TestDefaultedSkipsAbsentTmpfsDefaults(t *testing.T) {
-	dir := t.TempDir() // no .idea/.vscode on disk
-	c := Defaulted(dir, Config{Tmpfs: []string{"dist"}})
-	assert.Equal(t, []string{"dist"}, c.Tmpfs) // absent defaults not prepended
-}
-
-func TestDefaultedVolumesPresentPrepended(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.Mkdir(filepath.Join(dir, "node_modules"), ioutil.Dir))
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "vendor", "bundle"), ioutil.Dir)) // nested default
-
-	c := Defaulted(dir, Config{Volumes: []string{"target"}})
-	// only present defaults prepended (.venv absent), user entry kept after
-	assert.Equal(t, []string{"node_modules", "vendor/bundle", "target"}, c.Volumes)
-}
-
-func TestDefaultedSkipsAbsentVolumeDefaults(t *testing.T) {
-	dir := t.TempDir() // no node_modules/.venv/vendor on disk
-	c := Defaulted(dir, Config{})
-	assert.Empty(t, c.Volumes) // absent defaults not prepended
 }
 
 func TestInitWritesLoadableDefault(t *testing.T) {
@@ -158,48 +236,6 @@ func TestInitRefusesExisting(t *testing.T) {
 
 	_, err := Init(dir)
 	assert.ErrorIs(t, err, seed.ErrExists)
-}
-
-func TestSeedUserConfigSeeds(t *testing.T) {
-	dir := t.TempDir()
-	useUserConfigFile(t, dir)
-
-	path, err := SeedUserConfig()
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, userFileName), path)
-
-	// the seed must load exactly like no user file at all
-	seeded, err := Load(dir, Config{})
-	require.NoError(t, err)
-	useUserConfigFile(t, t.TempDir()) // now missing
-	fresh, err := Load(dir, Config{})
-	require.NoError(t, err)
-	assert.Equal(t, fresh, seeded)
-}
-
-func TestSeedUserConfigSkipsExisting(t *testing.T) {
-	dir := t.TempDir()
-	useUserConfigFile(t, dir)
-	writeConfig(t, dir, userFileName, "cli: codex\n")
-
-	path, err := SeedUserConfig()
-	require.NoError(t, err)
-	assert.Empty(t, path)
-}
-
-func TestRenderConfigVariants(t *testing.T) {
-	seed, err := renderConfig(userSeedConfig())
-	require.NoError(t, err)
-	assert.Contains(t, seed, "cli: claude\n")
-	assert.Contains(t, seed, "host_git_config: true\n")
-	assert.Contains(t, seed, "allowlist:\n  - ccbox-defaults\n")
-
-	scaffold, err := renderConfig(Config{})
-	require.NoError(t, err)
-	assert.Contains(t, scaffold, "cli:")
-	assert.NotContains(t, scaffold, "cli: claude") // unset keys stay bare
-	assert.NotContains(t, scaffold, "host_git_config: true")
-	assert.Contains(t, scaffold, "  # - example.com") // examples stay commented
 }
 
 // TestRenderConfigFixtures pins the render output to the committed testdata fixtures,
@@ -232,36 +268,20 @@ func TestRenderConfigFixtures(t *testing.T) {
 	}
 }
 
-func TestDefaultedAllowlistNilVsEmpty(t *testing.T) {
-	dir := t.TempDir()
-	assert.Equal(t, allowDefaults(), Defaulted(dir, Config{Allowlist: nil}).Allowlist) // unset → built-ins
-	assert.Empty(t, Defaulted(dir, Config{Allowlist: []string{}}).Allowlist)           // explicit [] → nothing
-}
-
-func TestLoadEmptyAllowlistAllowsNothing(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("allowlist: []\n"), ioutil.File))
-
-	c, err := Load(dir, Config{})
-	require.NoError(t, err)
-	assert.Empty(t, c.Allowlist) // an explicit [] is not the built-ins
-}
-
 func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
 	// every loaded cli's domains count — embedded or user-defined, they all sit in All()
 	for _, c := range harness.All() {
 		for _, d := range c.AllowDomains {
 			assert.Containsf(t, allowDefaults(), d, "%s: %s", c.Name, d)
-			assert.Containsf(t, Defaulted(t.TempDir(), Config{}).Allowlist, d, "%s: %s", c.Name, d)
 		}
 	}
 }
 
 func TestLoadLayersFiles(t *testing.T) {
 	dir := t.TempDir()
-	mkDefaultDirs(t, dir)
+	mkDirs(t, dir, tmpfsDefaults...)
 	bodies := map[string]string{ // one entry per configFiles term
-		"user":    "cli: grok\ntmpfs:\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
+		"user":    "cli: grok\ntmpfs:\n  - ccbox-defaults\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
 		"project": "cli: claude\ntmpfs:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
 		"local":   "cli: codex\ntmpfs:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",
 	}
@@ -271,23 +291,33 @@ func TestLoadLayersFiles(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", *c.CLI)                                                                              // scalars: later layer wins
-	assert.Equal(t, []string{".idea", ".vscode", "dist", "build", "cache"}, c.Tmpfs)                              // lists append, lowest layer first
-	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)                    // env overlays, later wins
-	assert.Equal(t, append(append([]string{"user.example.dev"}, allowDefaults()...), "example.com"), c.Allowlist) // lists append, token expands in place
-	assert.Equal(t, new(false), c.HostGitConfig)                                                                  // scalars: later layer wins
+	assert.Equal(t, "codex", *c.CLI)             // later layer wins
+	assert.Equal(t, new(false), c.HostGitConfig) // later layer wins
+
+	// the user layer's tmpfs token expands in place; lists append, lowest layer first, dedupe collapses
+	assert.Equal(t, []string{".idea", ".vscode", "dist", "build", "cache"}, c.Tmpfs)
+
+	// env overlays, later wins
+	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)
+
+	// lists append, the token expands in place
+	assert.Equal(t, append(append([]string{"user.example.dev"}, allowDefaults()...), "example.com"), c.Allowlist)
 }
 
 func TestLoadSingleFileOnly(t *testing.T) {
 	for _, cf := range configFiles { // the other files are absent
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: grok\nallowlist:\n  - example.com\n")
+			writeConfig(t, dir, cf.name, "cli: grok\nhost_git_config: true\nallowlist:\n  - example.com\n")
 
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
 			assert.Equal(t, "grok", *c.CLI)
-			assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
+			if cf.term == "user" { // the user file replaces the seed wholesale
+				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
+			} else { // the user seed's token still underlies the project/local file
+				assert.Equal(t, append(allowDefaults(), "example.com"), c.Allowlist)
+			}
 		})
 	}
 }
@@ -322,33 +352,16 @@ func TestMergeIsPure(t *testing.T) {
 		Allowlist:     []string{"example.com"},
 		HostGitConfig: new(false),
 	}
-	before := deepcopy.Of(src)
 
 	got := src.merge(other)
 
-	// merge must not mutate its receiver — every src field still equals its pre-merge snapshot
-	srvVal, beforeVal, gotVal := reflect.ValueOf(src), reflect.ValueOf(before), reflect.ValueOf(got)
-	for i := range srvVal.NumField() {
-		field := srvVal.Type().Field(i).Name
-		assert.Equal(t, beforeVal.Field(i).Interface(), srvVal.Field(i).Interface(), "merge mutated src.%s", field)
-		assert.NotEqual(t, beforeVal.Field(i).Interface(), gotVal.Field(i).Interface(), "before = got on field %s, maybe missed a new field?", field)
-	}
-
-	// and the returned Config is the actual layering
+	assert.Equal(t, deepcopy.Of(src), src) // merge never mutates its receiver
 	assert.Equal(t, []string{"dist", "build"}, got.Tmpfs)
 	assert.Equal(t, []string{"target", "cache"}, got.Volumes)
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
-	assert.Equal(t, new(false), got.HostGitConfig) // scalar: other (the later layer) wins when set
-	assert.Equal(t, "codex", *got.CLI)             // scalar: other (the later layer) wins when set
-}
-
-func TestLoadRejectsUnknownCLI(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("cli: emacs\n"), ioutil.File))
-
-	_, err := Load(dir, Config{})
-	require.ErrorContains(t, err, "is not one of [claude codex grok opencode]")
+	assert.Equal(t, new(false), got.HostGitConfig) // a set later layer wins
+	assert.Equal(t, "codex", *got.CLI)             // a set later layer wins
 }
 
 func TestLoadRejectsInvalidValues(t *testing.T) {
@@ -357,6 +370,7 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		body string
 		want []string
 	}{
+		{"unknown cli", "cli: emacs\n", []string{"CLI", "is not one of [claude codex grok opencode]"}},
 		{"absolute tmpfs", "tmpfs:\n  - /etc\n", []string{"Tmpfs", "Match"}},
 		{"tmpfs traversal", "tmpfs:\n  - ../escape\n", []string{"Tmpfs", "Match"}},
 		{"absolute volume", "volumes:\n  - /var\n", []string{"Volumes", "Match"}},

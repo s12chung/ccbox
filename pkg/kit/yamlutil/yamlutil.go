@@ -10,9 +10,9 @@ import (
 
 // Value renders v as a YAML value for a template line. Unset (nil) renders bare, keeping
 // bare key = null = unset — which the yaml library cannot express (it marshals "null"/"[]");
-// an empty non-nil slice/map keeps its explicit emptiness (" []"/" {}"); a scalar renders
-// inline; anything else renders as a 2-space indented block. Values marshal through yaml,
-// so quoting and map-key order match what a yaml parser reads back.
+// an empty non-nil slice/map keeps its explicit emptiness (" []"/" {}"); a plain value
+// renders inline; anything else renders as a 2-space indented block. Values marshal through
+// yaml, so quoting and map-key order match what a yaml parser reads back.
 func Value(v any) (string, error) {
 	rv := reflect.ValueOf(v)
 	if !rv.IsValid() || (rv.Kind() == reflect.Pointer && rv.IsNil()) {

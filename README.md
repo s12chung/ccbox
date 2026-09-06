@@ -18,13 +18,12 @@ As a safety net for accidents, the CLI is also seeded to refuse reading common s
 
 The config level hierarchy is:
 
-- Internal Defaults
-- User - `~/.ccbox/config/ccbox.yaml` (no dot)
+- User - `~/.ccbox/config/ccbox.yaml` (no dot) — seeded with ccbox's defaults on first run
 - Project - `project_dir/.ccbox.yaml`
 - Project Local - `project_dir/.ccbox.local.yaml` (for git ignore)
 - `ccbox` flags
 
-`ccbox` has an internal default. `ccbox config` prints the effective config with defaults applied. `ccbox config init` creates a commented empty config. When merging configs, arrays are appended and maps are merged for `tmpfs`, `volumes`, `env`, and `allowlist`.
+`ccbox config` prints the effective config with `ccbox-defaults` expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays are appended and maps are merged for `tmpfs`, `volumes`, `env`, and `allowlist`.
 
 ## Docs
 

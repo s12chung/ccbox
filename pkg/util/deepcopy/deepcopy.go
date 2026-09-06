@@ -5,8 +5,8 @@ package deepcopy
 import "reflect"
 
 // Of returns a deep copy of v. Slices, maps, pointers, and structs are duplicated recursively;
-// scalars are copied by value. Nil slices/maps/pointers stay nil. Unexported struct fields are
-// left zero — reflection can't set them.
+// everything else is copied by value. Nil slices/maps/pointers stay nil. Unexported struct
+// fields are left zero — reflection can't set them.
 func Of[T any](v T) T {
 	// copyValue preserves v's type, so Set doubles as the type check — no assertion needed
 	var out T

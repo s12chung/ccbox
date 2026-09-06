@@ -128,7 +128,6 @@ func resolveHostMounts(userDir string) (hostMounts, error) {
 
 // hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when
 // host_git_config is disabled in .ccbox.yaml or the dir is absent. HostGitConfig is non-nil:
-// projectcfg.Load always applies Defaulted, which resolves the default-on.
 func hostGitConfigDir() (string, error) {
 	if !*projectCfg.HostGitConfig {
 		return "", nil

@@ -61,21 +61,3 @@ func cliAllowDomains() []string {
 	}
 	return domains
 }
-
-// expandAllowlist replaces each DefaultsToken with allowDefaults. A nil list (allowlist
-// unset) falls back to the built-ins; an explicit empty list ([]) stays empty, so the wall
-// allows nothing.
-func expandAllowlist(domains []string) []string {
-	if domains == nil {
-		domains = []string{DefaultsToken}
-	}
-	var out []string
-	for _, d := range domains {
-		if d == DefaultsToken {
-			out = append(out, allowDefaults()...)
-			continue
-		}
-		out = append(out, d)
-	}
-	return out
-}

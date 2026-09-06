@@ -123,8 +123,8 @@ func TestFileSkipsExisting(t *testing.T) {
 	writeFile(t, path, "user's own config")
 
 	err := File(path, "new body")
-	assert.ErrorIs(t, err, ErrExists)
-	assert.ErrorContains(t, err, path, "the error carries the path")
+	require.ErrorIs(t, err, ErrExists)
+	require.ErrorContains(t, err, path, "the error carries the path")
 	assertFile(t, path, "user's own config")
 }
 
