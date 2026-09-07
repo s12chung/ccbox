@@ -2,10 +2,10 @@ package projectcfg
 
 import "github.com/s12chung/ccbox/pkg/harness"
 
-// allowDefaults are the egress domains DefaultsToken expands to: the wall's built-in
+// AllowDefaults are the egress domains DefaultsToken expands to: the wall's built-in
 // allow — shared defaults plus every supported CLI's own domains, computed per call
 // from the loaded cli set.
-func allowDefaults() []string {
+func AllowDefaults() []string {
 	return append(append([]string{}, sharedAllowDefaults...), cliAllowDomains()...)
 }
 

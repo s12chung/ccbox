@@ -9,13 +9,13 @@ host_git_config: true
 # tmpfsMasks: project-relative paths to mask with a temporary filesystem to block access.
 # Works for files too. Paths that do not exist in the project are safely ignored.
 tmpfsMasks:
-  - ccbox-defaults
+  - ccbox-defaults # `ccbox config defaults` for expansions
   # - dist
 
 # volumeMasks: project-relative paths to mask with a persistent volume to avoid host collisions.
 # Useful for node_modules-like folders. Paths that do not exist in the project are safely ignored.
 volumeMasks:
-  - ccbox-defaults
+  - ccbox-defaults # `ccbox config defaults` for expansions
   # - vendor/bundle
 
 # env: extra environment variables set in the container
@@ -24,5 +24,5 @@ env:
 
 # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains
 allowlist:
-  - ccbox-defaults
+  - ccbox-defaults # `ccbox config defaults` for expansions
   # - example.com

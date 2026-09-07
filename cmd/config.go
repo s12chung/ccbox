@@ -14,12 +14,13 @@ import (
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Print the effective .ccbox.yaml with ccbox-defaults tokens expanded",
+	Short: "Print the effective .ccbox.yaml with " + projectcfg.DefaultsToken + " tokens expanded",
 	RunE: func(_ *cobra.Command, _ []string) error {
 		cwd, err := os.Getwd()
 		if err != nil {
 			return err
 		}
+		log.Info("# Run `ccbox config defaults` for " + projectcfg.DefaultsToken + " expansions")
 		printLoadedPaths(cwd)
 		out, err := yaml.Marshal(projectCfg) // already resolved by projectcfg.Load
 		if err != nil {
@@ -36,7 +37,7 @@ func printLoadedPaths(projectDir string) {
 	if len(loaded) == 0 {
 		return
 	}
-	log.Info("# config files, in load order:")
+	log.Info("\n# Config files, in load order:")
 	for _, path := range loaded {
 		log.Infof("#   %s", userdir.Tilde(path))
 	}
@@ -78,4 +79,29 @@ var configInitCmd = &cobra.Command{
 	},
 }
 
-func init() { configCmd.AddCommand(configInitCmd) }
+var configDefaultsCmd = &cobra.Command{
+	Use:   "defaults",
+	Short: "Print what the " + projectcfg.DefaultsToken + " tokens expand to",
+	RunE: func(_ *cobra.Command, _ []string) error {
+		groups := []struct {
+			field    string
+			defaults []string
+		}{
+			{"tmpfsMasks", projectcfg.TmpfsDefaults()},
+			{"volumeMasks", projectcfg.VolumeDefaults()},
+			{"allowlist", projectcfg.AllowDefaults()},
+		}
+		for i, g := range groups {
+			if i > 0 {
+				log.Info("")
+			}
+			log.Infof("# %s:", g.field)
+			for _, d := range g.defaults {
+				log.Infof("#   - %s", d)
+			}
+		}
+		return nil
+	},
+}
+
+func init() { configCmd.AddCommand(configInitCmd, configDefaultsCmd) }

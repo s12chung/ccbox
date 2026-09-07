@@ -8,12 +8,12 @@ host_git_config:{{yaml .HostGitConfig}}
 
 # tmpfsMasks: project-relative paths to mask with a temporary filesystem to block access.
 # Works for files too. Paths that do not exist in the project are safely ignored.
-tmpfsMasks:{{yaml .TmpfsMasks}}
+tmpfsMasks:{{yaml .TmpfsMasks}}{{if .TmpfsMasks}} # `ccbox config defaults` for expansions{{end}}
   # - dist
 
 # volumeMasks: project-relative paths to mask with a persistent volume to avoid host collisions.
 # Useful for node_modules-like folders. Paths that do not exist in the project are safely ignored.
-volumeMasks:{{yaml .VolumeMasks}}
+volumeMasks:{{yaml .VolumeMasks}}{{if .VolumeMasks}} # `ccbox config defaults` for expansions{{end}}
   # - vendor/bundle
 
 # env: extra environment variables set in the container
@@ -21,5 +21,5 @@ env:{{yaml .Env}}
   # FOO: bar
 
 # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains
-allowlist:{{yaml .Allowlist}}
+allowlist:{{yaml .Allowlist}}{{if .Allowlist}} # `ccbox config defaults` for expansions{{end}}
   # - example.com

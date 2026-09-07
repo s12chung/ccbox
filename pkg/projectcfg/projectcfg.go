@@ -111,7 +111,7 @@ func LoadExpanded(projectDir string, flags Config) (Config, error) {
 	}
 	c.TmpfsMasks = expandList(c.TmpfsMasks, tmpfsDefaults)
 	c.VolumeMasks = expandList(c.VolumeMasks, volumeDefaults)
-	c.Allowlist = expandList(c.Allowlist, allowDefaults())
+	c.Allowlist = expandList(c.Allowlist, AllowDefaults())
 	return c, nil
 }
 

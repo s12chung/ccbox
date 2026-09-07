@@ -13,11 +13,14 @@ var (
 	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
 )
 
+// TmpfsDefaults is what DefaultsToken in tmpfsMasks expands to
+func TmpfsDefaults() []string { return slices.Clone(tmpfsDefaults) }
+
+// VolumeDefaults is what DefaultsToken in volumeMasks expands to
+func VolumeDefaults() []string { return slices.Clone(volumeDefaults) }
+
 // MaskDefaults are the built-in paths masked when present in the project: tmpfs then volume.
-// Exposed so callers can spot a run creating one that future runs will start masking.
-func MaskDefaults() []string {
-	return append(append([]string{}, tmpfsDefaults...), volumeDefaults...)
-}
+func MaskDefaults() []string { return append(TmpfsDefaults(), VolumeDefaults()...) }
 
 // NotFoundMasks loads the defaulted config (LoadExpanded) and returns its tmpfsMasks and
 // volumeMasks paths not found in the project

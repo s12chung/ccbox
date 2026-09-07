@@ -86,7 +86,7 @@ func TestSeedUserConfig(t *testing.T) {
 	assert.Equal(t, UserConfigFile(), path)
 
 	// the seed is the defaults' carrier
-	want := Config{CLI: new("claude"), HostGitConfig: new(true), TmpfsMasks: tmpfsDefaults, VolumeMasks: volumeDefaults, Allowlist: allowDefaults()}
+	want := Config{CLI: new("claude"), HostGitConfig: new(true), TmpfsMasks: TmpfsDefaults(), VolumeMasks: VolumeDefaults(), Allowlist: AllowDefaults()}
 
 	t.Run("seed alone resolves the default config", func(t *testing.T) {
 		c, err := Load(dir, Config{})
@@ -145,7 +145,7 @@ func TestLoadEmptyListKeepsLowerLayers(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, allowDefaults(), c.Allowlist) // lists append: [] adds nothing, the seed's token stays
+	assert.Equal(t, AllowDefaults(), c.Allowlist) // lists append: [] adds nothing, the seed's token stays
 }
 
 func TestLoadExpanded(t *testing.T) {
@@ -336,7 +336,7 @@ func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
 	// every loaded cli's domains count — embedded or user-defined, they all sit in All()
 	for _, c := range harness.All() {
 		for _, d := range c.AllowDomains {
-			assert.Containsf(t, allowDefaults(), d, "%s: %s", c.Name, d)
+			assert.Containsf(t, AllowDefaults(), d, "%s: %s", c.Name, d)
 		}
 	}
 }
@@ -366,7 +366,7 @@ func TestLoadLayersFiles(t *testing.T) {
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)
 
 	// lists append, the token expands in place
-	assert.Equal(t, append(append([]string{"user.example.dev"}, allowDefaults()...), "example.com"), c.Allowlist)
+	assert.Equal(t, append(append([]string{"user.example.dev"}, AllowDefaults()...), "example.com"), c.Allowlist)
 }
 
 func TestLoadSingleFileOnly(t *testing.T) {
@@ -381,7 +381,7 @@ func TestLoadSingleFileOnly(t *testing.T) {
 			if cf.term == "user" { // the user file replaces the seed wholesale
 				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
 			} else { // the user seed's token still underlies the project/local file
-				assert.Equal(t, append(allowDefaults(), "example.com"), c.Allowlist)
+				assert.Equal(t, append(AllowDefaults(), "example.com"), c.Allowlist)
 			}
 		})
 	}
