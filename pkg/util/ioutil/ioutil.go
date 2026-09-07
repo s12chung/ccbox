@@ -21,12 +21,12 @@ func Missing(path string) bool {
 	return errors.Is(err, fs.ErrNotExist)
 }
 
-// PathsPresent returns the entries of paths that exist under src.
-func PathsPresent(src string, paths []string) []string {
+// DirsPresent returns the entries of dirs that exist as directories under src.
+func DirsPresent(src string, dirs []string) []string {
 	var out []string
-	for _, p := range paths {
-		if _, err := os.Stat(filepath.Join(src, p)); err == nil {
-			out = append(out, p)
+	for _, d := range dirs {
+		if info, err := os.Stat(filepath.Join(src, d)); err == nil && info.IsDir() {
+			out = append(out, d)
 		}
 	}
 	return out

@@ -21,16 +21,16 @@ const (
 	containerUID = "1000"
 )
 
-// tmpfsOpts makes a masked project path's tmpfs writable+executable by that user, so masked build
+// tmpfsOpts makes a masked project dir's tmpfs writable+executable by that user, so masked build
 // outputs (e.g. dist/) can be written and run — Docker's default is root-owned noexec.
 var tmpfsOpts = fmt.Sprintf("uid=%s,gid=%s,exec", containerUID, containerUID)
 
-// tmpfsMasks maps each project-relative path to its tmpfs options.
-func tmpfsMasks(hostCwd string, hostPaths []string) (map[string]string, error) {
+// tmpfsMasks maps each project-relative dir to its tmpfs options.
+func tmpfsMasks(hostCwd string, hostDirs []string) (map[string]string, error) {
 	workspaceMount := WorkspaceMount(hostCwd)
 	tmpfs := map[string]string{}
-	for _, p := range hostPaths {
-		containerPath, err := safeContainerPath(workspaceMount, p)
+	for _, d := range hostDirs {
+		containerPath, err := safeContainerPath(workspaceMount, d)
 		if err != nil {
 			return nil, err
 		}
@@ -76,14 +76,14 @@ func cacheVolumeBinds(hostCwd string) []string {
 	return binds
 }
 
-// maskVolumeName is hostCwd's persistent volume for a project-relative masked path
+// maskVolumeName is hostCwd's persistent volume for a project-relative masked dir
 func maskVolumeName(hostCwd, rel string) string {
 	return cacheVolumeName(hostCwd, strings.ReplaceAll(rel, "/", "-"))
 }
 
 // ensureNamedVolumeMasks builds the mask binds and ensures each volume exists owned by the container user.
-func ensureNamedVolumeMasks(ctxD *dock.CtxD, hostCwd, imageTag string, hostPaths []string) ([]string, error) {
-	binds, names, err := namedVolumeMasks(hostCwd, hostPaths)
+func ensureNamedVolumeMasks(ctxD *dock.CtxD, hostCwd, imageTag string, hostDirs []string) ([]string, error) {
+	binds, names, err := namedVolumeMasks(hostCwd, hostDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -95,16 +95,16 @@ func ensureNamedVolumeMasks(ctxD *dock.CtxD, hostCwd, imageTag string, hostPaths
 	return binds, nil
 }
 
-// namedVolumeMasks returns a "volume:containerPath" bind per masked path, plus each volume's name.
-func namedVolumeMasks(hostCwd string, hostPaths []string) ([]string, []string, error) {
+// namedVolumeMasks returns a "volume:containerPath" bind per masked dir, plus each volume's name.
+func namedVolumeMasks(hostCwd string, hostDirs []string) ([]string, []string, error) {
 	workspaceMount := WorkspaceMount(hostCwd)
 	var binds, names []string
-	for _, p := range hostPaths {
-		containerPath, err := safeContainerPath(workspaceMount, p)
+	for _, d := range hostDirs {
+		containerPath, err := safeContainerPath(workspaceMount, d)
 		if err != nil {
 			return nil, nil, err
 		}
-		name := maskVolumeName(hostCwd, p)
+		name := maskVolumeName(hostCwd, d)
 		binds = append(binds, name+":"+containerPath)
 		names = append(names, name)
 	}
@@ -137,7 +137,7 @@ func volumeLabels(hostCwd string) map[string]string {
 func safeContainerPath(workspaceMount, hostPath string) (string, error) {
 	dest := filepath.Join(workspaceMount, hostPath)
 	if rel, err := filepath.Rel(workspaceMount, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("mask path escapes workspace: %q", hostPath)
+		return "", fmt.Errorf("path escapes workspace: %q", hostPath)
 	}
 	return dest, nil
 }

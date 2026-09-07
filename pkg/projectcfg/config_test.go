@@ -11,9 +11,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
-func TestConfig_VolumeCleanupPaths(t *testing.T) {
+func TestConfig_VolumeCleanupDirs(t *testing.T) {
 	c := Config{VolumeMasks: []string{"node_modules", "target"}}
-	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupPaths())
+	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupDirs())
 }
 
 // TestConfig_renderTmpl pins the render output to the committed testdata fixtures,

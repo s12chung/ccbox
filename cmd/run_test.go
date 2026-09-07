@@ -88,6 +88,6 @@ func TestMasksOnHost(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(cwd, "afile"), nil, ioutil.File)) // a file, not a dir
 
 	dirs := []string{"node_modules", "dist", "vendor/bundle", "typo", "afile"}
-	assert.Equal(t, []string{"dist", "typo"}, masksOnHost(cwd, dirs, false))                          // absent
-	assert.Equal(t, []string{"node_modules", "vendor/bundle", "afile"}, masksOnHost(cwd, dirs, true)) // present (a file counts too)
+	assert.Equal(t, []string{"dist", "typo", "afile"}, masksOnHost(cwd, dirs, false))        // absent as a dir (file counts as absent)
+	assert.Equal(t, []string{"node_modules", "vendor/bundle"}, masksOnHost(cwd, dirs, true)) // present as a dir
 }

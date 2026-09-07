@@ -116,14 +116,14 @@ func LoadExpanded(projectDir string, flags Config) (Config, error) {
 }
 
 // Load mask-checks LoadExpanded: the tmpfsMasks and volumeMasks lists keep only the project's
-// present paths, so run never creates a masked path.
+// present dirs, so run never creates a masked dir.
 func Load(projectDir string, flags Config) (Config, error) {
 	c, err := LoadExpanded(projectDir, flags)
 	if err != nil {
 		return Config{}, err
 	}
-	c.TmpfsMasks = ioutil.PathsPresent(projectDir, c.TmpfsMasks)
-	c.VolumeMasks = ioutil.PathsPresent(projectDir, c.VolumeMasks)
+	c.TmpfsMasks = ioutil.DirsPresent(projectDir, c.TmpfsMasks)
+	c.VolumeMasks = ioutil.DirsPresent(projectDir, c.VolumeMasks)
 	return c, nil
 }
 

@@ -75,7 +75,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	// A default mask path absent now isn't masked this run, but gets masked once it exists.
+	// A default mask dir absent now isn't masked this run, but gets masked once it exists.
 	// Snapshot the absent ones, then warn after the run for any the container created.
 	defer printMasks()
 	absentDefaults := masksOnHost(m.cwd, projectcfg.MaskDefaults(), false)

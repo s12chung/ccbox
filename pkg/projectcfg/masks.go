@@ -7,9 +7,9 @@ import (
 )
 
 var (
-	// tmpfsDefaults always-masked paths, prepended only when present in the project (to prevent host creation)
+	// tmpfsDefaults always-masked dirs, prepended only when present in the project (to prevent host creation)
 	tmpfsDefaults = []string{".idea", ".vscode"}
-	// volumeDefaults for persistent volume masked paths only when present in the project (to prevent host creation)
+	// volumeDefaults for persistent volume masked dirs only when present in the project (to prevent host creation)
 	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
 )
 
@@ -19,25 +19,25 @@ func TmpfsDefaults() []string { return slices.Clone(tmpfsDefaults) }
 // VolumeDefaults is what DefaultsToken in volumeMasks expands to
 func VolumeDefaults() []string { return slices.Clone(volumeDefaults) }
 
-// MaskDefaults are the built-in paths masked when present in the project: tmpfs then volume.
+// MaskDefaults are the built-in dirs masked when present in the project: tmpfs then volume.
 func MaskDefaults() []string { return append(TmpfsDefaults(), VolumeDefaults()...) }
 
 // NotFoundMasks loads the defaulted config (LoadExpanded) and returns its tmpfsMasks and
-// volumeMasks paths not found in the project
+// volumeMasks dirs not found in the project
 func NotFoundMasks(projectDir string, flags Config) ([]string, []string, error) {
 	c, err := LoadExpanded(projectDir, flags)
 	if err != nil {
 		return nil, nil, err
 	}
-	return absentPaths(projectDir, c.TmpfsMasks), absentPaths(projectDir, c.VolumeMasks), nil
+	return absentDirs(projectDir, c.TmpfsMasks), absentDirs(projectDir, c.VolumeMasks), nil
 }
 
-func absentPaths(src string, paths []string) []string {
-	present := ioutil.PathsPresent(src, paths)
+func absentDirs(src string, dirs []string) []string {
+	present := ioutil.DirsPresent(src, dirs)
 	var out []string
-	for _, p := range paths {
-		if !slices.Contains(present, p) {
-			out = append(out, p)
+	for _, d := range dirs {
+		if !slices.Contains(present, d) {
+			out = append(out, d)
 		}
 	}
 	return out

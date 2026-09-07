@@ -6,13 +6,13 @@ cli:
 # host_git_config: read-only mount the host's ~/.config/git
 host_git_config:
 
-# tmpfsMasks: project-relative paths to mask with a temporary filesystem to block access.
-# Works for files too. Paths that do not exist in the project are safely ignored.
+# tmpfsMasks: project-relative directories to mask with a temporary filesystem to block access.
+# Directories that do not exist in the project are safely ignored.
 tmpfsMasks:
   - dist
 
-# volumeMasks: project-relative paths to mask with a persistent volume to avoid host collisions.
-# Useful for node_modules-like folders. Paths that do not exist in the project are safely ignored.
+# volumeMasks: project-relative directories to mask with a persistent volume to avoid host collisions.
+# Useful for node_modules-like folders. Directories that do not exist in the project are safely ignored.
 volumeMasks:
 
 # env: extra environment variables set in the container

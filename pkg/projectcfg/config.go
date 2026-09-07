@@ -20,8 +20,8 @@ type Config struct {
 	CLI           *string `yaml:"cli"`             // coding CLI to install + launch
 	HostGitConfig *bool   `yaml:"host_git_config"` // read-only mount host ~/.config/git
 	// camelCase keys: they read as the masks for tmpfs/volumes
-	TmpfsMasks  []string          `yaml:"tmpfsMasks"`  //nolint:tagliatelle // project-relative paths to mask with a writable tmpfs
-	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative paths to mask with a persistent per-project volume
+	TmpfsMasks  []string          `yaml:"tmpfsMasks"`  //nolint:tagliatelle // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative dirs to mask with a persistent per-project volume
 	Env         map[string]string `yaml:"env"`         // extra env vars set in the container
 	Allowlist   []string          `yaml:"allowlist"`   // egress wall domains
 }
@@ -32,9 +32,9 @@ func init() {
 		Validates(firm.RuleMap{
 			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
 
-			// mask paths are project-relative: no absolute paths, no ".." traversal
-			"TmpfsMasks":  {firm.Elems[[]string](firmrule.MaskPath)},
-			"VolumeMasks": {firm.Elems[[]string](firmrule.MaskPath)},
+			// mask dirs are project-relative: no absolute paths, no ".." traversal
+			"TmpfsMasks":  {firm.Elems[[]string](firmrule.MaskDir)},
+			"VolumeMasks": {firm.Elems[[]string](firmrule.MaskDir)},
 			"Env": {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
@@ -43,18 +43,18 @@ func init() {
 		}))
 }
 
-// VolumeCleanupPaths is every mask path whose volume may exist
-func (c Config) VolumeCleanupPaths() []string {
+// VolumeCleanupDirs is every mask dir whose volume may exist
+func (c Config) VolumeCleanupDirs() []string {
 	seen := map[string]bool{}
-	var paths []string
-	for _, p := range append(append([]string{}, volumeDefaults...), c.VolumeMasks...) {
-		if seen[p] {
+	var dirs []string
+	for _, d := range append(append([]string{}, volumeDefaults...), c.VolumeMasks...) {
+		if seen[d] {
 			continue
 		}
-		seen[p] = true
-		paths = append(paths, p)
+		seen[d] = true
+		dirs = append(dirs, d)
 	}
-	return paths
+	return dirs
 }
 
 // merge layers other onto c and returns a fresh Config

@@ -70,7 +70,7 @@ func TestMatchRules(t *testing.T) {
 			[]string{"", "1FOO", "bad-key", "FOO BAR"},
 		},
 		{
-			"MaskPath", MaskPath,
+			"MaskDir", MaskDir,
 			[]string{"node_modules", ".idea", "vendor/bundle", "a"},
 			[]string{"", "/etc", "../escape", "..", "./x", "."},
 		},

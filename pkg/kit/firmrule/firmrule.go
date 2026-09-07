@@ -16,8 +16,8 @@ var (
 	Domain = rule.Match{Regexp: regexp.MustCompile(`^([a-z0-9-]+\.)*[a-z0-9-]+$`)}
 	// EnvVar is a POSIX-ish env var name
 	EnvVar = rule.Match{Regexp: regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)}
-	// MaskPath is a project-relative dir to mask: no leading slash or ".." (".idea" is fine)
-	MaskPath = rule.Match{Regexp: regexp.MustCompile(`^[.]?[^./]`)}
+	// MaskDir is a project-relative dir to mask: no leading slash or ".." (".idea" is fine)
+	MaskDir = rule.Match{Regexp: regexp.MustCompile(`^[.]?[^./]`)}
 	// HomePath is a $HOME-relative path, e.g. .claude or .config/opencode
 	HomePath = rule.Match{Regexp: regexp.MustCompile(`^[^/].*$`)}
 	// FileName is a bare filename, no directories
