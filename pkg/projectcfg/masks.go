@@ -6,6 +6,13 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
+var (
+	// tmpfsDefaults always-masked paths, prepended only when present in the project (to prevent host creation)
+	tmpfsDefaults = []string{".idea", ".vscode"}
+	// volumeDefaults for persistent volume masked paths only when present in the project (to prevent host creation)
+	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
+)
+
 // MaskDefaults are the built-in paths masked when present in the project: tmpfs then volume.
 // Exposed so callers can spot a run creating one that future runs will start masking.
 func MaskDefaults() []string {
@@ -31,18 +38,4 @@ func absentPaths(src string, paths []string) []string {
 		}
 	}
 	return out
-}
-
-// VolumeCleanupPaths is every mask path whose volume may exist
-func (c Config) VolumeCleanupPaths() []string {
-	seen := map[string]bool{}
-	var paths []string
-	for _, p := range append(append([]string{}, volumeDefaults...), c.VolumeMasks...) {
-		if seen[p] {
-			continue
-		}
-		seen[p] = true
-		paths = append(paths, p)
-	}
-	return paths
 }

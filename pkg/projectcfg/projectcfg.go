@@ -4,25 +4,18 @@ package projectcfg
 
 import (
 	"bytes"
-	_ "embed"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"text/template"
 
 	"github.com/s12chung/firm"
-	"github.com/s12chung/firm/rule"
 	"gopkg.in/yaml.v3"
 
-	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -37,34 +30,29 @@ const (
 	DefaultsToken = "ccbox-defaults" // #nosec G101 -- config expansion keyword, not a credential
 )
 
-var (
-	// tmpfsDefaults always-masked paths, prepended only when present in the project (to prevent host creation)
-	tmpfsDefaults = []string{".idea", ".vscode"}
-	// volumeDefaults for persistent volume masked paths only when present in the project (to prevent host creation)
-	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
-)
+// UserConfigFile is the user-level config's path
+func UserConfigFile() string { return filepath.Join(userdir.ConfigDir(), userFileName) }
 
-// configTmplSrc is the ccbox.yaml template
-//
-//go:embed ccbox.yaml.tmpl
-var configTmplSrc string
+// layerPaths lists the config file paths in load order: user, project, local
+func layerPaths(projectDir string) []string {
+	return []string{UserConfigFile(), filepath.Join(projectDir, projectFileName), filepath.Join(projectDir, localFileName)}
+}
 
-var configTmpl = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
-	"yaml": yamlutil.Value,
-}).Parse(configTmplSrc))
-
-func renderConfig(c Config) (string, error) {
-	var b bytes.Buffer
-	if err := configTmpl.Execute(&b, c); err != nil {
-		return "", fmt.Errorf("projectcfg: render config template: %w", err)
+// LoadedPaths returns the layer config files present on disk, in load order
+func LoadedPaths(projectDir string) []string {
+	var present []string
+	for _, path := range layerPaths(projectDir) {
+		if _, err := os.Stat(path); err == nil {
+			present = append(present, path)
+		}
 	}
-	return b.String(), nil
+	return present
 }
 
 // Init writes to projectDir/.ccbox.yaml and returns its path.
 func Init(projectDir string) (string, error) {
 	path := filepath.Join(projectDir, projectFileName)
-	body, err := renderConfig(Config{})
+	body, err := Config{}.renderTmpl()
 	if err != nil {
 		return "", err
 	}
@@ -92,7 +80,7 @@ func SeedUserConfig(cli string) (string, error) {
 	if !ioutil.Missing(UserConfigFile()) {
 		return "", nil // the no-op path: no seed, no log
 	}
-	body, err := renderConfig(userSeedConfig(cli))
+	body, err := userSeedConfig(cli).renderTmpl()
 	if err != nil {
 		return "", err
 	}
@@ -103,26 +91,6 @@ func SeedUserConfig(cli string) (string, error) {
 		return "", err
 	}
 	return UserConfigFile(), nil
-}
-
-// UserConfigFile is the user-level config's path
-func UserConfigFile() string { return filepath.Join(userdir.ConfigDir(), userFileName) }
-
-// layerPaths lists the config file paths in load order: user, project, local
-func layerPaths(projectDir string) []string {
-	return []string{UserConfigFile(), filepath.Join(projectDir, projectFileName), filepath.Join(projectDir, localFileName)}
-}
-
-// LoadedPaths returns the layer config files present on disk, in load order
-// (user, project, local). An existing but empty file counts as loaded.
-func LoadedPaths(projectDir string) []string {
-	var present []string
-	for _, path := range layerPaths(projectDir) {
-		if _, err := os.Stat(path); err == nil {
-			present = append(present, path)
-		}
-	}
-	return present
 }
 
 // LoadExpanded reads the config layers — user (ConfigDir), project (project repo root),
@@ -159,40 +127,9 @@ func Load(projectDir string, flags Config) (Config, error) {
 	return c, nil
 }
 
-// Config is the parsed .ccbox.yaml.
-type Config struct {
-	CLI           *string `yaml:"cli"`             // coding CLI to install + launch
-	HostGitConfig *bool   `yaml:"host_git_config"` // read-only mount host ~/.config/git
-	// camelCase keys: they read as the masks for tmpfs/volumes
-	TmpfsMasks  []string          `yaml:"tmpfsMasks"`  //nolint:tagliatelle // project-relative paths to mask with a writable tmpfs
-	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative paths to mask with a persistent per-project volume
-	Env         map[string]string `yaml:"env"`         // extra env vars set in the container
-	Allowlist   []string          `yaml:"allowlist"`   // egress wall domains
-}
-
-func init() {
-	firm.MustRegisterType(firm.NewDefinition[Config]().
-		NotNil("CLI", "HostGitConfig").
-		Validates(firm.RuleMap{
-			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
-
-			// mask paths are project-relative: no absolute paths, no ".." traversal
-			"TmpfsMasks":  {firm.Elems[[]string](firmrule.MaskPath)},
-			"VolumeMasks": {firm.Elems[[]string](firmrule.MaskPath)},
-			"Env": {
-				firm.Keys[map[string]string](firmrule.EnvVar),
-				firm.Values[map[string]string](rule.Present{}),
-			},
-			"Allowlist": {firm.Elems[[]string](firmrule.Domain)},
-		}))
-}
-
 // expandList replaces each DefaultsToken with defaults, preserving entry order and
 // dropping repeat entries.
 func expandList(list, defaults []string) []string {
-	if list == nil {
-		list = []string{DefaultsToken}
-	}
 	var out []string
 	seen := map[string]bool{}
 	add := func(entries ...string) {
@@ -207,26 +144,11 @@ func expandList(list, defaults []string) []string {
 	for _, d := range list {
 		if d == DefaultsToken {
 			add(defaults...)
-			continue
+		} else {
+			add(d)
 		}
-		add(d)
 	}
 	return out
-}
-
-// merge layers other onto c and returns a fresh Config
-func (c Config) merge(other Config) Config {
-	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)
-	c.VolumeMasks = mergeempty.Slice(c.VolumeMasks, other.VolumeMasks)
-	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
-	c.Env = mergeempty.Map(c.Env, other.Env)
-	if other.CLI != nil {
-		c.CLI = other.CLI
-	}
-	if other.HostGitConfig != nil {
-		c.HostGitConfig = other.HostGitConfig
-	}
-	return c
 }
 
 // read parses one layer's config file: user, project, or local. A missing file yields

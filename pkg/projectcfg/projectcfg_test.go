@@ -156,14 +156,11 @@ func TestLoadExpanded(t *testing.T) {
 		want       Config
 	}{
 		{
-			"an all-nil config expands every list to the built-ins", t.TempDir(),
+			"an all-nil config expands every list to nothing", t.TempDir(),
 			"cli: claude\nhost_git_config: true\n",
 			Config{
 				CLI:           new("claude"),
 				HostGitConfig: new(true),
-				TmpfsMasks:    tmpfsDefaults,
-				VolumeMasks:   volumeDefaults,
-				Allowlist:     allowDefaults(),
 			},
 		},
 		{
@@ -173,14 +170,12 @@ func TestLoadExpanded(t *testing.T) {
 				CLI:           new("claude"),
 				HostGitConfig: new(true),
 				TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
-				VolumeMasks:   volumeDefaults,
-				Allowlist:     allowDefaults(),
 			},
 		},
 		{
-			"explicit empty lists opt out", t.TempDir(),
+			"an explicit empty list stays empty like an unset one", t.TempDir(),
 			"cli: claude\nhost_git_config: true\nvolumeMasks: []\n",
-			Config{CLI: new("claude"), HostGitConfig: new(true), TmpfsMasks: tmpfsDefaults, Allowlist: allowDefaults()},
+			Config{CLI: new("claude"), HostGitConfig: new(true)},
 		},
 	}
 	for _, tt := range tests {
@@ -335,36 +330,6 @@ func TestInitRefusesExisting(t *testing.T) {
 
 	_, err := Init(dir)
 	assert.ErrorIs(t, err, seed.ErrExists)
-}
-
-// TestRenderConfigFixtures pins the render output to the committed testdata fixtures,
-// which `make lint` yq-checks as YAML. Regenerate with:
-// `UPDATE_FIXTURES=1 go test ./pkg/projectcfg/ -run TestRenderConfigFixtures`
-// (an env var, not a flag: the go tool doesn't forward -update reliably)
-func TestRenderConfigFixtures(t *testing.T) {
-	for _, tt := range []struct {
-		name string // fixture name: testdata/<name>.ccbox.yaml
-		c    Config
-	}{
-		{"init", Config{}},                      // `ccbox config init`'s fill-in scaffold
-		{"user-seed", userSeedConfig("claude")}, // the safe-seeded user-level config
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := renderConfig(tt.c)
-			require.NoError(t, err)
-
-			path := filepath.Join("testdata", tt.name+".ccbox.yaml")
-			if os.Getenv("UPDATE_FIXTURES") != "" {
-				require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
-				require.NoError(t, os.WriteFile(path, []byte(got), ioutil.File))
-			}
-
-			// #nosec G304 -- the package's own fixture path
-			want, err := os.ReadFile(path)
-			require.NoError(t, err)
-			assert.Equal(t, string(want), got)
-		})
-	}
 }
 
 func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
