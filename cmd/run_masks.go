@@ -30,7 +30,7 @@ func masksOnHost(cwd string, dirs []string, present bool) []string {
 	return out
 }
 
-// warnCreatedMasks warns for each default mask dir absent at start that the run created: it
+// warnCreatedMasks warns for each mask dir absent at start that the run created: it
 // exists now, so future runs will mask it — a heads-up that it behaves differently from here.
 func warnCreatedMasks(cwd string, absentBefore []string) {
 	if created := masksOnHost(cwd, absentBefore, true); len(created) > 0 {

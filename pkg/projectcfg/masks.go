@@ -19,9 +19,6 @@ func TmpfsDefaults() []string { return slices.Clone(tmpfsDefaults) }
 // VolumeDefaults is what DefaultsToken in volumeMasks expands to
 func VolumeDefaults() []string { return slices.Clone(volumeDefaults) }
 
-// MaskDefaults are the built-in dirs masked when present in the project: tmpfs then volume.
-func MaskDefaults() []string { return append(TmpfsDefaults(), VolumeDefaults()...) }
-
 func absentDirs(src string, dirs []string) []string {
 	present := ioutil.DirsPresent(src, dirs)
 	var out []string

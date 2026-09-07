@@ -11,7 +11,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/git"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/projectstate"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
@@ -75,11 +74,9 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	// A default mask dir absent now isn't masked this run, but gets masked once it exists.
-	// Snapshot the absent ones, then warn after the run for any the container created.
 	defer printPresentMasks()
-	absentDefaults := masksOnHost(m.cwd, projectcfg.MaskDefaults(), false)
-	defer warnCreatedMasks(m.cwd, absentDefaults)
+	absentMasksSnapshot := append(projectCfg.TmpfsMasksAbsent(), projectCfg.VolumeMasksAbsent()...)
+	defer warnCreatedMasks(m.cwd, absentMasksSnapshot) // compare snapshot to at defer time
 
 	ctxD, err := dock.NewCtxD(cmd.Context())
 	if err != nil {
