@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestColorWrap(t *testing.T) {
+func TestColor_Wrap(t *testing.T) {
 	assert.Equal(t, "\x1b[31mhi\x1b[0m", ColorRed.Wrap("hi"))
 	assert.Equal(t, "hi", Color("").Wrap("hi"), "empty color is a no-op")
 }
@@ -29,7 +29,7 @@ func TestNewColorWriterPassesNonTTYThrough(t *testing.T) {
 	assert.Equal(t, io.Writer(&buf), NewColorWriter(&buf, redLines))
 }
 
-func TestColorWriter(t *testing.T) {
+func TestColorWriter_Write(t *testing.T) {
 	var buf bytes.Buffer
 	cw := &ColorWriter{w: &buf, colorer: redLines}
 
@@ -39,7 +39,7 @@ func TestColorWriter(t *testing.T) {
 		"known line colored, uncolored line passes through byte-for-byte")
 }
 
-func TestColorWriterBuffersSplitLine(t *testing.T) {
+func TestColorWriter_WriteBuffersSplitLine(t *testing.T) {
 	var buf bytes.Buffer
 	cw := &ColorWriter{w: &buf, colorer: redLines}
 

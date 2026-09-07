@@ -11,7 +11,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
-func TestVolumeCleanupPaths(t *testing.T) {
+func TestConfig_VolumeCleanupPaths(t *testing.T) {
 	c := Config{VolumeMasks: []string{"node_modules", "target"}}
 	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupPaths())
 }

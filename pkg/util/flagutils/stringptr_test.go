@@ -51,7 +51,7 @@ func TestStringPtr(t *testing.T) {
 	}
 }
 
-func TestStringPtrValueString(t *testing.T) {
+func TestStringPtrValue_String(t *testing.T) {
 	var v *string
 	value := StringPtr(&v)
 	assert.Empty(t, value.String()) // nil target: the unset rendering

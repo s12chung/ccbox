@@ -18,7 +18,7 @@ type (
 	versionURL struct{}
 )
 
-func TestDefinedOnce(t *testing.T) {
+func TestDefinedOnce_ValidateValue(t *testing.T) {
 	v := firm.Value[parent](DefinedOnce{Fields: []string{"Npm", "VersionURL"}})
 
 	assert.Nil(t, v.Validate(parent{Npm: &npm{}}).ToNil())
@@ -41,7 +41,7 @@ func TestDefinedOnce(t *testing.T) {
 	}
 }
 
-func TestDefinedOnceTypeCheck(t *testing.T) {
+func TestDefinedOnce_TypeCheck(t *testing.T) {
 	_, err := firm.ValueWithErr[parent](DefinedOnce{Fields: []string{"Missing"}})
 	require.ErrorContains(t, err, "has no pointer field, Missing")
 

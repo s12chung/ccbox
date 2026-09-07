@@ -263,7 +263,7 @@ func TestMustFor(t *testing.T) {
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { MustFor("emacs") })
 }
 
-func TestPkgers(t *testing.T) {
+func TestCLI_Pkger(t *testing.T) {
 	// the PKGER build arg each CLI's install source renders
 	assert.Equal(t, "npm:@anthropic-ai/claude-code", MustFor("claude").Pkger().Arg())
 	assert.Equal(t, "npm:@openai/codex", MustFor("codex").Pkger().Arg())
@@ -297,7 +297,7 @@ func TestEnv(t *testing.T) {
 	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, MustFor("grok").Env)
 }
 
-func TestSessionCmd(t *testing.T) {
+func TestCLI_SessionCmd(t *testing.T) {
 	tests := []struct {
 		cli    CLI
 		shell  bool

@@ -400,7 +400,7 @@ func TestLoadInvalidErrors(t *testing.T) {
 	}
 }
 
-func TestMergeIsPure(t *testing.T) {
+func TestConfig_mergeIsPure(t *testing.T) {
 	src := Config{
 		CLI:           new("claude"),
 		TmpfsMasks:    []string{"dist"},

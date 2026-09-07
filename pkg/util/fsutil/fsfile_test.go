@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFakeDirReadDirCursor(t *testing.T) {
+func TestFakeDir_ReadDirCursor(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{
 		"a.txt": {Data: []byte("A")},
 		"b.txt": {Data: []byte("B")},
@@ -55,7 +55,7 @@ func TestFakeDirReadDirCursor(t *testing.T) {
 	assert.Len(t, list, 3)
 }
 
-func TestFakeDirReadErrors(t *testing.T) {
+func TestFakeDir_ReadErrors(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{"sub/a.txt": {Data: []byte("A")}})
 
 	file, err := fsys.Open("sub")
@@ -70,7 +70,7 @@ func TestFakeDirReadErrors(t *testing.T) {
 	require.ErrorContains(t, err, "is a directory")
 }
 
-func TestRenamedFileReportsTreeName(t *testing.T) {
+func TestNamedFile_ReportsTreeName(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{"a.txt": {Data: []byte("A")}})
 	require.NoError(t, fsys.Rename("a.txt", "renamed.txt"))
 
@@ -88,7 +88,7 @@ func TestRenamedFileReportsTreeName(t *testing.T) {
 	assert.Equal(t, "A", string(body))
 }
 
-func TestDirInfo(t *testing.T) {
+func TestDirInfo_Name(t *testing.T) {
 	var info fs.FileInfo = dirInfo{name: "d"}
 	assert.Equal(t, "d", info.Name())
 	assert.True(t, info.IsDir())

@@ -19,7 +19,7 @@ func key(t *testing.T, m model, k tea.KeyType) model {
 	return updated
 }
 
-func TestUpdateMovesCursor(t *testing.T) {
+func TestModel_UpdateMovesCursor(t *testing.T) {
 	m := newModel("pick one", nil, []string{"claude", "codex", "grok"})
 	assert.Equal(t, 0, m.cursor)
 
@@ -32,7 +32,7 @@ func TestUpdateMovesCursor(t *testing.T) {
 	assert.Equal(t, 2, key(t, key(t, m, tea.KeyDown), tea.KeyDown).cursor, "wraps down past the bottom")
 }
 
-func TestUpdateEnterChooses(t *testing.T) {
+func TestModel_UpdateEnterChooses(t *testing.T) {
 	m := newModel("pick one", nil, []string{"claude", "codex"})
 	m.cursor = 1
 
@@ -44,7 +44,7 @@ func TestUpdateEnterChooses(t *testing.T) {
 	require.NotNil(t, cmd, "enter quits the program")
 }
 
-func TestUpdateCancelKeys(t *testing.T) {
+func TestModel_UpdateCancelKeys(t *testing.T) {
 	for _, k := range []tea.KeyType{tea.KeyEsc, tea.KeyCtrlC} {
 		m := key(t, newModel("pick one", nil, []string{"claude"}), k)
 		assert.True(t, m.canceled, k)
@@ -52,7 +52,7 @@ func TestUpdateCancelKeys(t *testing.T) {
 	}
 }
 
-func TestUpdateTracksWindowSize(t *testing.T) {
+func TestModel_UpdateTracksWindowSize(t *testing.T) {
 	m := newModel("pick one", nil, []string{"claude"})
 	next, cmd := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	updated, ok := next.(model)
@@ -62,7 +62,7 @@ func TestUpdateTracksWindowSize(t *testing.T) {
 	assert.Nil(t, cmd)
 }
 
-func TestView(t *testing.T) {
+func TestModel_View(t *testing.T) {
 	m := newModel("Select a harness CLI", []string{"(set in ~/.ccbox/config/ccbox.yaml)"}, []string{"claude", "codex"})
 	m.cursor = 1
 	assert.Contains(t, m.View(), "Select a harness CLI")
