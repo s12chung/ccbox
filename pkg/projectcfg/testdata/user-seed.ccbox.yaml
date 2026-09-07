@@ -1,4 +1,4 @@
-# Run `ccbox config` to see effective config
+# Run `ccbox config` to see effective config. Arrays and maps merge down scoped configs.
 
 # cli: which coding CLI the image installs and launches
 cli: claude

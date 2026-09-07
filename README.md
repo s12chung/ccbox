@@ -16,14 +16,14 @@ As a safety net for accidents, the CLI is also seeded to refuse reading common s
 
 ## Config
 
-The config level hierarchy is:
+The config scope hierarchy is:
 
 - User - `~/.ccbox/config/ccbox.yaml` (no dot) — seeded with ccbox's defaults on first run
 - Project - `project_dir/.ccbox.yaml`
 - Project Local - `project_dir/.ccbox.local.yaml` (for git ignore)
 - `ccbox` flags
 
-`ccbox config` prints the effective config with `ccbox-defaults` expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays are appended and maps are merged for `tmpfsMasks`, `volumeMasks`, `env`, and `allowlist`.
+`ccbox config` prints the effective config with `ccbox-defaults` expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays and maps are merged.
 
 ## Docs
 
