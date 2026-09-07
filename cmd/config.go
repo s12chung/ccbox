@@ -43,7 +43,7 @@ func printLoadedPaths(projectDir string) {
 	log.Info("")
 }
 
-// printAbsentMasks lists the mask dirs this project lacks
+// printAbsentMasks lists the mask paths this project lacks
 func printAbsentMasks(cwd string) error {
 	tmpfsMasks, volumeMasks, err := projectcfg.NotFoundMasks(cwd, projectcfg.Config{CLI: flagCLI})
 	if err != nil {

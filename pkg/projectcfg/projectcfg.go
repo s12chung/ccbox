@@ -38,9 +38,9 @@ const (
 )
 
 var (
-	// tmpfsDefaults always-masked dirs, prepended only when present in the project (to prevent host creation)
+	// tmpfsDefaults always-masked paths, prepended only when present in the project (to prevent host creation)
 	tmpfsDefaults = []string{".idea", ".vscode"}
-	// volumeDefaults for persistent volume masked dirs only when present in the project (to prevent host creation)
+	// volumeDefaults for persistent volume masked paths only when present in the project (to prevent host creation)
 	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
 )
 
@@ -148,14 +148,14 @@ func LoadExpanded(projectDir string, flags Config) (Config, error) {
 }
 
 // Load mask-checks LoadExpanded: the tmpfsMasks and volumeMasks lists keep only the project's
-// present dirs, so run never creates a masked dir.
+// present paths, so run never creates a masked path.
 func Load(projectDir string, flags Config) (Config, error) {
 	c, err := LoadExpanded(projectDir, flags)
 	if err != nil {
 		return Config{}, err
 	}
-	c.TmpfsMasks = ioutil.DirsPresent(projectDir, c.TmpfsMasks)
-	c.VolumeMasks = ioutil.DirsPresent(projectDir, c.VolumeMasks)
+	c.TmpfsMasks = ioutil.PathsPresent(projectDir, c.TmpfsMasks)
+	c.VolumeMasks = ioutil.PathsPresent(projectDir, c.VolumeMasks)
 	return c, nil
 }
 
@@ -164,8 +164,8 @@ type Config struct {
 	CLI           *string `yaml:"cli"`             // coding CLI to install + launch
 	HostGitConfig *bool   `yaml:"host_git_config"` // read-only mount host ~/.config/git
 	// camelCase keys: they read as the masks for tmpfs/volumes
-	TmpfsMasks  []string          `yaml:"tmpfsMasks"`  //nolint:tagliatelle // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative dirs to mask with a persistent per-project volume
+	TmpfsMasks  []string          `yaml:"tmpfsMasks"`  //nolint:tagliatelle // project-relative paths to mask with a writable tmpfs
+	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative paths to mask with a persistent per-project volume
 	Env         map[string]string `yaml:"env"`         // extra env vars set in the container
 	Allowlist   []string          `yaml:"allowlist"`   // egress wall domains
 }
@@ -176,7 +176,7 @@ func init() {
 		Validates(firm.RuleMap{
 			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
 
-			// mask dirs are project-relative: no absolute paths, no ".." traversal
+			// mask paths are project-relative: no absolute paths, no ".." traversal
 			"TmpfsMasks":  {firm.Elems[[]string](firmrule.MaskPath)},
 			"VolumeMasks": {firm.Elems[[]string](firmrule.MaskPath)},
 			"Env": {

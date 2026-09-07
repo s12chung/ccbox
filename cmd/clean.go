@@ -29,7 +29,7 @@ var cleanCmd = &cobra.Command{
 			return err
 		}
 		return errors.Join(
-			docker.VolumeClean(ctxD, cwd, expandedConfig.VolumeCleanupDirs()),
+			docker.VolumeClean(ctxD, cwd, expandedConfig.VolumeCleanupPaths()),
 			docker.ProxyClean(ctxD),
 		)
 	},

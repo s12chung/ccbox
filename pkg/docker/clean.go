@@ -8,14 +8,14 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 )
 
-// VolumeClean removes hostCwd's cache volumes and the mask volumes for maskDirs
-func VolumeClean(ctxD *dock.CtxD, hostCwd string, maskDirs []string) error {
-	names := make([]string, 0, len(cacheVolumes)+len(maskDirs))
+// VolumeClean removes hostCwd's cache volumes and the mask volumes for maskPaths
+func VolumeClean(ctxD *dock.CtxD, hostCwd string, maskPaths []string) error {
+	names := make([]string, 0, len(cacheVolumes)+len(maskPaths))
 	for suffix := range cacheVolumes {
 		names = append(names, cacheVolumeName(hostCwd, suffix))
 	}
-	for _, d := range maskDirs {
-		names = append(names, maskVolumeName(hostCwd, d))
+	for _, p := range maskPaths {
+		names = append(names, maskVolumeName(hostCwd, p))
 	}
 
 	var errs []error

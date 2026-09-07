@@ -6,7 +6,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
-// MaskDefaults are the built-in dirs masked when present in the project: tmpfs then volume.
+// MaskDefaults are the built-in paths masked when present in the project: tmpfs then volume.
 // Exposed so callers can spot a run creating one that future runs will start masking.
 func MaskDefaults() []string {
 	return append(append([]string{}, tmpfsDefaults...), volumeDefaults...)
@@ -23,7 +23,7 @@ func NotFoundMasks(projectDir string, flags Config) ([]string, []string, error) 
 }
 
 func absentPaths(src string, paths []string) []string {
-	present := ioutil.DirsPresent(src, paths)
+	present := ioutil.PathsPresent(src, paths)
 	var out []string
 	for _, p := range paths {
 		if !slices.Contains(present, p) {
@@ -33,16 +33,16 @@ func absentPaths(src string, paths []string) []string {
 	return out
 }
 
-// VolumeCleanupDirs is every mask dir whose volume may exist
-func (c Config) VolumeCleanupDirs() []string {
+// VolumeCleanupPaths is every mask path whose volume may exist
+func (c Config) VolumeCleanupPaths() []string {
 	seen := map[string]bool{}
-	var dirs []string
-	for _, d := range append(append([]string{}, volumeDefaults...), c.VolumeMasks...) {
-		if seen[d] {
+	var paths []string
+	for _, p := range append(append([]string{}, volumeDefaults...), c.VolumeMasks...) {
+		if seen[p] {
 			continue
 		}
-		seen[d] = true
-		dirs = append(dirs, d)
+		seen[p] = true
+		paths = append(paths, p)
 	}
-	return dirs
+	return paths
 }

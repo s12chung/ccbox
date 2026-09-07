@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestVolumeCleanupDirs(t *testing.T) {
+func TestVolumeCleanupPaths(t *testing.T) {
 	c := Config{VolumeMasks: []string{"node_modules", "target"}}
-	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupDirs())
+	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupPaths())
 }

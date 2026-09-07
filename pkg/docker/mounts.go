@@ -21,7 +21,7 @@ const (
 	containerUID = "1000"
 )
 
-// tmpfsOpts makes a masked project dir's tmpfs writable+executable by that user, so masked build
+// tmpfsOpts makes a masked project path's tmpfs writable+executable by that user, so masked build
 // outputs (e.g. dist/) can be written and run — Docker's default is root-owned noexec.
 var tmpfsOpts = fmt.Sprintf("uid=%s,gid=%s,exec", containerUID, containerUID)
 
@@ -76,7 +76,7 @@ func cacheVolumeBinds(hostCwd string) []string {
 	return binds
 }
 
-// maskVolumeName is hostCwd's persistent volume for a project-relative masked dir
+// maskVolumeName is hostCwd's persistent volume for a project-relative masked path
 func maskVolumeName(hostCwd, rel string) string {
 	return cacheVolumeName(hostCwd, strings.ReplaceAll(rel, "/", "-"))
 }
