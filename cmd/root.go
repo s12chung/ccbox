@@ -48,7 +48,10 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	Args:          resumeArgs,
 	RunE:          runDevbox,
-	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
+			return nil // completion only reads flag/CLI definitions: no seeding, no config load
+		}
 		if err := safeSeedUserClis(); err != nil {
 			return err
 		}
@@ -79,6 +82,10 @@ func init() {
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.Var(flagutils.StringPtr(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
+	// unreachable error: "cli" is registered above
+	if err := rootCmd.RegisterFlagCompletionFunc("cli", cobra.FixedCompletions(harness.Names(), cobra.ShellCompDirectiveNoFileComp)); err != nil {
+		panic(err)
+	}
 
 	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
 }
