@@ -119,23 +119,36 @@ func UserConfigFile() string { return userConfigFile }
 // userConfigFile is the user-level config's path. Tests point it at a temp tree.
 var userConfigFile = filepath.Join(userdir.ConfigDir(), userFileName)
 
+// layerPaths lists the config file paths in load order: user, project, local
+func layerPaths(projectDir string) []string {
+	return []string{userConfigFile, filepath.Join(projectDir, projectFileName), filepath.Join(projectDir, localFileName)}
+}
+
+// LoadedPaths returns the layer config files present on disk, in load order
+// (user, project, local). An existing but empty file counts as loaded.
+func LoadedPaths(projectDir string) []string {
+	var present []string
+	for _, path := range layerPaths(projectDir) {
+		if _, err := os.Stat(path); err == nil {
+			present = append(present, path)
+		}
+	}
+	return present
+}
+
 // LoadExpanded reads the config layers — user (ConfigDir), project (project repo root),
 // local (git-ignored) — then CLI flags, and validates. The DefaultsToken in each list
 // field expands to the full built-ins.
 func LoadExpanded(projectDir string, flags Config) (Config, error) {
-	user, err := read(userConfigFile)
-	if err != nil {
-		return Config{}, err
+	var c Config
+	for _, path := range layerPaths(projectDir) {
+		layer, err := read(path)
+		if err != nil {
+			return Config{}, err
+		}
+		c = c.merge(layer)
 	}
-	project, err := read(filepath.Join(projectDir, projectFileName))
-	if err != nil {
-		return Config{}, err
-	}
-	local, err := read(filepath.Join(projectDir, localFileName))
-	if err != nil {
-		return Config{}, err
-	}
-	c := user.merge(project).merge(local).merge(flags)
+	c = c.merge(flags)
 	if errMap := firm.ValidateAny(c); errMap != nil {
 		return Config{}, errMap
 	}

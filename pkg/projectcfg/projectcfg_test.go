@@ -201,6 +201,44 @@ func TestLoadExpanded(t *testing.T) {
 	}
 }
 
+func TestLoadedPaths(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string // config file names present on disk, in load order
+	}{
+		{"no files", nil},
+		{"project only", []string{projectFileName}},
+		{"user and local", []string{userFileName, localFileName}},
+		{"all three", []string{userFileName, projectFileName, localFileName}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useUserConfigFile(t, t.TempDir()) // no user file unless written below
+			dir := t.TempDir()
+			for _, name := range tt.files {
+				writeConfig(t, dir, name, "cli: claude\n")
+			}
+			var want []string
+			for _, name := range tt.files {
+				if name == userFileName {
+					want = append(want, userConfigFile)
+					continue
+				}
+				want = append(want, filepath.Join(dir, name))
+			}
+			assert.Equal(t, want, LoadedPaths(dir))
+		})
+	}
+
+	t.Run("an empty file counts as loaded", func(t *testing.T) {
+		useUserConfigFile(t, t.TempDir())
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), nil, ioutil.File))
+
+		assert.Equal(t, []string{filepath.Join(dir, projectFileName)}, LoadedPaths(dir))
+	})
+}
+
 func TestLoadMasks(t *testing.T) {
 	// the project's absent dirs drop out, the token's defaults and own alike
 	tests := []struct {
