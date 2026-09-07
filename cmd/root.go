@@ -17,6 +17,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
@@ -89,7 +90,7 @@ func safeSeedUserClis() error {
 
 // safeSeedUserConfig seeds the user-level config template if missing
 func safeSeedUserConfig() error {
-	if !projectcfg.UserConfigNeedsSeed() {
+	if !ioutil.Missing(projectcfg.UserConfigFile()) {
 		return nil // the file already existed: no seed, so no prompt, no log
 	}
 	cli, err := pick.Select(

@@ -49,12 +49,10 @@ var (
 //go:embed ccbox.yaml.tmpl
 var configTmplSrc string
 
-// configTmpl parses configTmplSrc once with the yaml value renderer.
 var configTmpl = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
 	"yaml": yamlutil.Value,
 }).Parse(configTmplSrc))
 
-// renderConfig renders the config template over c.
 func renderConfig(c Config) (string, error) {
 	var b bytes.Buffer
 	if err := configTmpl.Execute(&b, c); err != nil {
@@ -91,37 +89,28 @@ func userSeedConfig(cli string) Config {
 // seeded cli. An existing file is never touched. Returns the path seeded, or "" when it
 // already exists.
 func SeedUserConfig(cli string) (string, error) {
-	if !UserConfigNeedsSeed() {
+	if !ioutil.Missing(UserConfigFile()) {
 		return "", nil // the no-op path: no seed, no log
 	}
 	body, err := renderConfig(userSeedConfig(cli))
 	if err != nil {
 		return "", err
 	}
-	if err := seed.File(userConfigFile, body); err != nil {
+	if err := seed.File(UserConfigFile(), body); err != nil {
 		if errors.Is(err, seed.ErrExists) { // lost a seed race: no seed, no log
 			return "", nil
 		}
 		return "", err
 	}
-	return userConfigFile, nil
-}
-
-// UserConfigNeedsSeed reports whether the user-level config is missing
-func UserConfigNeedsSeed() bool {
-	_, err := os.Stat(userConfigFile)
-	return errors.Is(err, fs.ErrNotExist)
+	return UserConfigFile(), nil
 }
 
 // UserConfigFile is the user-level config's path
-func UserConfigFile() string { return userConfigFile }
-
-// userConfigFile is the user-level config's path. Tests point it at a temp tree.
-var userConfigFile = filepath.Join(userdir.ConfigDir(), userFileName)
+func UserConfigFile() string { return filepath.Join(userdir.ConfigDir(), userFileName) }
 
 // layerPaths lists the config file paths in load order: user, project, local
 func layerPaths(projectDir string) []string {
-	return []string{userConfigFile, filepath.Join(projectDir, projectFileName), filepath.Join(projectDir, localFileName)}
+	return []string{UserConfigFile(), filepath.Join(projectDir, projectFileName), filepath.Join(projectDir, localFileName)}
 }
 
 // LoadedPaths returns the layer config files present on disk, in load order

@@ -2,6 +2,8 @@
 package ioutil
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
@@ -12,6 +14,12 @@ const (
 	File     os.FileMode = 0o644 // regular files
 	ExecFile os.FileMode = 0o755 // executable files (e.g. shell scripts)
 )
+
+// Missing reports whether path does not exist
+func Missing(path string) bool {
+	_, err := os.Stat(path)
+	return errors.Is(err, fs.ErrNotExist)
+}
 
 // DirsPresent returns the entries of dirs that exist as directories under src.
 func DirsPresent(src string, dirs []string) []string {

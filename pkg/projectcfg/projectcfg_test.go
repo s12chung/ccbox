@@ -23,22 +23,23 @@ func mkDirs(t *testing.T, dir string, dirs ...string) {
 	}
 }
 
-// useUserConfigFile points userConfigFile at dir/ccbox.yaml, restoring after the test.
-func useUserConfigFile(t *testing.T, dir string) {
+// useHome points home at a fresh temp tree, restoring it after the test, and creates
+// the user config's dir. Returns the user config's path.
+func useHome(t *testing.T) string {
 	t.Helper()
-	saved := userConfigFile
-	t.Cleanup(func() { userConfigFile = saved })
-	userConfigFile = filepath.Join(dir, userFileName)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".ccbox", "config"), ioutil.Dir))
+	return UserConfigFile()
 }
 
 // writeConfig writes body to the named config file in dir, wiring the user file to its
-// own temp dir. Returns the path written.
+// own temp home. Returns the path written.
 func writeConfig(t *testing.T, dir string, name string, body string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
 	if name == userFileName {
-		useUserConfigFile(t, t.TempDir())
-		path = userConfigFile
+		path = useHome(t)
 	}
 	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
 	return path
@@ -55,15 +56,17 @@ var configFiles = []struct {
 	{"local", localFileName},
 }
 
-// TestMain defaults userConfigFile to a seeded temp file — prod parity: the user seed
-// exists before Load runs — so tests don't read the developer's real user-level config;
-// useUserConfigFile overrides per-test.
+// TestMain points home at a temp tree and seeds the user config — prod parity: the
+// user seed exists before Load runs — so tests don't read the developer's real
+// user-level config; useHome overrides per-test.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "projectcfg")
 	if err != nil {
 		panic(err)
 	}
-	userConfigFile = filepath.Join(dir, userFileName)
+	if err := os.Setenv("HOME", dir); err != nil {
+		panic(err)
+	}
 	if _, err := SeedUserConfig("claude"); err != nil {
 		panic(err)
 	}
@@ -76,11 +79,11 @@ func TestSeedUserConfig(t *testing.T) {
 	dir := t.TempDir()
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, volumeDefaults...)
-	useUserConfigFile(t, dir)
+	useHome(t)
 
 	path, err := SeedUserConfig("claude")
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, userFileName), path)
+	assert.Equal(t, UserConfigFile(), path)
 
 	// the seed is the defaults' carrier
 	want := Config{CLI: new("claude"), HostGitConfig: new(true), TmpfsMasks: tmpfsDefaults, VolumeMasks: volumeDefaults, Allowlist: allowDefaults()}
@@ -109,35 +112,26 @@ func TestSeedUserConfigSkipsExisting(t *testing.T) {
 	assert.Empty(t, path)
 
 	// #nosec G304 -- the package's own temp user file
-	body, err := os.ReadFile(userConfigFile)
+	body, err := os.ReadFile(UserConfigFile())
 	require.NoError(t, err)
 	assert.Equal(t, "cli: codex\n", string(body)) // the user's own file is never touched
 }
 
 func TestSeedUserConfigChoosesCLI(t *testing.T) {
-	dir := t.TempDir()
-	useUserConfigFile(t, dir)
+	useHome(t)
 
 	path, err := SeedUserConfig("codex")
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, userFileName), path)
+	assert.Equal(t, UserConfigFile(), path)
 
-	body, err := os.ReadFile(userConfigFile) // #nosec G304 -- the package's own temp user file
+	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the package's own temp user file
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "cli: codex\n")
 }
 
-func TestUserConfigNeedsSeed(t *testing.T) {
-	useUserConfigFile(t, t.TempDir())
-	assert.True(t, UserConfigNeedsSeed())
-
-	require.NoError(t, os.WriteFile(userConfigFile, []byte("cli: codex\n"), ioutil.File))
-	assert.False(t, UserConfigNeedsSeed())
-}
-
 func TestLoadUnsetRequiredErrors(t *testing.T) {
 	dir := t.TempDir()
-	useUserConfigFile(t, t.TempDir()) // no user file
+	useHome(t) // no user file
 
 	_, err := Load(dir, Config{})
 	require.Error(t, err)
@@ -191,7 +185,7 @@ func TestLoadExpanded(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			useUserConfigFile(t, t.TempDir()) // no user file: the project body stands alone
+			useHome(t) // no user file: the project body stands alone
 			writeConfig(t, tt.projectDir, projectFileName, tt.body)
 
 			c, err := LoadExpanded(tt.projectDir, Config{})
@@ -213,7 +207,7 @@ func TestLoadedPaths(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			useUserConfigFile(t, t.TempDir()) // no user file unless written below
+			useHome(t) // no user file unless written below
 			dir := t.TempDir()
 			for _, name := range tt.files {
 				writeConfig(t, dir, name, "cli: claude\n")
@@ -221,7 +215,7 @@ func TestLoadedPaths(t *testing.T) {
 			var want []string
 			for _, name := range tt.files {
 				if name == userFileName {
-					want = append(want, userConfigFile)
+					want = append(want, UserConfigFile())
 					continue
 				}
 				want = append(want, filepath.Join(dir, name))
@@ -231,7 +225,7 @@ func TestLoadedPaths(t *testing.T) {
 	}
 
 	t.Run("an empty file counts as loaded", func(t *testing.T) {
-		useUserConfigFile(t, t.TempDir())
+		useHome(t)
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), nil, ioutil.File))
 
