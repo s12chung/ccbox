@@ -13,8 +13,8 @@ const (
 	ExecFile os.FileMode = 0o755 // executable files (e.g. shell scripts)
 )
 
-// DirsPresentInSrc returns the entries of dirs that exist as directories under src.
-func DirsPresentInSrc(src string, dirs []string) []string {
+// DirsPresent returns the entries of dirs that exist as directories under src.
+func DirsPresent(src string, dirs []string) []string {
 	var out []string
 	for _, d := range dirs {
 		if info, err := os.Stat(filepath.Join(src, d)); err == nil && info.IsDir() {

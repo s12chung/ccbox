@@ -10,11 +10,11 @@ import (
 
 // printMasks tells the user which project dirs are shadowed, so a hidden dir is no surprise.
 func printMasks() {
-	if len(projectCfg.Tmpfs) > 0 {
-		log.Infof("during run, masked (ephemeral tmpfs): %s", strings.Join(projectCfg.Tmpfs, ", "))
+	if len(projectCfg.TmpfsMasks) > 0 {
+		log.Infof("during run, masked (ephemeral tmpfs): %s", strings.Join(projectCfg.TmpfsMasks, ", "))
 	}
-	if len(projectCfg.Volumes) > 0 {
-		log.Infof("during run, masked (persistent volume): %s", strings.Join(projectCfg.Volumes, ", "))
+	if len(projectCfg.VolumeMasks) > 0 {
+		log.Infof("during run, masked (persistent volume): %s", strings.Join(projectCfg.VolumeMasks, ", "))
 	}
 }
 

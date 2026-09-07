@@ -7,6 +7,6 @@ import (
 )
 
 func TestVolumeCleanupDirs(t *testing.T) {
-	c := Config{Volumes: []string{"node_modules", "target"}}
+	c := Config{VolumeMasks: []string{"node_modules", "target"}}
 	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupDirs())
 }

@@ -30,18 +30,18 @@ func printAbsentMasks() error {
 	if err != nil {
 		return err
 	}
-	tmpfs, volumes, err := projectcfg.NotFoundMasks(cwd, projectcfg.Config{CLI: flagCLI})
+	tmpfsMasks, volumeMasks, err := projectcfg.NotFoundMasks(cwd, projectcfg.Config{CLI: flagCLI})
 	if err != nil {
 		return err
 	}
-	if len(tmpfs) > 0 || len(volumes) > 0 {
+	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 {
 		log.Info("")
 	}
-	if len(tmpfs) > 0 {
-		log.Infof("# tmpfs not in project, not masked: %s", strings.Join(tmpfs, ", "))
+	if len(tmpfsMasks) > 0 {
+		log.Infof("# tmpfsMasks not in project, not masked: %s", strings.Join(tmpfsMasks, ", "))
 	}
-	if len(volumes) > 0 {
-		log.Infof("# volumes not in project, not masked: %s", strings.Join(volumes, ", "))
+	if len(volumeMasks) > 0 {
+		log.Infof("# volumeMasks not in project, not masked: %s", strings.Join(volumeMasks, ", "))
 	}
 	return nil
 }

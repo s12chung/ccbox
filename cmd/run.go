@@ -55,8 +55,8 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		GHToken:      os.Getenv("GH_TOKEN"),
 		GitConfigDir: gitConfigDir,
 		Env:          projectCfg.Env,
-		Tmpfs:        projectCfg.Tmpfs,
-		Volumes:      projectCfg.Volumes,
+		TmpfsMasks:   projectCfg.TmpfsMasks,
+		VolumeMasks:  projectCfg.VolumeMasks,
 		Cmd:          harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,

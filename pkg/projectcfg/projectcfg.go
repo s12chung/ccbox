@@ -81,8 +81,8 @@ func userSeedConfig(cli string) Config {
 	return Config{
 		CLI:           new(cli),
 		HostGitConfig: new(true),
-		Tmpfs:         []string{DefaultsToken},
-		Volumes:       []string{DefaultsToken},
+		TmpfsMasks:    []string{DefaultsToken},
+		VolumeMasks:   []string{DefaultsToken},
 		Allowlist:     []string{DefaultsToken},
 	}
 }
@@ -139,32 +139,33 @@ func LoadExpanded(projectDir string, flags Config) (Config, error) {
 	if errMap := firm.ValidateAny(c); errMap != nil {
 		return Config{}, errMap
 	}
-	c.Tmpfs = expandList(c.Tmpfs, tmpfsDefaults)
-	c.Volumes = expandList(c.Volumes, volumeDefaults)
+	c.TmpfsMasks = expandList(c.TmpfsMasks, tmpfsDefaults)
+	c.VolumeMasks = expandList(c.VolumeMasks, volumeDefaults)
 	c.Allowlist = expandList(c.Allowlist, allowDefaults())
 	return c, nil
 }
 
-// Load mask-checks LoadExpanded: the tmpfs and volume lists keep only the project's
+// Load mask-checks LoadExpanded: the tmpfsMasks and volumeMasks lists keep only the project's
 // present dirs, so run never creates a masked dir.
 func Load(projectDir string, flags Config) (Config, error) {
 	c, err := LoadExpanded(projectDir, flags)
 	if err != nil {
 		return Config{}, err
 	}
-	c.Tmpfs = ioutil.DirsPresentInSrc(projectDir, c.Tmpfs)
-	c.Volumes = ioutil.DirsPresentInSrc(projectDir, c.Volumes)
+	c.TmpfsMasks = ioutil.DirsPresent(projectDir, c.TmpfsMasks)
+	c.VolumeMasks = ioutil.DirsPresent(projectDir, c.VolumeMasks)
 	return c, nil
 }
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLI           *string           `yaml:"cli"`             // coding CLI to install + launch
-	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git
-	Tmpfs         []string          `yaml:"tmpfs"`           // project-relative dirs to mask with a writable tmpfs
-	Volumes       []string          `yaml:"volumes"`         // project-relative dirs to mask with a persistent per-project volume
-	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
-	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains
+	CLI           *string `yaml:"cli"`             // coding CLI to install + launch
+	HostGitConfig *bool   `yaml:"host_git_config"` // read-only mount host ~/.config/git
+	// camelCase keys: they read as the masks for tmpfs/volumes
+	TmpfsMasks  []string          `yaml:"tmpfsMasks"`  //nolint:tagliatelle // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative dirs to mask with a persistent per-project volume
+	Env         map[string]string `yaml:"env"`         // extra env vars set in the container
+	Allowlist   []string          `yaml:"allowlist"`   // egress wall domains
 }
 
 func init() {
@@ -174,8 +175,8 @@ func init() {
 			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal
-			"Tmpfs":   {firm.Elems[[]string](firmrule.MaskPath)},
-			"Volumes": {firm.Elems[[]string](firmrule.MaskPath)},
+			"TmpfsMasks":  {firm.Elems[[]string](firmrule.MaskPath)},
+			"VolumeMasks": {firm.Elems[[]string](firmrule.MaskPath)},
 			"Env": {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
@@ -213,8 +214,8 @@ func expandList(list, defaults []string) []string {
 
 // merge layers other onto c and returns a fresh Config
 func (c Config) merge(other Config) Config {
-	c.Tmpfs = mergeempty.Slice(c.Tmpfs, other.Tmpfs)
-	c.Volumes = mergeempty.Slice(c.Volumes, other.Volumes)
+	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)
+	c.VolumeMasks = mergeempty.Slice(c.VolumeMasks, other.VolumeMasks)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
 	c.Env = mergeempty.Map(c.Env, other.Env)
 	if other.CLI != nil {

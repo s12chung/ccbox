@@ -12,18 +12,18 @@ func MaskDefaults() []string {
 	return append(append([]string{}, tmpfsDefaults...), volumeDefaults...)
 }
 
-// NotFoundMasks loads the defaulted config (LoadExpanded) and returns its tmpfs and
-// volume dirs not found in the project
+// NotFoundMasks loads the defaulted config (LoadExpanded) and returns its tmpfsMasks and
+// volumeMasks dirs not found in the project
 func NotFoundMasks(projectDir string, flags Config) ([]string, []string, error) {
 	c, err := LoadExpanded(projectDir, flags)
 	if err != nil {
 		return nil, nil, err
 	}
-	return absentDirs(projectDir, c.Tmpfs), absentDirs(projectDir, c.Volumes), nil
+	return absentDirs(projectDir, c.TmpfsMasks), absentDirs(projectDir, c.VolumeMasks), nil
 }
 
 func absentDirs(src string, dirs []string) []string {
-	present := ioutil.DirsPresentInSrc(src, dirs)
+	present := ioutil.DirsPresent(src, dirs)
 	var out []string
 	for _, d := range dirs {
 		if !slices.Contains(present, d) {
@@ -37,7 +37,7 @@ func absentDirs(src string, dirs []string) []string {
 func (c Config) VolumeCleanupDirs() []string {
 	seen := map[string]bool{}
 	var dirs []string
-	for _, d := range append(append([]string{}, volumeDefaults...), c.Volumes...) {
+	for _, d := range append(append([]string{}, volumeDefaults...), c.VolumeMasks...) {
 		if seen[d] {
 			continue
 		}

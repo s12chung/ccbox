@@ -83,7 +83,7 @@ func TestSeedUserConfig(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, userFileName), path)
 
 	// the seed is the defaults' carrier
-	want := Config{CLI: new("claude"), HostGitConfig: new(true), Tmpfs: tmpfsDefaults, Volumes: volumeDefaults, Allowlist: allowDefaults()}
+	want := Config{CLI: new("claude"), HostGitConfig: new(true), TmpfsMasks: tmpfsDefaults, VolumeMasks: volumeDefaults, Allowlist: allowDefaults()}
 
 	t.Run("seed alone resolves the default config", func(t *testing.T) {
 		c, err := Load(dir, Config{})
@@ -167,26 +167,26 @@ func TestLoadExpanded(t *testing.T) {
 			Config{
 				CLI:           new("claude"),
 				HostGitConfig: new(true),
-				Tmpfs:         tmpfsDefaults,
-				Volumes:       volumeDefaults,
+				TmpfsMasks:    tmpfsDefaults,
+				VolumeMasks:   volumeDefaults,
 				Allowlist:     allowDefaults(),
 			},
 		},
 		{
 			"the token expands in place, literals kept, repeats collapse", t.TempDir(),
-			"cli: claude\nhost_git_config: true\ntmpfs:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n",
+			"cli: claude\nhost_git_config: true\ntmpfsMasks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n",
 			Config{
 				CLI:           new("claude"),
 				HostGitConfig: new(true),
-				Tmpfs:         append(append([]string{}, tmpfsDefaults...), "dist"),
-				Volumes:       volumeDefaults,
+				TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
+				VolumeMasks:   volumeDefaults,
 				Allowlist:     allowDefaults(),
 			},
 		},
 		{
 			"explicit empty lists opt out", t.TempDir(),
-			"cli: claude\nhost_git_config: true\nvolumes: []\n",
-			Config{CLI: new("claude"), HostGitConfig: new(true), Tmpfs: tmpfsDefaults, Allowlist: allowDefaults()},
+			"cli: claude\nhost_git_config: true\nvolumeMasks: []\n",
+			Config{CLI: new("claude"), HostGitConfig: new(true), TmpfsMasks: tmpfsDefaults, Allowlist: allowDefaults()},
 		},
 	}
 	for _, tt := range tests {
@@ -204,21 +204,21 @@ func TestLoadExpanded(t *testing.T) {
 func TestLoadMasks(t *testing.T) {
 	// the project's absent dirs drop out, the token's defaults and own alike
 	tests := []struct {
-		name        string
-		dirs        []string // present in the project dir
-		body        string
-		wantTmpfs   []string
-		wantVolumes []string
+		name            string
+		dirs            []string // present in the project dir
+		body            string
+		wantTmpfsMasks  []string
+		wantVolumeMasks []string
 	}{
 		{
 			"all absent drops out", nil,
-			"tmpfs:\n  - dist\nvolumes:\n  - target\n",
+			"tmpfsMasks:\n  - dist\nvolumeMasks:\n  - target\n",
 			nil, nil,
 		},
 		{
 			"present stays, absent drops",
 			[]string{"dist"},
-			"tmpfs:\n  - dist\n  - build\n",
+			"tmpfsMasks:\n  - dist\n  - build\n",
 			[]string{"dist"},
 			nil, // the seed's defaults are all absent here
 		},
@@ -231,8 +231,8 @@ func TestLoadMasks(t *testing.T) {
 
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantTmpfs, c.Tmpfs)
-			assert.Equal(t, tt.wantVolumes, c.Volumes)
+			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasks)
+			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasks)
 		})
 	}
 }
@@ -245,11 +245,11 @@ func TestNotFoundMasks(t *testing.T) {
 	absent := t.TempDir()
 
 	tests := []struct {
-		name        string
-		projectDir  string
-		projectBody string
-		wantTmpfs   []string
-		wantVolumes []string
+		name            string
+		projectDir      string
+		projectBody     string
+		wantTmpfsMasks  []string
+		wantVolumeMasks []string
 	}{
 		{
 			"the seed's token rejects the project's absent defaults", present,
@@ -259,13 +259,13 @@ func TestNotFoundMasks(t *testing.T) {
 		},
 		{
 			"the config's own absent dirs reject like the defaults", present,
-			"tmpfs:\n  - dist\nvolumes:\n  - node_modules\n  - target\n",
+			"tmpfsMasks:\n  - dist\nvolumeMasks:\n  - node_modules\n  - target\n",
 			[]string{"dist"},
 			[]string{".venv", "target"},
 		},
 		{
 			"all absent rejects every entry, token and own alike", absent,
-			"tmpfs:\n  - dist\n",
+			"tmpfsMasks:\n  - dist\n",
 			append(append([]string{}, tmpfsDefaults...), "dist"),
 			volumeDefaults,
 		},
@@ -275,10 +275,10 @@ func TestNotFoundMasks(t *testing.T) {
 			if tt.projectBody != "" {
 				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectFileName), []byte(tt.projectBody), ioutil.File))
 			}
-			tmpfs, volumes, err := NotFoundMasks(tt.projectDir, Config{})
+			tmpfsMasks, volumeMasks, err := NotFoundMasks(tt.projectDir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantTmpfs, tmpfs)
-			assert.Equal(t, tt.wantVolumes, volumes)
+			assert.Equal(t, tt.wantTmpfsMasks, tmpfsMasks)
+			assert.Equal(t, tt.wantVolumeMasks, volumeMasks)
 		})
 	}
 }
@@ -299,7 +299,7 @@ func TestInitWritesLoadableDefault(t *testing.T) {
 
 func TestInitRefusesExisting(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfs: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfsMasks: []\n"), ioutil.File))
 
 	_, err := Init(dir)
 	assert.ErrorIs(t, err, seed.ErrExists)
@@ -349,9 +349,9 @@ func TestLoadLayersFiles(t *testing.T) {
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build", "cache") // the layers' own mask dirs must exist to survive
 	bodies := map[string]string{             // one entry per configFiles term
-		"user":    "cli: grok\ntmpfs:\n  - ccbox-defaults\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
-		"project": "cli: claude\ntmpfs:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
-		"local":   "cli: codex\ntmpfs:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",
+		"user":    "cli: grok\ntmpfsMasks:\n  - ccbox-defaults\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
+		"project": "cli: claude\ntmpfsMasks:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
+		"local":   "cli: codex\ntmpfsMasks:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",
 	}
 	for _, cf := range configFiles {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
@@ -362,8 +362,8 @@ func TestLoadLayersFiles(t *testing.T) {
 	assert.Equal(t, "codex", *c.CLI)             // later layer wins
 	assert.Equal(t, new(false), c.HostGitConfig) // later layer wins
 
-	// the user layer's tmpfs token expands in place; lists append, lowest layer first, dedupe collapses
-	assert.Equal(t, []string{".idea", ".vscode", "dist", "build", "cache"}, c.Tmpfs)
+	// the user layer's tmpfsMasks token expands in place; lists append, lowest layer first, dedupe collapses
+	assert.Equal(t, []string{".idea", ".vscode", "dist", "build", "cache"}, c.TmpfsMasks)
 
 	// env overlays, later wins
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)
@@ -394,7 +394,7 @@ func TestLoadInvalidErrors(t *testing.T) {
 	for _, cf := range configFiles { // malformed yaml in any file errors
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			path := writeConfig(t, dir, cf.name, "tmpfs: [")
+			path := writeConfig(t, dir, cf.name, "tmpfsMasks: [")
 
 			_, err := Load(dir, Config{})
 			require.Error(t, err)
@@ -406,16 +406,16 @@ func TestLoadInvalidErrors(t *testing.T) {
 func TestMergeIsPure(t *testing.T) {
 	src := Config{
 		CLI:           new("claude"),
-		Tmpfs:         []string{"dist"},
-		Volumes:       []string{"target"},
+		TmpfsMasks:    []string{"dist"},
+		VolumeMasks:   []string{"target"},
 		Env:           map[string]string{"FOO": "base", "BAR": "base"},
 		Allowlist:     []string{"ccbox-defaults"},
 		HostGitConfig: new(true),
 	}
 	other := Config{
 		CLI:           new("codex"),
-		Tmpfs:         []string{"build"},
-		Volumes:       []string{"cache"},
+		TmpfsMasks:    []string{"build"},
+		VolumeMasks:   []string{"cache"},
 		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
 		Allowlist:     []string{"example.com"},
 		HostGitConfig: new(false),
@@ -424,8 +424,8 @@ func TestMergeIsPure(t *testing.T) {
 	got := src.merge(other)
 
 	assert.Equal(t, deepcopy.Of(src), src) // merge never mutates its receiver
-	assert.Equal(t, []string{"dist", "build"}, got.Tmpfs)
-	assert.Equal(t, []string{"target", "cache"}, got.Volumes)
+	assert.Equal(t, []string{"dist", "build"}, got.TmpfsMasks)
+	assert.Equal(t, []string{"target", "cache"}, got.VolumeMasks)
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
 	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
 	assert.Equal(t, new(false), got.HostGitConfig) // a set later layer wins
@@ -439,9 +439,9 @@ func TestLoadRejectsInvalidValues(t *testing.T) {
 		want []string
 	}{
 		{"unknown cli", "cli: emacs\n", []string{"CLI", "is not one of [claude codex grok opencode]"}},
-		{"absolute tmpfs", "tmpfs:\n  - /etc\n", []string{"Tmpfs", "Match"}},
-		{"tmpfs traversal", "tmpfs:\n  - ../escape\n", []string{"Tmpfs", "Match"}},
-		{"absolute volume", "volumes:\n  - /var\n", []string{"Volumes", "Match"}},
+		{"absolute tmpfsMasks", "tmpfsMasks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
+		{"tmpfsMasks traversal", "tmpfsMasks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
+		{"absolute volumeMasks", "volumeMasks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
 		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},

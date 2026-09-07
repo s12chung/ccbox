@@ -23,7 +23,7 @@ The config level hierarchy is:
 - Project Local - `project_dir/.ccbox.local.yaml` (for git ignore)
 - `ccbox` flags
 
-`ccbox config` prints the effective config with `ccbox-defaults` expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays are appended and maps are merged for `tmpfs`, `volumes`, `env`, and `allowlist`.
+`ccbox config` prints the effective config with `ccbox-defaults` expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays are appended and maps are merged for `tmpfsMasks`, `volumeMasks`, `env`, and `allowlist`.
 
 ## Docs
 

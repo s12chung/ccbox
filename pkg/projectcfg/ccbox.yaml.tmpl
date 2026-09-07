@@ -1,24 +1,22 @@
-# ccbox config template. Levels (lowest first): user ~/.ccbox/config/ccbox.yaml, project
-# .ccbox.yaml, git-ignored .ccbox.local.yaml, then ccbox flags. Lists append; maps merge.
+# Run `ccbox config` to see effective config
 
 # cli: which coding CLI the image installs and launches
-# Changing this rebuilds the image.
 cli:{{yaml .CLI}}
 
-# host_git_config: read-only mount the host's ~/.config/git into the container so in-container git
-# honors your global ignore/config/attributes
+# host_git_config: read-only mount the host's ~/.config/git
 host_git_config:{{yaml .HostGitConfig}}
 
-# tmpfs: project-relative dirs masked with a tmpfs, so in-container writes never reach the host
-# Useful for protecting directories from the container
-tmpfs:{{yaml .Tmpfs}}
+# tmpfsMasks: project-relative directories to mask with a temporary filesystem
+# to block access. Directories that do not exist in the project are safely ignored.
+tmpfsMasks:{{yaml .TmpfsMasks}}
   # - dist
 
-# volumes: project-relative dirs masked with a PERSISTENT per-project volume to avoid collisions with host
-volumes:{{yaml .Volumes}}
+# volumeMasks: project-relative directories to mask with a persistent volume to avoid host collisions.
+# Useful for node_modules-like folders. Directories that do not exist in the project are safely ignored.
+volumeMasks:{{yaml .VolumeMasks}}
   # - vendor/bundle
 
-# env: extra environment variables set in the container (cannot override the proxy/token vars).
+# env: extra environment variables set in the container
 env:{{yaml .Env}}
   # FOO: bar
 
