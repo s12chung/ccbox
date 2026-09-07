@@ -32,6 +32,6 @@ func proxyOptions() (docker.ProxyOptions, error) {
 	}
 	return docker.ProxyOptions{
 		Config:    configFS,
-		Overrides: docker.AllowOverride(projectCfg.Allowlist),
+		Overrides: docker.AllowOverride(projectCfg.AllowlistExpanded()),
 	}, nil
 }

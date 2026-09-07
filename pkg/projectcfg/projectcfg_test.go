@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
@@ -86,12 +87,20 @@ func TestSeedUserConfig(t *testing.T) {
 	assert.Equal(t, UserConfigFile(), path)
 
 	// the seed is the defaults' carrier
-	want := Config{CLI: new("claude"), HostGitConfig: new(true), TmpfsMasks: TmpfsDefaults(), VolumeMasks: VolumeDefaults(), Allowlist: AllowDefaults()}
+	want := Config{
+		CLI:           new("claude"),
+		HostGitConfig: new(true),
+		TmpfsMasks:    []string{DefaultsToken},
+		VolumeMasks:   []string{DefaultsToken},
+		Allowlist:     []string{DefaultsToken},
 
-	t.Run("seed alone resolves the default config", func(t *testing.T) {
+		projectDir: dir,
+	}
+
+	t.Run("seed alone loads the default config", func(t *testing.T) {
 		c, err := Load(dir, Config{})
 		require.NoError(t, err)
-		assert.Equal(t, want, c)
+		assert.Equal(t, &want, c)
 	})
 
 	t.Run("an empty project file is unset like a missing one", func(t *testing.T) {
@@ -99,7 +108,7 @@ func TestSeedUserConfig(t *testing.T) {
 
 		c, err := Load(dir, Config{})
 		require.NoError(t, err)
-		assert.Equal(t, want, c)
+		assert.Equal(t, &want, c)
 	})
 }
 
@@ -145,15 +154,17 @@ func TestLoadEmptyListKeepsLowerLayers(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, AllowDefaults(), c.Allowlist) // lists append: [] adds nothing, the seed's token stays
+	assert.Equal(t, []string{DefaultsToken}, c.Allowlist) // lists append: [] adds nothing, the seed's token stays
 }
 
-func TestLoadExpanded(t *testing.T) {
+func TestConfig_ListsExpanded(t *testing.T) {
 	tests := []struct {
-		name       string
-		projectDir string
-		body       string
-		want       Config
+		name                string
+		projectDir          string
+		body                string
+		want                Config
+		wantTmpfsExpanded   []string
+		wantVolumesExpanded []string
 	}{
 		{
 			"an all-nil config expands every list to nothing", t.TempDir(),
@@ -162,6 +173,7 @@ func TestLoadExpanded(t *testing.T) {
 				CLI:           new("claude"),
 				HostGitConfig: new(true),
 			},
+			nil, nil,
 		},
 		{
 			"the token expands in place, literals kept, repeats collapse", t.TempDir(),
@@ -169,25 +181,61 @@ func TestLoadExpanded(t *testing.T) {
 			Config{
 				CLI:           new("claude"),
 				HostGitConfig: new(true),
-				TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
+				TmpfsMasks:    []string{DefaultsToken, "dist", DefaultsToken},
 			},
+			append(append([]string{}, tmpfsDefaults...), "dist"),
+			nil,
 		},
 		{
 			"an explicit empty list stays empty like an unset one", t.TempDir(),
 			"cli: claude\nhost_git_config: true\nvolumeMasks: []\n",
-			Config{CLI: new("claude"), HostGitConfig: new(true)},
+			Config{CLI: new("claude"), HostGitConfig: new(true), VolumeMasks: []string{}},
+			nil, nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			useHome(t) // no user file: the project body stands alone
 			writeConfig(t, tt.projectDir, projectFileName, tt.body)
+			tt.want.projectDir = tt.projectDir
 
-			c, err := LoadExpanded(tt.projectDir, Config{})
+			c, err := Load(tt.projectDir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, c)
+			assert.Equal(t, &tt.want, c)
+			assert.Equal(t, tt.wantTmpfsExpanded, c.TmpfsMasksExpanded())
+			assert.Equal(t, tt.wantVolumesExpanded, c.VolumeMasksExpanded())
 		})
 	}
+}
+
+func TestLoad_StoresProjectDir(t *testing.T) {
+	dir := t.TempDir()
+	useHome(t) // no user file
+	writeConfig(t, dir, projectFileName, "cli: claude\nhost_git_config: true\n")
+
+	c, err := Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, dir, c.ProjectDir())
+}
+
+func TestAccessorsCache(t *testing.T) {
+	dir := t.TempDir()
+	useHome(t) // no user file: no defaults token
+	mkDirs(t, dir, "dist")
+	writeConfig(t, dir, projectFileName, "cli: claude\nhost_git_config: true\ntmpfsMasks:\n  - dist\n")
+
+	c, err := Load(dir, Config{})
+	require.NoError(t, err)
+
+	expanded := c.TmpfsMasksExpanded()
+	present := c.TmpfsMasksPresent()
+	assert.Equal(t, []string{"dist"}, expanded)
+	assert.Equal(t, []string{"dist"}, present)
+
+	// later raw changes don't leak through the cached resolutions
+	c.TmpfsMasks = append(c.TmpfsMasks, "build")
+	assert.Equal(t, expanded, c.TmpfsMasksExpanded())
+	assert.Equal(t, present, c.TmpfsMasksPresent())
 }
 
 func TestLoadedPaths(t *testing.T) {
@@ -228,8 +276,7 @@ func TestLoadedPaths(t *testing.T) {
 	})
 }
 
-func TestLoadMasks(t *testing.T) {
-	// the project's absent dirs drop out, the token's defaults and own alike
+func TestConfig_MasksPresent(t *testing.T) {
 	tests := []struct {
 		name            string
 		dirs            []string // present in the project dir
@@ -258,13 +305,13 @@ func TestLoadMasks(t *testing.T) {
 
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasks)
-			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasks)
+			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksPresent())
+			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksPresent())
 		})
 	}
 }
 
-func TestNotFoundMasks(t *testing.T) {
+func TestConfig_MasksAbsent(t *testing.T) {
 	// present has the mask dirs on disk except .venv; absent has none
 	present := t.TempDir()
 	mkDirs(t, present, tmpfsDefaults...)
@@ -302,29 +349,33 @@ func TestNotFoundMasks(t *testing.T) {
 			if tt.projectBody != "" {
 				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectFileName), []byte(tt.projectBody), ioutil.File))
 			}
-			tmpfsMasks, volumeMasks, err := NotFoundMasks(tt.projectDir, Config{})
+			c, err := Load(tt.projectDir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, tt.wantTmpfsMasks, tmpfsMasks)
-			assert.Equal(t, tt.wantVolumeMasks, volumeMasks)
+			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksAbsent())
+			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksAbsent())
 		})
 	}
 }
 
-func TestInitWritesLoadableDefault(t *testing.T) {
+func TestInit_WritesLoadableDefault(t *testing.T) {
 	dir := t.TempDir()
 	path, err := Init(dir)
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(dir, projectFileName), path)
 
-	// the written scaffold must resolve exactly like no file at all
+	// projectDir is the only Config difference
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	fresh, err := Load(t.TempDir(), Config{})
 	require.NoError(t, err)
-	assert.Equal(t, fresh, c)
+	cOut, err := yaml.Marshal(c)
+	require.NoError(t, err)
+	freshOut, err := yaml.Marshal(fresh)
+	require.NoError(t, err)
+	assert.Equal(t, string(freshOut), string(cOut))
 }
 
-func TestInitRefusesExisting(t *testing.T) {
+func TestInit_RefusesExisting(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfsMasks: []\n"), ioutil.File))
 
@@ -341,7 +392,7 @@ func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
 	}
 }
 
-func TestLoadLayersFiles(t *testing.T) {
+func TestLoad_LayersFiles(t *testing.T) {
 	dir := t.TempDir()
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build", "cache") // the layers' own mask dirs must exist to survive
@@ -359,17 +410,16 @@ func TestLoadLayersFiles(t *testing.T) {
 	assert.Equal(t, "codex", *c.CLI)             // later layer wins
 	assert.Equal(t, new(false), c.HostGitConfig) // later layer wins
 
-	// the user layer's tmpfsMasks token expands in place; lists append, lowest layer first, dedupe collapses
-	assert.Equal(t, []string{".idea", ".vscode", "dist", "build", "cache"}, c.TmpfsMasks)
+	// lists append raw, lowest layer first, the seed's tokens carried as-is
+	assert.Equal(t, []string{DefaultsToken, "dist", "build", "cache"}, c.TmpfsMasks)
 
 	// env overlays, later wins
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)
 
-	// lists append, the token expands in place
-	assert.Equal(t, append(append([]string{"user.example.dev"}, AllowDefaults()...), "example.com"), c.Allowlist)
+	assert.Equal(t, []string{"user.example.dev", DefaultsToken, "example.com"}, c.Allowlist)
 }
 
-func TestLoadSingleFileOnly(t *testing.T) {
+func TestLoad_SingleFileOnly(t *testing.T) {
 	for _, cf := range configFiles { // the other files are absent
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
@@ -381,13 +431,13 @@ func TestLoadSingleFileOnly(t *testing.T) {
 			if cf.term == "user" { // the user file replaces the seed wholesale
 				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
 			} else { // the user seed's token still underlies the project/local file
-				assert.Equal(t, append(AllowDefaults(), "example.com"), c.Allowlist)
+				assert.Equal(t, []string{DefaultsToken, "example.com"}, c.Allowlist)
 			}
 		})
 	}
 }
 
-func TestLoadInvalidErrors(t *testing.T) {
+func TestLoad_InvalidErrors(t *testing.T) {
 	for _, cf := range configFiles { // malformed yaml in any file errors
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
@@ -400,8 +450,8 @@ func TestLoadInvalidErrors(t *testing.T) {
 	}
 }
 
-func TestConfig_mergeIsPure(t *testing.T) {
-	src := Config{
+func TestConfig_mergeOverlays(t *testing.T) {
+	c := Config{
 		CLI:           new("claude"),
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
@@ -418,18 +468,18 @@ func TestConfig_mergeIsPure(t *testing.T) {
 		HostGitConfig: new(false),
 	}
 
-	got := src.merge(other)
+	c.merge(other)
 
-	assert.Equal(t, deepcopy.Of(src), src) // merge never mutates its receiver
-	assert.Equal(t, []string{"dist", "build"}, got.TmpfsMasks)
-	assert.Equal(t, []string{"target", "cache"}, got.VolumeMasks)
-	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, got.Env)
-	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, got.Allowlist)
-	assert.Equal(t, new(false), got.HostGitConfig) // a set later layer wins
-	assert.Equal(t, "codex", *got.CLI)             // a set later layer wins
+	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
+	assert.Equal(t, []string{"dist", "build"}, c.TmpfsMasks)
+	assert.Equal(t, []string{"target", "cache"}, c.VolumeMasks)
+	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"}, c.Env)
+	assert.Equal(t, []string{"ccbox-defaults", "example.com"}, c.Allowlist)
+	assert.Equal(t, new(false), c.HostGitConfig) // a set later layer wins
+	assert.Equal(t, "codex", *c.CLI)             // a set later layer wins
 }
 
-func TestLoadRejectsInvalidValues(t *testing.T) {
+func TestLoad_RejectsInvalidValues(t *testing.T) {
 	tests := []struct {
 		name string
 		body string

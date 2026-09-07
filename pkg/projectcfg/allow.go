@@ -9,6 +9,15 @@ func AllowDefaults() []string {
 	return append(append([]string{}, sharedAllowDefaults...), cliAllowDomains()...)
 }
 
+// AllowlistExpanded resolves the DefaultsToken tokens in Allowlist to AllowDefaults,
+// preserving entry order and collapsing repeats. Cached.
+func (c *Config) AllowlistExpanded() []string {
+	if c.expandedAllowlist == nil {
+		c.expandedAllowlist = expandList(c.Allowlist, AllowDefaults())
+	}
+	return c.expandedAllowlist
+}
+
 // sharedAllowDefaults are the CLI-independent egress domains.
 var sharedAllowDefaults = []string{
 	// mise (tool version manager): version lists + release metadata

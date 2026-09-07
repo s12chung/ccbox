@@ -24,6 +24,15 @@ type Config struct {
 	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative dirs to mask with a persistent per-project volume
 	Env         map[string]string `yaml:"env"`         // extra env vars set in the container
 	Allowlist   []string          `yaml:"allowlist"`   // egress wall domains
+
+	// projectDir anchors the masks' present-filter
+	projectDir string
+	// cache accessors' resolutions of raw lists
+	expandedTmpfsMasks  []string
+	presentTmpfsMasks   []string
+	expandedVolumeMasks []string
+	presentVolumeMasks  []string
+	expandedAllowlist   []string
 }
 
 func init() {
@@ -43,22 +52,11 @@ func init() {
 		}))
 }
 
-// VolumeCleanupDirs is every mask dir whose volume may exist
-func (c Config) VolumeCleanupDirs() []string {
-	seen := map[string]bool{}
-	var dirs []string
-	for _, d := range append(append([]string{}, volumeDefaults...), c.VolumeMasks...) {
-		if seen[d] {
-			continue
-		}
-		seen[d] = true
-		dirs = append(dirs, d)
-	}
-	return dirs
-}
+// ProjectDir is the project dir the config was loaded from
+func (c *Config) ProjectDir() string { return c.projectDir }
 
-// merge layers other onto c and returns a fresh Config
-func (c Config) merge(other Config) Config {
+// merge layers other onto c — lists append, a set later scalar wins
+func (c *Config) merge(other Config) {
 	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)
 	c.VolumeMasks = mergeempty.Slice(c.VolumeMasks, other.VolumeMasks)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
@@ -69,7 +67,24 @@ func (c Config) merge(other Config) Config {
 	if other.HostGitConfig != nil {
 		c.HostGitConfig = other.HostGitConfig
 	}
-	return c
+	// clear stale caches
+	c.expandedTmpfsMasks, c.presentTmpfsMasks = nil, nil
+	c.expandedVolumeMasks, c.presentVolumeMasks = nil, nil
+	c.expandedAllowlist = nil
+}
+
+// MarshalYAML renders the effective config: masks resolved to the project's present
+// dirs, list tokens expanded — what `ccbox config` prints.
+func (c *Config) MarshalYAML() (any, error) {
+	type resolved Config // same yaml tags, no MarshalYAML method
+	return resolved{
+		CLI:           c.CLI,
+		HostGitConfig: c.HostGitConfig,
+		TmpfsMasks:    c.TmpfsMasksPresent(),
+		VolumeMasks:   c.VolumeMasksPresent(),
+		Env:           c.Env,
+		Allowlist:     c.AllowlistExpanded(),
+	}, nil
 }
 
 var (
@@ -82,7 +97,7 @@ var (
 	}).Parse(configTmplSrc))
 )
 
-func (c Config) renderTmpl() (string, error) {
+func (c *Config) renderTmpl() (string, error) {
 	var b bytes.Buffer
 	if err := configTmpl.Execute(&b, c); err != nil {
 		return "", fmt.Errorf("render Config template: %w", err)

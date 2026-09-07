@@ -52,7 +52,7 @@ func LoadedPaths(projectDir string) []string {
 // Init writes to projectDir/.ccbox.yaml and returns its path.
 func Init(projectDir string) (string, error) {
 	path := filepath.Join(projectDir, projectFileName)
-	body, err := Config{}.renderTmpl()
+	body, err := new(Config).renderTmpl()
 	if err != nil {
 		return "", err
 	}
@@ -63,8 +63,8 @@ func Init(projectDir string) (string, error) {
 }
 
 // userSeedConfig is the user-level seed's data with ccbox defaults--referenced in tests
-func userSeedConfig(cli string) Config {
-	return Config{
+func userSeedConfig(cli string) *Config {
+	return &Config{
 		CLI:           new(cli),
 		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken},
@@ -93,38 +93,22 @@ func SeedUserConfig(cli string) (string, error) {
 	return UserConfigFile(), nil
 }
 
-// LoadExpanded reads the config layers — user (ConfigDir), project (project repo root),
-// local (git-ignored) — then CLI flags, and validates. The DefaultsToken in each list
-// field expands to the full built-ins.
-func LoadExpanded(projectDir string, flags Config) (Config, error) {
+// Load reads the layerPaths, then CLI flags, and validates
+func Load(projectDir string, flags Config) (*Config, error) {
 	var c Config
 	for _, path := range layerPaths(projectDir) {
 		layer, err := read(path)
 		if err != nil {
-			return Config{}, err
+			return nil, err
 		}
-		c = c.merge(layer)
+		c.merge(layer)
 	}
-	c = c.merge(flags)
+	c.merge(flags)
 	if errMap := firm.ValidateAny(c); errMap != nil {
-		return Config{}, errMap
+		return nil, errMap
 	}
-	c.TmpfsMasks = expandList(c.TmpfsMasks, tmpfsDefaults)
-	c.VolumeMasks = expandList(c.VolumeMasks, volumeDefaults)
-	c.Allowlist = expandList(c.Allowlist, AllowDefaults())
-	return c, nil
-}
-
-// Load mask-checks LoadExpanded: the tmpfsMasks and volumeMasks lists keep only the project's
-// present dirs, so run never creates a masked dir.
-func Load(projectDir string, flags Config) (Config, error) {
-	c, err := LoadExpanded(projectDir, flags)
-	if err != nil {
-		return Config{}, err
-	}
-	c.TmpfsMasks = ioutil.DirsPresent(projectDir, c.TmpfsMasks)
-	c.VolumeMasks = ioutil.DirsPresent(projectDir, c.VolumeMasks)
-	return c, nil
+	c.projectDir = projectDir
+	return &c, nil
 }
 
 // expandList replaces each DefaultsToken with defaults, preserving entry order and

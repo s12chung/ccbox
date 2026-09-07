@@ -22,12 +22,12 @@ var configCmd = &cobra.Command{
 		}
 		log.Info("# Run `ccbox config defaults` for " + projectcfg.DefaultsToken + " expansions")
 		printLoadedPaths(cwd)
-		out, err := yaml.Marshal(projectCfg) // already resolved by projectcfg.Load
+		out, err := yaml.Marshal(projectCfg)
 		if err != nil {
 			return err
 		}
 		log.Info(strings.TrimRight(string(out), "\n"))
-		return printAbsentMasks(cwd)
+		return printAbsentMasks()
 	},
 }
 
@@ -45,11 +45,9 @@ func printLoadedPaths(projectDir string) {
 }
 
 // printAbsentMasks lists the mask dirs this project lacks
-func printAbsentMasks(cwd string) error {
-	tmpfsMasks, volumeMasks, err := projectcfg.NotFoundMasks(cwd, projectcfg.Config{CLI: flagCLI})
-	if err != nil {
-		return err
-	}
+func printAbsentMasks() error {
+	tmpfsMasks := projectCfg.TmpfsMasksAbsent()
+	volumeMasks := projectCfg.VolumeMasksAbsent()
 	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 {
 		log.Info("")
 	}

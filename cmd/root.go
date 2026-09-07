@@ -38,7 +38,7 @@ var exitCode int
 
 // projectCfg is the layered config (user < project < local < flags), loaded once
 // before any command runs.
-var projectCfg projectcfg.Config
+var projectCfg *projectcfg.Config
 
 var rootCmd = &cobra.Command{
 	Use:           "ccbox",

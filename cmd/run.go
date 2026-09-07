@@ -55,8 +55,8 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		GHToken:      os.Getenv("GH_TOKEN"),
 		GitConfigDir: gitConfigDir,
 		Env:          projectCfg.Env,
-		TmpfsMasks:   projectCfg.TmpfsMasks,
-		VolumeMasks:  projectCfg.VolumeMasks,
+		TmpfsMasks:   projectCfg.TmpfsMasksPresent(),
+		VolumeMasks:  projectCfg.VolumeMasksPresent(),
 		Cmd:          harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,
@@ -77,7 +77,7 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	}
 	// A default mask dir absent now isn't masked this run, but gets masked once it exists.
 	// Snapshot the absent ones, then warn after the run for any the container created.
-	defer printMasks()
+	defer printPresentMasks()
 	absentDefaults := masksOnHost(m.cwd, projectcfg.MaskDefaults(), false)
 	defer warnCreatedMasks(m.cwd, absentDefaults)
 

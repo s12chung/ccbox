@@ -8,13 +8,12 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
-// printMasks tells the user which project dirs are shadowed, so a hidden dir is no surprise.
-func printMasks() {
-	if len(projectCfg.TmpfsMasks) > 0 {
-		log.Infof("during run, masked (ephemeral tmpfs): %s", strings.Join(projectCfg.TmpfsMasks, ", "))
+func printPresentMasks() {
+	if tmpfsMasks := projectCfg.TmpfsMasksPresent(); len(tmpfsMasks) > 0 {
+		log.Infof("during run, masked (ephemeral tmpfs): %s", strings.Join(tmpfsMasks, ", "))
 	}
-	if len(projectCfg.VolumeMasks) > 0 {
-		log.Infof("during run, masked (persistent volume): %s", strings.Join(projectCfg.VolumeMasks, ", "))
+	if volumeMasks := projectCfg.VolumeMasksPresent(); len(volumeMasks) > 0 {
+		log.Infof("during run, masked (persistent volume): %s", strings.Join(volumeMasks, ", "))
 	}
 }
 
