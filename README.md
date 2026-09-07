@@ -1,22 +1,18 @@
 # ccbox
 
-A hardened Docker devbox for running an LLM CLI — Claude Code or Codex, selected per project.
+> A protected Docker devbox for running a harness CLI — Claude Code, Codex, etc.
 
-## Usage
+Run `ccbox` from a repo root to run the harness CLI in a Docker container. `ccbox --shell` will open a shell instead.
 
-Run `ccbox` from a repo root: it builds the image if needed, then drops you into the devbox behind the egress wall and launches the configured CLI. Use `ccbox --shell` to open a shell instead. Use `ccbox --no-proxy` to run without the egress wall — direct network access, no allowlist.
-
-## Philosophy: lock down everything, trust the mount
-
-The premise is to **limit the CLI's access as much as possible** — unprivileged user, no root, no Docker daemon, a disposable `--rm` container, and an allowlist-only egress wall that denies network by default.
-
-The one deliberate exception is **what you mount**. Whatever you bind-mount into the devbox container is fully the CLI's to read, write, and act on. **The mount is the trust boundary** — we don't gate reads inside it. If you mount a secret, the CLI has the secret, so mount only what you're willing to expose.
-
-As a safety net for accidents, the CLI is also seeded to refuse reading common secret files (`.env`, `*.pem`, `*.key`, `secrets/`) and to ask before shell commands touch them. These don't add protection beyond the mount — anything inside it can still be reached.
+- Limits harness access — unprivileged user, no root, no Docker daemon, a disposable container
+- Configurable protective host-mounts to the container
+- Full control over harness configuration, including adding your own
 
 ## Config
 
-The config scope hierarchy is:
+Your first run of a harness CLI will create the CLI's config folder in `~/.ccbox`.
+
+The `ccbox` config scope hierarchy is:
 
 - User - `~/.ccbox/config/ccbox.yaml` (no dot) — seeded with ccbox's defaults on first run
 - Project - `project_dir/.ccbox.yaml`
