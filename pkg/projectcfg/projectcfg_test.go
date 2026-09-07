@@ -154,85 +154,131 @@ func TestLoadEmptyListKeepsLowerLayers(t *testing.T) {
 	assert.Equal(t, allowDefaults(), c.Allowlist) // lists append: [] adds nothing, the seed's token stays
 }
 
-func TestExpandDefaults(t *testing.T) {
+func TestLoadExpanded(t *testing.T) {
+	tests := []struct {
+		name       string
+		projectDir string
+		body       string
+		want       Config
+	}{
+		{
+			"an all-nil config expands every list to the built-ins", t.TempDir(),
+			"cli: claude\nhost_git_config: true\n",
+			Config{
+				CLI:           new("claude"),
+				HostGitConfig: new(true),
+				Tmpfs:         tmpfsDefaults,
+				Volumes:       volumeDefaults,
+				Allowlist:     allowDefaults(),
+			},
+		},
+		{
+			"the token expands in place, literals kept, repeats collapse", t.TempDir(),
+			"cli: claude\nhost_git_config: true\ntmpfs:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n",
+			Config{
+				CLI:           new("claude"),
+				HostGitConfig: new(true),
+				Tmpfs:         append(append([]string{}, tmpfsDefaults...), "dist"),
+				Volumes:       volumeDefaults,
+				Allowlist:     allowDefaults(),
+			},
+		},
+		{
+			"explicit empty lists opt out", t.TempDir(),
+			"cli: claude\nhost_git_config: true\nvolumes: []\n",
+			Config{CLI: new("claude"), HostGitConfig: new(true), Tmpfs: tmpfsDefaults, Allowlist: allowDefaults()},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useUserConfigFile(t, t.TempDir()) // no user file: the project body stands alone
+			writeConfig(t, tt.projectDir, projectFileName, tt.body)
+
+			c, err := LoadExpanded(tt.projectDir, Config{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, c)
+		})
+	}
+}
+
+func TestLoadMasks(t *testing.T) {
+	// the project's absent dirs drop out, the token's defaults and own alike
+	tests := []struct {
+		name        string
+		dirs        []string // present in the project dir
+		body        string
+		wantTmpfs   []string
+		wantVolumes []string
+	}{
+		{
+			"all absent drops out", nil,
+			"tmpfs:\n  - dist\nvolumes:\n  - target\n",
+			nil, nil,
+		},
+		{
+			"present stays, absent drops",
+			[]string{"dist"},
+			"tmpfs:\n  - dist\n  - build\n",
+			[]string{"dist"},
+			nil, // the seed's defaults are all absent here
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			mkDirs(t, dir, tt.dirs...)
+			writeConfig(t, dir, projectFileName, tt.body)
+
+			c, err := Load(dir, Config{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantTmpfs, c.Tmpfs)
+			assert.Equal(t, tt.wantVolumes, c.Volumes)
+		})
+	}
+}
+
+func TestNotFoundMasks(t *testing.T) {
 	// present has the mask dirs on disk except .venv; absent has none
 	present := t.TempDir()
 	mkDirs(t, present, tmpfsDefaults...)
 	mkDirs(t, present, "node_modules", "vendor/bundle")
 	absent := t.TempDir()
 
-	// the mask tokens (tmpfs/volumes) expand against the project's present dirs; the
-	// allowlist token expands against the built-in domains, no project dir involved
 	tests := []struct {
-		name       string
-		projectDir string
-		in         Config
-		want       Config
+		name        string
+		projectDir  string
+		projectBody string
+		wantTmpfs   []string
+		wantVolumes []string
 	}{
 		{
-			"an all-nil config expands every list to the built-ins", present,
-			Config{},
-			Config{
-				Tmpfs:     tmpfsDefaults,
-				Volumes:   []string{"node_modules", "vendor/bundle"}, // .venv absent
-				Allowlist: allowDefaults(),
-			},
+			"the seed's token rejects the project's absent defaults", present,
+			"",
+			nil,
+			[]string{".venv"},
 		},
 		{
-			"nil mask lists expand to the project's present dirs", present,
-			Config{Allowlist: []string{}},
-			Config{Tmpfs: tmpfsDefaults, Volumes: []string{"node_modules", "vendor/bundle"}}, // .venv absent
+			"the config's own absent dirs reject like the defaults", present,
+			"tmpfs:\n  - dist\nvolumes:\n  - node_modules\n  - target\n",
+			[]string{"dist"},
+			[]string{".venv", "target"},
 		},
 		{
-			"a nil allowlist expands to the built-in domains", present,
-			Config{Tmpfs: []string{}, Volumes: []string{}},
-			Config{Allowlist: allowDefaults()},
-		},
-		{
-			"explicit empty lists opt out", present,
-			Config{Tmpfs: []string{}, Volumes: []string{}, Allowlist: []string{}},
-			Config{},
-		},
-		{
-			"the mask token expands in place, absent dirs filtered out", present,
-			Config{Tmpfs: []string{DefaultsToken, "dist"}, Volumes: []string{DefaultsToken, "target"}, Allowlist: []string{}},
-			Config{
-				Tmpfs:   []string{".idea", ".vscode", "dist"},
-				Volumes: []string{"node_modules", "vendor/bundle", "target"}, // .venv absent
-			},
-		},
-		{
-			"the allowlist token expands in place to the built-ins", present,
-			Config{Tmpfs: []string{}, Volumes: []string{}, Allowlist: []string{DefaultsToken}},
-			Config{Allowlist: allowDefaults()},
-		},
-		{
-			"a mask token with no dirs present expands to nothing", absent,
-			Config{Tmpfs: []string{DefaultsToken}, Volumes: []string{DefaultsToken}, Allowlist: []string{}},
-			Config{},
-		},
-		{
-			"lists without the token stay literal", absent,
-			Config{
-				Tmpfs:     []string{"dist"},
-				Volumes:   []string{"target"},
-				Allowlist: []string{"example.com"},
-			},
-			Config{
-				Tmpfs:     []string{"dist"},
-				Volumes:   []string{"target"},
-				Allowlist: []string{"example.com"},
-			},
-		},
-		{
-			"mask repeats collapse on first occurrence", present,
-			Config{Tmpfs: []string{DefaultsToken, ".idea", "dist", DefaultsToken}, Volumes: []string{}, Allowlist: []string{}},
-			Config{Tmpfs: []string{".idea", ".vscode", "dist"}},
+			"all absent rejects every entry, token and own alike", absent,
+			"tmpfs:\n  - dist\n",
+			append(append([]string{}, tmpfsDefaults...), "dist"),
+			volumeDefaults,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, ExpandDefaults(tt.projectDir, tt.in))
+			if tt.projectBody != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectFileName), []byte(tt.projectBody), ioutil.File))
+			}
+			tmpfs, volumes, err := NotFoundMasks(tt.projectDir, Config{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantTmpfs, tmpfs)
+			assert.Equal(t, tt.wantVolumes, volumes)
 		})
 	}
 }
@@ -301,7 +347,8 @@ func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
 func TestLoadLayersFiles(t *testing.T) {
 	dir := t.TempDir()
 	mkDirs(t, dir, tmpfsDefaults...)
-	bodies := map[string]string{ // one entry per configFiles term
+	mkDirs(t, dir, "dist", "build", "cache") // the layers' own mask dirs must exist to survive
+	bodies := map[string]string{             // one entry per configFiles term
 		"user":    "cli: grok\ntmpfs:\n  - ccbox-defaults\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
 		"project": "cli: claude\ntmpfs:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
 		"local":   "cli: codex\ntmpfs:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",

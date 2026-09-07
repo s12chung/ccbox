@@ -119,10 +119,10 @@ func UserConfigFile() string { return userConfigFile }
 // userConfigFile is the user-level config's path. Tests point it at a temp tree.
 var userConfigFile = filepath.Join(userdir.ConfigDir(), userFileName)
 
-// Load reads the user file, then the project's .ccbox.yaml, layers the local override
-// onto it, then CLI flags. All files are optional — absent ones contribute the zero
-// Config
-func Load(projectDir string, flags Config) (Config, error) {
+// LoadExpanded reads the config layers — user (ConfigDir), project (project repo root),
+// local (git-ignored) — then CLI flags, and validates. The DefaultsToken in each list
+// field expands to the full built-ins.
+func LoadExpanded(projectDir string, flags Config) (Config, error) {
 	user, err := read(userConfigFile)
 	if err != nil {
 		return Config{}, err
@@ -135,10 +135,25 @@ func Load(projectDir string, flags Config) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	c := ExpandDefaults(projectDir, user.merge(project).merge(local).merge(flags))
+	c := user.merge(project).merge(local).merge(flags)
 	if errMap := firm.ValidateAny(c); errMap != nil {
 		return Config{}, errMap
 	}
+	c.Tmpfs = expandList(c.Tmpfs, tmpfsDefaults)
+	c.Volumes = expandList(c.Volumes, volumeDefaults)
+	c.Allowlist = expandList(c.Allowlist, allowDefaults())
+	return c, nil
+}
+
+// Load mask-checks LoadExpanded: the tmpfs and volume lists keep only the project's
+// present dirs, so run never creates a masked dir.
+func Load(projectDir string, flags Config) (Config, error) {
+	c, err := LoadExpanded(projectDir, flags)
+	if err != nil {
+		return Config{}, err
+	}
+	c.Tmpfs = ioutil.DirsPresentInSrc(projectDir, c.Tmpfs)
+	c.Volumes = ioutil.DirsPresentInSrc(projectDir, c.Volumes)
 	return c, nil
 }
 
@@ -167,14 +182,6 @@ func init() {
 			},
 			"Allowlist": {firm.Elems[[]string](firmrule.Domain)},
 		}))
-}
-
-// ExpandDefaults expands the DefaultsToken in each list field in place
-func ExpandDefaults(projectDir string, c Config) Config {
-	c.Tmpfs = expandList(c.Tmpfs, ioutil.DirsPresentInSrc(projectDir, tmpfsDefaults))
-	c.Volumes = expandList(c.Volumes, ioutil.DirsPresentInSrc(projectDir, volumeDefaults))
-	c.Allowlist = expandList(c.Allowlist, allowDefaults())
-	return c
 }
 
 // expandList replaces each DefaultsToken with defaults, preserving entry order and

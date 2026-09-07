@@ -20,8 +20,30 @@ var configCmd = &cobra.Command{
 			return err
 		}
 		log.Info(strings.TrimRight(string(out), "\n"))
-		return nil
+		return printAbsentMasks()
 	},
+}
+
+// printAbsentMasks lists the mask dirs this project lacks
+func printAbsentMasks() error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	tmpfs, volumes, err := projectcfg.NotFoundMasks(cwd, projectcfg.Config{CLI: flagCLI})
+	if err != nil {
+		return err
+	}
+	if len(tmpfs) > 0 || len(volumes) > 0 {
+		log.Info("")
+	}
+	if len(tmpfs) > 0 {
+		log.Infof("# tmpfs not in project, not masked: %s", strings.Join(tmpfs, ", "))
+	}
+	if len(volumes) > 0 {
+		log.Infof("# volumes not in project, not masked: %s", strings.Join(volumes, ", "))
+	}
+	return nil
 }
 
 var configInitCmd = &cobra.Command{

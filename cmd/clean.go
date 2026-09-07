@@ -8,6 +8,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 var cleanCmd = &cobra.Command{
@@ -23,8 +24,12 @@ var cleanCmd = &cobra.Command{
 			return err
 		}
 
+		expandedConfig, err := projectcfg.LoadExpanded(cwd, projectcfg.Config{CLI: flagCLI})
+		if err != nil {
+			return err
+		}
 		return errors.Join(
-			docker.VolumeClean(ctxD, cwd, projectCfg.VolumeCleanupDirs()),
+			docker.VolumeClean(ctxD, cwd, expandedConfig.VolumeCleanupDirs()),
 			docker.ProxyClean(ctxD),
 		)
 	},
