@@ -111,30 +111,6 @@ func Load(projectDir string, flags Config) (*Config, error) {
 	return &c, nil
 }
 
-// expandList replaces each DefaultsToken with defaults, preserving entry order and
-// dropping repeat entries.
-func expandList(list, defaults []string) []string {
-	var out []string
-	seen := map[string]bool{}
-	add := func(entries ...string) {
-		for _, e := range entries {
-			if seen[e] {
-				continue
-			}
-			seen[e] = true
-			out = append(out, e)
-		}
-	}
-	for _, d := range list {
-		if d == DefaultsToken {
-			add(defaults...)
-		} else {
-			add(d)
-		}
-	}
-	return out
-}
-
 // read parses one layer's config file: user, project, or local. A missing file yields
 // the zero Config
 func read(path string) (Config, error) {
