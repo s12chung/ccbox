@@ -58,13 +58,13 @@ func cacheVolumeBinds(hostCwd string) []string {
 	return binds
 }
 
-// configMount is the in-container path the persisted config dir binds to for cliName
-func configMount(cliName string) string {
+// cliConfigMount is the in-container path the persisted config dir binds to for cliName
+func cliConfigMount(cliName string) string {
 	return path.Join(containerHome, harness.MustFor(cliName).ConfigHomeMount)
 }
 
-// WorkspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
-func WorkspaceMount(hostCwd string) string {
+// workspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
+func workspaceMount(hostCwd string) string {
 	return filepath.Join(containerHome, filepath.Base(hostCwd))
 }
 

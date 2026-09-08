@@ -46,18 +46,18 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 	}
 
 	return docker.RunOptions{
-		Tag:           flagTag,
-		CLI:           *projectCfg.CLI,
-		ConfigDir:     m.config,
-		CcboxDir:      m.ccbox,
-		Cwd:           m.cwd,
-		GHToken:       os.Getenv("GH_TOKEN"),
-		GitConfigDir:  gitConfigDir,
-		Env:           projectCfg.Env,
-		TmpfsMasks:    projectCfg.TmpfsMasksPresent(),
-		VolumeMasks:   projectCfg.VolumeMasksPresent(),
-		ReadOnlyPaths: projectCfg.ReadOnlyPathsPresent(),
-		Cmd:           harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
+		Tag:             flagTag,
+		CLI:             *projectCfg.CLI,
+		CLIConfigDir:    m.cliConfigDir,
+		ProjectStateDir: m.projectState,
+		Cwd:             m.cwd,
+		GHToken:         os.Getenv("GH_TOKEN"),
+		GitConfigDir:    gitConfigDir,
+		Env:             projectCfg.Env,
+		TmpfsMasks:      projectCfg.TmpfsMasksPresent(),
+		VolumeMasks:     projectCfg.VolumeMasksPresent(),
+		ReadOnlyPaths:   projectCfg.ReadOnlyPathsPresent(),
+		Cmd:             harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,
 		ProxyLogPath: filepath.Join(userdir.Dir(), "proxy.log"),
@@ -107,9 +107,7 @@ func init() {
 }
 
 // hostMounts are the host dirs bind-mounted into the devbox, seeded/created before it starts.
-type hostMounts struct {
-	cwd, config, ccbox string
-}
+type hostMounts struct{ cwd, cliConfigDir, projectState string }
 
 // resolveHostMounts seeds the userDir and resolves the per-project state dir from cwd.
 func resolveHostMounts(userDir string) (hostMounts, error) {
@@ -123,7 +121,7 @@ func resolveHostMounts(userDir string) (hostMounts, error) {
 	if err := safeSeedProjectStateDir(userDir, cwd); err != nil {
 		return hostMounts{}, err
 	}
-	return hostMounts{cwd: cwd, config: cliConfigDir(userDir, *projectCfg.CLI), ccbox: projectStateDir(userDir, cwd)}, nil
+	return hostMounts{cwd: cwd, cliConfigDir: cliConfigDir(userDir, *projectCfg.CLI), projectState: projectStateDir(userDir, cwd)}, nil
 }
 
 // hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when

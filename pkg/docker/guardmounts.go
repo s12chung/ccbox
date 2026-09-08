@@ -14,7 +14,7 @@ var tmpfsOpts = fmt.Sprintf("uid=%s,gid=%s,exec", containerUID, containerUID)
 
 // tmpfsMasks maps each project-relative dir to its tmpfs options.
 func tmpfsMasks(hostCwd string, hostDirs []string) (map[string]string, error) {
-	workspaceMount := WorkspaceMount(hostCwd)
+	workspaceMount := workspaceMount(hostCwd)
 	tmpfs := map[string]string{}
 	for _, d := range hostDirs {
 		containerPath, err := safeContainerPath(workspaceMount, d)
@@ -47,7 +47,7 @@ func ensureNamedVolumeMasks(ctxD *dock.CtxD, hostCwd, imageTag string, hostDirs 
 
 // namedVolumeMasks returns a "volume:containerPath" bind per masked dir, plus each volume's name.
 func namedVolumeMasks(hostCwd string, hostDirs []string) ([]string, []string, error) {
-	workspaceMount := WorkspaceMount(hostCwd)
+	workspaceMount := workspaceMount(hostCwd)
 	var binds, names []string
 	for _, d := range hostDirs {
 		containerPath, err := safeContainerPath(workspaceMount, d)
@@ -63,7 +63,7 @@ func namedVolumeMasks(hostCwd string, hostDirs []string) ([]string, []string, er
 
 // readOnlyPathBinds returns a "hostPath:containerPath:ro" bind per read-only path
 func readOnlyPathBinds(hostCwd string, paths []string) ([]string, error) {
-	workspaceMount := WorkspaceMount(hostCwd)
+	workspaceMount := workspaceMount(hostCwd)
 	var binds []string
 	for _, path := range paths {
 		containerPath, err := safeContainerPath(workspaceMount, path)

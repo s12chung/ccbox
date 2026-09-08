@@ -19,18 +19,18 @@ const proxyPort = "8888"
 
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
-	Tag           string
-	CLI           string            // selects the config mount target (each CLI's native default dir)
-	ConfigDir     string            // host dir bind-mounted at the CLI's configMount
-	CcboxDir      string            // host dir bind-mounted at ccboxMount
-	Cwd           string            // host project dir bind-mounted at workspaceMount
-	GitConfigDir  string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
-	GHToken       string            // GH_TOKEN passed through for gh
-	Env           map[string]string // extra container env
-	TmpfsMasks    []string          // project-relative dirs to mask with a temp filesystem
-	VolumeMasks   []string          // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyPaths []string          // project-relative paths to re-mount read-only
-	Cmd           []string          // command the entrypoint execs; nil uses the image default (shell)
+	Tag             string
+	CLI             string            // selects the config mount target (each CLI's native default dir)
+	CLIConfigDir    string            // host cliConfigDir bind-mounted at the cliCOnfigMount
+	ProjectStateDir string            // host projectStateDir bind-mounted at projectStateMount
+	Cwd             string            // host project dir bind-mounted at workspaceMount
+	GitConfigDir    string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
+	GHToken         string            // GH_TOKEN passed through for gh
+	Env             map[string]string // extra container env
+	TmpfsMasks      []string          // project-relative dirs to mask with a temp filesystem
+	VolumeMasks     []string          // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyPaths   []string          // project-relative paths to re-mount read-only
+	Cmd             []string          // command the entrypoint execs; nil uses the image default (shell)
 
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
 	ProxyLogPath string       // file an auto-started wall's logs are appended to
@@ -38,8 +38,8 @@ type RunOptions struct {
 }
 
 const (
-	containerHome = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
-	ccboxMount    = "/home/ccbox/.ccbox/project" // per-project devbox state (e.g. lessons)
+	containerHome     = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
+	projectStateMount = "/home/ccbox/.ccbox/project" // per-project devbox state (e.g. lessons)
 
 	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
 )
@@ -48,7 +48,7 @@ func runConfig(hostOptions RunOptions) *container.Config {
 	return &container.Config{
 		Image:        hostOptions.Tag,
 		Cmd:          hostOptions.Cmd,
-		WorkingDir:   WorkspaceMount(hostOptions.Cwd),
+		WorkingDir:   workspaceMount(hostOptions.Cwd),
 		Tty:          true,
 		OpenStdin:    true,
 		AttachStdin:  true,
@@ -90,9 +90,9 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
 		Binds: slices.Concat([]string{
-			hostOptions.ConfigDir + ":" + configMount(hostOptions.CLI),
-			hostOptions.CcboxDir + ":" + ccboxMount,
-			hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
+			hostOptions.CLIConfigDir + ":" + cliConfigMount(hostOptions.CLI),
+			hostOptions.ProjectStateDir + ":" + projectStateMount,
+			hostOptions.Cwd + ":" + workspaceMount(hostOptions.Cwd),
 		}, cacheBinds, volumeMaskBinds, roPathBinds, gitBinds),
 		Tmpfs: tmpfs,
 	}, nil
