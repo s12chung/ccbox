@@ -22,7 +22,7 @@ func stubSeedTreeFn(fn func(fs.FS, string) ([]string, error)) func() {
 }
 
 // Each CLI seeds the merged tree (shared + per-CLI) into its config dir.
-func TestSafeSeedConfigMissingSeeds(t *testing.T) {
+func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 	cases := []struct {
 		name    string
 		cli     string
@@ -62,7 +62,7 @@ func TestSafeSeedConfigMissingSeeds(t *testing.T) {
 	}
 }
 
-func TestSafeSeedConfigExistingSkips(t *testing.T) {
+func TestSafeSeedConfig_ExistingSkips(t *testing.T) {
 	userDir := t.TempDir()
 	configDir := filepath.Join(userDir, "claude")
 	require.NoError(t, os.MkdirAll(configDir, ioutil.Dir))
@@ -77,7 +77,7 @@ func TestSafeSeedConfigExistingSkips(t *testing.T) {
 	assert.False(t, called, "seed fn called for existing dir without confirm")
 }
 
-func TestSafeSeedConfigPropagatesSeedError(t *testing.T) {
+func TestSafeSeedConfig_PropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
 		return nil, wantErr

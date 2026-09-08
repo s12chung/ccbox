@@ -14,6 +14,34 @@ func TestNpm_Arg(t *testing.T) {
 	assert.Equal(t, "npm:@scope/pkg", Npm{Package: "@scope/pkg"}.Arg())
 }
 
+func TestNpm_Validate(t *testing.T) {
+	tests := []struct {
+		name string
+		pkg  string
+		want []string
+	}{
+		{"scoped", "@anthropic-ai/claude-code", nil},
+		{"plain", "opencode-ai", nil},
+		{"empty", "", []string{"Package.Match"}},
+		{"uppercase", "MyCLI", []string{"Package.Match"}},
+		{"unscoped slash", "foo/bar", []string{"Package.Match"}},
+		{"scope without name", "@scope", []string{"Package.Match"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errMap := firm.ValidateAny(Npm{Package: tt.pkg})
+			if tt.want == nil {
+				assert.Nil(t, errMap.ToNil())
+				return
+			}
+			require.NotEmpty(t, errMap)
+			for _, want := range tt.want {
+				assert.Contains(t, errMap.Error(), want)
+			}
+		})
+	}
+}
+
 func TestLatestAt(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -39,34 +67,6 @@ func TestLatestAt(t *testing.T) {
 
 			_, err := latestAt(srv.URL, "@scope/pkg")
 			assert.Error(t, err)
-		})
-	}
-}
-
-func TestNpmValidate(t *testing.T) {
-	tests := []struct {
-		name string
-		pkg  string
-		want []string
-	}{
-		{"scoped", "@anthropic-ai/claude-code", nil},
-		{"plain", "opencode-ai", nil},
-		{"empty", "", []string{"Package.Match"}},
-		{"uppercase", "MyCLI", []string{"Package.Match"}},
-		{"unscoped slash", "foo/bar", []string{"Package.Match"}},
-		{"scope without name", "@scope", []string{"Package.Match"}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			errMap := firm.ValidateAny(Npm{Package: tt.pkg})
-			if tt.want == nil {
-				assert.Nil(t, errMap.ToNil())
-				return
-			}
-			require.NotEmpty(t, errMap)
-			for _, want := range tt.want {
-				assert.Contains(t, errMap.Error(), want)
-			}
 		})
 	}
 }

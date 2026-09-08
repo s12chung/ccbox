@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestEnvStringBaseWins(t *testing.T) {
+func TestEnvString_BaseWins(t *testing.T) {
 	got := envString(RunOptions{
 		CLI:     "claude",
 		GHToken: "gh",
@@ -29,7 +29,7 @@ func TestEnvStringBaseWins(t *testing.T) {
 	}, got)
 }
 
-func TestEnvStringNoProxy(t *testing.T) {
+func TestEnvString_NoProxy(t *testing.T) {
 	got := envString(RunOptions{
 		CLI:     "claude",
 		GHToken: "gh",
@@ -44,7 +44,7 @@ func TestEnvStringNoProxy(t *testing.T) {
 	}, got)
 }
 
-func TestEnvStringCLIDefaults(t *testing.T) {
+func TestEnvString_CLIDefaults(t *testing.T) {
 	tests := []struct {
 		cli  string
 		want []string
@@ -67,13 +67,13 @@ func TestEnvStringCLIDefaults(t *testing.T) {
 	}
 }
 
-func TestEnvStringUnknownCLIPanics(t *testing.T) {
+func TestEnvString_UnknownCLIPanics(t *testing.T) {
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() {
 		envString(RunOptions{CLI: "emacs"})
 	})
 }
 
-func TestEnvStringUserOverridesCLI(t *testing.T) {
+func TestEnvString_UserOverridesCLI(t *testing.T) {
 	got := envString(RunOptions{
 		CLI: "opencode",
 		Env: map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "0"},

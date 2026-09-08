@@ -20,7 +20,7 @@ func srcFS() fstest.MapFS {
 	}
 }
 
-func TestTreeFresh(t *testing.T) {
+func TestTree_Fresh(t *testing.T) {
 	dest := t.TempDir()
 
 	renamed, err := Tree(srcFS(), dest)
@@ -36,7 +36,7 @@ func TestTreeFresh(t *testing.T) {
 	assertMode(t, filepath.Join(dest, "settings.json"), ioutil.File)
 }
 
-func TestTreeBacksUpExisting(t *testing.T) {
+func TestTree_BacksUpExisting(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
@@ -60,7 +60,7 @@ func TestTreeBacksUpExisting(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "hooks/tripwire.old.sh"))
 }
 
-func TestTreeSkipsIdentical(t *testing.T) {
+func TestTree_SkipsIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// Each dest already holds its source contents.
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
@@ -80,7 +80,7 @@ func TestTreeSkipsIdentical(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "settings.old.json"))
 }
 
-func TestTreePartiallyIdentical(t *testing.T) {
+func TestTree_PartiallyIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// One dest matches its source; another differs.
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
@@ -94,7 +94,7 @@ func TestTreePartiallyIdentical(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 }
 
-func TestTreeBackupExistsErrors(t *testing.T) {
+func TestTree_BackupExistsErrors(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
 	writeFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
@@ -109,7 +109,7 @@ func TestTreeBackupExistsErrors(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
 }
 
-func TestFileSeeds(t *testing.T) {
+func TestFile_Seeds(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config", "ccbox.yaml") // parent dir absent
 
 	require.NoError(t, File(path, "new body"))
@@ -118,7 +118,7 @@ func TestFileSeeds(t *testing.T) {
 	assertMode(t, path, ioutil.File)
 }
 
-func TestFileSkipsExisting(t *testing.T) {
+func TestFile_SkipsExisting(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ccbox.yaml")
 	writeFile(t, path, "user's own config")
 

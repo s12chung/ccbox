@@ -24,7 +24,7 @@ func redLines(line string) Color {
 
 // A bytes.Buffer isn't a terminal, so NewColorWriter returns it unwrapped; the
 // coloring tests below construct ColorWriter directly to exercise that path.
-func TestNewColorWriterPassesNonTTYThrough(t *testing.T) {
+func TestNewColorWriter_PassesNonTTYThrough(t *testing.T) {
 	var buf bytes.Buffer
 	assert.Equal(t, io.Writer(&buf), NewColorWriter(&buf, redLines))
 }

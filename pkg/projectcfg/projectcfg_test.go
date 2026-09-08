@@ -129,7 +129,7 @@ func TestSeedUserConfig(t *testing.T) {
 	})
 }
 
-func TestSeedUserConfigSkipsExisting(t *testing.T) {
+func TestSeedUserConfig_SkipsExisting(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, userFileName, "cli: codex\n")
 
@@ -143,7 +143,7 @@ func TestSeedUserConfigSkipsExisting(t *testing.T) {
 	assert.Equal(t, "cli: codex\n", string(body)) // the user's own file is never touched
 }
 
-func TestSeedUserConfigChoosesCLI(t *testing.T) {
+func TestSeedUserConfig_ChoosesCLI(t *testing.T) {
 	useHome(t)
 
 	path, err := SeedUserConfig("codex")
@@ -153,25 +153,6 @@ func TestSeedUserConfigChoosesCLI(t *testing.T) {
 	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the package's own temp user file
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "cli: codex\n")
-}
-
-func TestLoadUnsetRequiredErrors(t *testing.T) {
-	dir := t.TempDir()
-	useHome(t) // no user file
-
-	_, err := Load(dir, Config{})
-	require.Error(t, err)
-	require.ErrorContains(t, err, "CLI.Nil: CLI is nil")
-	assert.ErrorContains(t, err, "HostGitConfig.Nil: HostGitConfig is nil")
-}
-
-func TestLoadEmptyListKeepsLowerLayers(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("allowlist: []\n"), ioutil.File))
-
-	c, err := Load(dir, Config{})
-	require.NoError(t, err)
-	assert.Equal(t, []string{DefaultsToken}, c.Allowlist) // lists append: [] adds nothing, the seed's token stays
 }
 
 func TestLoadedPaths(t *testing.T) {
@@ -235,13 +216,32 @@ func TestInit_RefusesExisting(t *testing.T) {
 	assert.ErrorIs(t, err, seed.ErrExists)
 }
 
-func TestAllowDefaultsIncludeEveryCli(t *testing.T) {
+func TestAllowDefaults_IncludeEveryCli(t *testing.T) {
 	// every loaded cli's domains count — embedded or user-defined, they all sit in All()
 	for _, c := range harness.All() {
 		for _, d := range c.AllowDomains {
 			assert.Containsf(t, AllowDefaults(), d, "%s: %s", c.Name, d)
 		}
 	}
+}
+
+func TestLoad_UnsetRequiredErrors(t *testing.T) {
+	dir := t.TempDir()
+	useHome(t) // no user file
+
+	_, err := Load(dir, Config{})
+	require.Error(t, err)
+	require.ErrorContains(t, err, "CLI.Nil: CLI is nil")
+	assert.ErrorContains(t, err, "HostGitConfig.Nil: HostGitConfig is nil")
+}
+
+func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("allowlist: []\n"), ioutil.File))
+
+	c, err := Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{DefaultsToken}, c.Allowlist) // lists append: [] adds nothing, the seed's token stays
 }
 
 func TestLoad_LayersFiles(t *testing.T) {
@@ -333,7 +333,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsUnknownKeys(t *testing.T) {
+func TestLoad_RejectsUnknownKeys(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
@@ -349,7 +349,7 @@ func TestLoadRejectsUnknownKeys(t *testing.T) {
 	}
 }
 
-func TestLoadFlagsOverrideFiles(t *testing.T) {
+func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("cli: claude\n"), ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), ioutil.File))

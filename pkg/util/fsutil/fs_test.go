@@ -83,7 +83,7 @@ func TestFS_MkdirAll(t *testing.T) {
 	})
 }
 
-func TestFS_MkdirAllOverFile(t *testing.T) {
+func TestFS_MkdirAll_OverFile(t *testing.T) {
 	for _, name := range []string{"a_file", "a_file/sub"} {
 		fsys := MustNewFS(fstest.MapFS{"a_file": {Data: []byte("A")}})
 		err := fsys.MkdirAll(name)
@@ -143,7 +143,7 @@ func TestFS_Rename(t *testing.T) {
 	assert.Equal(t, "A", string(body))
 }
 
-func TestFS_RenameDir(t *testing.T) {
+func TestFS_Rename_Dir(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{"sub/b.txt": {Data: []byte("B")}})
 	require.NoError(t, fsys.Rename("sub", "other"))
 
@@ -153,7 +153,7 @@ func TestFS_RenameDir(t *testing.T) {
 	assert.Equal(t, "B", string(body), "children keep serving their origins")
 }
 
-func TestFS_RenameOverwritesDestination(t *testing.T) {
+func TestFS_Rename_OverwritesDestination(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{
 		"my_dir/original.txt":    {Data: []byte("ORIGINAL")},
 		"my_dir/replacement.txt": {Data: []byte("REPLACEMENT")},
@@ -177,7 +177,7 @@ func TestFS_RenameOverwritesDestination(t *testing.T) {
 	assert.Equal(t, []string{".", "my_dir", "my_dir/replacement.txt"}, got)
 }
 
-func TestFS_RenameDestThroughFile(t *testing.T) {
+func TestFS_Rename_DestThroughFile(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{
 		"a_file": {Data: []byte("A")},
 		"x.txt":  {Data: []byte("X")},
@@ -199,7 +199,7 @@ func TestFS_RenameDestThroughFile(t *testing.T) {
 	assert.False(t, info.IsDir(), "a_file stays a file")
 }
 
-func TestFS_RenameIntoOwnSubtree(t *testing.T) {
+func TestFS_Rename_IntoOwnSubtree(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{"sub/b.txt": {Data: []byte("B")}})
 
 	err := fsys.Rename("sub", "sub/deep")
@@ -215,7 +215,7 @@ func TestFS_RenameIntoOwnSubtree(t *testing.T) {
 	assert.Equal(t, "B", string(body))
 }
 
-func TestFS_RenameSelf(t *testing.T) {
+func TestFS_Rename_Self(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{
 		"a.txt":     {Data: []byte("A")},
 		"sub/b.txt": {Data: []byte("B")},
@@ -230,7 +230,7 @@ func TestFS_RenameSelf(t *testing.T) {
 	assert.Equal(t, "A", string(body))
 }
 
-func TestFS_RenameCrossKind(t *testing.T) {
+func TestFS_Rename_CrossKind(t *testing.T) {
 	t.Run("file over dir", func(t *testing.T) {
 		fsys := MustNewFS(fstest.MapFS{"f.txt": {Data: []byte("F")}}).
 			MustMerge(fstest.MapFS{"dir/a.txt": {Data: []byte("A")}})
@@ -272,14 +272,14 @@ func TestFS_RenameCrossKind(t *testing.T) {
 	})
 }
 
-func TestFS_RenameSourceMissing(t *testing.T) {
+func TestFS_Rename_SourceMissing(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{"a.txt": {Data: []byte("A")}})
 
 	err := fsys.Rename("missing.txt", "x.txt")
 	require.ErrorContains(t, err, `rename source "missing.txt" not found`)
 }
 
-func TestFS_RenameDestinationInvalid(t *testing.T) {
+func TestFS_Rename_DestinationInvalid(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{"a.txt": {Data: []byte("A")}})
 
 	for _, dest := range []string{"../evil", ""} {
@@ -332,7 +332,7 @@ func TestFS_WalkDir(t *testing.T) {
 	}
 }
 
-func TestFS_WalkDirSkipDir(t *testing.T) {
+func TestFS_WalkDir_SkipDir(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{
 		"top/a.txt": {Data: []byte("A")},
 		"z.txt":     {Data: []byte("Z")},
@@ -412,7 +412,7 @@ func TestFS_Sub(t *testing.T) {
 	assert.Equal(t, []string{".", "b.txt", "deep", "deep/c.txt"}, got)
 }
 
-func TestFS_SubErrors(t *testing.T) {
+func TestFS_Sub_Errors(t *testing.T) {
 	fsys := MustNewFS(fstest.MapFS{"a.txt": {Data: []byte("A")}})
 
 	same, err := fsys.Sub(".")

@@ -41,7 +41,7 @@ func TestResumeArgs(t *testing.T) {
 	}
 }
 
-func TestSafeSeedProjectStateDirMissingSeeds(t *testing.T) {
+func TestSafeSeedProjectStateDir_MissingSeeds(t *testing.T) {
 	userDir := t.TempDir()
 	wantDir := projectStateDir(userDir, testProjectDir)
 
@@ -57,7 +57,7 @@ func TestSafeSeedProjectStateDirMissingSeeds(t *testing.T) {
 	assert.Equal(t, wantDir, gotDir, "seeded dir")
 }
 
-func TestSafeSeedProjectStateDirExistingSkips(t *testing.T) {
+func TestSafeSeedProjectStateDir_ExistingSkips(t *testing.T) {
 	userDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(projectStateDir(userDir, testProjectDir), ioutil.Dir))
 
@@ -71,7 +71,7 @@ func TestSafeSeedProjectStateDirExistingSkips(t *testing.T) {
 	assert.False(t, called, "seedTreeFn called for existing dir")
 }
 
-func TestSafeSeedProjectStateDirPropagatesSeedError(t *testing.T) {
+func TestSafeSeedProjectStateDir_PropagatesSeedError(t *testing.T) {
 	wantErr := errors.New("boom")
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
 		return nil, wantErr

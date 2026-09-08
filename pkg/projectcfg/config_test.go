@@ -279,17 +279,6 @@ func TestConfig_ReadOnlyPathsPresent(t *testing.T) {
 	}
 }
 
-func TestConfig_ReadOnlyGlobsExpanded(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, ioutil.File))
-	c := readOnlyGlobsConfig(t, dir, DefaultsToken, "typo-glob")
-
-	// the token expands in place. The project's own .ccbox.yaml matches the defaults' first
-	// entry, .env its third; the rest match nothing.
-	assert.Equal(t, append(append([]string{}, readOnlyDefaults...), "typo-glob"), c.ReadOnlyGlobsExpanded())
-	assert.Equal(t, []string{".ccbox.yaml", ".env"}, c.ReadOnlyPathsPresent())
-}
-
 func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	useHome(t) // no user seed: the globs under test stand alone
 	dir := t.TempDir()
@@ -330,6 +319,17 @@ func TestConfig_ReadOnlyPathsPresent_Fresh(t *testing.T) {
 		require.NoError(t, os.Remove(filepath.Join(dir, ".env")))
 		assert.Nil(t, c.ReadOnlyPathsPresent())
 	})
+}
+
+func TestConfig_ReadOnlyGlobsExpanded(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, ioutil.File))
+	c := readOnlyGlobsConfig(t, dir, DefaultsToken, "typo-glob")
+
+	// the token expands in place. The project's own .ccbox.yaml matches the defaults' first
+	// entry, .env its third; the rest match nothing.
+	assert.Equal(t, append(append([]string{}, readOnlyDefaults...), "typo-glob"), c.ReadOnlyGlobsExpanded())
+	assert.Equal(t, []string{".ccbox.yaml", ".env"}, c.ReadOnlyPathsPresent())
 }
 
 func TestConfig_VolumeCleanupDirs(t *testing.T) {

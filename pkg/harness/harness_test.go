@@ -132,7 +132,7 @@ func TestNames(t *testing.T) {
 const validCliYAML = "npm:\n  package: mycli\nconfig_home_mount: \".mycli\"\ncmd: \"mycli\"\n" +
 	"continue_args: \"-c\"\nresume_args: \"--resume\"\n"
 
-func TestParseRejects(t *testing.T) {
+func TestParse_Rejects(t *testing.T) {
 	for _, tt := range []struct {
 		name string
 		body string
@@ -215,7 +215,7 @@ func TestSeedCLIFS(t *testing.T) {
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { SeedCLIFS("emacs") })
 }
 
-func TestSeedCLIFSUserTree(t *testing.T) {
+func TestSeedCLIFS_UserTree(t *testing.T) {
 	dir := resetAll(t)
 	writeUserCli(t, dir, "mycli", userCliYAML, map[string]string{"config/settings.toml": "[x]\n"})
 	writeUserCli(t, dir, "bare", userCliYAML, nil)
@@ -256,7 +256,7 @@ func TestFor(t *testing.T) {
 	assert.Zero(t, got)
 }
 
-func TestMustFor(t *testing.T) {
+func TestMust_For(t *testing.T) {
 	for _, want := range All() {
 		assert.Equal(t, want, MustFor(want.Name))
 	}
@@ -271,30 +271,6 @@ func TestCLI_Pkger(t *testing.T) {
 	assert.Equal(t,
 		"versionurl:https://x.ai/cli/stable|https://x.ai/cli/grok-$version-linux-x86_64|https://x.ai/cli/grok-$version-linux-aarch64",
 		MustFor("grok").Pkger().Arg())
-}
-
-func TestSeedAgentsFilename(t *testing.T) {
-	assert.Equal(t, "CLAUDE.md", MustFor("claude").SeedAgentsFilename) // yaml override
-	assert.Equal(t, "AGENTS.md", MustFor("codex").SeedAgentsFilename)  // parse default
-}
-
-func TestEnv(t *testing.T) {
-	// Config-dir overrides point at the CLI's native config mount; toggles disable
-	// update checks / nonessential traffic. pkg/docker merges these into every run.
-	assert.Equal(t, "CLAUDE_CONFIG_DIR", *MustFor("claude").ConfigDirEnvKey)
-	assert.Equal(t, map[string]string{
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-		"DISABLE_AUTOUPDATER":                      "1",
-	}, MustFor("claude").Env)
-
-	assert.Equal(t, "CODEX_HOME", *MustFor("codex").ConfigDirEnvKey)
-	assert.Empty(t, MustFor("codex").Env)
-
-	assert.Nil(t, MustFor("opencode").ConfigDirEnvKey)
-	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Env)
-
-	assert.Nil(t, MustFor("grok").ConfigDirEnvKey)
-	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, MustFor("grok").Env)
 }
 
 func TestCLI_SessionCmd(t *testing.T) {
@@ -333,4 +309,28 @@ func TestCLI_SessionCmd(t *testing.T) {
 		got := tt.cli.SessionCmd(tt.shell, tt.cont, tt.resume, tt.args)
 		assert.Equal(t, tt.want, got, "%s shell=%v cont=%v resume=%v", tt.cli.Name, tt.shell, tt.cont, tt.resume)
 	}
+}
+
+func TestSeed_AgentsFilename(t *testing.T) {
+	assert.Equal(t, "CLAUDE.md", MustFor("claude").SeedAgentsFilename) // yaml override
+	assert.Equal(t, "AGENTS.md", MustFor("codex").SeedAgentsFilename)  // parse default
+}
+
+func TestEnv(t *testing.T) {
+	// Config-dir overrides point at the CLI's native config mount; toggles disable
+	// update checks / nonessential traffic. pkg/docker merges these into every run.
+	assert.Equal(t, "CLAUDE_CONFIG_DIR", *MustFor("claude").ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{
+		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+		"DISABLE_AUTOUPDATER":                      "1",
+	}, MustFor("claude").Env)
+
+	assert.Equal(t, "CODEX_HOME", *MustFor("codex").ConfigDirEnvKey)
+	assert.Empty(t, MustFor("codex").Env)
+
+	assert.Nil(t, MustFor("opencode").ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Env)
+
+	assert.Nil(t, MustFor("grok").ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, MustFor("grok").Env)
 }

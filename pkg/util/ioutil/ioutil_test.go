@@ -20,7 +20,7 @@ func TestMissing(t *testing.T) {
 	assert.True(t, Missing(filepath.Join(dir, "no-dir", "missing")))
 }
 
-func TestDirsPresent(t *testing.T) {
+func TestDirs_Present(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "present/nested"), Dir))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "afile"), nil, File))

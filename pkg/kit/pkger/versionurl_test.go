@@ -21,32 +21,7 @@ func TestVersionURL_Arg(t *testing.T) {
 		u.Arg())
 }
 
-func TestVersionAt(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte("  1.0.5\n"))
-		}))
-		defer srv.Close()
-
-		v, err := versionAt(srv.URL)
-		require.NoError(t, err)
-		assert.Equal(t, "1.0.5", v)
-	})
-
-	for _, body := range []string{"", "not found", "<html>502</html>", "1.0.5\n1.0.6"} {
-		t.Run("rejects "+body, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				_, _ = w.Write([]byte(body))
-			}))
-			defer srv.Close()
-
-			_, err := versionAt(srv.URL)
-			assert.Error(t, err)
-		})
-	}
-}
-
-func TestVersionURLValidate(t *testing.T) {
+func TestVersionURL_Validate(t *testing.T) {
 	tests := []struct {
 		name string
 		urls VersionURL
@@ -87,6 +62,31 @@ func TestVersionURLValidate(t *testing.T) {
 			for _, want := range tt.want {
 				assert.Contains(t, errMap.Error(), want)
 			}
+		})
+	}
+}
+
+func TestVersion_At(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte("  1.0.5\n"))
+		}))
+		defer srv.Close()
+
+		v, err := versionAt(srv.URL)
+		require.NoError(t, err)
+		assert.Equal(t, "1.0.5", v)
+	})
+
+	for _, body := range []string{"", "not found", "<html>502</html>", "1.0.5\n1.0.6"} {
+		t.Run("rejects "+body, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_, _ = w.Write([]byte(body))
+			}))
+			defer srv.Close()
+
+			_, err := versionAt(srv.URL)
+			assert.Error(t, err)
 		})
 	}
 }

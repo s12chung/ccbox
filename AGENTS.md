@@ -39,9 +39,11 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 
 `tmpfsMasks`, `volumeMasks`, and `readOnlyGlobs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfsMasks`, `volumeMasks`, and `readOnlyGlobs`.
 
-### Go tests
+For tests:
 
-Unit tests are colocated with their package (`*_test.go`). Assert with **`testify`**: `require` for preconditions that must hold before the test can continue (errors, setup), `assert` for the checks under test so a failure reports every mismatch.
+- Name tests `Test<Subject>_<Case>`, splitting multi-level names (e.g. `TestSeedUserConfig_SkipsExisting`, `TestFS_Rename_CrossKind`, not `TestSeedUserConfigSkipsExisting`); a lone subject needs no case (`TestMinus`).
+- Place tests of the same subject next to each other — the name's subject tells you where a test goes.
+- Use `t.Run()` for cases, never comments.
 
 ### Linting
 
