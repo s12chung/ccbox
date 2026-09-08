@@ -4,8 +4,8 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"path/filepath"
 	"slices"
-	"strings"
 	"text/template"
 
 	"github.com/gobwas/glob"
@@ -132,12 +132,25 @@ func (c *Config) readOnlyGlobsMatchers() []glob.Glob {
 	return globs
 }
 
-// ReadOnlyPathsPresent matches ReadOnlyGlobsExpanded() against the project to actual paths, minus masked dirs
+// ReadOnlyPathsPresent matches ReadOnlyGlobsExpanded() against the project to actual paths,
+// minus masked dirs and covered matches — a kept match covers the matches under it
 func (c *Config) ReadOnlyPathsPresent() []string {
-	masks := slices.Concat(c.TmpfsMasksPresent(), c.VolumeMasksPresent())
-	paths := slices.DeleteFunc(globkit.WalkMatches(c.projectDir, c.readOnlyGlobsMatchers()...), func(match string) bool {
-		return slices.ContainsFunc(masks, func(mask string) bool { return match == mask || strings.HasPrefix(match, mask+"/") })
-	})
+	covered := map[string]bool{}
+	for _, mask := range slices.Concat(c.TmpfsMasksExpanded(), c.VolumeMasksExpanded()) {
+		covered[mask] = true
+	}
+	var paths []string
+	for _, match := range globkit.WalkMatches(c.projectDir, c.readOnlyGlobsMatchers()...) {
+		dir := match
+		for dir != "." && !covered[dir] {
+			dir = filepath.Dir(dir)
+		}
+		if dir != "." {
+			continue // a mask or a kept match covers it
+		}
+		covered[match] = true
+		paths = append(paths, match)
+	}
 	slices.Sort(paths)
 	return paths
 }

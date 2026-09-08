@@ -263,6 +263,18 @@ func TestConfig_ReadOnlyPathsPresent(t *testing.T) {
 			[]string{".env.*"},
 			[]string{".env.local"},
 		},
+		{
+			"a matched dir covers the matches under it",
+			[]string{"secrets/api.key", "secrets/server.pem", "secrets/notes.txt", "server.pem"},
+			[]string{"secrets", "**/*.pem", "**/*.key"},
+			[]string{"secrets", "server.pem"},
+		},
+		{
+			"a nested exact match under a matched dir is covered",
+			[]string{"secrets/api.key", "secrets/notes.txt"},
+			[]string{"secrets", "secrets/api.key"},
+			[]string{"secrets"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -285,14 +297,17 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	mkDirs(t, dir, "build", "certs")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "build", "main.o"), nil, ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "certs", "server.pem"), nil, ioutil.File))
-	body := "cli: claude\nhost_git_config: true\ntmpfs_masks:\n  - build\n  - certs\nread_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
+	body := "cli: claude\nhost_git_config: true\n" +
+		"tmpfs_masks:\n  - build\n  - certs\n  - node_modules\n" +
+		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(body), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 
-	// the expansion keeps the masked entries, but their matches drop — a mask is never
-	// re-mounted read-only, and certs/server.pem matches **/*.pem only under one
+	// the expansion keeps the masked entries — the absent node_modules too — but their
+	// matches drop: a mask is never re-mounted read-only, and certs/server.pem matches
+	// **/*.pem only under one
 	assert.Equal(t, []string{"build", "build/**", "**/*.pem"}, c.ReadOnlyGlobsExpanded())
 	assert.Empty(t, c.ReadOnlyPathsPresent())
 }

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/gobwas/glob"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -73,6 +74,48 @@ func TestWalkMatches(t *testing.T) {
 		root := write(t, "certs/server.pem")
 		assert.Equal(t, []string{"certs"}, WalkMatches(root, DoubleStarRooted("certs")))
 		assert.Equal(t, []string{"certs/server.pem"}, WalkMatches(root, DoubleStarRooted("**/*.pem")))
+	})
+
+	t.Run("the read-only defaults together match every sensitive path, in walk order", func(t *testing.T) {
+		globs := []string{
+			".ccbox.yaml", ".ccbox.local.yaml",
+			".env", ".env.*", ".envrc",
+			"secrets",
+			"**/*.pem", "**/*.key",
+		}
+		root := write(t,
+			// one root-level representative per glob, including **/'s stripped-twin root match
+			".ccbox.yaml", ".ccbox.local.yaml",
+			".env", ".env.local", ".envrc",
+			"server.pem",
+			// deeper matches: **/ spanning dirs, and the "secrets" dir itself
+			"certs/ca.pem", "certs/server.key", "certs/server.pem",
+			"secrets/api.key", "secrets/server.pem",
+			"deep/db.key", "deep/nested/old.key", "deep/nested/old.pem",
+			// non-matching fillers, keeping more than two files per directory
+			"notes.txt",
+			"certs/readme.txt",
+			"secrets/notes.txt",
+			"deep/config.yaml", "deep/notes.txt",
+			"deep/nested/notes.txt",
+			// exact globs stay rooted: nested .env files and a nested secrets/ dir don't match
+			"deep/.env", "deep/.env.local",
+			"deep/secrets/notes.txt", "deep/secrets/readme.txt", "deep/secrets/config.yaml",
+		)
+		matchers := make([]glob.Glob, len(globs))
+		for i, g := range globs {
+			matchers[i] = DoubleStarRooted(g)
+		}
+
+		assert.Equal(t, []string{
+			".ccbox.local.yaml", ".ccbox.yaml",
+			".env", ".env.local", ".envrc",
+			"certs/ca.pem", "certs/server.key", "certs/server.pem",
+			"deep/db.key",
+			"deep/nested/old.key", "deep/nested/old.pem",
+			"secrets", "secrets/api.key", "secrets/server.pem",
+			"server.pem",
+		}, WalkMatches(root, matchers...))
 	})
 
 	t.Run("nothing matches yet — nil", func(t *testing.T) {
