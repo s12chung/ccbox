@@ -12,12 +12,15 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/moby/buildkit v0.31.0
 	github.com/moby/term v0.5.2
+	github.com/s12chung/ccbox/ccboxtools v0.0.0-00010101000000-000000000000
 	github.com/s12chung/firm v0.2.1
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
 	gopkg.in/yaml.v3 v3.0.1
 )
+
+replace github.com/s12chung/ccbox/ccboxtools => ./ccboxtools
 
 require (
 	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect

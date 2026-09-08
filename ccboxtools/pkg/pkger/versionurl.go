@@ -9,10 +9,7 @@ import (
 	"strings"
 
 	"github.com/s12chung/firm"
-
-	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/util/httputil"
-	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/firm/rule"
 )
 
 // VersionURL pins via a URL whose body is a bare version — xAI's channel
@@ -25,10 +22,12 @@ type VersionURL struct {
 }
 
 func init() {
+	// https endpoints; download templates may carry a literal $version
+	https := rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
 	firm.MustRegisterType(firm.NewDefinition[VersionURL]().Validates(firm.RuleMap{
-		"URL":           {firmrule.HTTPSURL},
-		"LinuxX64URL":   {firmrule.HTTPSURL},
-		"LinuxArm64URL": {firmrule.HTTPSURL},
+		"URL":           {https},
+		"LinuxX64URL":   {https},
+		"LinuxArm64URL": {https},
 	}))
 }
 
@@ -48,11 +47,11 @@ func (u VersionURL) Arg() string {
 }
 
 func versionAt(url string) (string, error) {
-	resp, err := httputil.Get(context.Background(), url)
+	resp, err := httpGet(context.Background(), url)
 	if err != nil {
 		return "", err
 	}
-	defer func() { log.WarnErr("close version response", resp.Body.Close()) }()
+	defer resp.Body.Close() //nolint:errcheck // failing is ok
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("%s: %s", url, resp.Status)
 	}

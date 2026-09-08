@@ -25,8 +25,6 @@ var (
 	HomePath = rule.Match{Regexp: regexp.MustCompile(`^[^/].*$`)}
 	// FileName is a bare filename, no directories
 	FileName = rule.Match{Regexp: regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)}
-	// NpmPackage is an npm package name, scoped or not, e.g. @anthropic-ai/claude-code
-	NpmPackage = rule.Match{Regexp: regexp.MustCompile(`^(@[a-z0-9-]+/)?[a-z0-9][a-z0-9._-]*$`)}
 	// HTTPSURL is an https endpoint; download templates may carry a literal $version
 	HTTPSURL = rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
 )

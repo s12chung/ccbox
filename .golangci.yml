@@ -145,6 +145,11 @@ linters:
       forbid:
         - pattern: ^(fmt\.Print(|f|ln)|print|println)$
         - pattern: ^(slog\.(Debug|Info|Warn|Error)(Context)?|slog\.Default)$
+    gomoddirectives:
+      # the nested module the host shares pkg code with (see ccboxtools/)
+      replace-local: true
+      replace-allow-list:
+        - github.com/s12chung/ccbox/ccboxtools
     tagliatelle:
       case:
         rules:

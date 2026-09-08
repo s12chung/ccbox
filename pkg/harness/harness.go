@@ -29,8 +29,8 @@ import (
 	"github.com/s12chung/firm/rule"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/kit/pkger"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"

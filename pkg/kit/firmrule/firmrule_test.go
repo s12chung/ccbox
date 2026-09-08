@@ -90,11 +90,6 @@ func TestMatchRules(t *testing.T) {
 			[]string{"", "dir/a.md", ".hidden", "-x", "a b"},
 		},
 		{
-			"NpmPackage", NpmPackage,
-			[]string{"opencode-ai", "@anthropic-ai/claude-code", "a", "a.b_c-d"},
-			[]string{"", "MyCLI", "foo/bar", "@scope", "-x"},
-		},
-		{
 			"HTTPSURL", HTTPSURL,
 			[]string{"https://x.ai/cli/stable", "https://x.ai/cli/grok-$version-linux-x86_64"},
 			[]string{"", "http://x", "ftp://x", "https://", "x.ai/cli"},

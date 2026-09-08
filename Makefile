@@ -10,12 +10,14 @@ lint:
 	find pkg/harness/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null
 	golangci-lint run --fix $(TEST)
+	cd ccboxtools && golangci-lint run --fix $(TEST)
 
 ci: lint test
 test.all: test test.docker
 
 test: lint
 	go test ./...
+	cd ccboxtools && go test ./...
 
 # Manual: needs the built image + network egress, so it stays out of CI.
 test.docker:

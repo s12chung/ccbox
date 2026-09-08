@@ -5,12 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 
 	"github.com/s12chung/firm"
-
-	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/util/httputil"
-	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/firm/rule"
 )
 
 // Npm pins via the npm registry's "latest" dist-tag.
@@ -20,7 +18,7 @@ type Npm struct {
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Npm]().Validates(firm.RuleMap{
-		"Package": {firmrule.NpmPackage},
+		"Package": {rule.Match{Regexp: regexp.MustCompile(`^(@[a-z0-9-]+/)?[a-z0-9][a-z0-9._-]*$`)}},
 	}))
 }
 
@@ -45,11 +43,11 @@ func (n Npm) Arg() string {
 
 func latestAt(registry, pkg string) (string, error) {
 	url := fmt.Sprintf("%s/%s/latest", registry, pkg)
-	resp, err := httputil.Get(context.Background(), url)
+	resp, err := httpGet(context.Background(), url)
 	if err != nil {
 		return "", err
 	}
-	defer func() { log.WarnErr("close npm response", resp.Body.Close()) }()
+	defer resp.Body.Close() //nolint:errcheck // failing is ok
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("npm registry %s: %s", url, resp.Status)
 	}
