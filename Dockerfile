@@ -1,5 +1,14 @@
 FROM ghcr.io/jdx/mise:2026.6.9 AS mise
 
+FROM golang:1.26 AS ccboxtools
+WORKDIR /src
+# go:embed cannot embed a directory belonging to a different module, so we pack a tar
+# hadolint ignore=DL3010
+ADD dist/ccboxtools.tar.gz .
+# go resolves the main module upward from the cwd, so build from the module root
+WORKDIR /src/ccboxtools
+RUN CGO_ENABLED=0 go build -o /out/ccboxtools .
+
 FROM debian:trixie-slim
 
 # Each row is a section:
@@ -49,7 +58,8 @@ ENV NPM_CONFIG_PREFIX=/home/ccbox/.npm-global
 ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 ENV GEM_HOME=/home/ccbox/.gem
 ENV GOBIN=/home/ccbox/go/bin
-ENV PATH=/home/ccbox/.local/share/mise/shims:/home/ccbox/.local/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin:/home/ccbox/go/bin:$PATH
+# The clis volume's bin dir leads: ccboxtools installs the coding CLI there at start
+ENV PATH=/opt/ccbox/clis/bin:/home/ccbox/.local/share/mise/shims:/home/ccbox/.local/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin:/home/ccbox/go/bin:$PATH
 
 # Two interactive-shell tweaks:
 # - Debian's /etc/profile resets PATH on login shells (bash -l), clearing the append above.
@@ -62,56 +72,27 @@ RUN echo 'export PATH="'"$PATH"'"' > /etc/profile.d/ccbox-path.sh; \
       'TAB: menu-complete' \
       '"\e[Z": menu-complete-backward' >> /etc/inputrc
 
-# Coding CLI last for version bumping and clear mise cache.
-#
-# PKGER encodes the install source, rendered by pkg/pkger for the configured CLI:
-# - npm:<package>
-# - versionurl:<latest_version_url>|<linux-x64-url>|<linux-arm64-url>, whose urls embed a
-#   literal $version swapped in below once CLI_VERSION resolves
-#
-# npm_args: --ignore-scripts=false re-runs the postinstall mise's npm backend skips;
-# --allow-scripts adds it to npm 11's separate allowlist, else npm warns each install.
-#
-# http backend (versionurl): bin renames the raw binary. mise can't reverse-resolve its own shim
-# without MISE_DATA_DIR in the env (which we leave unset so ccbox's `mise use` targets ~/.local),
-# so re-do the shim via. symlink.
-ARG CLI=claude
-ARG CLI_VERSION=latest
-ARG PKGER
-RUN set -eux; \
-    cfg=/etc/mise/config.toml; \
-    scheme="${PKGER%%:*}"; \
-    pkgData="${PKGER#*:}"; \
-    case "$scheme" in \
-    npm) \
-        tool="npm:$pkgData"; \
-        mise config set --file "$cfg" "tools.$tool.version" "${CLI_VERSION}"; \
-        mise config set --file "$cfg" "tools.$tool.npm_args" -- "--ignore-scripts=false --allow-scripts=$pkgData"; \
-        ;; \
-    versionurl) \
-        latest_url="${pkgData%%|*}"; pair="${pkgData#*|}"; \
-        x64_tpl="${pair%%|*}"; arm64_tpl="${pair#*|}"; \
-        ver="$CLI_VERSION"; \
-        if [ "$ver" = latest ]; then ver=$(curl -fsSL "$latest_url"); fi; \
-        tool="http:$CLI"; \
-        mise config set --file "$cfg" "tools.$tool.version" "$ver"; \
-        mise config set --file "$cfg" "tools.$tool.bin" "$CLI"; \
-        mise config set --file "$cfg" "tools.$tool.platforms.linux-x64.url" "${x64_tpl%%\$version*}$ver${x64_tpl#*\$version}"; \
-        mise config set --file "$cfg" "tools.$tool.platforms.linux-arm64.url" "${arm64_tpl%%\$version*}$ver${arm64_tpl#*\$version}"; \
-        ;; \
-    *) echo "unknown pkger scheme: $scheme" >&2; exit 1;; \
-    esac; \
-    MISE_DATA_DIR=/usr/local/share/mise mise install "$tool"; \
-    if [ "$scheme" = versionurl ]; then ln -sf "/usr/local/share/mise/installs/http-$CLI/latest/$CLI" "/usr/local/share/mise/shims/$CLI"; fi; \
-    rm -rf /root/.cache /tmp; mkdir -p /tmp/opencode; \
-    chmod 1777 /tmp && chown ccbox:ccbox /tmp/opencode # standard 1777, force opencode CLI's scratch w-access (CLI makes it only root-w)
+COPY --from=ccboxtools /out/ccboxtools /usr/local/bin/ccboxtools
+
+# Build-time cleanup + groundwork for the volume mounts:
+# - clean /root's build caches from mise; /tmp restarts standard 1777
+# - /opt/ is root owned, so change ownership
+RUN rm -rf /root/.cache /tmp; mkdir -m 1777 /tmp; \
+    mkdir -p /opt/ccbox && chown ccbox:ccbox /opt/ccbox
 
 USER ccbox
-# Pre-create cache mountpoints so per-project named volumes inherit uid 1000 (else root-owned, unwritable)
-# Mapped to pkg/docker/mounts.go, `/tmp` is created above
+
+# Pre-create mountpoints so named volumes inherit uid 1000 (else root-owned, unwritable)
+# - cacheVolumes - per-project caches mapped to pkg/docker/mounts.go (/tmp is created above to keep 1777)
+# - globalVolumes - global volumes mapped to pkg/docker/mounts.go
+# - /home/ccbox/.config /home/ccbox/.local/share/ - opencode uses it
+# - /tmp/opencode - opencode's scratch (opencode CLI creates it root-only otherwise)
+# - git config ... - handles container user non-match repo owner problem - https://github.blog/open-source/git/git-security-vulnerability-announced/
 RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
              /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local \
-             /home/ccbox/.config /home/ccbox/.local/share/opencode # opencode uses these two dirs
+             /opt/ccbox/clis \
+             /home/ccbox/.config /home/ccbox/.local/share/opencode /tmp/opencode && \
+    git config --file /home/ccbox/.gitconfig --add safe.directory '*'
 
 COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

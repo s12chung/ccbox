@@ -62,6 +62,10 @@ func runConfig(hostOptions RunOptions) *container.Config {
 }
 
 func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
+	globalBinds, err := ensureGlobalVolumes(ctxD)
+	if err != nil {
+		return nil, err
+	}
 	tmpfs, err := tmpfsMasks(hostOptions.Cwd, hostOptions.TmpfsMasks)
 	if err != nil {
 		return nil, err
@@ -92,7 +96,7 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
-		Binds: slices.Concat([]string{
+		Binds: slices.Concat(globalBinds, []string{
 			hostOptions.CLIConfigDir + ":" + cliConfigMount(hostOptions.CLI),
 			hostOptions.ProjectStateDir + ":" + projectStateMount,
 			hostOptions.Cwd + ":" + workspaceMount(hostOptions.Cwd),

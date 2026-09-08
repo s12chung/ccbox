@@ -38,7 +38,7 @@ func ensureNamedVolumeMasks(ctxD *dock.CtxD, hostCwd, imageTag string, hostDirs 
 		return nil, err
 	}
 	for _, name := range names {
-		if err := dock.EnsureOwnedVolume(ctxD, imageTag, name, containerUID, volumeLabels(hostCwd)); err != nil {
+		if err := dock.EnsureOwnedVolume(ctxD, imageTag, name, containerUID, projectVolumeLabels(hostCwd)); err != nil {
 			return nil, err
 		}
 	}

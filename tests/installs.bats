@@ -20,24 +20,15 @@ teardown() {
 
     run bash -lc 'echo "$PATH"'
     [[ "$output" == *"/usr/local/share/mise/shims"* ]]
+    [[ "$output" == *"/opt/ccbox/clis/bin"* ]]
 }
 
-@test "coding cli: provisioned via mise and runs" {
-    local ref bin
-    ref="$(mise ls --json | jq -r 'keys[]' | grep -E '^(npm:(@anthropic-ai/claude-code|@openai/codex|opencode-ai)|http:grok)$')"
-    [ -n "$ref" ]
+@test "coding cli: installed into the clis volume and runs" {
+    local cli
+    cli="$(jq -r .name <<<"$CLI_PKGINFO")"
+    assert_on_path_under "$cli" "/opt/ccbox/clis/bin"
 
-    case "$ref" in
-    npm:@anthropic-ai/claude-code) bin=claude ;;
-    npm:@openai/codex)             bin=codex ;;
-    npm:opencode-ai)               bin=opencode ;;
-    http:grok)                     bin=grok ;;
-    esac
-
-    run mise ls
-    [[ "$output" == *"$ref"*"(system)"* ]]
-
-    run "$bin" --version
+    run "$cli" --version
     [ "$status" -eq 0 ]
     [[ "$output" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
 }

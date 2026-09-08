@@ -39,6 +39,7 @@ func TestBuildContextHasCopySources(t *testing.T) {
 			continue
 		}
 		for _, src := range nonFlag[:len(nonFlag)-1] {
+			src = strings.TrimSuffix(src, "/") // dir COPYs carry a trailing slash
 			_, err := fs.Stat(buildContext, src)
 			require.NoErrorf(t, err, "Dockerfile COPYs %q but it isn't embedded in buildContext", src)
 		}

@@ -18,9 +18,9 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/cleanup"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
+	"github.com/s12chung/ccbox/pkg/util/tarutil"
 )
 
 // The egress proxy image and the in-container dir its configs are copied into.
@@ -71,7 +71,7 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
-	configTar, err := fsutil.ToTar(o.Config, o.Overrides)
+	configTar, err := tarutil.ToTar(o.Config, o.Overrides, false)
 	if err != nil {
 		return nil, err
 	}

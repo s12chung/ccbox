@@ -14,8 +14,6 @@ import (
 const (
 	// clisDirEnv overrides the clis root; the image mounts the global volume at the default.
 	clisDirEnv = "CCBOX_CLIS_DIR"
-	// defaultPkgDirRoot is the clis volume's container mount.
-	defaultPkgDirRoot = "/opt/ccbox/clis"
 )
 
 var updateCmd = &cobra.Command{
@@ -33,7 +31,7 @@ var updateCmd = &cobra.Command{
 
 		root := os.Getenv(clisDirEnv)
 		if root == "" {
-			root = defaultPkgDirRoot
+			root = install.DefaultRoot
 		}
 		return install.Run(pkger.PkgDir{Pkger: pkger.For(info), Root: root})
 	},

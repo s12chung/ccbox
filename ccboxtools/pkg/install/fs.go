@@ -5,6 +5,10 @@ import (
 	"path/filepath"
 )
 
+// DefaultRoot is the clis root's container mount: the ccbox-clis global volume's,
+// which the PATH leads with its bin dir.
+const DefaultRoot = "/opt/ccbox/clis"
+
 // dirMode is the mode dirs under the clis root carry.
 const dirMode os.FileMode = 0o755
 

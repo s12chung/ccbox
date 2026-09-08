@@ -49,4 +49,8 @@ if [ -n "${http_proxy:-}" ]; then
   fi
 fi
 
+if [ -n "${CLI_PKGINFO:-}" ]; then
+  ccboxtools update
+fi
+
 exec "$@"

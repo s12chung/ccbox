@@ -9,13 +9,16 @@ import (
 
 	"github.com/docker/docker/api/types/volume"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 )
 
 const (
-	ccboxLabel   = "ccbox"         // marks every ccbox volume, for cross-project discovery
-	projectLabel = "ccbox.project" // the owning project, valued by host path
+	ccboxVolLabel   = "ccbox"         // marks every ccbox volume, for cross-project discovery
+	projectVolLabel = "ccbox.project" // the owning project, valued by host path
+	globalVolLabel  = "ccbox.global"  // marks every global volume
+	trueVolValue    = "true"
 
 	// containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
 	containerUID = "1000"
@@ -32,27 +35,51 @@ var cacheVolumes = map[string]string{
 	"tmp":        "/tmp",                    // agent tmp workspace to try things out
 }
 
+// globalVolumes maps volume name → container directory for volumes shared by every project
+var globalVolumes = map[string]string{
+	"ccbox-clis": install.DefaultRoot, // ccboxtools installs the coding CLI here at start
+}
+
 // cacheVolumeName is hostCwd's named volume for a given cacheVolumes suffix.
 func cacheVolumeName(hostCwd, suffix string) string {
 	return "ccbox" + ProjectSlug(hostCwd) + "-" + suffix
 }
 
+// cacheVolumeNames maps volume name → container dir under hostCwd's project slug.
+func cacheVolumeNames(hostCwd string) map[string]string {
+	volumes := make(map[string]string, len(cacheVolumes))
+	for suffix, dir := range cacheVolumes {
+		volumes[cacheVolumeName(hostCwd, suffix)] = dir
+	}
+	return volumes
+}
+
 // ensureCacheVolumes creates hostCwd's cache volumes labeled with the project and returns their binds.
 func ensureCacheVolumes(ctxD *dock.CtxD, hostCwd string) ([]string, error) {
-	for suffix := range cacheVolumes {
-		opts := volume.CreateOptions{Name: cacheVolumeName(hostCwd, suffix), Labels: volumeLabels(hostCwd)}
+	return ensureVolumes(ctxD, cacheVolumeNames(hostCwd), projectVolumeLabels(hostCwd))
+}
+
+// ensureGlobalVolumes creates the global volumes — ccbox-labeled, no project — and returns their binds.
+func ensureGlobalVolumes(ctxD *dock.CtxD) ([]string, error) {
+	return ensureVolumes(ctxD, globalVolumes, globalVolumeLabels())
+}
+
+// ensureVolumes creates each named volume with labels and returns its sorted binds.
+func ensureVolumes(ctxD *dock.CtxD, volumes map[string]string, labels map[string]string) ([]string, error) {
+	for name := range volumes {
+		opts := volume.CreateOptions{Name: name, Labels: labels}
 		if _, err := ctxD.D.VolumeCreate(ctxD.Ctx, opts); err != nil {
 			return nil, err
 		}
 	}
-	return cacheVolumeBinds(hostCwd), nil
+	return volumeBinds(volumes), nil
 }
 
-// cacheVolumeBinds returns the volume binds from cacheVolumes, not mounted for efficiency of small files
-func cacheVolumeBinds(hostCwd string) []string {
-	binds := make([]string, 0, len(cacheVolumes))
-	for suffix, dir := range cacheVolumes {
-		binds = append(binds, cacheVolumeName(hostCwd, suffix)+":"+dir)
+// volumeBinds renders name:dir binds, sorted for a deterministic spec.
+func volumeBinds(volumes map[string]string) []string {
+	binds := make([]string, 0, len(volumes))
+	for name, dir := range volumes {
+		binds = append(binds, name+":"+dir)
 	}
 	sort.Strings(binds)
 	return binds
@@ -74,9 +101,14 @@ func ProjectSlug(hostCwd string) string {
 	return strings.ReplaceAll(hostCwd, "/", "-")
 }
 
-// volumeLabels are the labels stamped on every volume ccbox creates for hostCwd.
-func volumeLabels(hostCwd string) map[string]string {
-	return map[string]string{ccboxLabel: "true", projectLabel: hostCwd}
+// projectVolumeLabels are the labels stamped on every project volume ccbox creates for hostCwd.
+func globalVolumeLabels() map[string]string {
+	return map[string]string{ccboxVolLabel: trueVolValue, globalVolLabel: trueVolValue}
+}
+
+// projectVolumeLabels are the labels stamped on every project volume ccbox creates for hostCwd.
+func projectVolumeLabels(hostCwd string) map[string]string {
+	return map[string]string{ccboxVolLabel: trueVolValue, projectVolLabel: hostCwd}
 }
 
 // safeContainerPath joins a project-relative path under workspaceMount

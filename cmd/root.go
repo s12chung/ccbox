@@ -52,6 +52,11 @@ var rootCmd = &cobra.Command{
 		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
 			return nil // completion only reads flag/CLI definitions: no seeding, no config load
 		}
+		for c := cmd; c != nil; c = c.Parent() {
+			if c.Name() == doctorCmd.Name() {
+				return nil // the hidden maintainer command: no seeding, no config load
+			}
+		}
 		if err := safeSeedUserClis(); err != nil {
 			return err
 		}
@@ -87,7 +92,7 @@ func init() {
 		panic(err)
 	}
 
-	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
+	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
 }
 
 // safeSeedUserClis seeds harness.UserCLIsDir() if missing
