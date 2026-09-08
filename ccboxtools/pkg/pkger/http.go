@@ -1,4 +1,4 @@
-package pkginfo
+package pkger
 
 import (
 	"context"

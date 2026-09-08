@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
@@ -62,7 +63,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		CLIDataBinds:    m.cliDataBinds,
 		GHToken:         os.Getenv("GH_TOKEN"),
 		GitConfigDir:    gitConfigDir,
-		Env:             mergeempty.Map(projectCfg.Env, map[string]string{"CLI_PKGINFO": pkgInfo}),
+		Env:             mergeempty.Map(projectCfg.Env, map[string]string{pkginfo.EnvVar: pkgInfo}),
 		TmpfsMasks:      projectCfg.TmpfsMasksPresent(),
 		VolumeMasks:     projectCfg.VolumeMasksPresent(),
 		ReadOnlyPaths:   projectCfg.ReadOnlyPathsPresent(),

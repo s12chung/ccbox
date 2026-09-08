@@ -15,6 +15,9 @@ import (
 // cliName is a filesystem-safe CLI name: no separators, no leading dot
 var cliName = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)}
 
+// EnvVar is the container env var carrying a PkgInfo's JSON.
+const EnvVar = "CLI_PKGINFO"
+
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or
 // VersionURL. It travels to the container as the CLI_PKGINFO env JSON.
 type PkgInfo struct {

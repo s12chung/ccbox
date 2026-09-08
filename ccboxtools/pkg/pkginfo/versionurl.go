@@ -1,12 +1,7 @@
 package pkginfo
 
 import (
-	"context"
-	"fmt"
-	"io"
-	"net/http"
 	"regexp"
-	"strings"
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
@@ -29,29 +24,4 @@ func init() {
 		"LinuxX64URL":   {https},
 		"LinuxArm64URL": {https},
 	}))
-}
-
-// versionRe guards the pin: a version endpoint serves a bare semver, so anything
-// else (an error page, HTML) must not become the installed version.
-var versionRe = regexp.MustCompile(`^\d+(\.\d+)*([-+].+)?$`)
-
-func versionAt(url string) (string, error) {
-	resp, err := httpGet(context.Background(), url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close() //nolint:errcheck // failing is ok
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s: %s", url, resp.Status)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-	v := strings.TrimSpace(string(body))
-	if !versionRe.MatchString(v) {
-		return "", fmt.Errorf("%s: %q is not a version", url, v)
-	}
-	return v, nil
 }

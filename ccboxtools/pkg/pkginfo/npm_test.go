@@ -1,8 +1,6 @@
 package pkginfo
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"github.com/s12chung/firm"
@@ -34,35 +32,6 @@ func TestNpm_Validate(t *testing.T) {
 			for _, want := range tt.want {
 				assert.Contains(t, errMap.Error(), want)
 			}
-		})
-	}
-}
-
-func TestLatestAt(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte(`{"version": "1.2.3"}`))
-		}))
-		defer srv.Close()
-
-		v, err := latestAt(srv.URL, "@scope/pkg")
-		require.NoError(t, err)
-		assert.Equal(t, "1.2.3", v)
-	})
-
-	for name, body := range map[string]string{
-		"http error": `not found`,
-		"no version": `{}`,
-		"bad json":   `<html></html>`,
-	} {
-		t.Run(name, func(t *testing.T) {
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				_, _ = w.Write([]byte(body))
-			}))
-			defer srv.Close()
-
-			_, err := latestAt(srv.URL, "@scope/pkg")
-			assert.Error(t, err)
 		})
 	}
 }
