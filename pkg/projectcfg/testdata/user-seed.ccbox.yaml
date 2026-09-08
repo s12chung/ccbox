@@ -6,19 +6,20 @@ cli: claude
 # host_git_config: read-only mount the host's ~/.config/git
 host_git_config: true
 
-# tmpfs_masks: project-relative directories to mask with a temporary filesystem to block access.
-# Directories that do not exist in the project are safely ignored.
+# tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
+# Use for editor junk (.vscode) or throwaway build output. Directories that do not exist in the project are safely ignored.
 tmpfs_masks:
   - ccbox-defaults # `ccbox config defaults` for expansions
   # - dist
 
-# volume_masks: project-relative directories to mask with a persistent volume to avoid host collisions.
-# Useful for node_modules-like folders. Directories that do not exist in the project are safely ignored.
+# volume_masks: cover project-relative directories with a persistent per-project volume.
+# Use for node_modules-like folders. Directories that do not exist in the project are safely ignored.
 volume_masks:
   - ccbox-defaults # `ccbox config defaults` for expansions
   # - vendor/bundle
 
-# read_only_globs: project-relative globs of paths (files or dirs) to re-mount read-only.
+# read_only_globs: block writes to project-relative glob paths (files or directories) with read-only re-mounts.
+# Use for files that must never change (configs, secrets). External container configuration cannot prevent reads.
 # tmpfs_masks/volume_masks dirs are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
 read_only_globs:
   - ccbox-defaults # `ccbox config defaults` for expansions

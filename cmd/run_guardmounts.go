@@ -9,10 +9,10 @@ import (
 
 func printPresentGuardMounts() {
 	if tmpfsMasks := projectCfg.TmpfsMasksPresent(); len(tmpfsMasks) > 0 {
-		log.Infof("during run, masked (ephemeral tmpfs): %s", strings.Join(tmpfsMasks, ", "))
+		log.Infof("during run, masked with temp filesystem: %s", strings.Join(tmpfsMasks, ", "))
 	}
 	if volumeMasks := projectCfg.VolumeMasksPresent(); len(volumeMasks) > 0 {
-		log.Infof("during run, masked (persistent volume): %s", strings.Join(volumeMasks, ", "))
+		log.Infof("during run, masked with persistent volume: %s", strings.Join(volumeMasks, ", "))
 	}
 	if roPaths := projectCfg.ReadOnlyPathsPresent(); len(roPaths) > 0 {
 		log.Infof("during run, read-only: %s", strings.Join(roPaths, ", "))

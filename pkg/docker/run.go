@@ -27,7 +27,7 @@ type RunOptions struct {
 	GitConfigDir  string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
 	GHToken       string            // GH_TOKEN passed through for gh
 	Env           map[string]string // extra container env
-	TmpfsMasks    []string          // project-relative dirs to mask with an ephemeral tmpfs
+	TmpfsMasks    []string          // project-relative dirs to mask with a temp filesystem
 	VolumeMasks   []string          // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyPaths []string          // project-relative paths to re-mount read-only
 	Cmd           []string          // command the entrypoint execs; nil uses the image default (shell)
