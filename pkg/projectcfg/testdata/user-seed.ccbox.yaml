@@ -18,6 +18,12 @@ volumeMasks:
   - ccbox-defaults # `ccbox config defaults` for expansions
   # - vendor/bundle
 
+# readOnlyGlobs: project-relative globs of paths (files or dirs) to re-mount read-only.
+# tmpfsMasks/volumeMasks dirs are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
+readOnlyGlobs:
+  - ccbox-defaults # `ccbox config defaults` for expansions
+  # - .conf
+
 # env: extra environment variables set in the container
 env:
   # FOO: bar

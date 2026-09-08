@@ -45,6 +45,23 @@ func writeConfig(t *testing.T, dir string, name string, body string) string {
 	return path
 }
 
+func loadProjectConfigYAML(t *testing.T, projectDir string) string {
+	t.Helper()
+	c, err := Load(projectDir, Config{})
+	require.NoError(t, err)
+	out, err := yaml.Marshal(c)
+	require.NoError(t, err)
+	return string(out)
+}
+
+func copyFile(t *testing.T, src, dst string) {
+	t.Helper()
+	body, err := os.ReadFile(src) // #nosec G304 -- the test's own scaffold path
+	require.NoError(t, err)
+	// #nosec G703 -- the scaffold re-written verbatim into the test's own temp project
+	require.NoError(t, os.WriteFile(dst, body, ioutil.File))
+}
+
 // configFiles lists the config files by level term and file name, in load order
 // (lowest precedence first)
 var configFiles = []struct {
@@ -91,6 +108,7 @@ func TestSeedUserConfig(t *testing.T) {
 		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
+		ReadOnlyGlobs: []string{DefaultsToken},
 		Allowlist:     []string{DefaultsToken},
 
 		projectDir: dir,
@@ -195,21 +213,18 @@ func TestLoadedPaths(t *testing.T) {
 }
 
 func TestInit_WritesLoadableDefault(t *testing.T) {
-	dir := t.TempDir()
-	path, err := Init(dir)
+	projectDir := t.TempDir()
+	configPath, err := Init(projectDir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, projectFileName), path)
+	assert.Equal(t, filepath.Join(projectDir, projectFileName), configPath)
 
-	// projectDir is the only Config difference
-	c, err := Load(dir, Config{})
-	require.NoError(t, err)
-	fresh, err := Load(t.TempDir(), Config{})
-	require.NoError(t, err)
-	cOut, err := yaml.Marshal(c)
-	require.NoError(t, err)
-	freshOut, err := yaml.Marshal(fresh)
-	require.NoError(t, err)
-	assert.Equal(t, string(freshOut), string(cOut))
+	cOut := loadProjectConfigYAML(t, projectDir)
+
+	freshDir := t.TempDir()
+	copyFile(t, configPath, filepath.Join(freshDir, projectFileName))
+	freshOut := loadProjectConfigYAML(t, freshDir)
+
+	assert.Equal(t, freshOut, cOut)
 }
 
 func TestInit_RefusesExisting(t *testing.T) {
@@ -297,6 +312,9 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"absolute tmpfsMasks", "tmpfsMasks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
 		{"tmpfsMasks traversal", "tmpfsMasks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
 		{"absolute volumeMasks", "volumeMasks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
+		{"absolute readOnlyGlobs", "readOnlyGlobs:\n  - /etc\n", []string{"ReadOnlyGlobs", "Match"}},
+		{"readOnlyGlobs traversal", "readOnlyGlobs:\n  - dist/../x\n", []string{"ReadOnlyGlobs", "Match"}},
+		{"readOnlyGlobs bad glob char", "readOnlyGlobs:\n  - \"dist/{a,b}\"\n", []string{"ReadOnlyGlobs", "Match"}},
 		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},

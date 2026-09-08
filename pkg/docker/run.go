@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"slices"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
@@ -18,17 +19,18 @@ const proxyPort = "8888"
 
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
-	Tag          string
-	CLI          string            // selects the config mount target (each CLI's native default dir)
-	ConfigDir    string            // host dir bind-mounted at the CLI's configMount
-	CcboxDir     string            // host dir bind-mounted at ccboxMount
-	Cwd          string            // host project dir bind-mounted at workspaceMount
-	GitConfigDir string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
-	GHToken      string            // GH_TOKEN passed through for gh
-	Env          map[string]string // extra container env
-	TmpfsMasks   []string          // project-relative dirs to mask with an ephemeral tmpfs
-	VolumeMasks  []string          // project-relative dirs to mask with a persistent per-project volume
-	Cmd          []string          // command the entrypoint execs; nil uses the image default (shell)
+	Tag           string
+	CLI           string            // selects the config mount target (each CLI's native default dir)
+	ConfigDir     string            // host dir bind-mounted at the CLI's configMount
+	CcboxDir      string            // host dir bind-mounted at ccboxMount
+	Cwd           string            // host project dir bind-mounted at workspaceMount
+	GitConfigDir  string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
+	GHToken       string            // GH_TOKEN passed through for gh
+	Env           map[string]string // extra container env
+	TmpfsMasks    []string          // project-relative dirs to mask with an ephemeral tmpfs
+	VolumeMasks   []string          // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyPaths []string          // project-relative paths to re-mount read-only
+	Cmd           []string          // command the entrypoint execs; nil uses the image default (shell)
 
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
 	ProxyLogPath string       // file an auto-started wall's logs are appended to
@@ -65,6 +67,10 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	if err != nil {
 		return nil, err
 	}
+	roPathBinds, err := readOnlyPathBinds(hostOptions.Cwd, hostOptions.ReadOnlyPaths)
+	if err != nil {
+		return nil, err
+	}
 	cacheBinds, err := ensureCacheVolumes(ctxD, hostOptions.Cwd)
 	if err != nil {
 		return nil, err
@@ -83,11 +89,11 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
-		Binds: append(append(append([]string{
+		Binds: slices.Concat([]string{
 			hostOptions.ConfigDir + ":" + configMount(hostOptions.CLI),
 			hostOptions.CcboxDir + ":" + ccboxMount,
 			hostOptions.Cwd + ":" + WorkspaceMount(hostOptions.Cwd),
-		}, cacheBinds...), volumeMaskBinds...), gitBinds...),
+		}, cacheBinds, volumeMaskBinds, roPathBinds, gitBinds),
 		Tmpfs: tmpfs,
 	}, nil
 }

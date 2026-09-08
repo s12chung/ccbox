@@ -9,6 +9,7 @@ require (
 	github.com/docker/buildx v0.35.0
 	github.com/docker/cli v29.5.3+incompatible
 	github.com/docker/docker v28.5.2+incompatible
+	github.com/gobwas/glob v0.2.3
 	github.com/moby/buildkit v0.31.0
 	github.com/moby/term v0.5.2
 	github.com/s12chung/firm v0.2.1
@@ -97,7 +98,6 @@ require (
 	github.com/go-openapi/swag/yamlutils v0.26.0 // indirect
 	github.com/go-openapi/validate v0.25.3 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gofrs/flock v0.13.0 // indirect
 	github.com/golang/snappy v1.0.0 // indirect

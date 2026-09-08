@@ -28,3 +28,18 @@ func TestNamedVolumeMasks(t *testing.T) {
 	}, binds)
 	assert.Equal(t, []string{"ccbox-Users-me-proj-node_modules", "ccbox-Users-me-proj-vendor-bundle"}, names)
 }
+
+func TestReadOnlyPathBinds(t *testing.T) {
+	got, err := readOnlyPathBinds("/Users/me/proj", []string{".env", "certs/server.pem"})
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{
+		"/Users/me/proj/.env:/home/ccbox/proj/.env:ro",
+		"/Users/me/proj/certs/server.pem:/home/ccbox/proj/certs/server.pem:ro",
+	}, got)
+
+	for _, path := range []string{"../escape", "../../x"} {
+		_, err := readOnlyPathBinds("/Users/me/proj", []string{path})
+		assert.Error(t, err, path)
+	}
+}

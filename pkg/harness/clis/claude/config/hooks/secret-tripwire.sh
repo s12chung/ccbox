@@ -40,15 +40,5 @@ if printf '%s' "$cmd" | grep -Eq "$pattern"; then
   ask "Command references a secret path — confirm this read/use is intended."
 fi
 
-# .ccbox.yaml (+ .ccbox.local.yaml override) is the egress-wall allowlist; Write/Edit deny can't see Bash writes to it.
-allowlist_files=(
-  '\.ccbox(\.local)?\.yaml'
-)
-pattern=$(IFS='|'; printf '%s' "${allowlist_files[*]}")
-
-if printf '%s' "$cmd" | grep -Eq "$pattern"; then
-  ask ".ccbox.yaml controls the egress wall — confirm this change is intended."
-fi
-
 # Exit 0 with no output = no decision; normal permission flow applies.
 exit 0

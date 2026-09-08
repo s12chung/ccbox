@@ -2,15 +2,20 @@ package projectcfg
 
 import (
 	"slices"
-
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 var (
-	// tmpfsDefaults always-masked dirs, prepended only when present in the project (to prevent host creation)
+	// tmpfsDefaults subbed in for DefaultsToken
 	tmpfsDefaults = []string{".idea", ".vscode"}
-	// volumeDefaults for persistent volume masked dirs only when present in the project (to prevent host creation)
+	// volumeDefaults subbed in for DefaultsToken
 	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
+	// readOnlyDefaults subbed in for DefaultsToken
+	readOnlyDefaults = []string{
+		".ccbox.yaml", ".ccbox.local.yaml",
+		".env", ".env.*", ".envrc",
+		"secrets",
+		"**/*.pem", "**/*.key",
+	}
 )
 
 // TmpfsDefaults is what DefaultsToken in tmpfsMasks expands to
@@ -19,13 +24,5 @@ func TmpfsDefaults() []string { return slices.Clone(tmpfsDefaults) }
 // VolumeDefaults is what DefaultsToken in volumeMasks expands to
 func VolumeDefaults() []string { return slices.Clone(volumeDefaults) }
 
-func absentDirs(src string, dirs []string) []string {
-	present := ioutil.DirsPresent(src, dirs)
-	var out []string
-	for _, d := range dirs {
-		if !slices.Contains(present, d) {
-			out = append(out, d)
-		}
-	}
-	return out
-}
+// ReadOnlyDefaults is what DefaultsToken in readOnlyGlobs expands to
+func ReadOnlyDefaults() []string { return slices.Clone(readOnlyDefaults) }

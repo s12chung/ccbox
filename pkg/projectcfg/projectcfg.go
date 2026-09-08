@@ -69,6 +69,7 @@ func userSeedConfig(cli string) *Config {
 		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
+		ReadOnlyGlobs: []string{DefaultsToken},
 		Allowlist:     []string{DefaultsToken},
 	}
 }

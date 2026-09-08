@@ -14,9 +14,7 @@
       "*.key": "deny"
     },
     "edit": {
-      "*": "allow",
-      "*.ccbox.yaml": "deny",
-      "*.ccbox.local.yaml": "deny"
+      "*": "allow"
     },
     "bash": {
       "*": "allow",
@@ -27,9 +25,7 @@
       "*.pem": "ask",
       "*.key": "ask",
       "*.aws/*": "ask",
-      "*.ssh/*": "ask",
-      "*.ccbox.yaml": "ask",
-      "*.ccbox.local.yaml": "ask"
+      "*.ssh/*": "ask"
     },
     "external_directory": {
       "/tmp": "allow",

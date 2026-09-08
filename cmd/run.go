@@ -46,17 +46,18 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 	}
 
 	return docker.RunOptions{
-		Tag:          flagTag,
-		CLI:          *projectCfg.CLI,
-		ConfigDir:    m.config,
-		CcboxDir:     m.ccbox,
-		Cwd:          m.cwd,
-		GHToken:      os.Getenv("GH_TOKEN"),
-		GitConfigDir: gitConfigDir,
-		Env:          projectCfg.Env,
-		TmpfsMasks:   projectCfg.TmpfsMasksPresent(),
-		VolumeMasks:  projectCfg.VolumeMasksPresent(),
-		Cmd:          harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
+		Tag:           flagTag,
+		CLI:           *projectCfg.CLI,
+		ConfigDir:     m.config,
+		CcboxDir:      m.ccbox,
+		Cwd:           m.cwd,
+		GHToken:       os.Getenv("GH_TOKEN"),
+		GitConfigDir:  gitConfigDir,
+		Env:           projectCfg.Env,
+		TmpfsMasks:    projectCfg.TmpfsMasksPresent(),
+		VolumeMasks:   projectCfg.VolumeMasksPresent(),
+		ReadOnlyPaths: projectCfg.ReadOnlyPathsPresent(),
+		Cmd:           harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
 
 		Proxy:        proxyOps,
 		ProxyLogPath: filepath.Join(userdir.Dir(), "proxy.log"),
@@ -74,9 +75,11 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer printPresentMasks()
-	absentMasksSnapshot := append(projectCfg.TmpfsMasksAbsent(), projectCfg.VolumeMasksAbsent()...)
-	defer warnCreatedMasks(m.cwd, absentMasksSnapshot) // compare snapshot to at defer time
+	defer printPresentGuardMounts()
+
+	presentMasksSnapshot := append(projectCfg.TmpfsMasksPresent(), projectCfg.VolumeMasksPresent()...)
+	presentPathsSnapshot := projectCfg.ReadOnlyPathsPresent()
+	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
 	ctxD, err := dock.NewCtxD(cmd.Context())
 	if err != nil {

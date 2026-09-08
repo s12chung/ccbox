@@ -8,7 +8,7 @@ You run inside the container defined at `Dockerfile`, and we often swap containe
 The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang files map to `cmd/`, which talks to the Docker Engine SDK in-process. Commands:
   - `ccbox` (no subcommand) — runs the devbox container interactively behind the wall, wiring the local terminal to the container's pty; launches the configured CLI by default (`--shell` for a plain shell, `--no-proxy` to skip the wall for direct egress). Maps to `cmd/run.go`.
   - `ccbox proxy` — runs the `tinyproxy` egress wall in the foreground
-  - `ccbox config` - prints the effective .ccbox.yaml with tmpfsMasks, volumeMasks, and allowlist defaults applied
+  - `ccbox config` - prints the effective .ccbox.yaml
 
 This curated directory will help you discover common patterns (`pkg/util` and `pkg/kit`) and navigate the project:
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/image/*`) and proxy configs (`docker/tinyproxy/*`) into the binary, then hands off to `cmd`.
@@ -34,6 +34,10 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
   - `make build` — builds the `ccbox` binary to `/tmp/ccbox` in the **container**
   - `make lint` - all linting
   - `make test` — runs all linting and tests that are possible without a Docker daemon
+
+### Conventions
+
+`tmpfsMasks`, `volumeMasks`, and `readOnlyGlobs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfsMasks`, `volumeMasks`, and `readOnlyGlobs`.
 
 ### Go tests
 

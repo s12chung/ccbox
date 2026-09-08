@@ -18,6 +18,9 @@ var (
 	EnvVar = rule.Match{Regexp: regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)}
 	// MaskDir is a project-relative dir to mask: no leading slash or ".." (".idea" is fine)
 	MaskDir = rule.Match{Regexp: regexp.MustCompile(`^[.]?[^./]`)}
+	// MaskGlob is a project-relative glob of guarded paths: no leading slash, no ".." segment
+	MaskGlob = rule.Match{Regexp: regexp.MustCompile(
+		`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$`)}
 	// HomePath is a $HOME-relative path, e.g. .claude or .config/opencode
 	HomePath = rule.Match{Regexp: regexp.MustCompile(`^[^/].*$`)}
 	// FileName is a bare filename, no directories

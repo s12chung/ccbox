@@ -6,7 +6,7 @@ extends = ":workspace" # writable in workspace, read-only elsewhere
 [permissions.ccbox.filesystem]
 glob_scan_max_depth = 4 # depth for the unbounded **/ deny globs below
 
-# Secret paths denied; .ccbox.yaml read-only
+# Secret paths denied
 [permissions.ccbox.filesystem.":workspace_roots"]
 "**/*.env" = "deny"
 "**/.env.*" = "deny"
@@ -14,8 +14,6 @@ glob_scan_max_depth = 4 # depth for the unbounded **/ deny globs below
 "secrets/**" = "deny"
 "**/*.pem" = "deny"
 "**/*.key" = "deny"
-".ccbox.yaml" = "read"
-".ccbox.local.yaml" = "read"
 
 # Managed-policy CLAUDE.md — Codex has no /etc/claude-code equivalent
 [[hooks.SessionStart]]

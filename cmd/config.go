@@ -27,7 +27,8 @@ var configCmd = &cobra.Command{
 			return err
 		}
 		log.Info(strings.TrimRight(string(out), "\n"))
-		return printAbsentMasks()
+		printGuardMountWarnings()
+		return nil
 	},
 }
 
@@ -44,11 +45,13 @@ func printLoadedPaths(projectDir string) {
 	log.Info("")
 }
 
-// printAbsentMasks lists the mask dirs this project lacks
-func printAbsentMasks() error {
+// printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs are
+// present-checked like any dir; globs can't be — their expansion shows what's armed instead.
+func printGuardMountWarnings() {
 	tmpfsMasks := projectCfg.TmpfsMasksAbsent()
 	volumeMasks := projectCfg.VolumeMasksAbsent()
-	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 {
+	globs := projectCfg.ReadOnlyGlobsExpanded()
+	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 || len(globs) > 0 {
 		log.Info("")
 	}
 	if len(tmpfsMasks) > 0 {
@@ -57,7 +60,9 @@ func printAbsentMasks() error {
 	if len(volumeMasks) > 0 {
 		log.Infof("# volumeMasks not in project, not masked: %s", strings.Join(volumeMasks, ", "))
 	}
-	return nil
+	if len(globs) > 0 {
+		log.Infof("# readOnlyGlobs matches re-mount read-only at run: %s", strings.Join(globs, ", "))
+	}
 }
 
 var configInitCmd = &cobra.Command{
@@ -87,6 +92,7 @@ var configDefaultsCmd = &cobra.Command{
 		}{
 			{"tmpfsMasks", projectcfg.TmpfsDefaults()},
 			{"volumeMasks", projectcfg.VolumeDefaults()},
+			{"readOnlyGlobs", projectcfg.ReadOnlyDefaults()},
 			{"allowlist", projectcfg.AllowDefaults()},
 		}
 		for i, g := range groups {

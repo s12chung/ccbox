@@ -75,6 +75,11 @@ func TestMatchRules(t *testing.T) {
 			[]string{"", "/etc", "../escape", "..", "./x", "."},
 		},
 		{
+			"MaskGlob", MaskGlob,
+			[]string{"secrets", ".ccbox.yaml", ".env.*", "*.pem", "**/*.pem", "dist/**", "**", "*", "a/b/c.txt", "a/.hidden"},
+			[]string{"", "/etc", "../escape", "..", "dist/../x", "a/..", "./x", "a/", "//x", "x//y"},
+		},
+		{
 			"HomePath", HomePath,
 			[]string{".claude", ".config/opencode", "cli"},
 			[]string{"", "/etc/cli", "/"},

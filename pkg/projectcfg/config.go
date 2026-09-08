@@ -4,13 +4,17 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"slices"
+	"strings"
 	"text/template"
 
+	"github.com/gobwas/glob"
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/kit/globkit"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
@@ -18,22 +22,21 @@ import (
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLI           *string `yaml:"cli"`             // coding CLI to install + launch
-	HostGitConfig *bool   `yaml:"host_git_config"` // read-only mount host ~/.config/git
-	// camelCase keys: they read as the masks for tmpfs/volumes
-	TmpfsMasks  []string          `yaml:"tmpfsMasks"`  //nolint:tagliatelle // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks []string          `yaml:"volumeMasks"` //nolint:tagliatelle // project-relative dirs to mask with a persistent per-project volume
-	Env         map[string]string `yaml:"env"`         // extra env vars set in the container
-	Allowlist   []string          `yaml:"allowlist"`   // egress wall domains
+	CLI           *string           `yaml:"cli"`             // coding CLI to install + launch
+	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git
+	TmpfsMasks    []string          `yaml:"tmpfsMasks"`      //nolint:tagliatelle // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks   []string          `yaml:"volumeMasks"`     //nolint:tagliatelle // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyGlobs []string          `yaml:"readOnlyGlobs"`   //nolint:tagliatelle // project-relative globs to re-mount read-only
+	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
+	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains
 
-	// projectDir anchors the masks' present-filter
+	// projectDir anchors the masks' present-filters
 	projectDir string
-	// cache accessors' resolutions of raw lists
-	expandedTmpfsMasks  []string
-	presentTmpfsMasks   []string
-	expandedVolumeMasks []string
-	presentVolumeMasks  []string
-	expandedAllowlist   []string
+	// cache the DefaultsToken expansions of raw lists
+	expandedTmpfsMasks    []string
+	expandedVolumeMasks   []string
+	expandedReadOnlyGlobs []string
+	expandedAllowlist     []string
 }
 
 func init() {
@@ -43,8 +46,9 @@ func init() {
 			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal
-			"TmpfsMasks":  {firm.Elems[[]string](firmrule.MaskDir)},
-			"VolumeMasks": {firm.Elems[[]string](firmrule.MaskDir)},
+			"TmpfsMasks":    {firm.Elems[[]string](firmrule.MaskDir)},
+			"VolumeMasks":   {firm.Elems[[]string](firmrule.MaskDir)},
+			"ReadOnlyGlobs": {firm.Elems[[]string](firmrule.MaskGlob)},
 			"Env": {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
@@ -60,6 +64,7 @@ func (c *Config) ProjectDir() string { return c.projectDir }
 func (c *Config) merge(other Config) {
 	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)
 	c.VolumeMasks = mergeempty.Slice(c.VolumeMasks, other.VolumeMasks)
+	c.ReadOnlyGlobs = mergeempty.Slice(c.ReadOnlyGlobs, other.ReadOnlyGlobs)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
 	c.Env = mergeempty.Map(c.Env, other.Env)
 	if other.CLI != nil {
@@ -68,9 +73,9 @@ func (c *Config) merge(other Config) {
 	if other.HostGitConfig != nil {
 		c.HostGitConfig = other.HostGitConfig
 	}
-	// clear stale caches
-	c.expandedTmpfsMasks, c.presentTmpfsMasks = nil, nil
-	c.expandedVolumeMasks, c.presentVolumeMasks = nil, nil
+	c.expandedTmpfsMasks = nil
+	c.expandedVolumeMasks = nil
+	c.expandedReadOnlyGlobs = nil
 	c.expandedAllowlist = nil
 }
 
@@ -84,10 +89,7 @@ func (c *Config) TmpfsMasksExpanded() []string {
 
 // TmpfsMasksPresent filters TmpfsMasksExpanded() to the paths present as dirs in the project
 func (c *Config) TmpfsMasksPresent() []string {
-	if c.presentTmpfsMasks == nil {
-		c.presentTmpfsMasks = ioutil.DirsPresent(c.projectDir, c.TmpfsMasksExpanded())
-	}
-	return c.presentTmpfsMasks
+	return ioutil.DirsPresent(c.projectDir, c.TmpfsMasksExpanded())
 }
 
 // TmpfsMasksAbsent filters TmpfsMasksExpanded() to the paths NOT present as dirs in the project
@@ -105,15 +107,39 @@ func (c *Config) VolumeMasksExpanded() []string {
 
 // VolumeMasksPresent filters VolumeMasksExpanded() to the paths present as dirs in the project
 func (c *Config) VolumeMasksPresent() []string {
-	if c.presentVolumeMasks == nil {
-		c.presentVolumeMasks = ioutil.DirsPresent(c.projectDir, c.VolumeMasksExpanded())
-	}
-	return c.presentVolumeMasks
+	return ioutil.DirsPresent(c.projectDir, c.VolumeMasksExpanded())
 }
 
 // VolumeMasksAbsent filters VolumeMasksExpanded() to the paths NOT present as dirs in the project
 func (c *Config) VolumeMasksAbsent() []string {
 	return absentDirs(c.projectDir, c.VolumeMasksExpanded())
+}
+
+// ReadOnlyGlobsExpanded expands the DefaultsToken tokens in ReadOnlyGlobs to defaults
+func (c *Config) ReadOnlyGlobsExpanded() []string {
+	if c.expandedReadOnlyGlobs == nil {
+		c.expandedReadOnlyGlobs = expandList(c.ReadOnlyGlobs, readOnlyDefaults)
+	}
+	return c.expandedReadOnlyGlobs
+}
+
+func (c *Config) readOnlyGlobsMatchers() []glob.Glob {
+	globStrings := c.ReadOnlyGlobsExpanded()
+	globs := make([]glob.Glob, 0, len(globStrings))
+	for _, g := range globStrings {
+		globs = append(globs, globkit.DoubleStarRooted(g))
+	}
+	return globs
+}
+
+// ReadOnlyPathsPresent matches ReadOnlyGlobsExpanded() against the project to actual paths, minus masked dirs
+func (c *Config) ReadOnlyPathsPresent() []string {
+	masks := slices.Concat(c.TmpfsMasksPresent(), c.VolumeMasksPresent())
+	paths := slices.DeleteFunc(globkit.WalkMatches(c.projectDir, c.readOnlyGlobsMatchers()...), func(match string) bool {
+		return slices.ContainsFunc(masks, func(mask string) bool { return match == mask || strings.HasPrefix(match, mask+"/") })
+	})
+	slices.Sort(paths)
+	return paths
 }
 
 // VolumeCleanupDirs is every mask dir whose volume may exist
@@ -139,7 +165,7 @@ func (c *Config) AllowlistExpanded() []string {
 }
 
 // MarshalYAML renders the effective config: masks resolved to the project's present
-// dirs, list tokens expanded — what `ccbox config` prints.
+// dirs, readOnlyGlobs to their matched paths, list tokens expanded — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
 	type resolved Config // same yaml tags, no MarshalYAML method
 	return resolved{
@@ -147,6 +173,7 @@ func (c *Config) MarshalYAML() (any, error) {
 		HostGitConfig: c.HostGitConfig,
 		TmpfsMasks:    c.TmpfsMasksPresent(),
 		VolumeMasks:   c.VolumeMasksPresent(),
+		ReadOnlyGlobs: c.ReadOnlyPathsPresent(),
 		Env:           c.Env,
 		Allowlist:     c.AllowlistExpanded(),
 	}, nil
@@ -192,4 +219,15 @@ func (c *Config) renderTmpl() (string, error) {
 		return "", fmt.Errorf("render Config template: %w", err)
 	}
 	return b.String(), nil
+}
+
+func absentDirs(src string, dirs []string) []string {
+	present := ioutil.DirsPresent(src, dirs)
+	var out []string
+	for _, d := range dirs {
+		if !slices.Contains(present, d) {
+			out = append(out, d)
+		}
+	}
+	return out
 }

@@ -2,6 +2,7 @@ package docker
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
@@ -58,4 +59,18 @@ func namedVolumeMasks(hostCwd string, hostDirs []string) ([]string, []string, er
 		names = append(names, name)
 	}
 	return binds, names, nil
+}
+
+// readOnlyPathBinds returns a "hostPath:containerPath:ro" bind per read-only path
+func readOnlyPathBinds(hostCwd string, paths []string) ([]string, error) {
+	workspaceMount := WorkspaceMount(hostCwd)
+	var binds []string
+	for _, path := range paths {
+		containerPath, err := safeContainerPath(workspaceMount, path)
+		if err != nil {
+			return nil, err
+		}
+		binds = append(binds, filepath.Join(hostCwd, path)+":"+containerPath+":ro")
+	}
+	return binds, nil
 }
