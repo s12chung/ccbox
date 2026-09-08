@@ -48,7 +48,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 	if err != nil {
 		return docker.RunOptions{}, err
 	}
-	pkgerJSON, err := harness.MustFor(*projectCfg.CLI).PkgerJSON()
+	pkgInfo, err := harness.MustFor(*projectCfg.CLI).PkgInfoJSON()
 	if err != nil {
 		return docker.RunOptions{}, err
 	}
@@ -62,7 +62,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		CLIDataBinds:    m.cliDataBinds,
 		GHToken:         os.Getenv("GH_TOKEN"),
 		GitConfigDir:    gitConfigDir,
-		Env:             mergeempty.Map(projectCfg.Env, map[string]string{"CLI_PKGER": pkgerJSON}),
+		Env:             mergeempty.Map(projectCfg.Env, map[string]string{"CLI_PKGINFO": pkgInfo}),
 		TmpfsMasks:      projectCfg.TmpfsMasksPresent(),
 		VolumeMasks:     projectCfg.VolumeMasksPresent(),
 		ReadOnlyPaths:   projectCfg.ReadOnlyPathsPresent(),

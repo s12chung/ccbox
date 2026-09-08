@@ -7,11 +7,11 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
-var pkgerCmd = &cobra.Command{
-	Use:   "pkger",
-	Short: "Print the CLI_PKGER env JSON for the effective config",
+var pkginfoCmd = &cobra.Command{
+	Use:   "pkginfo",
+	Short: "Print the CLI_PKGINFO env JSON for the effective config",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		body, err := harness.MustFor(*projectCfg.CLI).PkgerJSON()
+		body, err := harness.MustFor(*projectCfg.CLI).PkgInfoJSON()
 		if err != nil {
 			return err
 		}

@@ -1,6 +1,6 @@
-// Package pkger describes a coding CLI's install source — npm or a version URL —
-// as the CLI_PKGER JSON the container consumes to install the CLI at start.
-package pkger
+// Package pkginfo describes a coding CLI's install source — npm or a version URL —
+// as the CLI_PKGINFO JSON the container consumes to install the CLI at start.
+package pkginfo
 
 import (
 	"encoding/json"
@@ -15,16 +15,16 @@ import (
 // cliName is a filesystem-safe CLI name: no separators, no leading dot
 var cliName = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)}
 
-// Pkger describes a CLI's install source: its name plus exactly one of Npm or
-// VersionURL. It travels to the container as the CLI_PKGER env JSON.
-type Pkger struct {
+// PkgInfo describes a CLI's install source: its name plus exactly one of Npm or
+// VersionURL. It travels to the container as the CLI_PKGINFO env JSON.
+type PkgInfo struct {
 	Name       string      `json:"name"`
 	Npm        *Npm        `json:"npm"`
 	VersionURL *VersionURL `json:"versionurl"`
 }
 
 func init() {
-	firm.MustRegisterType(firm.NewDefinition[Pkger]().
+	firm.MustRegisterType(firm.NewDefinition[PkgInfo]().
 		ValidatesSelf(rule.OneNotNil{Fields: []string{"Npm", "VersionURL"}}).
 		Validates(firm.RuleMap{
 			"Name":       {cliName},
@@ -33,25 +33,25 @@ func init() {
 		}))
 }
 
-// JSON renders p as the CLI_PKGER JSON
-func (p Pkger) JSON() (string, error) {
+// JSON renders p as the CLI_PKGINFO JSON
+func (p PkgInfo) JSON() (string, error) {
 	body, err := json.Marshal(p)
 	if err != nil {
-		return "", fmt.Errorf("pkger: %w", err)
+		return "", fmt.Errorf("pkginfo: %w", err)
 	}
 	return string(body), nil
 }
 
-// FromJSON parses CLI_PKGER JSON, rejecting unknown fields and invalid values.
-func FromJSON(body string) (Pkger, error) {
-	var p Pkger
+// FromJSON parses CLI_PKGINFO JSON, rejecting unknown fields and invalid values.
+func FromJSON(body string) (PkgInfo, error) {
+	var p PkgInfo
 	dec := json.NewDecoder(strings.NewReader(body))
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&p); err != nil {
-		return Pkger{}, fmt.Errorf("pkger: parse %s: %w", body, err)
+		return PkgInfo{}, fmt.Errorf("pkginfo: parse %s: %w", body, err)
 	}
 	if errMap := firm.ValidateAny(p); errMap != nil {
-		return Pkger{}, fmt.Errorf("pkger: %w", errMap)
+		return PkgInfo{}, fmt.Errorf("pkginfo: %w", errMap)
 	}
 	return p, nil
 }

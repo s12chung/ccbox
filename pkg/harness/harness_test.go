@@ -275,13 +275,13 @@ func TestMust_For(t *testing.T) {
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { MustFor("emacs") })
 }
 
-func TestCLI_PkgerJSON(t *testing.T) {
-	// the CLI_PKGER env JSON each CLI's install source renders
-	body, err := MustFor("claude").PkgerJSON()
+func TestCLI_PkgInfoJSON(t *testing.T) {
+	// the CLI_PKGINFO env JSON each CLI's install source renders
+	body, err := MustFor("claude").PkgInfoJSON()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"versionurl":null}`, body)
 
-	body, err = MustFor("grok").PkgerJSON()
+	body, err = MustFor("grok").PkgInfoJSON()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"grok","npm":null,"versionurl":{"url":"https://x.ai/cli/stable",`+
 		`"linux_x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",`+

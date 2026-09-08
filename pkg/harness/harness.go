@@ -29,7 +29,7 @@ import (
 	"github.com/s12chung/firm/rule"
 	"gopkg.in/yaml.v3"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
@@ -230,8 +230,8 @@ type CLI struct {
 	fromUserDir bool
 
 	// Npm installs from the npm registry. Exactly one of Npm or VersionURL is set.
-	Npm        *pkger.Npm        `yaml:"npm"`
-	VersionURL *pkger.VersionURL `yaml:"versionurl"`
+	Npm        *pkginfo.Npm        `yaml:"npm"`
+	VersionURL *pkginfo.VersionURL `yaml:"versionurl"`
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
 	// mounted config is found with no override; ConfigDirEnvKey points the CLI's env var at it.
@@ -290,9 +290,9 @@ func init() {
 		}))
 }
 
-// PkgerJSON renders c's install source as the CLI_PKGER JSON for the container env.
-func (c CLI) PkgerJSON() (string, error) {
-	return pkger.Pkger{Name: c.Name, Npm: c.Npm, VersionURL: c.VersionURL}.JSON()
+// PkgInfoJSON renders c's install source as the CLI_PKGINFO JSON for the container env.
+func (c CLI) PkgInfoJSON() (string, error) {
+	return pkginfo.PkgInfo{Name: c.Name, Npm: c.Npm, VersionURL: c.VersionURL}.JSON()
 }
 
 // For looks up the CLI by name. ok is false for an unknown name.

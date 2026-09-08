@@ -1,4 +1,4 @@
-package pkger
+package pkginfo
 
 import (
 	"testing"
@@ -8,20 +8,20 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPkger_JSON(t *testing.T) {
+func TestPkgInfo_JSON(t *testing.T) {
 	tests := []struct {
 		name string
-		p    Pkger
+		p    PkgInfo
 		want string
 	}{
 		{
 			"npm",
-			Pkger{Name: "claude", Npm: &Npm{Package: "@anthropic-ai/claude-code"}},
+			PkgInfo{Name: "claude", Npm: &Npm{Package: "@anthropic-ai/claude-code"}},
 			`{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"versionurl":null}`,
 		},
 		{
 			"versionurl",
-			Pkger{Name: "grok", VersionURL: &VersionURL{
+			PkgInfo{Name: "grok", VersionURL: &VersionURL{
 				URL:           "https://x.ai/cli/stable",
 				LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
 				LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
@@ -40,25 +40,25 @@ func TestPkger_JSON(t *testing.T) {
 	}
 }
 
-func TestPkger_Validate(t *testing.T) {
+func TestPkgInfo_Validate(t *testing.T) {
 	tests := []struct {
 		name string
-		p    Pkger
+		p    PkgInfo
 		want []string
 	}{
-		{"no install source", Pkger{Name: "claude"}, []string{"OneNotNil"}},
+		{"no install source", PkgInfo{Name: "claude"}, []string{"OneNotNil"}},
 		{
 			"both install sources",
-			Pkger{
+			PkgInfo{
 				Name:       "claude",
 				Npm:        &Npm{Package: "a"},
 				VersionURL: &VersionURL{URL: "https://x", LinuxX64URL: "https://x", LinuxArm64URL: "https://x"},
 			},
 			[]string{"OneNotNil"},
 		},
-		{"path escape name", Pkger{Name: "../evil", Npm: &Npm{Package: "a"}}, []string{"Name.Match"}},
-		{"empty name", Pkger{Npm: &Npm{Package: "a"}}, []string{"Name.Match"}},
-		{"bad npm", Pkger{Name: "claude", Npm: &Npm{Package: "My CLI"}}, []string{"Package.Match"}},
+		{"path escape name", PkgInfo{Name: "../evil", Npm: &Npm{Package: "a"}}, []string{"Name.Match"}},
+		{"empty name", PkgInfo{Npm: &Npm{Package: "a"}}, []string{"Name.Match"}},
+		{"bad npm", PkgInfo{Name: "claude", Npm: &Npm{Package: "My CLI"}}, []string{"Package.Match"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -71,11 +71,11 @@ func TestPkger_Validate(t *testing.T) {
 	}
 }
 
-func TestPkgerFromJSON(t *testing.T) {
+func TestPkgInfoFromJSON(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		p, err := FromJSON(`{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"}}`)
 		require.NoError(t, err)
-		assert.Equal(t, Pkger{Name: "claude", Npm: &Npm{Package: "@anthropic-ai/claude-code"}}, p)
+		assert.Equal(t, PkgInfo{Name: "claude", Npm: &Npm{Package: "@anthropic-ai/claude-code"}}, p)
 	})
 
 	tests := []struct {
