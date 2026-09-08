@@ -108,4 +108,13 @@ var configDefaultsCmd = &cobra.Command{
 	},
 }
 
-func init() { configCmd.AddCommand(configInitCmd, configDefaultsCmd) }
+var configUserCmd = &cobra.Command{
+	Use:   "user",
+	Short: "Print the user-level config's path",
+	RunE: func(_ *cobra.Command, _ []string) error {
+		log.Info(userdir.Tilde(projectcfg.UserConfigFile()))
+		return nil
+	},
+}
+
+func init() { configCmd.AddCommand(configInitCmd, configDefaultsCmd, configUserCmd) }
