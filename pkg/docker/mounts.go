@@ -28,7 +28,7 @@ var cacheVolumes = map[string]string{
 	"gem":        "/home/ccbox/.gem",        // bundler GEM_HOME
 	"npm":        "/home/ccbox/.npm",        // npm download cache
 	"npm-global": "/home/ccbox/.npm-global", // global npm packages
-	"local":      "/home/ccbox/.local",      // pip --user installs and opencode state
+	"local":      "/home/ccbox/.local",      // XDG data dir
 	"tmp":        "/tmp",                    // agent tmp workspace to try things out
 }
 

@@ -259,6 +259,10 @@ type CLI struct {
 
 	// AllowDomains are the egress wall domains this CLI talks to.
 	AllowDomains []string `yaml:"allow_domains"`
+
+	// DataBinds binds host per-CLI data (~/.ccbox/data/<cli>/<path-slug>) into the container.
+	// Key is a $HOME-relative path (file or dir); value is seed content for files, nil for dirs.
+	DataBinds map[string]*string `yaml:"data_binds"`
 }
 
 func init() {
@@ -280,6 +284,10 @@ func init() {
 				firm.Values[map[string]string](rule.Present{}),
 			},
 			"AllowDomains": {firm.Elems[[]string](firmrule.Domain)},
+
+			// MaskDir over HomePath: keys are $HOME-relative paths, and MaskDir's
+			// no-leading-".." also bars path.Join escapes out of the home dir
+			"DataBinds": {firm.Keys[map[string]*string](firmrule.MaskDir)},
 		}))
 }
 

@@ -111,7 +111,7 @@ USER ccbox
 # Mapped to pkg/docker/mounts.go, `/tmp` is created above
 RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
              /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local \
-             /home/ccbox/.config # opencode uses .config
+             /home/ccbox/.config /home/ccbox/.local/share/opencode # opencode uses these two dirs
 
 COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

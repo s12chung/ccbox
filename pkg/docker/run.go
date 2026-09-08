@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"maps"
 	"os"
+	"path"
 	"slices"
 
 	"github.com/docker/docker/api/types/container"
@@ -24,6 +26,7 @@ type RunOptions struct {
 	CLIConfigDir    string            // host cliConfigDir bind-mounted at the cliCOnfigMount
 	ProjectStateDir string            // host projectStateDir bind-mounted at projectStateMount
 	Cwd             string            // host project dir bind-mounted at workspaceMount
+	CLIDataBinds    map[string]string // host path → $HOME-relative in-container path, rw bound under containerHome
 	GitConfigDir    string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
 	GHToken         string            // GH_TOKEN passed through for gh
 	Env             map[string]string // extra container env
@@ -93,9 +96,18 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 			hostOptions.CLIConfigDir + ":" + cliConfigMount(hostOptions.CLI),
 			hostOptions.ProjectStateDir + ":" + projectStateMount,
 			hostOptions.Cwd + ":" + workspaceMount(hostOptions.Cwd),
-		}, cacheBinds, volumeMaskBinds, roPathBinds, gitBinds),
+		}, cacheBinds, volumeMaskBinds, roPathBinds, gitBinds, cliDataBinds(hostOptions.CLIDataBinds)),
 		Tmpfs: tmpfs,
 	}, nil
+}
+
+// cliDataBinds renders CLIDataBinds as host:container rw binds, sorted for a deterministic spec.
+func cliDataBinds(m map[string]string) []string {
+	binds := make([]string, 0, len(m))
+	for _, host := range slices.Sorted(maps.Keys(m)) {
+		binds = append(binds, host+":"+path.Join(containerHome, m[host]))
+	}
+	return binds
 }
 
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and

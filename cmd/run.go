@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -14,6 +15,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/projectstate"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 // Run flags.
@@ -51,6 +54,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		CLIConfigDir:    m.cliConfigDir,
 		ProjectStateDir: m.projectState,
 		Cwd:             m.cwd,
+		CLIDataBinds:    m.cliDataBinds,
 		GHToken:         os.Getenv("GH_TOKEN"),
 		GitConfigDir:    gitConfigDir,
 		Env:             projectCfg.Env,
@@ -107,7 +111,10 @@ func init() {
 }
 
 // hostMounts are the host dirs bind-mounted into the devbox, seeded/created before it starts.
-type hostMounts struct{ cwd, cliConfigDir, projectState string }
+type hostMounts struct {
+	cwd, cliConfigDir, projectState string
+	cliDataBinds                    map[string]string // host path → $HOME-relative in-container path
+}
 
 // resolveHostMounts seeds the userDir and resolves the per-project state dir from cwd.
 func resolveHostMounts(userDir string) (hostMounts, error) {
@@ -121,7 +128,16 @@ func resolveHostMounts(userDir string) (hostMounts, error) {
 	if err := safeSeedProjectStateDir(userDir, cwd); err != nil {
 		return hostMounts{}, err
 	}
-	return hostMounts{cwd: cwd, cliConfigDir: cliConfigDir(userDir, *projectCfg.CLI), projectState: projectStateDir(userDir, cwd)}, nil
+	cliDataBinds, err := safeSeedCLIDataBinds(userDir, harness.MustFor(*projectCfg.CLI))
+	if err != nil {
+		return hostMounts{}, err
+	}
+	return hostMounts{
+		cwd:          cwd,
+		cliConfigDir: cliConfigDir(userDir, *projectCfg.CLI),
+		projectState: projectStateDir(userDir, cwd),
+		cliDataBinds: cliDataBinds,
+	}, nil
 }
 
 // hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when
@@ -141,4 +157,27 @@ func safeSeedProjectStateDir(userDir, cwd string) error {
 // projectStateDir is the host state dir for a project: userDir/projects/<slug>
 func projectStateDir(userDir, cwd string) string {
 	return filepath.Join(userDir, "projects", docker.ProjectSlug(cwd))
+}
+
+// safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name> and returns them as
+// host path → $HOME-relative in-container path.
+func safeSeedCLIDataBinds(userDir string, cli harness.CLI) (map[string]string, error) {
+	binds := make(map[string]string, len(cli.DataBinds))
+	for key, content := range cli.DataBinds {
+		host := cliDataBindHostPath(userDir, cli.Name, key)
+		if content == nil {
+			if err := os.MkdirAll(host, ioutil.Dir); err != nil {
+				return nil, err
+			}
+		} else if err := seed.File(host, *content); err != nil && !errors.Is(err, seed.ErrExists) {
+			return nil, err
+		}
+		binds[host] = key
+	}
+	return binds, nil
+}
+
+// cliDataBindHostPath is a data bind's shared host path: userDir/data/<cli_name>/<slug-of-key>
+func cliDataBindHostPath(userDir, cliName, key string) string {
+	return filepath.Join(userDir, "data", cliName, strings.ReplaceAll(key, "/", "-"))
 }

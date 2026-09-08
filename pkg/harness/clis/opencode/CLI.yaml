@@ -4,6 +4,9 @@ npm:
 
 config_home_mount: ".config/opencode"
 
+data_binds:
+  .local/share/opencode/auth.json: "{}"
+
 cmd: "opencode"
 continue_args: "-c"
 # No picker flag exists; bare --session errors, so -r needs a session id.

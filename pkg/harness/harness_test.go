@@ -188,6 +188,18 @@ func TestParse_Rejects(t *testing.T) {
 			[]string{"AllowDomains", "Match"},
 		},
 		{
+			"absolute data bind key", validCliYAML + "data_binds:\n  \"/etc/auth.json\": \"{}\"\n",
+			[]string{"DataBinds", "Match"},
+		},
+		{
+			"dotdot data bind key", validCliYAML + "data_binds:\n  \"../auth.json\": \"{}\"\n",
+			[]string{"DataBinds", "Match"},
+		},
+		{
+			"empty data bind key", validCliYAML + "data_binds:\n  \"\": \"{}\"\n",
+			[]string{"DataBinds", "Match"},
+		},
+		{
 			"unknown key", "npm:\n  package: mycli\nbogus: true\n",
 			[]string{"field bogus not found"},
 		},
@@ -333,4 +345,15 @@ func TestEnv(t *testing.T) {
 
 	assert.Nil(t, MustFor("grok").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, MustFor("grok").Env)
+}
+
+func TestCLI_CLIDataBinds(t *testing.T) {
+	authJSON := "{}"
+	assert.Equal(t,
+		map[string]*string{".local/share/opencode/auth.json": &authJSON},
+		MustFor("opencode").DataBinds)
+
+	for _, name := range []string{"claude", "codex", "grok"} {
+		assert.Emptyf(t, MustFor(name).DataBinds, "%s has no data binds", name)
+	}
 }
