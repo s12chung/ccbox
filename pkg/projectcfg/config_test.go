@@ -17,7 +17,7 @@ import (
 func TestConfig_ProjectDir(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
-	writeConfig(t, dir, projectFileName, "cli: claude\nhost_git_config: true\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: true\n")
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -104,7 +104,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			useHome(t) // no user file: the project body stands alone
-			writeConfig(t, tt.projectDir, projectFileName, tt.body)
+			writeConfig(t, tt.projectDir, projectConfigFileName, tt.body)
 			tt.want.projectDir = tt.projectDir
 
 			c, err := Load(tt.projectDir, Config{})
@@ -122,7 +122,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file: no defaults token
 	mkDirs(t, dir, "dist")
-	writeConfig(t, dir, projectFileName, "cli: claude\nhost_git_config: true\ntmpfs_masks:\n  - dist\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: true\ntmpfs_masks:\n  - dist\n")
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -161,7 +161,7 @@ func TestConfig_MasksPresent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			mkDirs(t, dir, tt.dirs...)
-			writeConfig(t, dir, projectFileName, tt.body)
+			writeConfig(t, dir, projectConfigFileName, tt.body)
 
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
@@ -207,7 +207,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.projectBody != "" {
-				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectFileName), []byte(tt.projectBody), ioutil.File))
+				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectConfigFileName), []byte(tt.projectBody), ioutil.File))
 			}
 			c, err := Load(tt.projectDir, Config{})
 			require.NoError(t, err)
@@ -226,7 +226,7 @@ func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 		bodySb18.WriteString("  - \"" + g + "\"\n") // quoted: a leading * is a YAML alias marker
 	}
 	body += bodySb18.String()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	body := "cli: claude\nhost_git_config: true\n" +
 		"tmpfs_masks:\n  - build\n  - certs\n  - node_modules\n" +
 		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)

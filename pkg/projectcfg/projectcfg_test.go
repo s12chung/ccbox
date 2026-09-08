@@ -38,7 +38,7 @@ func useHome(t *testing.T) string {
 func writeConfig(t *testing.T, dir string, name string, body string) string {
 	t.Helper()
 	path := filepath.Join(dir, name)
-	if name == userFileName {
+	if name == userConfigFileName {
 		path = useHome(t)
 	}
 	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
@@ -68,9 +68,9 @@ var configFiles = []struct {
 	term string // user, project, local
 	name string
 }{
-	{"user", userFileName},
-	{"project", projectFileName},
-	{"local", localFileName},
+	{"user", userConfigFileName},
+	{"project", projectConfigFileName},
+	{"local", localConfigFileName},
 }
 
 // TestMain points home at a temp tree and seeds the user config — prod parity: the
@@ -121,7 +121,7 @@ func TestSeedUserConfig(t *testing.T) {
 	})
 
 	t.Run("an empty project file is unset like a missing one", func(t *testing.T) {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), nil, ioutil.File))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, ioutil.File))
 
 		c, err := Load(dir, Config{})
 		require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestSeedUserConfig(t *testing.T) {
 
 func TestSeedUserConfig_SkipsExisting(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, userFileName, "cli: codex\n")
+	writeConfig(t, dir, userConfigFileName, "cli: codex\n")
 
 	path, err := SeedUserConfig("claude")
 	require.NoError(t, err)
@@ -161,9 +161,9 @@ func TestLoadedPaths(t *testing.T) {
 		files []string // config file names present on disk, in load order
 	}{
 		{"no files", nil},
-		{"project only", []string{projectFileName}},
-		{"user and local", []string{userFileName, localFileName}},
-		{"all three", []string{userFileName, projectFileName, localFileName}},
+		{"project only", []string{projectConfigFileName}},
+		{"user and local", []string{userConfigFileName, localConfigFileName}},
+		{"all three", []string{userConfigFileName, projectConfigFileName, localConfigFileName}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestLoadedPaths(t *testing.T) {
 			}
 			var want []string
 			for _, name := range tt.files {
-				if name == userFileName {
+				if name == userConfigFileName {
 					want = append(want, UserConfigFile())
 					continue
 				}
@@ -187,9 +187,9 @@ func TestLoadedPaths(t *testing.T) {
 	t.Run("an empty file counts as loaded", func(t *testing.T) {
 		useHome(t)
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), nil, ioutil.File))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, ioutil.File))
 
-		assert.Equal(t, []string{filepath.Join(dir, projectFileName)}, LoadedPaths(dir))
+		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, LoadedPaths(dir))
 	})
 }
 
@@ -197,12 +197,12 @@ func TestInit_WritesLoadableDefault(t *testing.T) {
 	projectDir := t.TempDir()
 	configPath, err := Init(projectDir)
 	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(projectDir, projectFileName), configPath)
+	assert.Equal(t, filepath.Join(projectDir, projectConfigFileName), configPath)
 
 	cOut := loadProjectConfigYAML(t, projectDir)
 
 	freshDir := t.TempDir()
-	copyFile(t, configPath, filepath.Join(freshDir, projectFileName))
+	copyFile(t, configPath, filepath.Join(freshDir, projectConfigFileName))
 	freshOut := loadProjectConfigYAML(t, freshDir)
 
 	assert.Equal(t, freshOut, cOut)
@@ -210,7 +210,7 @@ func TestInit_WritesLoadableDefault(t *testing.T) {
 
 func TestInit_RefusesExisting(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfs_masks: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("tmpfs_masks: []\n"), ioutil.File))
 
 	_, err := Init(dir)
 	assert.ErrorIs(t, err, seed.ErrExists)
@@ -237,7 +237,7 @@ func TestLoad_UnsetRequiredErrors(t *testing.T) {
 
 func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("allowlist: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("allowlist: []\n"), ioutil.File))
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -322,7 +322,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(tt.body), ioutil.File))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(tt.body), ioutil.File))
 
 			_, err := Load(dir, Config{})
 			require.Error(t, err)
@@ -338,7 +338,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
 			if cf.term == "local" { // empty project file so the error attributes to local
-				writeConfig(t, dir, projectFileName, "")
+				writeConfig(t, dir, projectConfigFileName, "")
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nbogus: true\n")
 
@@ -351,8 +351,8 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 
 func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("cli: claude\n"), ioutil.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localFileName), []byte("cli: codex\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localConfigFileName), []byte("cli: codex\n"), ioutil.File))
 
 	c, err := Load(dir, Config{CLI: new("grok")})
 	require.NoError(t, err)

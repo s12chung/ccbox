@@ -20,22 +20,22 @@ import (
 )
 
 const (
-	// userFileName is the user-level config's name under ConfigDir (no dot)
-	userFileName = "ccbox.yaml"
-	// projectFileName is the project-level config's name at the project repo root
-	projectFileName = ".ccbox.yaml"
-	// localFileName is the project-local, git-ignored override
-	localFileName = ".ccbox.local.yaml"
+	// userConfigFileName is the user-level config's name under ConfigDir (no dot)
+	userConfigFileName = "ccbox.yaml"
+	// projectConfigFileName is the project-level config's name at the project repo root
+	projectConfigFileName = ".ccbox.yaml"
+	// localConfigFileName is the project-local, git-ignored override
+	localConfigFileName = ".ccbox.local.yaml"
 	// DefaultsToken listed in allowlist, expands in place to allowDefaults
 	DefaultsToken = "ccbox-defaults" // #nosec G101 -- config expansion keyword, not a credential
 )
 
 // UserConfigFile is the user-level config's path
-func UserConfigFile() string { return filepath.Join(userdir.ConfigDir(), userFileName) }
+func UserConfigFile() string { return filepath.Join(userdir.ConfigDir(), userConfigFileName) }
 
 // layerPaths lists the config file paths in load order: user, project, local
 func layerPaths(projectDir string) []string {
-	return []string{UserConfigFile(), filepath.Join(projectDir, projectFileName), filepath.Join(projectDir, localFileName)}
+	return []string{UserConfigFile(), filepath.Join(projectDir, projectConfigFileName), filepath.Join(projectDir, localConfigFileName)}
 }
 
 // LoadedPaths returns the layer config files present on disk, in load order
@@ -51,7 +51,7 @@ func LoadedPaths(projectDir string) []string {
 
 // Init writes to projectDir/.ccbox.yaml and returns its path.
 func Init(projectDir string) (string, error) {
-	path := filepath.Join(projectDir, projectFileName)
+	path := filepath.Join(projectDir, projectConfigFileName)
 	body, err := new(Config).renderTmpl()
 	if err != nil {
 		return "", err
