@@ -21,25 +21,7 @@ import (
 
 // BuildOptions configures an image build.
 type BuildOptions struct {
-	Tag        string
-	CLIName    string // CLIName build arg: which coding cli to install
-	CLIVersion string // CLI_VERSION build arg: pinned version of the CLIName's release channel
-	Pkger      string // PKGER build arg: install source rendered by pkger.Pkger.Arg
-}
-
-// buildArgs maps BuildOptions to Dockerfile ARGs
-func buildArgs(o BuildOptions) map[string]string {
-	args := map[string]string{}
-	if o.CLIName != "" {
-		args["CLI"] = o.CLIName
-	}
-	if o.CLIVersion != "" {
-		args["CLI_VERSION"] = o.CLIVersion
-	}
-	if o.Pkger != "" {
-		args["PKGER"] = o.Pkger
-	}
-	return args
+	Tag string
 }
 
 // Build builds the devbox image from the embedded build context (src) on BuildKit,
@@ -78,9 +60,8 @@ func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
 
 	opts := map[string]build.Options{"default": {
 		// Context tar on stdin (ContextPath "-"); the Dockerfile rides at its root.
-		Inputs:    build.Inputs{ContextPath: "-", InStream: build.NewSyncMultiReader(contextTar)},
-		Tags:      []string{o.Tag},
-		BuildArgs: buildArgs(o),
+		Inputs: build.Inputs{ContextPath: "-", InStream: build.NewSyncMultiReader(contextTar)},
+		Tags:   []string{o.Tag},
 		// ExporterDocker loads the built image into the daemon store (the --load equivalent).
 		// Attrs must be non-nil: buildx writes the tag into it ("name") without nil-checking.
 		Exports: []client.ExportEntry{{Type: client.ExporterDocker, Attrs: map[string]string{}}},

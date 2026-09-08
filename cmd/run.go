@@ -16,6 +16,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -47,6 +48,10 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 	if err != nil {
 		return docker.RunOptions{}, err
 	}
+	pkgerJSON, err := harness.MustFor(*projectCfg.CLI).PkgerJSON()
+	if err != nil {
+		return docker.RunOptions{}, err
+	}
 
 	return docker.RunOptions{
 		Tag:             flagTag,
@@ -57,7 +62,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		CLIDataBinds:    m.cliDataBinds,
 		GHToken:         os.Getenv("GH_TOKEN"),
 		GitConfigDir:    gitConfigDir,
-		Env:             projectCfg.Env,
+		Env:             mergeempty.Map(projectCfg.Env, map[string]string{"CLI_PKGER": pkgerJSON}),
 		TmpfsMasks:      projectCfg.TmpfsMasksPresent(),
 		VolumeMasks:     projectCfg.VolumeMasksPresent(),
 		ReadOnlyPaths:   projectCfg.ReadOnlyPathsPresent(),

@@ -10,17 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestVersionURL_Arg(t *testing.T) {
-	u := VersionURL{
-		URL:           "https://x.ai/cli/stable",
-		LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
-		LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
-	}
-	assert.Equal(t,
-		"versionurl:https://x.ai/cli/stable|https://x.ai/cli/grok-$version-linux-x86_64|https://x.ai/cli/grok-$version-linux-aarch64",
-		u.Arg())
-}
-
 func TestVersionURL_Validate(t *testing.T) {
 	tests := []struct {
 		name string

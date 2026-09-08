@@ -6,10 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 )
-
-var flagCLIVersion string
 
 var buildCmd = &cobra.Command{
 	Use:   "build",
@@ -19,28 +16,7 @@ var buildCmd = &cobra.Command{
 	},
 }
 
-// build builds the devbox image; `run` calls it too, mirroring the old `run: build`.
+// build builds the CLI-agnostic devbox image; `run` calls it too, mirroring the old `run: build`.
 func build(ctx context.Context) error {
-	cli := harness.MustFor(*projectCfg.CLI)
-
-	// Pin "latest" now so the image records the concrete version, not a moving tag.
-	if flagCLIVersion == "latest" {
-		v, err := cli.Pkger().Latest()
-		if err != nil {
-			return err
-		}
-		flagCLIVersion = v
-	}
-
-	return docker.Build(ctx, buildContext, docker.BuildOptions{
-		Tag:        flagTag,
-		CLIName:    cli.Name,
-		CLIVersion: flagCLIVersion,
-		Pkger:      cli.Pkger().Arg(),
-	})
-}
-
-func init() {
-	buildCmd.Flags().StringVar(&flagCLIVersion, "cli-version", "latest",
-		"CLI_VERSION build arg")
+	return docker.Build(ctx, buildContext, docker.BuildOptions{Tag: flagTag})
 }

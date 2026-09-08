@@ -229,8 +229,7 @@ type CLI struct {
 	// fromUserDir is true if it's from the user dir
 	fromUserDir bool
 
-	// Npm installs from the npm registry. Exactly one of Npm or VersionURL is set;
-	// Pkger returns whichever it is.
+	// Npm installs from the npm registry. Exactly one of Npm or VersionURL is set.
 	Npm        *pkger.Npm        `yaml:"npm"`
 	VersionURL *pkger.VersionURL `yaml:"versionurl"`
 
@@ -291,25 +290,9 @@ func init() {
 		}))
 }
 
-// Pkger returns the install source this CLI declares: Npm or VersionURL.
-func (c CLI) Pkger() pkger.Pkger {
-	p, err := c.pkger()
-	if err != nil {
-		panic(err) // unreachable: parse rejects such YAML
-	}
-	return p
-}
-
-// pkger resolves c's install source, failing unless exactly one of Npm/VersionURL is set.
-func (c CLI) pkger() (pkger.Pkger, error) {
-	switch {
-	case c.Npm != nil && c.VersionURL == nil:
-		return *c.Npm, nil
-	case c.VersionURL != nil && c.Npm == nil:
-		return *c.VersionURL, nil
-	default:
-		return nil, errors.New("pkger: want exactly one of npm, versionurl")
-	}
+// PkgerJSON renders c's install source as the CLI_PKGER JSON for the container env.
+func (c CLI) PkgerJSON() (string, error) {
+	return pkger.Pkger{Name: c.Name, Npm: c.Npm, VersionURL: c.VersionURL}.JSON()
 }
 
 // For looks up the CLI by name. ok is false for an unknown name.

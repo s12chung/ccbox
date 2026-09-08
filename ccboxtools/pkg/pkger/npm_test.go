@@ -10,10 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNpm_Arg(t *testing.T) {
-	assert.Equal(t, "npm:@scope/pkg", Npm{Package: "@scope/pkg"}.Arg())
-}
-
 func TestNpm_Validate(t *testing.T) {
 	tests := []struct {
 		name string

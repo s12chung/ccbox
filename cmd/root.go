@@ -87,7 +87,7 @@ func init() {
 		panic(err)
 	}
 
-	rootCmd.AddCommand(buildCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
+	rootCmd.AddCommand(buildCmd, pkgerCmd, proxyCmd, reseedCmd, cleanCmd, configCmd)
 }
 
 // safeSeedUserClis seeds harness.UserCLIsDir() if missing

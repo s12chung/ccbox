@@ -275,14 +275,17 @@ func TestMust_For(t *testing.T) {
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { MustFor("emacs") })
 }
 
-func TestCLI_Pkger(t *testing.T) {
-	// the PKGER build arg each CLI's install source renders
-	assert.Equal(t, "npm:@anthropic-ai/claude-code", MustFor("claude").Pkger().Arg())
-	assert.Equal(t, "npm:@openai/codex", MustFor("codex").Pkger().Arg())
-	assert.Equal(t, "npm:opencode-ai", MustFor("opencode").Pkger().Arg())
-	assert.Equal(t,
-		"versionurl:https://x.ai/cli/stable|https://x.ai/cli/grok-$version-linux-x86_64|https://x.ai/cli/grok-$version-linux-aarch64",
-		MustFor("grok").Pkger().Arg())
+func TestCLI_PkgerJSON(t *testing.T) {
+	// the CLI_PKGER env JSON each CLI's install source renders
+	body, err := MustFor("claude").PkgerJSON()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"versionurl":null}`, body)
+
+	body, err = MustFor("grok").PkgerJSON()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"name":"grok","npm":null,"versionurl":{"url":"https://x.ai/cli/stable",`+
+		`"linux_x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",`+
+		`"linux_arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"}}`, body)
 }
 
 func TestCLI_SessionCmd(t *testing.T) {
