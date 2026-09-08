@@ -2,11 +2,8 @@
 package firmrule
 
 import (
-	"fmt"
-	"reflect"
 	"regexp"
 
-	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 )
 
@@ -28,39 +25,3 @@ var (
 	// HTTPSURL is an https endpoint; download templates may carry a literal $version
 	HTTPSURL = rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
 )
-
-const definedOnceName = "DefinedOnce"
-
-// DefinedOnce requires exactly one of the named pointer fields to be set
-type DefinedOnce struct{ Fields []string }
-
-// ValidateValue counts the named fields (assumes TypeCheck is called)
-func (e DefinedOnce) ValidateValue(value reflect.Value) firm.ErrorMap {
-	set := make([]string, 0, len(e.Fields))
-	for _, f := range e.Fields {
-		if !value.FieldByName(f).IsNil() {
-			set = append(set, f)
-		}
-	}
-	if len(set) == 1 {
-		return nil
-	}
-	return firm.ErrorMap{definedOnceName: firm.TemplateError{
-		Template:       "want exactly one of {{.Fields}}, got {{.Set}}",
-		TemplateFields: map[string]string{"Fields": fmt.Sprintf("%v", e.Fields), "Set": fmt.Sprintf("%v", set)},
-	}}
-}
-
-// TypeCheck requires a struct carrying all named fields as pointers
-func (e DefinedOnce) TypeCheck(typ reflect.Type) *firm.RuleTypeError {
-	if typ.Kind() != reflect.Struct {
-		return firm.NewRuleTypeError(definedOnceName, typ, "is not a Struct")
-	}
-	for _, f := range e.Fields {
-		field, ok := typ.FieldByName(f)
-		if !ok || field.Type.Kind() != reflect.Pointer {
-			return firm.NewRuleTypeError(definedOnceName, typ, "has no pointer field, "+f)
-		}
-	}
-	return nil
-}

@@ -267,7 +267,7 @@ type CLI struct {
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[CLI]().
-		ValidatesSelf(firmrule.DefinedOnce{Fields: []string{"Npm", "VersionURL"}}).
+		ValidatesSelf(rule.OneNotNil{Fields: []string{"Npm", "VersionURL"}}).
 		Validates(firm.RuleMap{
 			"Npm":        {firm.Backed()},
 			"VersionURL": {firm.Backed()},

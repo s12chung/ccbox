@@ -8,50 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type parent struct {
-	Npm        *npm
-	VersionURL *versionURL
-}
-
-type (
-	npm        struct{}
-	versionURL struct{}
-)
-
-func TestDefinedOnce_ValidateValue(t *testing.T) {
-	v := firm.Value[parent](DefinedOnce{Fields: []string{"Npm", "VersionURL"}})
-
-	assert.Nil(t, v.Validate(parent{Npm: &npm{}}).ToNil())
-	assert.Nil(t, v.Validate(parent{VersionURL: &versionURL{}}).ToNil())
-
-	tests := []struct {
-		name string
-		data parent
-		want string
-	}{
-		{"none set", parent{}, "want exactly one of [Npm VersionURL], got []"},
-		{"both set", parent{Npm: &npm{}, VersionURL: &versionURL{}}, "want exactly one of [Npm VersionURL], got [Npm VersionURL]"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			errMap := v.Validate(tt.data)
-			require.Len(t, errMap, 1)
-			assert.Contains(t, errMap.Error(), tt.want)
-		})
-	}
-}
-
-func TestDefinedOnce_TypeCheck(t *testing.T) {
-	_, err := firm.ValueWithErr[parent](DefinedOnce{Fields: []string{"Missing"}})
-	require.ErrorContains(t, err, "has no pointer field, Missing")
-
-	_, err = firm.ValueWithErr[parent](DefinedOnce{Fields: []string{"Npm", "parent"}})
-	require.ErrorContains(t, err, "has no pointer field, parent")
-
-	_, err = firm.ValueWithErr[int](DefinedOnce{Fields: []string{"Npm"}})
-	require.ErrorContains(t, err, "is not a Struct")
-}
-
 func TestMatchRules(t *testing.T) {
 	tests := []struct {
 		name    string

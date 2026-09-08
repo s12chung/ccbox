@@ -140,11 +140,11 @@ func TestParse_Rejects(t *testing.T) {
 	}{
 		{
 			"no install source", "cmd: mycli\n",
-			[]string{"CLI.DefinedOnce", "want exactly one of [Npm VersionURL], got []"},
+			[]string{"CLI.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got []"},
 		},
 		{
 			"both install sources", "npm:\n  package: mycli\nversionurl:\n  url: https://x\n",
-			[]string{"CLI.DefinedOnce", "want exactly one of [Npm VersionURL], got [Npm VersionURL]"},
+			[]string{"CLI.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got [Npm VersionURL]"},
 		},
 		{
 			"empty npm package", "npm:\n  package: \"\"\n",

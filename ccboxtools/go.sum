@@ -1,5 +1,5 @@
-github.com/s12chung/firm v0.2.1 h1:nFAyOADqu1B9P/HvB/C5UsIKN162s+K31r62SVIc7+I=
-github.com/s12chung/firm v0.2.1/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
+github.com/s12chung/firm v0.2.2-0.20260908201413-0b00145893b3 h1:54lEwG5VmdhgZJyesN/48qlUrKKIAzAi473oLrrT4bo=
+github.com/s12chung/firm v0.2.2-0.20260908201413-0b00145893b3/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
 github.com/stretchr/testify v1.12.1 h1:EuwCh5fleGS7H32xRwO3wRGT7DxrDhLAT6FF8MpWDWE=
 github.com/stretchr/testify v1.12.1/go.mod h1:MDEgiDPPsNp5cuIrHPPCyornHKgEVbtFUmoNlxoYthg=
 go.yaml.in/yaml/v3 v3.0.5 h1:N6y/pJk8buWs9NY5ERU2HSMfm+IuD/OtfdAnq6kESPw=
