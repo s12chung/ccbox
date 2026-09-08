@@ -210,7 +210,7 @@ func TestInit_WritesLoadableDefault(t *testing.T) {
 
 func TestInit_RefusesExisting(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfsMasks: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte("tmpfs_masks: []\n"), ioutil.File))
 
 	_, err := Init(dir)
 	assert.ErrorIs(t, err, seed.ErrExists)
@@ -249,9 +249,9 @@ func TestLoad_LayersFiles(t *testing.T) {
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build", "cache") // the layers' own mask dirs must exist to survive
 	bodies := map[string]string{             // one entry per configFiles term
-		"user":    "cli: grok\ntmpfsMasks:\n  - ccbox-defaults\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
-		"project": "cli: claude\ntmpfsMasks:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
-		"local":   "cli: codex\ntmpfsMasks:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",
+		"user":    "cli: grok\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
+		"project": "cli: claude\ntmpfs_masks:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
+		"local":   "cli: codex\ntmpfs_masks:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",
 	}
 	for _, cf := range configFiles {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
@@ -293,7 +293,7 @@ func TestLoad_InvalidErrors(t *testing.T) {
 	for _, cf := range configFiles { // malformed yaml in any file errors
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			path := writeConfig(t, dir, cf.name, "tmpfsMasks: [")
+			path := writeConfig(t, dir, cf.name, "tmpfs_masks: [")
 
 			_, err := Load(dir, Config{})
 			require.Error(t, err)
@@ -309,12 +309,12 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		want []string
 	}{
 		{"unknown cli", "cli: emacs\n", []string{"CLI", "is not one of [claude codex grok opencode]"}},
-		{"absolute tmpfsMasks", "tmpfsMasks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
-		{"tmpfsMasks traversal", "tmpfsMasks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
-		{"absolute volumeMasks", "volumeMasks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
-		{"absolute readOnlyGlobs", "readOnlyGlobs:\n  - /etc\n", []string{"ReadOnlyGlobs", "Match"}},
-		{"readOnlyGlobs traversal", "readOnlyGlobs:\n  - dist/../x\n", []string{"ReadOnlyGlobs", "Match"}},
-		{"readOnlyGlobs bad glob char", "readOnlyGlobs:\n  - \"dist/{a,b}\"\n", []string{"ReadOnlyGlobs", "Match"}},
+		{"absolute tmpfs_masks", "tmpfs_masks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
+		{"tmpfs_masks traversal", "tmpfs_masks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
+		{"absolute volume_masks", "volume_masks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
+		{"absolute read_only_globs", "read_only_globs:\n  - /etc\n", []string{"ReadOnlyGlobs", "Match"}},
+		{"read_only_globs traversal", "read_only_globs:\n  - dist/../x\n", []string{"ReadOnlyGlobs", "Match"}},
+		{"read_only_globs bad glob char", "read_only_globs:\n  - \"dist/{a,b}\"\n", []string{"ReadOnlyGlobs", "Match"}},
 		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},

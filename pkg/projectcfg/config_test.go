@@ -81,8 +81,8 @@ func TestConfig_ListsExpanded(t *testing.T) {
 		{
 			"the token expands in place, literals kept, repeats collapse", t.TempDir(),
 			"cli: claude\nhost_git_config: true\n" +
-				"tmpfsMasks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
-				"readOnlyGlobs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
+				"tmpfs_masks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
+				"read_only_globs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
 			Config{
 				CLI:           new("claude"),
 				HostGitConfig: new(true),
@@ -96,7 +96,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 		},
 		{
 			"an explicit empty list stays empty like an unset one", t.TempDir(),
-			"cli: claude\nhost_git_config: true\nvolumeMasks: []\n",
+			"cli: claude\nhost_git_config: true\nvolume_masks: []\n",
 			Config{CLI: new("claude"), HostGitConfig: new(true), VolumeMasks: []string{}},
 			nil, nil, nil, nil,
 		},
@@ -122,7 +122,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file: no defaults token
 	mkDirs(t, dir, "dist")
-	writeConfig(t, dir, projectFileName, "cli: claude\nhost_git_config: true\ntmpfsMasks:\n  - dist\n")
+	writeConfig(t, dir, projectFileName, "cli: claude\nhost_git_config: true\ntmpfs_masks:\n  - dist\n")
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -146,13 +146,13 @@ func TestConfig_MasksPresent(t *testing.T) {
 	}{
 		{
 			"all absent drops out", nil,
-			"tmpfsMasks:\n  - dist\nvolumeMasks:\n  - target\n",
+			"tmpfs_masks:\n  - dist\nvolume_masks:\n  - target\n",
 			nil, nil,
 		},
 		{
 			"present stays, absent drops",
 			[]string{"dist"},
-			"tmpfsMasks:\n  - dist\n  - build\n",
+			"tmpfs_masks:\n  - dist\n  - build\n",
 			[]string{"dist"},
 			nil, // the seed's defaults are all absent here
 		},
@@ -193,13 +193,13 @@ func TestConfig_MasksAbsent(t *testing.T) {
 		},
 		{
 			"the config's own absent dirs reject like the defaults", present,
-			"tmpfsMasks:\n  - dist\nvolumeMasks:\n  - node_modules\n  - target\n",
+			"tmpfs_masks:\n  - dist\nvolume_masks:\n  - node_modules\n  - target\n",
 			[]string{"dist"},
 			[]string{".venv", "target"},
 		},
 		{
 			"all absent rejects every entry, token and own alike", absent,
-			"tmpfsMasks:\n  - dist\n",
+			"tmpfs_masks:\n  - dist\n",
 			append(append([]string{}, tmpfsDefaults...), "dist"),
 			volumeDefaults,
 		},
@@ -220,7 +220,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 // readOnlyGlobsConfig loads a config over the project body, ready for the glob accessors
 func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 	t.Helper()
-	body := "cli: claude\nhost_git_config: true\nreadOnlyGlobs:\n"
+	body := "cli: claude\nhost_git_config: true\nread_only_globs:\n"
 	var bodySb18 strings.Builder
 	for _, g := range globs {
 		bodySb18.WriteString("  - \"" + g + "\"\n") // quoted: a leading * is a YAML alias marker
@@ -285,7 +285,7 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	mkDirs(t, dir, "build", "certs")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "build", "main.o"), nil, ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "certs", "server.pem"), nil, ioutil.File))
-	body := "cli: claude\nhost_git_config: true\ntmpfsMasks:\n  - build\n  - certs\nreadOnlyGlobs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
+	body := "cli: claude\nhost_git_config: true\ntmpfs_masks:\n  - build\n  - certs\nread_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectFileName), []byte(body), ioutil.File))
 
 	c, err := Load(dir, Config{})

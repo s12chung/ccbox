@@ -24,9 +24,9 @@ import (
 type Config struct {
 	CLI           *string           `yaml:"cli"`             // coding CLI to install + launch
 	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git
-	TmpfsMasks    []string          `yaml:"tmpfsMasks"`      //nolint:tagliatelle // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks   []string          `yaml:"volumeMasks"`     //nolint:tagliatelle // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyGlobs []string          `yaml:"readOnlyGlobs"`   //nolint:tagliatelle // project-relative globs to re-mount read-only
+	TmpfsMasks    []string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks   []string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyGlobs []string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
 	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
 	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains
 
@@ -165,7 +165,7 @@ func (c *Config) AllowlistExpanded() []string {
 }
 
 // MarshalYAML renders the effective config: masks resolved to the project's present
-// dirs, readOnlyGlobs to their matched paths, list tokens expanded — what `ccbox config` prints.
+// dirs, read_only_globs to their matched paths, list tokens expanded — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
 	type resolved Config // same yaml tags, no MarshalYAML method
 	return resolved{

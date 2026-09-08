@@ -37,7 +37,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 
 ### Conventions
 
-`tmpfsMasks`, `volumeMasks`, and `readOnlyGlobs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfsMasks`, `volumeMasks`, and `readOnlyGlobs`.
+`tmpfs_masks`, `volume_masks`, and `read_only_globs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfs_masks`, `volume_masks`, and `read_only_globs`.
 
 For tests:
 

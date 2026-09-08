@@ -18,11 +18,11 @@ var (
 	}
 )
 
-// TmpfsDefaults is what DefaultsToken in tmpfsMasks expands to
+// TmpfsDefaults is what DefaultsToken in tmpfs_masks expands to
 func TmpfsDefaults() []string { return slices.Clone(tmpfsDefaults) }
 
-// VolumeDefaults is what DefaultsToken in volumeMasks expands to
+// VolumeDefaults is what DefaultsToken in volume_masks expands to
 func VolumeDefaults() []string { return slices.Clone(volumeDefaults) }
 
-// ReadOnlyDefaults is what DefaultsToken in readOnlyGlobs expands to
+// ReadOnlyDefaults is what DefaultsToken in read_only_globs expands to
 func ReadOnlyDefaults() []string { return slices.Clone(readOnlyDefaults) }

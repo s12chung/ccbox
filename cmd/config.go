@@ -55,13 +55,13 @@ func printGuardMountWarnings() {
 		log.Info("")
 	}
 	if len(tmpfsMasks) > 0 {
-		log.Infof("# tmpfsMasks not in project, not masked: %s", strings.Join(tmpfsMasks, ", "))
+		log.Infof("# tmpfs_masks not in project, not masked: %s", strings.Join(tmpfsMasks, ", "))
 	}
 	if len(volumeMasks) > 0 {
-		log.Infof("# volumeMasks not in project, not masked: %s", strings.Join(volumeMasks, ", "))
+		log.Infof("# volume_masks not in project, not masked: %s", strings.Join(volumeMasks, ", "))
 	}
 	if len(globs) > 0 {
-		log.Infof("# readOnlyGlobs matches re-mount read-only at run: %s", strings.Join(globs, ", "))
+		log.Infof("# read_only_globs matches re-mount read-only at run: %s", strings.Join(globs, ", "))
 	}
 }
 
@@ -90,9 +90,9 @@ var configDefaultsCmd = &cobra.Command{
 			field    string
 			defaults []string
 		}{
-			{"tmpfsMasks", projectcfg.TmpfsDefaults()},
-			{"volumeMasks", projectcfg.VolumeDefaults()},
-			{"readOnlyGlobs", projectcfg.ReadOnlyDefaults()},
+			{"tmpfs_masks", projectcfg.TmpfsDefaults()},
+			{"volume_masks", projectcfg.VolumeDefaults()},
+			{"read_only_globs", projectcfg.ReadOnlyDefaults()},
 			{"allowlist", projectcfg.AllowDefaults()},
 		}
 		for i, g := range groups {
