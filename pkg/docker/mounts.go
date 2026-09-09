@@ -2,7 +2,6 @@ package docker
 
 import (
 	"fmt"
-	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -10,15 +9,12 @@ import (
 	"github.com/docker/docker/api/types/volume"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
 
 const (
-	ccboxVolLabel   = "ccbox"         // marks every ccbox volume, for cross-project discovery
-	projectVolLabel = "ccbox.project" // the owning project, valued by host path
-	globalVolLabel  = "ccbox.global"  // marks every global volume
-	trueVolValue    = "true"
+	trueVolValue = "true"
 
 	// containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
 	containerUID = "1000"
@@ -54,14 +50,35 @@ func cacheVolumeNames(hostCwd string) map[string]string {
 	return volumes
 }
 
-// ensureCacheVolumes creates hostCwd's cache volumes labeled with the project and returns their binds.
-func ensureCacheVolumes(ctxD *dock.CtxD, hostCwd string) ([]string, error) {
-	return ensureVolumes(ctxD, cacheVolumeNames(hostCwd), projectVolumeLabels(hostCwd))
+// workspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
+func workspaceMount(hostCwd string) string {
+	return filepath.Join(containerHome, filepath.Base(hostCwd))
 }
 
-// ensureGlobalVolumes creates the global volumes — ccbox-labeled, no project — and returns their binds.
-func ensureGlobalVolumes(ctxD *dock.CtxD) ([]string, error) {
-	return ensureVolumes(ctxD, globalVolumes, globalVolumeLabels())
+func globalVolumeLabels() map[string]string {
+	return mergeempty.Map(volumeLabels(), map[string]string{"ccbox.global": trueVolValue})
+}
+
+// projectVolumeLabels are the labels stamped on every project volume ccbox creates for hostCwd.
+func projectVolumeLabels(hostCwd string) map[string]string {
+	return mergeempty.Map(volumeLabels(), map[string]string{"ccbox.project": hostCwd})
+}
+
+func volumeLabels() map[string]string { return map[string]string{"ccbox": trueVolValue} }
+
+// ProjectSlug is ccbox's per-project key: the host cwd slugified (e.g. /Users/me/app → -Users-me-app).
+func ProjectSlug(hostCwd string) string {
+	return strings.ReplaceAll(hostCwd, "/", "-")
+}
+
+// safeContainerPath joins a project-relative path under workspaceMount
+// rejecting unsafe paths ("..", absolute)
+func safeContainerPath(workspaceMount, hostPath string) (string, error) {
+	dest := filepath.Join(workspaceMount, hostPath)
+	if rel, err := filepath.Rel(workspaceMount, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("path escapes workspace: %q", hostPath)
+	}
+	return dest, nil
 }
 
 // ensureVolumes creates each named volume with labels and returns its sorted binds.
@@ -83,40 +100,4 @@ func volumeBinds(volumes map[string]string) []string {
 	}
 	sort.Strings(binds)
 	return binds
-}
-
-// cliConfigMount is the in-container path the persisted config dir binds to for cliName
-func cliConfigMount(cliName string) string {
-	return path.Join(containerHome, harness.MustFor(cliName).ConfigHomeMount)
-}
-
-// workspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
-func workspaceMount(hostCwd string) string {
-	return filepath.Join(containerHome, filepath.Base(hostCwd))
-}
-
-// ProjectSlug is ccbox's per-project key: the host cwd slugified (e.g. /Users/me/app → -Users-me-app).
-// Distinct from Claude Code's .claude/projects slug, which CC derives from its container cwd.
-func ProjectSlug(hostCwd string) string {
-	return strings.ReplaceAll(hostCwd, "/", "-")
-}
-
-// projectVolumeLabels are the labels stamped on every project volume ccbox creates for hostCwd.
-func globalVolumeLabels() map[string]string {
-	return map[string]string{ccboxVolLabel: trueVolValue, globalVolLabel: trueVolValue}
-}
-
-// projectVolumeLabels are the labels stamped on every project volume ccbox creates for hostCwd.
-func projectVolumeLabels(hostCwd string) map[string]string {
-	return map[string]string{ccboxVolLabel: trueVolValue, projectVolLabel: hostCwd}
-}
-
-// safeContainerPath joins a project-relative path under workspaceMount
-// rejecting unsafe paths ("..", absolute)
-func safeContainerPath(workspaceMount, hostPath string) (string, error) {
-	dest := filepath.Join(workspaceMount, hostPath)
-	if rel, err := filepath.Rel(workspaceMount, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes workspace: %q", hostPath)
-	}
-	return dest, nil
 }

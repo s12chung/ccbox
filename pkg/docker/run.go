@@ -13,6 +13,7 @@ import (
 	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -62,29 +63,26 @@ func runConfig(hostOptions RunOptions) *container.Config {
 }
 
 func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
-	globalBinds, err := ensureGlobalVolumes(ctxD)
+	globalBinds, err := ensureVolumes(ctxD, globalVolumes, globalVolumeLabels())
 	if err != nil {
 		return nil, err
 	}
-	tmpfs, err := tmpfsMasks(hostOptions.Cwd, hostOptions.TmpfsMasks)
+	cacheMounts, err := ensureVolumes(ctxD, cacheVolumeNames(hostOptions.Cwd), projectVolumeLabels(hostOptions.Cwd))
 	if err != nil {
 		return nil, err
 	}
-	volumeMaskBinds, err := ensureNamedVolumeMasks(ctxD, hostOptions.Cwd, hostOptions.Tag, hostOptions.VolumeMasks)
+
+	tmpfsMounts, err := tmpfsMasks(hostOptions.Cwd, hostOptions.TmpfsMasks)
+	if err != nil {
+		return nil, err
+	}
+	volumeMaskMounts, err := ensureNamedVolumeMasks(ctxD, hostOptions.Cwd, hostOptions.Tag, hostOptions.VolumeMasks)
 	if err != nil {
 		return nil, err
 	}
 	roPathBinds, err := readOnlyPathBinds(hostOptions.Cwd, hostOptions.ReadOnlyPaths)
 	if err != nil {
 		return nil, err
-	}
-	cacheBinds, err := ensureCacheVolumes(ctxD, hostOptions.Cwd)
-	if err != nil {
-		return nil, err
-	}
-	var gitBinds []string
-	if hostOptions.GitConfigDir != "" {
-		gitBinds = []string{hostOptions.GitConfigDir + ":" + gitConfigMount + ":ro"}
 	}
 
 	// The egress wall network by default; --no-proxy runs on the engine's default bridge instead.
@@ -96,13 +94,21 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
-		Binds: slices.Concat(globalBinds, []string{
-			hostOptions.CLIConfigDir + ":" + cliConfigMount(hostOptions.CLI),
-			hostOptions.ProjectStateDir + ":" + projectStateMount,
+		Binds: slices.Concat([]string{
 			hostOptions.Cwd + ":" + workspaceMount(hostOptions.Cwd),
-		}, cacheBinds, volumeMaskBinds, roPathBinds, gitBinds, cliDataBinds(hostOptions.CLIDataBinds)),
-		Tmpfs: tmpfs,
+			hostOptions.CLIConfigDir + ":" + path.Join(containerHome, harness.MustFor(hostOptions.CLI).ConfigHomeMount),
+			hostOptions.ProjectStateDir + ":" + projectStateMount,
+		}, globalBinds, cacheMounts, volumeMaskMounts, roPathBinds,
+			gitBinds(hostOptions.GitConfigDir), cliDataBinds(hostOptions.CLIDataBinds)),
+		Tmpfs: tmpfsMounts,
 	}, nil
+}
+
+func gitBinds(gitConfigDir string) []string {
+	if gitConfigDir == "" {
+		return nil
+	}
+	return []string{gitConfigDir + ":" + gitConfigMount + ":ro"}
 }
 
 // cliDataBinds renders CLIDataBinds as host:container rw binds, sorted for a deterministic spec.
