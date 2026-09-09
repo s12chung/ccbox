@@ -2,7 +2,10 @@ package docker
 
 import (
 	"fmt"
+	"maps"
+	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -10,20 +13,48 @@ import (
 	"github.com/docker/docker/api/types/volume"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
 
-const (
-	// label keys stamped on ccbox volumes; the project key also filters per-project volume cleanup
-	ccboxLabelKey        = "ccbox"
-	ccboxProjectLabelKey = "ccbox.project"
+// workspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
+func workspaceMount(hostCwd string) string {
+	return filepath.Join(containerHome, filepath.Base(hostCwd))
+}
 
-	trueVolValue = "true"
+// gitBinds binds the host global git dir read-only at gitConfigMount (git's default XDG path).
+// If gitConfigDir is empty, skips.
+func gitBinds(gitConfigDir string) []string {
+	if gitConfigDir == "" {
+		return nil
+	}
+	return []string{gitConfigDir + ":" + gitConfigMount + ":ro"}
+}
 
-	// containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
-	containerUID = "1000"
-)
+// cliDataBinds renders CLIDataBinds as host:container rw binds, sorted for a deterministic spec.
+func cliDataBinds(m map[string]string) []string {
+	binds := make([]string, 0, len(m))
+	for _, host := range slices.Sorted(maps.Keys(m)) {
+		binds = append(binds, host+":"+path.Join(containerHome, m[host]))
+	}
+	return binds
+}
+
+// agentsMdBind binds o.AgentsMdBind to the container's CLI config path.
+// If o.AgentsMdBind is empty, skips (because a SeedAgentsFilename already exists)
+func agentsMdBind(o RunOptions) []string {
+	if o.AgentsMdBind == "" {
+		return nil
+	}
+	cli := harness.MustFor(o.CLI)
+	return []string{o.AgentsMdBind + ":" + path.Join(containerHome, cli.ConfigHomeMount, cli.SeedAgentsFilename)}
+}
+
+// globalVolumes maps volume name → container directory for volumes shared by every project
+var globalVolumes = map[string]string{
+	"ccbox-clis": install.DefaultRoot, // ccboxtools installs the coding CLI here at start
+}
 
 // cacheVolumes maps suffix of volume name → container directory for cacheVolumeBinds()
 var cacheVolumes = map[string]string{
@@ -36,16 +67,6 @@ var cacheVolumes = map[string]string{
 	"tmp":        "/tmp",                    // agent tmp workspace to try things out
 }
 
-// globalVolumes maps volume name → container directory for volumes shared by every project
-var globalVolumes = map[string]string{
-	"ccbox-clis": install.DefaultRoot, // ccboxtools installs the coding CLI here at start
-}
-
-// cacheVolumeName is hostCwd's named volume for a given cacheVolumes suffix.
-func cacheVolumeName(hostCwd, suffix string) string {
-	return "ccbox" + ProjectSlug(hostCwd) + "-" + suffix
-}
-
 // cacheVolumeNames maps volume name → container dir under hostCwd's project slug.
 func cacheVolumeNames(hostCwd string) map[string]string {
 	volumes := make(map[string]string, len(cacheVolumes))
@@ -55,10 +76,17 @@ func cacheVolumeNames(hostCwd string) map[string]string {
 	return volumes
 }
 
-// workspaceMount is the in-container workspace path: the WorkingDir and bind target for the host cwd.
-func workspaceMount(hostCwd string) string {
-	return filepath.Join(containerHome, filepath.Base(hostCwd))
+// cacheVolumeName is hostCwd's named volume for a given cacheVolumes suffix.
+func cacheVolumeName(hostCwd, suffix string) string {
+	return "ccbox" + ProjectSlug(hostCwd) + "-" + suffix
 }
+
+const (
+	// label keys stamped on ccbox volumes; the project key also filters per-project volume cleanup
+	ccboxLabelKey        = "ccbox"
+	ccboxProjectLabelKey = "ccbox.project"
+	trueVolValue         = "true"
+)
 
 func globalVolumeLabels() map[string]string {
 	return mergeempty.Map(volumeLabels(), map[string]string{"ccbox.global": trueVolValue})

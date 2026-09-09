@@ -8,6 +8,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 )
 
+// containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
+const containerUID = "1000"
+
 // tmpfsOpts makes a masked project dir's tmpfs writable+executable by that user, so masked build
 // outputs (e.g. dist/) can be written and run — Docker's default is root-owned noexec.
 var tmpfsOpts = fmt.Sprintf("uid=%s,gid=%s,exec", containerUID, containerUID)

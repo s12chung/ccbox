@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"maps"
 	"os"
 	"path"
 	"slices"
@@ -104,32 +103,6 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 			agentsMdBind(hostOptions)),
 		Tmpfs: tmpfsMounts,
 	}, nil
-}
-
-func gitBinds(gitConfigDir string) []string {
-	if gitConfigDir == "" {
-		return nil
-	}
-	return []string{gitConfigDir + ":" + gitConfigMount + ":ro"}
-}
-
-// cliDataBinds renders CLIDataBinds as host:container rw binds, sorted for a deterministic spec.
-func cliDataBinds(m map[string]string) []string {
-	binds := make([]string, 0, len(m))
-	for _, host := range slices.Sorted(maps.Keys(m)) {
-		binds = append(binds, host+":"+path.Join(containerHome, m[host]))
-	}
-	return binds
-}
-
-// agentsMdBind binds o.AgentsMdBind to the container's CLI config path.
-// If o.AgentsMdBind is empty, skips (because a SeedAgentsFilename already exists)
-func agentsMdBind(o RunOptions) []string {
-	if o.AgentsMdBind == "" {
-		return nil
-	}
-	cli := harness.MustFor(o.CLI)
-	return []string{o.AgentsMdBind + ":" + path.Join(containerHome, cli.ConfigHomeMount, cli.SeedAgentsFilename)}
 }
 
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
