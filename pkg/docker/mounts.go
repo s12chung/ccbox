@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/volume"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
@@ -14,6 +15,10 @@ import (
 )
 
 const (
+	// label keys on ccbox volumes
+	ccboxLabelKey        = "ccbox"
+	ccboxProjectLabelKey = "ccbox.project"
+
 	trueVolValue = "true"
 
 	// containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
@@ -61,10 +66,18 @@ func globalVolumeLabels() map[string]string {
 
 // projectVolumeLabels are the labels stamped on every project volume ccbox creates for hostCwd.
 func projectVolumeLabels(hostCwd string) map[string]string {
-	return mergeempty.Map(volumeLabels(), map[string]string{"ccbox.project": hostCwd})
+	return mergeempty.Map(volumeLabels(), map[string]string{ccboxProjectLabelKey: hostCwd})
 }
 
-func volumeLabels() map[string]string { return map[string]string{"ccbox": trueVolValue} }
+func volumeLabels() map[string]string { return map[string]string{ccboxLabelKey: trueVolValue} }
+
+// projectVolumeFilter matches every volume stamped with projectVolumeLabels(hostCwd)
+func projectVolumeFilter(hostCwd string) filters.Args {
+	return filters.NewArgs(
+		filters.Arg("label", ccboxLabelKey+"="+trueVolValue),
+		filters.Arg("label", ccboxProjectLabelKey+"="+hostCwd),
+	)
+}
 
 // ProjectSlug is ccbox's per-project key: the host cwd slugified (e.g. /Users/me/app → -Users-me-app).
 func ProjectSlug(hostCwd string) string {

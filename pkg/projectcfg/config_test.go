@@ -347,14 +347,6 @@ func TestConfig_ReadOnlyGlobsExpanded(t *testing.T) {
 	assert.Equal(t, []string{".ccbox.yaml", ".env"}, c.ReadOnlyPathsPresent())
 }
 
-func TestConfig_VolumeCleanupDirs(t *testing.T) {
-	c := Config{VolumeMasks: []string{"node_modules", "target"}}
-	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupDirs())
-
-	c = Config{VolumeMasks: []string{DefaultsToken, "target"}} // the token expands to the built-ins, deduped
-	assert.Equal(t, []string{"node_modules", ".venv", "vendor/bundle", "target"}, c.VolumeCleanupDirs())
-}
-
 func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	dir := t.TempDir()
 	// present stays resolved in, the absent drop: build, .venv, vendor/bundle, cache, .env

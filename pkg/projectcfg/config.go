@@ -155,20 +155,6 @@ func (c *Config) ReadOnlyPathsPresent() []string {
 	return paths
 }
 
-// VolumeCleanupDirs is every mask dir whose volume may exist
-func (c *Config) VolumeCleanupDirs() []string {
-	seen := map[string]bool{}
-	var dirs []string
-	for _, d := range append(append([]string{}, volumeDefaults...), c.VolumeMasksExpanded()...) {
-		if seen[d] {
-			continue
-		}
-		seen[d] = true
-		dirs = append(dirs, d)
-	}
-	return dirs
-}
-
 // AllowlistExpanded expands the DefaultsToken tokens in Allowlist to AllowDefaults
 func (c *Config) AllowlistExpanded() []string {
 	if c.expandedAllowlist == nil {
