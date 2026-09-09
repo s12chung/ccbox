@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 )
 
 // fsnode is one path of a merged tree: its position in the tree is its (renamed)

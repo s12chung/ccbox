@@ -3,7 +3,7 @@ package cmd
 import (
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/util/uslice"
 )
 

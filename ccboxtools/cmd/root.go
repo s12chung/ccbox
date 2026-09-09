@@ -23,4 +23,4 @@ func Execute() int {
 	return 0
 }
 
-func init() { rootCmd.AddCommand(updateCmd) }
+func init() { rootCmd.AddCommand(updateCmd, entrypointCmd) }

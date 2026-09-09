@@ -29,11 +29,11 @@ import (
 	"github.com/s12chung/firm/rule"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
-	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // all is every known CLI, loaded in the init() at the bottom of this file.

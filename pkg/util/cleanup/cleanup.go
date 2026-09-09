@@ -5,7 +5,7 @@ package cleanup
 import (
 	"slices"
 
-	"github.com/s12chung/ccbox/pkg/util/log"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 )
 
 // Stack holds named teardown steps and runs them in reverse order.

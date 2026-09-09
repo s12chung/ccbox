@@ -44,7 +44,8 @@ For tests:
 - Name tests `Test<Subject>_<Case>`, splitting multi-level names (e.g. `TestSeedUserConfig_SkipsExisting`, `TestFS_Rename_CrossKind`, not `TestSeedUserConfigSkipsExisting`); a lone subject needs no case (`TestMinus`).
 - Place tests of the same subject next to each other — the name's subject tells you where a test goes.
 - Use `t.Run()` for cases, never comments.
+- Have a strong bias towards table tests
 
 ### Linting
 
-`golangci-lint` is very strict. When encountering `bodyclose`, use this pattern `defer func() { log.WarnErr("intent", resp.Body.Close()) }()`, where `log` is `pkg/util/log`.
+`golangci-lint` is very strict. When encountering `bodyclose`, use this pattern `defer func() { log.WarnErr("intent", resp.Body.Close()) }()`, where `log` is `ccboxtools/pkg/log`.

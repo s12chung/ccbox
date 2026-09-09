@@ -94,6 +94,5 @@ RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
              /home/ccbox/.config /home/ccbox/.local/share/opencode /tmp/opencode && \
     git config --file /home/ccbox/.gitconfig --add safe.directory '*'
 
-COPY --chmod=755 docker/image/entrypoint.sh /usr/local/bin/entrypoint.sh
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/ccboxtools", "entrypoint"]
 CMD ["bash"]

@@ -8,11 +8,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
-	"github.com/s12chung/ccbox/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 

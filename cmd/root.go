@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
@@ -18,7 +19,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/log"
 )
 
 // Injected from main (package main can't be imported, so the embed FSes come in here).

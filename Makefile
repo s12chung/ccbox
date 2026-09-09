@@ -14,7 +14,7 @@ dist/ccboxtools.tar.gz: Makefile $(shell find ccboxtools -type f)
 # tar needed to build with go:embed, which allows lint
 lint: dist/ccboxtools.tar.gz
 	hadolint Dockerfile
-	shellcheck docker/image/entrypoint.sh pkg/harness/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
+	shellcheck pkg/harness/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/harness/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null
 	golangci-lint run --fix $(TEST)
