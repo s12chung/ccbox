@@ -17,7 +17,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -97,7 +96,7 @@ func init() {
 
 // safeSeedHarness seeds the user-level harness state if missing
 func safeSeedHarness() error {
-	if err := safeSeed(fsutil.MustNewFS(harness.SeedUserClisFS()), harness.UserCLIsDir(), false); err != nil {
+	if err := safeSeed(harness.SeedUserClisFS(), harness.UserCLIsDir(), false); err != nil {
 		return err
 	}
 	return harness.SafeSeedAgentsMd()

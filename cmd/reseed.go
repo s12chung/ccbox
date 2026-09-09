@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +13,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -39,7 +39,7 @@ var seedTreeFn = seed.Tree
 
 // safeSeed seeds dst from fsys when dst doesn't exist yet — or re-seeds after
 // confirmation when confirm is set, backing up overwritten files.
-func safeSeed(fsys *fsutil.FS, dst string, confirm bool) error {
+func safeSeed(fsys fs.FS, dst string, confirm bool) error {
 	switch _, err := os.Stat(dst); {
 	case err == nil: // exists
 		if !confirm {

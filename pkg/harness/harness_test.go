@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -242,7 +241,7 @@ func TestSeedCLIFS_UserTree(t *testing.T) {
 	assert.Empty(t, seedPaths(t, bareFS))
 }
 
-func seedPaths(t *testing.T, fsys *fsutil.FS) []string {
+func seedPaths(t *testing.T, fsys fs.FS) []string {
 	t.Helper()
 	var paths []string
 	require.NoError(t, fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {

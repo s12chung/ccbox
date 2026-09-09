@@ -64,19 +64,20 @@ var (
 
 // SeedCLIFS returns cli's seed fs: the CLI's own config tree, from embed or
 // user-clis from UserCLIsDir().
-func SeedCLIFS(cliName string) *fsutil.FS {
+func SeedCLIFS(cliName string) fs.FS {
 	cli := MustFor(cliName)
 	cliConfigPath := path.Join("clis", cliName, SeedConfigDir)
 	fsys := fs.FS(embedCLIFS)
 	if cli.fromUserDir {
 		vfs := fsutil.MustNewFS(userCLIsFS())
+		// vfs.MkdirAll ensures that cliConfigPath exists for the caller
 		if err := vfs.MkdirAll(cliConfigPath); err != nil { // ensure MustSub() doesn't panic, no-op if dir path already exists
 			panic(err) // unreachable: loadFsYAML skips user clis whose clis/<cliName>/config is a file
 		}
 		fsys = vfs
 	}
 	// any cliName passed down will match a CLI in All() - see package NOTE
-	return fsutil.MustNewFS(fsutil.MustSub(fsys, cliConfigPath))
+	return fsutil.MustSub(fsys, cliConfigPath)
 }
 
 // UserCLIsDir is the host dir of user-defined clis: ~/.ccbox/config/clis.
