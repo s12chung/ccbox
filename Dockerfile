@@ -1,14 +1,5 @@
 FROM ghcr.io/jdx/mise:2026.6.9 AS mise
 
-FROM golang:1.26 AS ccboxtools
-WORKDIR /src
-# go:embed cannot embed a directory belonging to a different module, so we pack a tar
-# hadolint ignore=DL3010
-ADD dist/ccboxtools.tar.gz .
-# go resolves the main module upward from the cwd, so build from the module root
-WORKDIR /src/ccboxtools
-RUN CGO_ENABLED=0 go build -o /out/ccboxtools .
-
 FROM debian:trixie-slim
 
 # Each row is a section:
@@ -72,7 +63,7 @@ RUN echo 'export PATH="'"$PATH"'"' > /etc/profile.d/ccbox-path.sh; \
       'TAB: menu-complete' \
       '"\e[Z": menu-complete-backward' >> /etc/inputrc
 
-COPY --from=ccboxtools /out/ccboxtools /usr/local/bin/ccboxtools
+COPY --chmod=755 dist/ccboxtools /usr/local/bin/ccboxtools
 
 # Build-time cleanup + groundwork for the volume mounts:
 # - clean /root's build caches from mise; /tmp restarts standard 1777

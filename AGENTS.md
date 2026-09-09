@@ -44,8 +44,7 @@ For tests:
 - Name tests `Test<Subject>_<Case>`, splitting multi-level names (e.g. `TestSeedUserConfig_SkipsExisting`, `TestFS_Rename_CrossKind`, not `TestSeedUserConfigSkipsExisting`); a lone subject needs no case (`TestMinus`).
 - Place tests of the same subject next to each other — the name's subject tells you where a test goes.
 - Ensure ALL errors are asserted or required, never write `_ = returnsErr()`
-- Use `t.Run()` for cases, never comments.
-- Have a strong bias towards table tests
+- Table tests are standard for test cases. For complex cases, use `t.Run()`, never comments.
 
 ### Linting
 

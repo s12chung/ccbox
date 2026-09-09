@@ -71,7 +71,7 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
-	configTar, err := tarutil.ToTar(o.Config, o.Overrides, false)
+	configTar, err := tarutil.ToTar(o.Config, o.Overrides)
 	if err != nil {
 		return nil, err
 	}

@@ -9,11 +9,11 @@ import (
 	"github.com/s12chung/ccbox/cmd"
 )
 
-// `go:embed` can't reach above its own package dir
-// and nested module can't be embedded either, so pack a tar
-// that's checked at build time `ccbox doctor tools`
+// `go:embed` can't reach above its own package dir and can't
+// embed a nested module either, so embed a ccboxtools binary
+// that's checked at build time by `ccbox doctor tools`
 
-//go:embed Dockerfile docker/image/* dist/ccboxtools.tar.gz
+//go:embed Dockerfile docker/image/* dist/ccboxtools
 var buildContext embed.FS
 
 //go:embed docker/tinyproxy/*

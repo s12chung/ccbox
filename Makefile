@@ -1,22 +1,20 @@
 BIN ?= dist/ccbox
 TAG ?= s12chung/ccbox:latest
 
-build: dist/ccboxtools.tar.gz
+GOARCH ?= $(shell go env GOARCH)
+
+build:
+	go run ./toolsbuild -goarch $(GOARCH) -o dist/ccboxtools
 	go build -o $(BIN)
-	$(BIN) doctor tools
+	GOARCH=$(GOARCH) $(BIN) doctor tools
 
-# ccboxtools is a nested module, so go:embed can't take its dir, so we pack a tar instead.
-dist/ccboxtools.tar.gz: Makefile $(shell find ccboxtools -type f)
-	mkdir -p dist
-	# exclude keep macOS bsdtar from adding AppleDouble `._` entries
-	COPYFILE_DISABLE=1 tar --no-xattrs --exclude='._*' -czf $@ ccboxtools
-
-# tar needed to build with go:embed, which allows lint
-lint: dist/ccboxtools.tar.gz
+lint:
 	hadolint Dockerfile
 	shellcheck pkg/harness/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/harness/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null
+
+	go run ./toolsbuild -goarch $(GOARCH) -o dist/ccboxtools # needed to build for lint
 	golangci-lint run --fix $(TEST)
 	cd ccboxtools && golangci-lint run --fix $(TEST)
 
@@ -24,9 +22,8 @@ ci: lint test
 test.all: test test.docker
 
 test: lint
+	cd ccboxtools && go test -race -count=2 ./... # -race -count=2 for ccboxtools' lock interplay
 	go test ./...
-	# -race -count=2 for ccboxtools' lock interplay
-	cd ccboxtools && go test -race -count=2 ./...
 
 # Manual: needs the built image + network egress, so it stays out of CI.
 test.docker:
