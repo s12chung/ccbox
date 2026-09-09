@@ -56,3 +56,8 @@ func (d PkgDir) BinLink() string { return filepath.Join(d.Root, "bin", d.Name())
 func (d PkgDir) BinLinkTarget() string {
 	return filepath.Join("..", d.Name(), "current", d.RelBin())
 }
+
+// LockPath is the per-CLI lock file guarding installs. The flock on it is
+// kernel-held — released when the holding container dies — so the persisted
+// file needs no stale handling.
+func (d PkgDir) LockPath() string { return filepath.Join(d.Root, d.Name()+".lock") }
