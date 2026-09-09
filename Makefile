@@ -22,7 +22,8 @@ ci: lint test
 test.all: test test.docker
 
 test: lint
-	cd ccboxtools && go test -race -count=2 ./... # -race -count=2 for ccboxtools' lock interplay
+	cd ccboxtools && go test -race -count=2 ./pkg/lock ./pkg/install # -race -count=2 for lock interplay
+	cd ccboxtools && go test ./...
 	go test ./...
 
 # Manual: needs the built image + network egress, so it stays out of CI.
