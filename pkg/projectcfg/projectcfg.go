@@ -78,7 +78,7 @@ func userSeedConfig(cli string) *Config {
 // seeded cli. An existing file is never touched. Returns the path seeded, or "" when it
 // already exists.
 func SeedUserConfig(cli string) (string, error) {
-	if !ioutil.Missing(UserConfigFile()) {
+	if ioutil.Present(UserConfigFile()) {
 		return "", nil // the no-op path: no seed, no log
 	}
 	body, err := userSeedConfig(cli).renderTmpl()

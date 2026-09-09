@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
@@ -40,7 +41,7 @@ func resumeArgs(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
+func runOptions(m hostMounts, agentsMdBind string, args []string) (docker.RunOptions, error) {
 	gitConfigDir, err := hostGitConfigDir()
 	if err != nil {
 		return docker.RunOptions{}, err
@@ -61,6 +62,7 @@ func runOptions(m hostMounts, args []string) (docker.RunOptions, error) {
 		ProjectStateDir: m.projectState,
 		Cwd:             m.cwd,
 		CLIDataBinds:    m.cliDataBinds,
+		AgentsMdBind:    agentsMdBind,
 		GHToken:         os.Getenv("GH_TOKEN"),
 		GitConfigDir:    gitConfigDir,
 		Env:             mergeempty.Map(projectCfg.Env, map[string]string{pkginfo.EnvVar: pkgInfo}),
@@ -91,11 +93,17 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	presentPathsSnapshot := projectCfg.ReadOnlyPathsPresent()
 	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
+	agentsMdBind, settleAgents, err := harness.AgentsMdShare{CLI: harness.MustFor(*projectCfg.CLI)}.Begin()
+	if err != nil {
+		return err
+	}
+	defer log.Defer("settle shared agents doc", settleAgents)
+
 	ctxD, err := dock.NewCtxD(cmd.Context())
 	if err != nil {
 		return err
 	}
-	runOpts, err := runOptions(m, args)
+	runOpts, err := runOptions(m, agentsMdBind, args)
 	if err != nil {
 		return err
 	}

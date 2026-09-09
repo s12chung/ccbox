@@ -56,7 +56,6 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 				}
 				return nil
 			}))
-			assert.Contains(t, paths, cli.SeedAgentsFilename, "shared AGENTS doc renamed into place")
 			assert.Contains(t, paths, tc.ownFile, "per-CLI tree merged in")
 		})
 	}

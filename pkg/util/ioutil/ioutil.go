@@ -15,11 +15,14 @@ const (
 	ExecFile os.FileMode = 0o755 // executable files (e.g. shell scripts)
 )
 
-// Missing reports whether path does not exist
+// Missing returns whether path does not exist
 func Missing(path string) bool {
 	_, err := os.Stat(path)
 	return errors.Is(err, fs.ErrNotExist)
 }
+
+// Present returns whether path exists
+func Present(path string) bool { return !Missing(path) }
 
 // DirsPresent returns the entries of dirs that exist as directories under src.
 func DirsPresent(src string, dirs []string) []string {

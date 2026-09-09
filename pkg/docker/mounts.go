@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	// label keys on ccbox volumes
+	// label keys stamped on ccbox volumes; the project key also filters per-project volume cleanup
 	ccboxLabelKey        = "ccbox"
 	ccboxProjectLabelKey = "ccbox.project"
 

@@ -57,7 +57,7 @@ var rootCmd = &cobra.Command{
 				return nil // the hidden maintainer command: no seeding, no config load
 			}
 		}
-		if err := safeSeedUserClis(); err != nil {
+		if err := safeSeedHarness(); err != nil {
 			return err
 		}
 		if err := safeSeedUserConfig(); err != nil {
@@ -95,14 +95,17 @@ func init() {
 	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
 }
 
-// safeSeedUserClis seeds harness.UserCLIsDir() if missing
-func safeSeedUserClis() error {
-	return safeSeed(fsutil.MustNewFS(harness.SeedUserClisFS()), harness.UserCLIsDir(), false)
+// safeSeedHarness seeds the user-level harness state if missing
+func safeSeedHarness() error {
+	if err := safeSeed(fsutil.MustNewFS(harness.SeedUserClisFS()), harness.UserCLIsDir(), false); err != nil {
+		return err
+	}
+	return harness.SafeSeedAgentsMd()
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing
 func safeSeedUserConfig() error {
-	if !ioutil.Missing(projectcfg.UserConfigFile()) {
+	if ioutil.Present(projectcfg.UserConfigFile()) {
 		return nil // the file already existed: no seed, so no prompt, no log
 	}
 	cli, err := pick.Select(

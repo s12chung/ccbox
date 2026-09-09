@@ -52,33 +52,20 @@ func Names() []string {
 	return names
 }
 
-const (
-	// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
-	SeedConfigDir = "config"
-	// AgentsFileName is the shared user AGENTS.md
-	AgentsFileName = "AGENTS.user.md"
-)
+// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
+const SeedConfigDir = "config"
 
 var (
 	//go:embed clis
 	embedCLIFS embed.FS
-	//go:embed shared-clis
-	sharedCLIFS embed.FS
 	//go:embed user-clis
 	userCLIFS embed.FS
 )
 
-// SeedCLIFS returns cli's seed fs--shared-clis/ with renames from embed + (clis from embed or user-clis from UserCLIsDir())
-// merged into one tree. The embed cli merges last, so it owns colliding paths when seeded.
-//
-// This fs is used for seeding the running containerized CLI
+// SeedCLIFS returns cli's seed fs: the CLI's own config tree, from embed or
+// user-clis from UserCLIsDir().
 func SeedCLIFS(cliName string) *fsutil.FS {
 	cli := MustFor(cliName)
-	sharedFS := fsutil.MustNewFS(fsutil.MustSub(sharedCLIFS, path.Join("shared-clis", SeedConfigDir)))
-	if err := sharedFS.Rename(AgentsFileName, cli.SeedAgentsFilename); err != nil {
-		panic(err) // unreachable: the source is a compile-time embed constant
-	}
-
 	cliConfigPath := path.Join("clis", cliName, SeedConfigDir)
 	fsys := fs.FS(embedCLIFS)
 	if cli.fromUserDir {
@@ -89,7 +76,7 @@ func SeedCLIFS(cliName string) *fsutil.FS {
 		fsys = vfs
 	}
 	// any cliName passed down will match a CLI in All() - see package NOTE
-	return sharedFS.MustMerge(fsutil.MustSub(fsys, cliConfigPath))
+	return fsutil.MustNewFS(fsutil.MustSub(fsys, cliConfigPath))
 }
 
 // UserCLIsDir is the host dir of user-defined clis: ~/.ccbox/config/clis.

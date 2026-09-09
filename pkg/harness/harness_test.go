@@ -217,11 +217,12 @@ func TestParse_Rejects(t *testing.T) {
 func TestSeedCLIFS(t *testing.T) {
 	for _, c := range All() {
 		fsys := SeedCLIFS(c.Name)
-		assert.Containsf(t, seedPaths(t, fsys), c.SeedAgentsFilename, "shared AGENTS doc renamed into place: %s", c.Name)
+		assert.NotContainsf(t, seedPaths(t, fsys), c.SeedAgentsFilename,
+			"shared AGENTS doc is bind-mounted at runtime, never seeded: %s", c.Name)
 	}
 
 	claudeFS := SeedCLIFS("claude") // per-CLI tree rooted at its config dir
-	want := []string{"CLAUDE.md", "hooks/secret-tripwire.sh", "settings.json", "statusline.sh"}
+	want := []string{"hooks/secret-tripwire.sh", "settings.json", "statusline.sh"}
 	assert.Equal(t, want, seedPaths(t, claudeFS))
 
 	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { SeedCLIFS("emacs") })
@@ -234,12 +235,11 @@ func TestSeedCLIFS_UserTree(t *testing.T) {
 	all = mustLoadAll()
 
 	fsys := SeedCLIFS("mycli")
-	assert.Equal(t, []string{"AGENTS.md", "settings.toml"}, seedPaths(t, fsys),
-		"shared AGENTS renamed in, user config tree merged")
+	assert.Equal(t, []string{"settings.toml"}, seedPaths(t, fsys), "user config tree only")
 
-	// no config tree laid down: SeedCLIFS mkdirs an empty one, so only the shared AGENTS doc lands
+	// no config tree laid down: SeedCLIFS mkdirs an empty one
 	bareFS := SeedCLIFS("bare")
-	assert.Equal(t, []string{"AGENTS.md"}, seedPaths(t, bareFS))
+	assert.Empty(t, seedPaths(t, bareFS))
 }
 
 func seedPaths(t *testing.T, fsys *fsutil.FS) []string {

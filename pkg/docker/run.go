@@ -28,6 +28,7 @@ type RunOptions struct {
 	ProjectStateDir string            // host projectStateDir bind-mounted at projectStateMount
 	Cwd             string            // host project dir bind-mounted at workspaceMount
 	CLIDataBinds    map[string]string // host path → $HOME-relative in-container path, rw bound under containerHome
+	AgentsMdBind    string            // host file rw-bound as the CLI's SeedAgentsFilename; "" = the CLI has its own
 	GitConfigDir    string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
 	GHToken         string            // GH_TOKEN passed through for gh
 	Env             map[string]string // extra container env
@@ -99,7 +100,8 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 			hostOptions.CLIConfigDir + ":" + path.Join(containerHome, harness.MustFor(hostOptions.CLI).ConfigHomeMount),
 			hostOptions.ProjectStateDir + ":" + projectStateMount,
 		}, globalBinds, cacheMounts, volumeMaskMounts, roPathBinds,
-			gitBinds(hostOptions.GitConfigDir), cliDataBinds(hostOptions.CLIDataBinds)),
+			gitBinds(hostOptions.GitConfigDir), cliDataBinds(hostOptions.CLIDataBinds),
+			agentsMdBind(hostOptions)),
 		Tmpfs: tmpfsMounts,
 	}, nil
 }
@@ -118,6 +120,16 @@ func cliDataBinds(m map[string]string) []string {
 		binds = append(binds, host+":"+path.Join(containerHome, m[host]))
 	}
 	return binds
+}
+
+// agentsMdBind binds o.AgentsMdBind to the container's CLI config path.
+// If o.AgentsMdBind is empty, skips (because a SeedAgentsFilename already exists)
+func agentsMdBind(o RunOptions) []string {
+	if o.AgentsMdBind == "" {
+		return nil
+	}
+	cli := harness.MustFor(o.CLI)
+	return []string{o.AgentsMdBind + ":" + path.Join(containerHome, cli.ConfigHomeMount, cli.SeedAgentsFilename)}
 }
 
 // Run starts the devbox container interactively (docker run -it --rm) behind the wall and
