@@ -44,7 +44,7 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	var stack cleanup.Stack
 	defer func() {
 		if err != nil {
-			stack.Run()
+			log.Defer("teardown wall", stack.Run)
 		}
 	}()
 
@@ -94,8 +94,7 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 
 	logDone := streamLogs(logFn, logs)
 	return func() error {
-		stack.Run()
-		return <-logDone
+		return errors.Join(stack.Run(), <-logDone)
 	}, nil
 }
 

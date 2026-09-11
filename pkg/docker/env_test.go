@@ -4,84 +4,30 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestEnvString_BaseWins(t *testing.T) {
-	got := envString(RunOptions{
-		CLI:     "claude",
-		GHToken: "gh",
-		Env:     map[string]string{"GOFLAGS": "-mod=mod", "http_proxy": "evil"},
-	})
+	got := envString(map[string]string{
+		"GH_TOKEN":   "gh",
+		"GOFLAGS":    "-mod=mod",
+		"http_proxy": "evil",
+	}, false)
 
-	// CLI defaults, then o.Env sorted, then the base vars last — so the base http_proxy is the
+	// o.Env sorted, then the wall's proxy vars last — so the base http_proxy is the
 	// final (winning) value.
 	assert.Equal(t, []string{
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
-		"DISABLE_AUTOUPDATER=1",
+		"GH_TOKEN=gh",
 		"GOFLAGS=-mod=mod",
 		"http_proxy=evil",
 		"http_proxy=http://ccbox-egress:8888",
 		"https_proxy=http://ccbox-egress:8888",
 		"no_proxy=localhost,127.0.0.1,::1",
 		"NO_PROXY=localhost,127.0.0.1,::1",
-		"GH_TOKEN=gh",
 	}, got)
 }
 
 func TestEnvString_NoProxy(t *testing.T) {
-	got := envString(RunOptions{
-		CLI:     "claude",
-		GHToken: "gh",
-		NoProxy: true,
-	})
-
-	// No wall, no proxy vars — just the CLI defaults and the token.
-	assert.Equal(t, []string{
-		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
-		"DISABLE_AUTOUPDATER=1",
-		"GH_TOKEN=gh",
-	}, got)
-}
-
-func TestEnvString_CLIDefaults(t *testing.T) {
-	tests := []struct {
-		cli  string
-		want []string
-	}{
-		{
-			cli: "claude",
-			want: []string{
-				"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1",
-				"DISABLE_AUTOUPDATER=1",
-			},
-		},
-		{cli: "codex", want: []string{}},
-		{cli: "opencode", want: []string{"OPENCODE_DISABLE_AUTOUPDATE=1"}},
-		{cli: "grok", want: []string{"GROK_DISABLE_AUTOUPDATER=1"}},
-	}
-	for _, tt := range tests {
-		got := envString(RunOptions{CLI: tt.cli})
-		require.Len(t, got, len(tt.want)+5, tt.cli) // + the base vars
-		assert.Equal(t, tt.want, got[:len(tt.want)], tt.cli)
-	}
-}
-
-func TestEnvString_UnknownCLIPanics(t *testing.T) {
-	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() {
-		envString(RunOptions{CLI: "emacs"})
-	})
-}
-
-func TestEnvString_UserOverridesCLI(t *testing.T) {
-	got := envString(RunOptions{
-		CLI: "opencode",
-		Env: map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "0"},
-	})
-
-	// Both entries are emitted; Docker takes the last (user's) value.
-	assert.Equal(t, []string{
-		"OPENCODE_DISABLE_AUTOUPDATE=1",
-		"OPENCODE_DISABLE_AUTOUPDATE=0",
-	}, got[:2])
+	got := envString(map[string]string{"GH_TOKEN": "gh"}, true)
+	// No wall, no proxy vars — just the caller's env.
+	assert.Equal(t, []string{"GH_TOKEN=gh"}, got)
 }

@@ -12,8 +12,9 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
 
 This curated directory will help you discover common patterns (`pkg/util` and `pkg/kit`) and navigate the project:
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/image/*`) and proxy configs (`docker/tinyproxy/*`) into the binary, then hands off to `cmd`.
-- **`cmd/`** — thin cobra commands: gather flags/env and call one `pkg/docker` operation each.
+- **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
+  - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `projectcfg/` — related to `ccbox` Config as described in the README
   - `harness/` — individual harness/cli related code; embeds its seed trees under `clis/`: it lays these onto the host config dir which is then mounted to the container. Only the configured CLI's config dir is seeded and mounted.
@@ -36,7 +37,10 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 
 ### Conventions
 
-`tmpfs_masks`, `volume_masks`, and `read_only_globs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfs_masks`, `volume_masks`, and `read_only_globs`.
+Terminology:
+
+- A **path** is a single path string - host paths end in `HostPath` and container paths end in `MountPath`. A **mount** is a bind, volume, or tmpfs mount, even when typed as an interface, refer to binds as "binds" and volumes as "volumes".
+- `tmpfs_masks`, `volume_masks`, and `read_only_globs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfs_masks`, `volume_masks`, and `read_only_globs`.
 
 For tests:
 

@@ -5,14 +5,11 @@ import (
 	"errors"
 	"io"
 	"os"
-	"path"
-	"slices"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -21,67 +18,43 @@ const proxyPort = "8888"
 
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
-	Tag             string
-	CLI             string            // selects the config mount target (each CLI's native default dir)
-	CLIConfigDir    string            // host cliConfigDir bind-mounted at the cliCOnfigMount
-	ProjectStateDir string            // host projectStateDir bind-mounted at projectStateMount
-	Cwd             string            // host project dir bind-mounted at workspaceMount
-	CLIDataBinds    map[string]string // host path → $HOME-relative in-container path, rw bound under containerHome
-	AgentsMdBind    string            // host file rw-bound as the CLI's SeedAgentsFilename; "" = the CLI has its own
-	GitConfigDir    string            // host ~/.config/git bind-mounted read-only at gitConfigMount; "" = skip
-	GHToken         string            // GH_TOKEN passed through for gh
-	Env             map[string]string // extra container env
-	TmpfsMasks      []string          // project-relative dirs to mask with a temp filesystem
-	VolumeMasks     []string          // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyPaths   []string          // project-relative paths to re-mount read-only
-	Cmd             []string          // command the entrypoint execs; nil uses the image default (shell)
+	RunHostOptions
+
+	Tag string
+	Env map[string]string // container env minus the wall's proxy vars
+	Cmd []string          // command the entrypoint execs; nil uses the image default (shell)
 
 	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
 	ProxyLogPath string       // file an auto-started wall's logs are appended to
 	NoProxy      bool         // run on plain bridge networking, no wall or proxy env
 }
 
-const (
-	containerHome     = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
-	projectStateMount = "/home/ccbox/.ccbox/project" // per-project devbox state (e.g. lessons)
-
-	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
-)
+// RunHostOptions is everything mounted into the devbox: the workspace, the host dirs
+// and volumes as mounts, and the project dirs masked with tmpfs. Cwd is the project
+// identity labeling its volumes; WorkspaceMountPath is the container's WorkingDir.
+type RunHostOptions struct {
+	Cwd                string
+	WorkspaceMountPath string
+	Mounts             []Mount
+	TmpfsPaths         []string
+}
 
 func runConfig(hostOptions RunOptions) *container.Config {
 	return &container.Config{
 		Image:        hostOptions.Tag,
 		Cmd:          hostOptions.Cmd,
-		WorkingDir:   workspaceMount(hostOptions.Cwd),
+		WorkingDir:   hostOptions.WorkspaceMountPath,
 		Tty:          true,
 		OpenStdin:    true,
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Env:          envString(hostOptions),
+		Env:          envString(hostOptions.Env, hostOptions.NoProxy),
 	}
 }
 
 func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
-	globalBinds, err := ensureVolumes(ctxD, globalVolumes, globalVolumeLabels())
-	if err != nil {
-		return nil, err
-	}
-	cacheMounts, err := ensureVolumes(ctxD, cacheVolumeNames(hostOptions.Cwd), projectVolumeLabels(hostOptions.Cwd))
-	if err != nil {
-		return nil, err
-	}
-
-	tmpfsMounts, err := tmpfsMasks(hostOptions.Cwd, hostOptions.TmpfsMasks)
-	if err != nil {
-		return nil, err
-	}
-	volumeMaskMounts, err := ensureNamedVolumeMasks(ctxD, hostOptions.Cwd, hostOptions.Tag, hostOptions.VolumeMasks)
-	if err != nil {
-		return nil, err
-	}
-	roPathBinds, err := readOnlyPathBinds(hostOptions.Cwd, hostOptions.ReadOnlyPaths)
-	if err != nil {
+	if err := ensureMounts(ctxD, hostOptions.Tag, hostOptions.Cwd, hostOptions.Mounts); err != nil {
 		return nil, err
 	}
 
@@ -94,14 +67,8 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
-		Binds: slices.Concat([]string{
-			hostOptions.Cwd + ":" + workspaceMount(hostOptions.Cwd),
-			hostOptions.CLIConfigDir + ":" + path.Join(containerHome, harness.MustFor(hostOptions.CLI).ConfigHomeMount),
-			hostOptions.ProjectStateDir + ":" + projectStateMount,
-		}, globalBinds, cacheMounts, volumeMaskMounts, roPathBinds,
-			gitBinds(hostOptions.GitConfigDir), cliDataBinds(hostOptions.CLIDataBinds),
-			agentsMdBind(hostOptions)),
-		Tmpfs: tmpfsMounts,
+		Binds:       mountSpecs(hostOptions.Mounts),
+		Tmpfs:       tmpfsMap(hostOptions.TmpfsPaths),
 	}, nil
 }
 

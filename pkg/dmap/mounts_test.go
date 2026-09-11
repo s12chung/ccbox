@@ -1,0 +1,186 @@
+package dmap
+
+import (
+	"os"
+	"path"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/slug"
+)
+
+func TestTmpfsMasks(t *testing.T) {
+	got, err := tmpfsMasks("/Users/me/proj", []string{".idea", "dist"})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/home/ccbox/proj/.idea", "/home/ccbox/proj/dist"}, got)
+
+	for _, p := range []string{"../escape", "../../x"} {
+		_, err := tmpfsMasks("/Users/me/proj", []string{p})
+		assert.Error(t, err, p)
+	}
+}
+
+// testRunMap builds a RunMap over a fresh temp project's config.
+func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
+	t.Helper()
+	if flags.CLI == nil {
+		flags.CLI = new("codex")
+	}
+	flags.HostGitConfig = new(false)
+	cfg, err := projectcfg.Load(t.TempDir(), flags)
+	require.NoError(t, err)
+	return NewRunMap(t.TempDir(), cfg)
+}
+
+func TestVolumeMasks(t *testing.T) {
+	got, err := volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"})
+	require.NoError(t, err)
+
+	// the name slugifies the path (/ → -) under the project slug; owned so the run
+	// seeds the volume with its own content
+	assert.Equal(t, []docker.Mount{
+		docker.NewVolume("ccbox-Users-me-proj-node_modules", "/home/ccbox/proj/node_modules").Owned(),
+		docker.NewVolume("ccbox-Users-me-proj-vendor-bundle", "/home/ccbox/proj/vendor/bundle").Owned(),
+	}, got)
+
+	for _, p := range []string{"../escape", "../../x"} {
+		_, err := volumeMasks("/Users/me/proj", []string{p})
+		assert.Error(t, err, p)
+	}
+}
+
+func TestReadOnlyBinds(t *testing.T) {
+	got, err := readOnlyBinds("/Users/me/proj", []string{".env", "certs/server.pem"})
+	require.NoError(t, err)
+
+	assert.Equal(t, []docker.Mount{
+		docker.NewBind("/Users/me/proj/.env", "/home/ccbox/proj/.env").ReadOnly(),
+		docker.NewBind("/Users/me/proj/certs/server.pem", "/home/ccbox/proj/certs/server.pem").ReadOnly(),
+	}, got)
+
+	for _, p := range []string{"../escape", "../../x"} {
+		_, err := readOnlyBinds("/Users/me/proj", []string{p})
+		assert.Error(t, err, p)
+	}
+}
+
+func TestVolumes(t *testing.T) {
+	// sorted for a deterministic spec; global marks a volume shared by every project
+	assert.Equal(t, []docker.Mount{
+		docker.NewVolume("ccbox-a", "/a").Global(),
+		docker.NewVolume("ccbox-b", "/b").Global(),
+	}, volumes(map[string]string{"ccbox-b": "/b", "ccbox-a": "/a"}, true))
+
+	assert.Equal(t, []docker.Mount{docker.NewVolume("ccbox-a", "/a")},
+		volumes(map[string]string{"ccbox-a": "/a"}, false))
+
+	assert.Empty(t, volumes(nil, true))
+}
+
+func TestGitBinds(t *testing.T) {
+	t.Run("no bind when disabled", func(t *testing.T) {
+		assert.Nil(t, gitBinds(&projectcfg.Config{HostGitConfig: new(false)}))
+	})
+
+	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		t.Setenv("XDG_CONFIG_HOME", "")
+		assert.Nil(t, gitBinds(&projectcfg.Config{HostGitConfig: new(true)}))
+	})
+
+	t.Run("binds the host git dir read-only at git's XDG path", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", "")
+		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
+
+		assert.Equal(t, []docker.Mount{
+			docker.NewBind(filepath.Join(home, ".config", "git"), gitConfigMountPath).ReadOnly(),
+		}, gitBinds(&projectcfg.Config{HostGitConfig: new(true)}))
+	})
+
+	t.Run("binds XDG_CONFIG_HOME's git dir at the container's default XDG path", func(t *testing.T) {
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+		require.NoError(t, os.MkdirAll(filepath.Join(xdg, "git"), ioutil.Dir))
+
+		assert.Equal(t, []docker.Mount{
+			docker.NewBind(filepath.Join(xdg, "git"), gitConfigMountPath).ReadOnly(),
+		}, gitBinds(&projectcfg.Config{HostGitConfig: new(true)}))
+	})
+}
+
+func TestCLIDataBinds(t *testing.T) {
+	t.Run("renders rw binds under containerHome, sorted for a deterministic spec", func(t *testing.T) {
+		userDir := "/home/me/.ccbox"
+		cli := harness.CLI{Name: "opencode", DataBinds: map[string]*string{
+			".local/share/opencode/auth.json":     new("{}"), // file with seed content
+			".local/share/opencode/sessions.json": nil,       // dir despite the extension
+			".config/opencode":                    nil,       // dir
+		}}
+
+		assert.Equal(t, []docker.Mount{
+			docker.NewBind(filepath.Join(userDir, "data", "opencode", ".config-opencode"), path.Join(containerHome, ".config/opencode")),
+			docker.NewBind(
+				filepath.Join(userDir, "data", "opencode", ".local-share-opencode-auth.json"),
+				path.Join(containerHome, ".local/share/opencode/auth.json"),
+			),
+			docker.NewBind(
+				filepath.Join(userDir, "data", "opencode", ".local-share-opencode-sessions.json"),
+				path.Join(containerHome, ".local/share/opencode/sessions.json"),
+			),
+		}, cliDataBinds(userDir, cli))
+	})
+
+	t.Run("no binds when the CLI has none", func(t *testing.T) {
+		assert.Empty(t, cliDataBinds("/home/me/.ccbox", harness.CLI{Name: "mycli"}))
+	})
+}
+
+func TestAgentsMdBind(t *testing.T) {
+	t.Run("binds the scratch as the CLI's seed file within its config dir", func(t *testing.T) {
+		for _, tc := range []struct {
+			cli  string
+			dir  string
+			file string
+		}{
+			{cli: "claude", dir: ".claude", file: "CLAUDE.md"}, // yaml override
+			{cli: "codex", dir: ".codex", file: "AGENTS.md"},   // parse default
+			{cli: "opencode", dir: ".config/opencode", file: "AGENTS.md"},
+		} {
+			host := "/host/.ccbox/tmp/" + tc.cli + "/" + tc.file
+			cli := harness.MustFor(tc.cli)
+			assert.Equal(t, []docker.Mount{docker.NewBind(host, path.Join(containerHome, tc.dir, tc.file))},
+				agentsMdBind(host, cli), tc.cli)
+		}
+	})
+
+	t.Run("no bind when the CLI has its own", func(t *testing.T) {
+		assert.Empty(t, agentsMdBind("", harness.MustFor("claude")))
+	})
+}
+
+func TestCacheVolumeNames(t *testing.T) {
+	s := slug.Path("/Users/me/proj")
+	assert.Equal(t, map[string]string{
+		"ccbox" + s + "-go":         "/home/ccbox/go",
+		"ccbox" + s + "-cache":      "/home/ccbox/.cache",
+		"ccbox" + s + "-gem":        "/home/ccbox/.gem",
+		"ccbox" + s + "-npm":        "/home/ccbox/.npm",
+		"ccbox" + s + "-npm-global": "/home/ccbox/.npm-global",
+		"ccbox" + s + "-local":      "/home/ccbox/.local",
+		"ccbox" + s + "-tmp":        "/tmp",
+	}, cacheVolumeNames("/Users/me/proj"))
+}
+
+func TestVolumeName(t *testing.T) {
+	assert.Equal(t, "ccbox-Users-me-proj-go", volumeName("/Users/me/proj", "go"))
+	assert.Equal(t, "ccbox-Users-me-proj-go-with-me", volumeName("/Users/me/proj", "go/with/me"))
+}

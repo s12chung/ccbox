@@ -4,21 +4,18 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/pkg/dmap"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
-	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/projectstate"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -41,50 +38,10 @@ func resumeArgs(_ *cobra.Command, args []string) error {
 	return nil
 }
 
-func runOptions(m hostMounts, agentsMdBind string, args []string) (docker.RunOptions, error) {
-	gitConfigDir, err := hostGitConfigDir()
-	if err != nil {
-		return docker.RunOptions{}, err
-	}
-	proxyOps, err := proxyOptions()
-	if err != nil {
-		return docker.RunOptions{}, err
-	}
-	pkgInfo, err := harness.MustFor(*projectCfg.CLI).PkgInfoJSON()
-	if err != nil {
-		return docker.RunOptions{}, err
-	}
-
-	return docker.RunOptions{
-		Tag:             flagTag,
-		CLI:             *projectCfg.CLI,
-		CLIConfigDir:    m.cliConfigDir,
-		ProjectStateDir: m.projectState,
-		Cwd:             m.cwd,
-		CLIDataBinds:    m.cliDataBinds,
-		AgentsMdBind:    agentsMdBind,
-		GHToken:         os.Getenv("GH_TOKEN"),
-		GitConfigDir:    gitConfigDir,
-		Env:             mergeempty.Map(projectCfg.Env, map[string]string{pkginfo.EnvVar: pkgInfo}),
-		TmpfsMasks:      projectCfg.TmpfsMasksPresent(),
-		VolumeMasks:     projectCfg.VolumeMasksPresent(),
-		ReadOnlyPaths:   projectCfg.ReadOnlyPathsPresent(),
-		Cmd:             harness.MustFor(*projectCfg.CLI).SessionCmd(flagShell, flagContinue, flagResume, args),
-
-		Proxy:        proxyOps,
-		ProxyLogPath: filepath.Join(userdir.Dir(), "proxy.log"),
-		NoProxy:      flagNoProxy,
-	}, nil
-}
-
-// runDevbox builds the image then runs the devbox container interactively behind the
+// run builds the image then runs the devbox container interactively behind the
 // egress wall. It is the root command's action — `ccbox` with no subcommand.
-func runDevbox(cmd *cobra.Command, args []string) error {
+func run(cmd *cobra.Command, args []string) error {
 	if err := build(cmd.Context()); err != nil {
-		return err
-	}
-	m, err := resolveHostMounts(userdir.Dir())
-	if err != nil {
 		return err
 	}
 	defer printPresentGuardMounts()
@@ -93,21 +50,39 @@ func runDevbox(cmd *cobra.Command, args []string) error {
 	presentPathsSnapshot := projectCfg.ReadOnlyPathsPresent()
 	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
-	agentsMdBind, settleAgents, err := harness.AgentsMdShare{CLI: harness.MustFor(*projectCfg.CLI)}.Begin()
+	userDir := userdir.Dir()
+	if err := seedRunMounts(userDir); err != nil {
+		return err
+	}
+	runMap := dmap.NewRunMap(userDir, projectCfg)
+	hostOptions, clean, err := runMap.HostOptions()
+	defer log.Defer("settle shared agents doc", clean)
 	if err != nil {
 		return err
 	}
-	defer log.Defer("settle shared agents doc", settleAgents)
 
 	ctxD, err := dock.NewCtxD(cmd.Context())
 	if err != nil {
 		return err
 	}
-	runOpts, err := runOptions(m, agentsMdBind, args)
+	env, err := runMap.Env()
 	if err != nil {
 		return err
 	}
-	code, err := docker.Run(ctxD, runOpts)
+	proxyOps, err := proxyOptions()
+	if err != nil {
+		return err
+	}
+
+	code, err := docker.Run(ctxD, docker.RunOptions{
+		RunHostOptions: hostOptions,
+		Tag:            flagTag,
+		Env:            env,
+		Cmd:            runMap.Cmd(flagShell, flagContinue, flagResume, args),
+		Proxy:          proxyOps,
+		ProxyLogPath:   filepath.Join(userDir, "proxy.log"),
+		NoProxy:        flagNoProxy,
+	})
 	if err != nil {
 		return err
 	}
@@ -124,74 +99,33 @@ func init() {
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume", "shell")
 }
 
-// hostMounts are the host dirs bind-mounted into the devbox, seeded/created before it starts.
-type hostMounts struct {
-	cwd, cliConfigDir, projectState string
-	cliDataBinds                    map[string]string // host path → $HOME-relative in-container path
-}
-
-// resolveHostMounts seeds the userDir and resolves the per-project state dir from cwd.
-func resolveHostMounts(userDir string) (hostMounts, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return hostMounts{}, err
-	}
+// seedRunMounts seeds the run mounts in userDir
+func seedRunMounts(userDir string) error {
 	if err := safeSeedCLIConfig(userDir, *projectCfg.CLI, false); err != nil {
-		return hostMounts{}, err
+		return err
 	}
-	if err := safeSeedProjectStateDir(userDir, cwd); err != nil {
-		return hostMounts{}, err
+	if err := safeSeedProjectStateDir(userDir, projectCfg.ProjectDir()); err != nil {
+		return err
 	}
-	cliDataBinds, err := safeSeedCLIDataBinds(userDir, harness.MustFor(*projectCfg.CLI))
-	if err != nil {
-		return hostMounts{}, err
-	}
-	return hostMounts{
-		cwd:          cwd,
-		cliConfigDir: cliConfigDir(userDir, *projectCfg.CLI),
-		projectState: projectStateDir(userDir, cwd),
-		cliDataBinds: cliDataBinds,
-	}, nil
+	return safeSeedCLIDataBinds(userDir, harness.MustFor(*projectCfg.CLI))
 }
 
-// hostGitConfigDir resolves the host's ~/.config/git to bind read-only, or "" to skip — when
-// host_git_config is disabled in .ccbox.yaml or the dir is absent. HostGitConfig is non-nil:
-func hostGitConfigDir() (string, error) {
-	if !*projectCfg.HostGitConfig {
-		return "", nil
-	}
-	return git.XDGConfigDir()
-}
-
-// safeSeedProjectStateDir seeds projectStateDir() if missing
+// safeSeedProjectStateDir seeds dmap.ProjectStateHostPath() if missing
 func safeSeedProjectStateDir(userDir, cwd string) error {
-	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), projectStateDir(userDir, cwd), false)
+	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), dmap.ProjectStateHostPath(userDir, cwd), false)
 }
 
-// projectStateDir is the host state dir for a project: userDir/projects/<slug>
-func projectStateDir(userDir, cwd string) string {
-	return filepath.Join(userDir, "projects", docker.ProjectSlug(cwd))
-}
-
-// safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name> and returns them as
-// host path → $HOME-relative in-container path.
-func safeSeedCLIDataBinds(userDir string, cli harness.CLI) (map[string]string, error) {
-	binds := make(map[string]string, len(cli.DataBinds))
+// safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>
+func safeSeedCLIDataBinds(userDir string, cli harness.CLI) error {
 	for key, content := range cli.DataBinds {
-		host := cliDataBindHostPath(userDir, cli.Name, key)
+		host := dmap.CLIDataBindHostPath(userDir, cli.Name, key)
 		if content == nil {
 			if err := os.MkdirAll(host, ioutil.Dir); err != nil {
-				return nil, err
+				return err
 			}
 		} else if err := seed.File(host, *content); err != nil && !errors.Is(err, seed.ErrExists) {
-			return nil, err
+			return err
 		}
-		binds[host] = key
 	}
-	return binds, nil
-}
-
-// cliDataBindHostPath is a data bind's shared host path: userDir/data/<cli_name>/<slug-of-key>
-func cliDataBindHostPath(userDir, cliName, key string) string {
-	return filepath.Join(userDir, "data", cliName, strings.ReplaceAll(key, "/", "-"))
+	return nil
 }

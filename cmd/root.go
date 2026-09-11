@@ -46,7 +46,7 @@ var rootCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	Args:          resumeArgs,
-	RunE:          runDevbox,
+	RunE:          run,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
 			return nil // completion only reads flag/CLI definitions: no seeding, no config load

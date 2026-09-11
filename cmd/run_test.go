@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/dmap"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -45,7 +46,7 @@ func TestResumeArgs(t *testing.T) {
 
 func TestSafeSeedProjectStateDir_MissingSeeds(t *testing.T) {
 	userDir := t.TempDir()
-	wantDir := projectStateDir(userDir, testProjectDir)
+	wantDir := dmap.ProjectStateHostPath(userDir, testProjectDir)
 
 	var gotDir string
 	called := false
@@ -61,7 +62,7 @@ func TestSafeSeedProjectStateDir_MissingSeeds(t *testing.T) {
 
 func TestSafeSeedProjectStateDir_ExistingSkips(t *testing.T) {
 	userDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(projectStateDir(userDir, testProjectDir), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(dmap.ProjectStateHostPath(userDir, testProjectDir), ioutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
@@ -88,14 +89,11 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 		content := "{}"
 		cli := harness.CLI{Name: "opencode", DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
 
-		binds, err := safeSeedCLIDataBinds(userDir, cli)
-		require.NoError(t, err)
+		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
 
-		// slug form: key with "/"→"-" under userDir/data/<cli_name>
-		wantHost := filepath.Join(userDir, "data", "opencode", ".local-share-opencode-auth.json")
-		assert.Equal(t, map[string]string{wantHost: ".local/share/opencode/auth.json"}, binds)
-
-		got, err := os.ReadFile(wantHost) // #nosec G304 -- the test's own seeded path
+		got, err := os.ReadFile(
+			dmap.CLIDataBindHostPath(userDir, "opencode", ".local/share/opencode/auth.json"),
+		) // #nosec G304 -- the test's own seeded path
 		require.NoError(t, err)
 		assert.Equal(t, content, string(got))
 	})
@@ -104,28 +102,23 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 		userDir := t.TempDir()
 		cli := harness.CLI{Name: "mycli", DataBinds: map[string]*string{".local/share/mycli/store": nil}}
 
-		binds, err := safeSeedCLIDataBinds(userDir, cli)
-		require.NoError(t, err)
+		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
 
-		wantDir := filepath.Join(userDir, "data", "mycli", ".local-share-mycli-store")
-		info, err := os.Stat(wantDir)
+		info, err := os.Stat(dmap.CLIDataBindHostPath(userDir, "mycli", ".local/share/mycli/store"))
 		require.NoError(t, err)
 		assert.True(t, info.IsDir())
-		assert.Equal(t, map[string]string{wantDir: ".local/share/mycli/store"}, binds)
 	})
 
 	t.Run("skips existing file", func(t *testing.T) {
 		userDir := t.TempDir()
 		content := "{}"
 		cli := harness.CLI{Name: "opencode", DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
-		host := cliDataBindHostPath(userDir, "opencode", ".local/share/opencode/auth.json")
+		host := dmap.CLIDataBindHostPath(userDir, "opencode", ".local/share/opencode/auth.json")
 
 		require.NoError(t, os.MkdirAll(filepath.Dir(host), ioutil.Dir))
 		require.NoError(t, os.WriteFile(host, []byte(`{"real":"creds"}`), ioutil.File))
 
-		binds, err := safeSeedCLIDataBinds(userDir, cli)
-		require.NoError(t, err)
-		assert.Equal(t, map[string]string{host: ".local/share/opencode/auth.json"}, binds)
+		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
 
 		got, err := os.ReadFile(host) // #nosec G304 -- the test's own seeded path
 		require.NoError(t, err)
