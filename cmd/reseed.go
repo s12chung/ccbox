@@ -27,7 +27,7 @@ var reseedCmd = &cobra.Command{
 
 // safeSeedCLIConfig seeds cli's host config dir in userDir
 func safeSeedCLIConfig(userDir, cliName string, confirm bool) error {
-	return safeSeed(harness.SeedCLIFS(cliName), dmap.CLIConfigHostPath(userDir, cliName), confirm)
+	return safeSeed(harness.SeedCLIFS(cliName), dmap.CLIConfigDir(userDir, cliName), confirm)
 }
 
 // seedTreeFn is seed.Tree, indirected so tests can stub out the file-copying step.

@@ -17,9 +17,9 @@ func TestRunConfig(t *testing.T) {
 			name: "Base",
 			opts: RunOptions{
 				RunHostOptions: RunHostOptions{
-					Cwd:                "/host/proj",
-					WorkspaceMountPath: "/home/ccbox/proj",
-					Mounts:             []Mount{NewBind("/host/proj", "/home/ccbox/proj")},
+					ProjectDir:     "/host/proj",
+					WorkspaceMount: "/home/ccbox/proj",
+					Mounts:         []Mount{NewBind("/host/proj", "/home/ccbox/proj")},
 				},
 				Tag: "ccbox:latest",
 				Env: map[string]string{"GH_TOKEN": "gh", "GOFLAGS": "-mod=mod"},
@@ -47,7 +47,7 @@ func TestRunConfig(t *testing.T) {
 		{
 			name: "NoProxySkipsWallEnv",
 			opts: RunOptions{
-				RunHostOptions: RunHostOptions{WorkspaceMountPath: "/home/ccbox/proj"},
+				RunHostOptions: RunHostOptions{WorkspaceMount: "/home/ccbox/proj"},
 				Tag:            "ccbox:latest",
 				Env:            map[string]string{"GH_TOKEN": "gh"},
 				NoProxy:        true,
@@ -66,7 +66,7 @@ func TestRunConfig(t *testing.T) {
 		{
 			name: "NilCmdUsesImageDefault",
 			opts: RunOptions{
-				RunHostOptions: RunHostOptions{WorkspaceMountPath: "/home/ccbox/proj"},
+				RunHostOptions: RunHostOptions{WorkspaceMount: "/home/ccbox/proj"},
 				Tag:            "ccbox:latest",
 			},
 			want: &container.Config{

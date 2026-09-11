@@ -62,11 +62,11 @@ var rootCmd = &cobra.Command{
 		if err := safeSeedUserConfig(); err != nil {
 			return err
 		}
-		cwd, err := os.Getwd()
+		projectDir, err := os.Getwd()
 		if err != nil {
 			return err
 		}
-		projectCfg, err = projectcfg.Load(cwd, projectcfg.Config{CLIName: flagCLI})
+		projectCfg, err = projectcfg.Load(projectDir, projectcfg.Config{CLIName: flagCLI})
 		return err
 	},
 }

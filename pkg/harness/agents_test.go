@@ -24,12 +24,12 @@ func resetUserDir(t *testing.T) string {
 
 // claudeShareBegin begins a bound share for claude, runs body with the bound scratch, then
 // cleans up
-func claudeShareBegin(t *testing.T, body func(shareBind string)) {
+func claudeShareBegin(t *testing.T, body func(shareBindPath string)) {
 	t.Helper()
-	shareBind, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+	shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
 	require.NoError(t, err)
 	if body != nil {
-		body(shareBind)
+		body(shareBindPath)
 	}
 	require.NoError(t, cleanup())
 }
@@ -77,9 +77,9 @@ func TestAgentsMdShare_Begin_BindsScratchCopy(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, userAgentsMd(userDir), "shared")
 
-	claudeShareBegin(t, func(shareBind string) {
-		assert.Equal(t, claudeScratch(userDir), shareBind)
-		assert.Equal(t, "shared", readFile(t, shareBind), "scratch is a copy of the original")
+	claudeShareBegin(t, func(shareBindPath string) {
+		assert.Equal(t, claudeScratch(userDir), shareBindPath)
+		assert.Equal(t, "shared", readFile(t, shareBindPath), "scratch is a copy of the original")
 	})
 }
 
@@ -87,8 +87,8 @@ func TestAgentsMdShare_Begin_SkipsWhenCliFileExists(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeCliFile(userDir), "cli")
 
-	claudeShareBegin(t, func(shareBind string) {
-		assert.Empty(t, shareBind, "the cliFile wins")
+	claudeShareBegin(t, func(shareBindPath string) {
+		assert.Empty(t, shareBindPath, "the cliFile wins")
 		assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
 	})
 }
@@ -97,9 +97,9 @@ func TestAgentsMdShare_Begin_PromotesChangedLeftover(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeScratch(userDir), "edited") // left by a crashed run
 
-	claudeShareBegin(t, func(shareBind string) {
+	claudeShareBegin(t, func(shareBindPath string) {
 		assert.Equal(t, "edited", readFile(t, claudeCliFile(userDir)))
-		assert.Empty(t, shareBind, "the promoted copy wins over a fresh bind")
+		assert.Empty(t, shareBindPath, "the promoted copy wins over a fresh bind")
 		assert.True(t, gone(t, claudeScratch(userDir)))
 	})
 }
@@ -109,8 +109,8 @@ func TestAgentsMdShare_Begin_DropsUnchangedLeftover(t *testing.T) {
 	writeFile(t, userAgentsMd(userDir), "shared") // what the leftover was copied from
 	writeFile(t, claudeScratch(userDir), "shared")
 
-	claudeShareBegin(t, func(shareBind string) {
-		assert.Empty(t, shareBind, "leftover run skips the bind")
+	claudeShareBegin(t, func(shareBindPath string) {
+		assert.Empty(t, shareBindPath, "leftover run skips the bind")
 		assert.True(t, gone(t, claudeScratch(userDir)))
 		assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted")
 	})
@@ -119,8 +119,8 @@ func TestAgentsMdShare_Begin_DropsUnchangedLeftover(t *testing.T) {
 func TestAgentsMdShare_Cleanup_PromotesChanged(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, userAgentsMd(userDir), "shared")
-	claudeShareBegin(t, func(shareBind string) {
-		writeFile(t, shareBind, "memory")
+	claudeShareBegin(t, func(shareBindPath string) {
+		writeFile(t, shareBindPath, "memory")
 	})
 
 	assert.Equal(t, "memory", readFile(t, claudeCliFile(userDir)))
@@ -149,11 +149,11 @@ func TestAgentsMdShare_Cleanup_NoopWhenNotBound(t *testing.T) {
 
 func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 	userDir := resetUserDir(t)
-	shareBind, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+	shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
 	require.NoError(t, err)
-	writeFile(t, shareBind, "memory")
+	writeFile(t, shareBindPath, "memory")
 	require.NoError(t, os.MkdirAll(claudeCliFile(userDir), ioutil.Dir)) // blocks the promotion
 
 	require.Error(t, cleanup(), "cliFile is a directory")
-	assert.Equal(t, "memory", readFile(t, shareBind), "scratch kept for the next run")
+	assert.Equal(t, "memory", readFile(t, shareBindPath), "scratch kept for the next run")
 }

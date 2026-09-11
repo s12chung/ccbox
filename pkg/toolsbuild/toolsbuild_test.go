@@ -12,7 +12,7 @@ import (
 )
 
 // repoRoot resolves this file's location up to the repo root, since go test
-// runs with the package dir as cwd
+// runs from the package dir
 func repoRoot(t *testing.T) string {
 	t.Helper()
 

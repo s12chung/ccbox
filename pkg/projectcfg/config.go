@@ -221,8 +221,8 @@ func (c *Config) renderTmpl() (string, error) {
 	return b.String(), nil
 }
 
-func absentDirs(src string, dirs []string) []string {
-	present := ioutil.DirsPresent(src, dirs)
+func absentDirs(projectDir string, dirs []string) []string {
+	present := ioutil.DirsPresent(projectDir, dirs)
 	var out []string
 	for _, d := range dirs {
 		if !slices.Contains(present, d) {

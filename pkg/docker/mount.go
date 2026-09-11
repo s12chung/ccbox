@@ -12,9 +12,9 @@ import (
 )
 
 // ensureMounts creates each mount's named volume, so the run's mounts resolve.
-func ensureMounts(ctxD *dock.CtxD, imageTag, cwd string, mounts []Mount) error {
+func ensureMounts(ctxD *dock.CtxD, imageTag, projectDir string, mounts []Mount) error {
 	for _, mount := range mounts {
-		if err := mount.ensure(ctxD, imageTag, cwd); err != nil {
+		if err := mount.ensure(ctxD, imageTag, projectDir); err != nil {
 			return err
 		}
 	}
@@ -32,8 +32,8 @@ func mountSpecs(mounts []Mount) []string {
 
 // Mount is a mount into the devbox container
 type Mount interface {
-	spec() string                                       // renders the mount's spec
-	ensure(ctxD *dock.CtxD, imageTag, cwd string) error // ensures the resources are available to mount
+	spec() string                                              // renders the mount's spec
+	ensure(ctxD *dock.CtxD, imageTag, projectDir string) error // ensures the resources are available to mount
 }
 
 // Bind bind-mounts a host path at a container path.
@@ -64,7 +64,7 @@ func (b Bind) spec() string {
 func (Bind) ensure(*dock.CtxD, string, string) error { return nil }
 
 // Volume mounts a named volume at a container path. Global shares the volume across
-// every project; otherwise it is project-scoped (labeled with cwd). Owned chowns the
+// every project; otherwise it is project-scoped (labeled with projectDir). Owned chowns the
 // volume to the container user when ensured, so masked dirs hold content the run owns.
 type Volume struct {
 	name      string
@@ -92,11 +92,11 @@ func (v Volume) Owned() Volume {
 
 func (v Volume) spec() string { return v.name + ":" + v.container }
 
-func (v Volume) ensure(ctxD *dock.CtxD, imageTag, cwd string) error {
+func (v Volume) ensure(ctxD *dock.CtxD, imageTag, projectDir string) error {
 	if v.owned {
-		return dock.EnsureOwnedVolume(ctxD, imageTag, v.name, containerUID, v.labels(cwd))
+		return dock.EnsureOwnedVolume(ctxD, imageTag, v.name, containerUID, v.labels(projectDir))
 	}
-	_, err := ctxD.D.VolumeCreate(ctxD.Ctx, volume.CreateOptions{Name: v.name, Labels: v.labels(cwd)})
+	_, err := ctxD.D.VolumeCreate(ctxD.Ctx, volume.CreateOptions{Name: v.name, Labels: v.labels(projectDir)})
 	return err
 }
 
@@ -111,19 +111,19 @@ const (
 func volumeLabels() map[string]string { return map[string]string{ccboxLabelKey: trueVolValue} }
 
 // labels stamps v's volume with the ccbox mark plus its scope.
-func (v Volume) labels(cwd string) map[string]string {
-	scopedLabels := map[string]string{ccboxProjectLabelKey: cwd}
+func (v Volume) labels(projectDir string) map[string]string {
+	scopedLabels := map[string]string{ccboxProjectLabelKey: projectDir}
 	if v.global {
 		scopedLabels = map[string]string{ccboxGlobalLabelKey: trueVolValue}
 	}
 	return mergeempty.Map(volumeLabels(), scopedLabels)
 }
 
-// VolumeClean removes hostCwd's project volumes (cache and mask volumes), found by their labels
-func VolumeClean(ctxD *dock.CtxD, hostCwd string) error {
+// VolumeClean removes the projectDir's volumes (cache and mask volumes), found by their labels
+func VolumeClean(ctxD *dock.CtxD, projectDir string) error {
 	resp, err := ctxD.D.VolumeList(ctxD.Ctx, volume.ListOptions{Filters: filters.NewArgs(
 		filters.Arg("label", ccboxLabelKey+"="+trueVolValue),
-		filters.Arg("label", ccboxProjectLabelKey+"="+hostCwd),
+		filters.Arg("label", ccboxProjectLabelKey+"="+projectDir),
 	)})
 	if err != nil {
 		return err

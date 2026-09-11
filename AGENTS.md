@@ -39,7 +39,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 
 Terminology:
 
-- A **path** is a single path string - host paths end in `HostPath` and container paths end in `MountPath`. A **mount** is a bind, volume, or tmpfs mount, even when typed as an interface, refer to binds as "binds" and volumes as "volumes".
+- A **path** is a single path string - container paths end in `Mount`; host paths are unmarked. A **mount** is a bind, volume, or tmpfs mount, even when typed as an interface, refer to binds as "binds" and volumes as "volumes".
 - `tmpfs_masks`, `volume_masks`, and `read_only_globs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfs_masks`, `volume_masks`, and `read_only_globs`.
 
 For tests:

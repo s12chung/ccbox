@@ -7,21 +7,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCLIConfigHostPath(t *testing.T) {
+func TestCLIConfigDir(t *testing.T) {
 	userDir := "/home/me/.ccbox"
-	assert.Equal(t, filepath.Join(userDir, "claude"), CLIConfigHostPath(userDir, "claude"))
+	assert.Equal(t, filepath.Join(userDir, "claude"), CLIConfigDir(userDir, "claude"))
 }
 
-func TestProjectStateHostPath(t *testing.T) {
+func TestProjectStateDir(t *testing.T) {
 	assert.Equal(t, "/home/me/.ccbox/projects/-Users-me-proj",
-		ProjectStateHostPath("/home/me/.ccbox", "/Users/me/proj"))
+		ProjectStateDir("/home/me/.ccbox", "/Users/me/proj"))
 }
 
-func TestCLIDataBindHostPath(t *testing.T) {
+func TestCLIDataBindPath(t *testing.T) {
 	assert.Equal(t, "/home/me/.ccbox/data/opencode/.local-share-opencode-auth.json",
-		CLIDataBindHostPath("/home/me/.ccbox", "opencode", ".local/share/opencode/auth.json"))
+		CLIDataBindPath("/home/me/.ccbox", "opencode", ".local/share/opencode/auth.json"))
 }
 
-func TestWorkspaceMountPath(t *testing.T) {
-	assert.Equal(t, "/home/ccbox/myproj", workspaceMountPath("/Users/me/myproj"))
+func TestWorkspaceMount(t *testing.T) {
+	assert.Equal(t, "/home/ccbox/myproj", workspaceMount("/Users/me/myproj"))
 }

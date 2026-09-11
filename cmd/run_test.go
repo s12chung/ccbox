@@ -46,7 +46,7 @@ func TestResumeArgs(t *testing.T) {
 
 func TestSafeSeedProjectStateDir_MissingSeeds(t *testing.T) {
 	userDir := t.TempDir()
-	wantDir := dmap.ProjectStateHostPath(userDir, testProjectDir)
+	wantDir := dmap.ProjectStateDir(userDir, testProjectDir)
 
 	var gotDir string
 	called := false
@@ -62,7 +62,7 @@ func TestSafeSeedProjectStateDir_MissingSeeds(t *testing.T) {
 
 func TestSafeSeedProjectStateDir_ExistingSkips(t *testing.T) {
 	userDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(dmap.ProjectStateHostPath(userDir, testProjectDir), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(dmap.ProjectStateDir(userDir, testProjectDir), ioutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
@@ -92,7 +92,7 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
 
 		got, err := os.ReadFile(
-			dmap.CLIDataBindHostPath(userDir, "opencode", ".local/share/opencode/auth.json"),
+			dmap.CLIDataBindPath(userDir, "opencode", ".local/share/opencode/auth.json"),
 		) // #nosec G304 -- the test's own seeded path
 		require.NoError(t, err)
 		assert.Equal(t, content, string(got))
@@ -104,7 +104,7 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 
 		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
 
-		info, err := os.Stat(dmap.CLIDataBindHostPath(userDir, "mycli", ".local/share/mycli/store"))
+		info, err := os.Stat(dmap.CLIDataBindPath(userDir, "mycli", ".local/share/mycli/store"))
 		require.NoError(t, err)
 		assert.True(t, info.IsDir())
 	})
@@ -113,7 +113,7 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 		userDir := t.TempDir()
 		content := "{}"
 		cli := harness.CLI{Name: "opencode", DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
-		host := dmap.CLIDataBindHostPath(userDir, "opencode", ".local/share/opencode/auth.json")
+		host := dmap.CLIDataBindPath(userDir, "opencode", ".local/share/opencode/auth.json")
 
 		require.NoError(t, os.MkdirAll(filepath.Dir(host), ioutil.Dir))
 		require.NoError(t, os.WriteFile(host, []byte(`{"real":"creds"}`), ioutil.File))

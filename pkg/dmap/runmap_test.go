@@ -34,13 +34,13 @@ func TestRunMap_HostOptions(t *testing.T) {
 	t.Setenv("HOME", home)
 	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the shared doc is seeded
 
-	cwd := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(cwd, "dist"), ioutil.Dir))
-	require.NoError(t, os.MkdirAll(filepath.Join(cwd, "node_modules"), ioutil.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(cwd, ".env"), nil, ioutil.File))
+	projectDir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "node_modules"), ioutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".env"), nil, ioutil.File))
 
 	userDir := t.TempDir()
-	cfg, err := projectcfg.Load(cwd, projectcfg.Config{
+	cfg, err := projectcfg.Load(projectDir, projectcfg.Config{
 		CLIName:       new("codex"),
 		HostGitConfig: new(false),
 		TmpfsMasks:    []string{"dist"},
@@ -54,13 +54,13 @@ func TestRunMap_HostOptions(t *testing.T) {
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
-	workspace := "/home/ccbox/" + filepath.Base(cwd)
-	s := slug.Path(cwd)
+	workspace := "/home/ccbox/" + filepath.Base(projectDir)
+	s := slug.Path(projectDir)
 
 	// the composite order: the workspace and host dirs, the shared volumes, then the
 	// config's masks and per-CLI binds, then the shared agents doc's scratch bind
 	assert.Equal(t, []docker.Mount{
-		docker.NewBind(cwd, workspace),
+		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(userDir, "codex"), "/home/ccbox/.codex"),
 		docker.NewBind(filepath.Join(userDir, "projects", s), "/home/ccbox/.ccbox/project"),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
@@ -72,11 +72,11 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewVolume("ccbox"+s+"-npm-cache-default", "/home/ccbox/.npm"),
 		docker.NewVolume("ccbox"+s+"-tmp-cache-default", "/tmp"),
 		docker.NewVolume("ccbox"+s+"-node_modules", workspace+"/node_modules").Owned(),
-		docker.NewBind(filepath.Join(cwd, ".env"), workspace+"/.env").ReadOnly(),
+		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex", "AGENTS.md"), "/home/ccbox/.codex/AGENTS.md"),
 	}, hostOptions.Mounts)
 
-	assert.Equal(t, workspace, hostOptions.WorkspaceMountPath)
+	assert.Equal(t, workspace, hostOptions.WorkspaceMount)
 	assert.Equal(t, []string{workspace + "/dist"}, hostOptions.TmpfsPaths)
 }
 

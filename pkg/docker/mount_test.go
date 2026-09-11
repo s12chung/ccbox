@@ -27,19 +27,18 @@ func TestVolume(t *testing.T) {
 }
 
 func TestVolume_Labels(t *testing.T) {
-	cwd := "/work/myproj"
+	projectDir := "/work/myproj"
 
-	// project-scoped: the project key names the cwd, so VolumeClean's filter finds it
 	assert.Equal(t, map[string]string{
 		"ccbox":         "true",
-		"ccbox.project": cwd,
-	}, NewVolume("ccbox-vol", "/dir").labels(cwd))
+		"ccbox.project": projectDir,
+	}, NewVolume("ccbox-vol", "/dir").labels(projectDir))
 
 	// global: spared from per-project cleanup
 	assert.Equal(t, map[string]string{
 		"ccbox":        "true",
 		"ccbox.global": "true",
-	}, NewVolume("ccbox-vol", "/dir").Global().labels(cwd))
+	}, NewVolume("ccbox-vol", "/dir").Global().labels(projectDir))
 }
 
 func TestTmpfsMap(t *testing.T) {

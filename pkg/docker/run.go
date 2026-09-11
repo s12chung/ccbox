@@ -30,20 +30,20 @@ type RunOptions struct {
 }
 
 // RunHostOptions is everything mounted into the devbox: the workspace, the host dirs
-// and volumes as mounts, and the project dirs masked with tmpfs. Cwd is the project
-// identity labeling its volumes; WorkspaceMountPath is the container's WorkingDir.
+// and volumes as mounts, and the project dirs masked with tmpfs. ProjectDir is the project
+// identity labeling its volumes; WorkspaceMount is the container's WorkingDir.
 type RunHostOptions struct {
-	Cwd                string
-	WorkspaceMountPath string
-	Mounts             []Mount
-	TmpfsPaths         []string
+	ProjectDir     string
+	WorkspaceMount string
+	Mounts         []Mount
+	TmpfsPaths     []string
 }
 
 func runConfig(hostOptions RunOptions) *container.Config {
 	return &container.Config{
 		Image:        hostOptions.Tag,
 		Cmd:          hostOptions.Cmd,
-		WorkingDir:   hostOptions.WorkspaceMountPath,
+		WorkingDir:   hostOptions.WorkspaceMount,
 		Tty:          true,
 		OpenStdin:    true,
 		AttachStdin:  true,
@@ -54,7 +54,7 @@ func runConfig(hostOptions RunOptions) *container.Config {
 }
 
 func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
-	if err := ensureMounts(ctxD, hostOptions.Tag, hostOptions.Cwd, hostOptions.Mounts); err != nil {
+	if err := ensureMounts(ctxD, hostOptions.Tag, hostOptions.ProjectDir, hostOptions.Mounts); err != nil {
 		return nil, err
 	}
 

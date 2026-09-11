@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -16,12 +15,8 @@ var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Print the effective .ccbox.yaml with " + projectcfg.DefaultsToken + " tokens expanded",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
 		log.Info("# Run `ccbox config defaults` for " + projectcfg.DefaultsToken + " expansions")
-		printLoadedPaths(cwd)
+		printLoadedPaths()
 		out, err := yaml.Marshal(projectCfg)
 		if err != nil {
 			return err
@@ -33,8 +28,8 @@ var configCmd = &cobra.Command{
 }
 
 // printLoadedPaths lists the config files loaded, in load order
-func printLoadedPaths(projectDir string) {
-	loaded := projectcfg.LoadedPaths(projectDir)
+func printLoadedPaths() {
+	loaded := projectcfg.LoadedPaths(projectCfg.ProjectDir())
 	if len(loaded) == 0 {
 		return
 	}
@@ -69,11 +64,7 @@ var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Write a starter .ccbox.yaml template to fill in",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		path, err := projectcfg.Init(cwd)
+		path, err := projectcfg.Init(projectCfg.ProjectDir())
 		if err != nil {
 			return err
 		}

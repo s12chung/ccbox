@@ -30,7 +30,7 @@ func NewRunMap(userDir string, cfg *projectcfg.Config) *RunMap {
 func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
 	var stack cleanup.Stack
 
-	cwd := rm.cfg.ProjectDir()
+	projectDir := rm.cfg.ProjectDir()
 	binds, clean, err := rm.binds()
 	stack.Push("settle shared agents doc", clean)
 	if err != nil {
@@ -38,10 +38,10 @@ func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
 	}
 
 	return docker.RunHostOptions{
-		Cwd:                cwd,
-		WorkspaceMountPath: workspaceMountPath(cwd),
-		Mounts:             binds,
-		TmpfsPaths:         tmpfsMasks(cwd, rm.cfg.TmpfsMasksPresent()),
+		ProjectDir:     projectDir,
+		WorkspaceMount: workspaceMount(projectDir),
+		Mounts:         binds,
+		TmpfsPaths:     tmpfsMasks(projectDir, rm.cfg.TmpfsMasksPresent()),
 	}, stack.Run, nil
 }
 

@@ -80,7 +80,7 @@ func TestGitBinds(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
 
 		assert.Equal(t, []docker.Mount{
-			docker.NewBind(filepath.Join(home, ".config", "git"), gitConfigMountPath).ReadOnly(),
+			docker.NewBind(filepath.Join(home, ".config", "git"), gitConfigMount).ReadOnly(),
 		}, gitBinds(true))
 	})
 
@@ -90,7 +90,7 @@ func TestGitBinds(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Join(xdg, "git"), ioutil.Dir))
 
 		assert.Equal(t, []docker.Mount{
-			docker.NewBind(filepath.Join(xdg, "git"), gitConfigMountPath).ReadOnly(),
+			docker.NewBind(filepath.Join(xdg, "git"), gitConfigMount).ReadOnly(),
 		}, gitBinds(true))
 	})
 }

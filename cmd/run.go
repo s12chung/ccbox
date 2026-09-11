@@ -110,15 +110,15 @@ func seedRunMounts(userDir string) error {
 	return safeSeedCLIDataBinds(userDir, harness.MustFor(*projectCfg.CLIName))
 }
 
-// safeSeedProjectStateDir seeds dmap.ProjectStateHostPath() if missing
-func safeSeedProjectStateDir(userDir, cwd string) error {
-	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), dmap.ProjectStateHostPath(userDir, cwd), false)
+// safeSeedProjectStateDir seeds dmap.ProjectStateDir() if missing
+func safeSeedProjectStateDir(userDir, projectDir string) error {
+	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), dmap.ProjectStateDir(userDir, projectDir), false)
 }
 
 // safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>
 func safeSeedCLIDataBinds(userDir string, cli harness.CLI) error {
 	for key, content := range cli.DataBinds {
-		host := dmap.CLIDataBindHostPath(userDir, cli.Name, key)
+		host := dmap.CLIDataBindPath(userDir, cli.Name, key)
 		if content == nil {
 			if err := os.MkdirAll(host, ioutil.Dir); err != nil {
 				return err

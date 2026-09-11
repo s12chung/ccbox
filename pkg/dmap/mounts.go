@@ -14,10 +14,10 @@ import (
 )
 
 // tmpfsMasks maps each project-relative dir to its masked container path.
-func tmpfsMasks(hostCwd string, hostDirs []string) []string {
-	workspace := workspaceMountPath(hostCwd)
-	paths := make([]string, 0, len(hostDirs))
-	for _, d := range hostDirs {
+func tmpfsMasks(projectDir string, relDirs []string) []string {
+	workspace := workspaceMount(projectDir)
+	paths := make([]string, 0, len(relDirs))
+	for _, d := range relDirs {
 		paths = append(paths, filepath.Join(workspace, d))
 	}
 	return paths
@@ -27,7 +27,7 @@ func tmpfsMasks(hostCwd string, hostDirs []string) []string {
 // host dirs, then the shared volumes, then the config's masks and per-CLI binds. The
 // shared agents doc's scratch bind is appended after, once AgentsMdShare has begun.
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
-	cwd := rm.cfg.ProjectDir()
+	projectDir := rm.cfg.ProjectDir()
 	scratch, clean, err := harness.AgentsMdShare{CLI: rm.cli}.Begin()
 	if err != nil {
 		return nil, nil, err
@@ -35,14 +35,14 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 
 	return slices.Concat(
 		[]docker.Mount{
-			docker.NewBind(cwd, workspaceMountPath(cwd)),
-			docker.NewBind(CLIConfigHostPath(rm.userDir, rm.cli.Name), path.Join(containerHome, rm.cli.ConfigHomeMount)),
-			docker.NewBind(ProjectStateHostPath(rm.userDir, cwd), projectStateMountPath),
+			docker.NewBind(projectDir, workspaceMount(projectDir)),
+			docker.NewBind(CLIConfigDir(rm.userDir, rm.cli.Name), path.Join(containerHome, rm.cli.ConfigHomeMount)),
+			docker.NewBind(ProjectStateDir(rm.userDir, projectDir), projectStateMount),
 		},
 		volumes(globalVolumesMap, true),
-		volumes(cacheVolumeNames(cwd), false),
-		volumeMasks(cwd, rm.cfg.VolumeMasksPresent()),
-		readOnlyBinds(cwd, rm.cfg.ReadOnlyPathsPresent()),
+		volumes(cacheVolumeNames(projectDir), false),
+		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
+		readOnlyBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		gitBinds(*rm.cfg.HostGitConfig),
 		cliDataBinds(rm.userDir, rm.cli),
 		agentsMdBind(scratch, rm.cli),
@@ -51,21 +51,21 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 
 // volumeMasks masks each load-validated project-relative dir with a persistent
 // per-project volume, owned by the container user so the run's own content seeds it.
-func volumeMasks(hostCwd string, hostDirs []string) []docker.Mount {
-	workspace := workspaceMountPath(hostCwd)
-	volumes := make([]docker.Mount, 0, len(hostDirs))
-	for _, d := range hostDirs {
-		volumes = append(volumes, docker.NewVolume(volumeName(hostCwd, d), filepath.Join(workspace, d)).Owned())
+func volumeMasks(projectDir string, relDirs []string) []docker.Mount {
+	workspace := workspaceMount(projectDir)
+	volumes := make([]docker.Mount, 0, len(relDirs))
+	for _, d := range relDirs {
+		volumes = append(volumes, docker.NewVolume(volumeName(projectDir, d), filepath.Join(workspace, d)).Owned())
 	}
 	return volumes
 }
 
 // readOnlyBinds re-mounts each walk-matched project-relative path read-only.
-func readOnlyBinds(hostCwd string, hostPaths []string) []docker.Mount {
-	workspace := workspaceMountPath(hostCwd)
-	binds := make([]docker.Mount, 0, len(hostPaths))
-	for _, p := range hostPaths {
-		binds = append(binds, docker.NewBind(filepath.Join(hostCwd, p), filepath.Join(workspace, p)).ReadOnly())
+func readOnlyBinds(projectDir string, relPaths []string) []docker.Mount {
+	workspace := workspaceMount(projectDir)
+	binds := make([]docker.Mount, 0, len(relPaths))
+	for _, p := range relPaths {
+		binds = append(binds, docker.NewBind(filepath.Join(projectDir, p), filepath.Join(workspace, p)).ReadOnly())
 	}
 	return binds
 }
@@ -84,13 +84,13 @@ func volumes(nameDirs map[string]string, global bool) []docker.Mount {
 	return volumes
 }
 
-// gitBinds binds the host global git dir read-only at gitConfigMountPath — git's default XDG path.
+// gitBinds binds the host global git dir read-only at gitConfigMount — git's default XDG path.
 func gitBinds(enabled bool) []docker.Mount {
 	if !enabled {
 		return nil
 	}
 	if host := git.MustXDGConfigDir(); host != "" {
-		return []docker.Mount{docker.NewBind(host, gitConfigMountPath).ReadOnly()}
+		return []docker.Mount{docker.NewBind(host, gitConfigMount).ReadOnly()}
 	}
 	return nil
 }
@@ -98,7 +98,7 @@ func gitBinds(enabled bool) []docker.Mount {
 func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 	binds := make(map[string]string, len(cli.DataBinds))
 	for key := range cli.DataBinds {
-		host := CLIDataBindHostPath(userDir, cli.Name, key)
+		host := CLIDataBindPath(userDir, cli.Name, key)
 		binds[host] = key
 	}
 
@@ -137,16 +137,16 @@ var cacheVolumesMap = map[string]string{
 	"tmp":        "/tmp",                    // agent tmp workspace to try things out
 }
 
-// cacheVolumeNames maps volume name → container dir under hostCwd's project slug
-func cacheVolumeNames(hostCwd string) map[string]string {
+// cacheVolumeNames maps volume name → container dir under the projectDir's slug
+func cacheVolumeNames(projectDir string) map[string]string {
 	volumes := make(map[string]string, len(cacheVolumesMap))
 	for suffix, dir := range cacheVolumesMap {
-		volumes[volumeName(hostCwd, suffix)+cacheVolumeSuffix] = dir
+		volumes[volumeName(projectDir, suffix)+cacheVolumeSuffix] = dir
 	}
 	return volumes
 }
 
-// volumeName is hostCwd's named volume for a given cacheVolumesMap suffix.
-func volumeName(hostCwd, suffix string) string {
-	return "ccbox" + slug.Path(hostCwd) + "-" + slug.Path(suffix)
+// volumeName is projectDir's named volume for a given cacheVolumesMap suffix.
+func volumeName(projectDir, suffix string) string {
+	return "ccbox" + slug.Path(projectDir) + "-" + slug.Path(suffix)
 }
