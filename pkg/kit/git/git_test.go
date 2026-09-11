@@ -61,3 +61,20 @@ func TestXDGConfigDir(t *testing.T) {
 		}
 	}
 }
+
+func TestMustXDGConfigDir(t *testing.T) {
+	t.Run("returns the dir", func(t *testing.T) {
+		base := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", base)
+		require.NoError(t, os.MkdirAll(filepath.Join(base, "git"), ioutil.Dir))
+
+		assert.Equal(t, filepath.Join(base, "git"), MustXDGConfigDir())
+	})
+
+	t.Run("panics on error", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("HOME", "") // os.UserHomeDir errors on an empty $HOME
+
+		assert.PanicsWithError(t, "$HOME is not defined", func() { MustXDGConfigDir() })
+	})
+}

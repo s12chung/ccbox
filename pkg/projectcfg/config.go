@@ -43,7 +43,8 @@ func init() {
 	firm.MustRegisterType(firm.NewDefinition[Config]().
 		NotNil("CLI", "HostGitConfig").
 		Validates(firm.RuleMap{
-			"CLI": {rule.OneOf[string]{Values: harness.Names()}},
+			"CLI":           {rule.OneOf[string]{Values: harness.Names()}},
+			"HostGitConfig": {firmrule.HasValidGitDir{}},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal
 			"TmpfsMasks":    {firm.Elems[[]string](firmrule.MaskDir)},

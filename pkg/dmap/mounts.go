@@ -9,7 +9,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -43,7 +43,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		volumes(cacheVolumeNames(cwd), false),
 		volumeMasks(cwd, rm.cfg.VolumeMasksPresent()),
 		readOnlyBinds(cwd, rm.cfg.ReadOnlyPathsPresent()),
-		gitBinds(rm.cfg),
+		gitBinds(*rm.cfg.HostGitConfig),
 		cliDataBinds(rm.userDir, rm.cli),
 		agentsMdBind(scratch, rm.cli),
 	), clean, nil
@@ -84,9 +84,13 @@ func volumes(nameDirs map[string]string, global bool) []docker.Mount {
 	return volumes
 }
 
-func gitBinds(cfg *projectcfg.Config) []docker.Mount {
-	if hostPath := gitConfigHostPath(cfg); hostPath != "" {
-		return []docker.Mount{docker.NewBind(hostPath, gitConfigMountPath).ReadOnly()}
+// gitBinds binds the host global git dir read-only at gitConfigMountPath — git's default XDG path.
+func gitBinds(enabled bool) []docker.Mount {
+	if !enabled {
+		return nil
+	}
+	if host := git.MustXDGConfigDir(); host != "" {
+		return []docker.Mount{docker.NewBind(host, gitConfigMountPath).ReadOnly()}
 	}
 	return nil
 }

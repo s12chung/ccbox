@@ -4,8 +4,6 @@ import (
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/kit/git"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -24,17 +22,6 @@ func CLIConfigHostPath(userDir, cliName string) string {
 // ProjectStateHostPath is the host state dir for a project: userDir/projects/<slug>
 func ProjectStateHostPath(userDir, cwd string) string {
 	return filepath.Join(userDir, "projects", slug.Path(cwd))
-}
-
-// gitConfigHostPath resolves the host's ~/.config/git to bind read-only, or "" to skip — when
-// host_git_config is disabled in .ccbox.yaml or the dir is absent. HostGitConfig is non-nil:
-func gitConfigHostPath(cfg *projectcfg.Config) string {
-	if *cfg.HostGitConfig {
-		if path, err := git.XDGConfigDir(); err == nil {
-			return path
-		}
-	}
-	return ""
 }
 
 // CLIDataBindHostPath is a data bind's shared host path: userDir/data/<cli_name>/<slug-of-key>

@@ -235,6 +235,30 @@ func TestLoad_UnsetRequiredErrors(t *testing.T) {
 	assert.ErrorContains(t, err, "HostGitConfig.Nil: HostGitConfig is nil")
 }
 
+func TestLoad_HostGitConfigUnresolvable(t *testing.T) {
+	dir := t.TempDir()
+
+	t.Run("enabled errors", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: true\n")
+		file := filepath.Join(t.TempDir(), "not-a-dir")
+		require.NoError(t, os.WriteFile(file, nil, ioutil.File))
+		t.Setenv("XDG_CONFIG_HOME", file) // a file, not a dir: stat <file>/git errors
+
+		_, err := Load(dir, Config{})
+		require.Error(t, err)
+		require.ErrorContains(t, err, "HostGitConfig.HasValidGitDir")
+		assert.ErrorContains(t, err, "not a directory")
+	})
+
+	t.Run("disabled loads", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: false\n")
+
+		c, err := Load(dir, Config{})
+		require.NoError(t, err)
+		assert.Equal(t, new(false), c.HostGitConfig)
+	})
+}
+
 func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("allowlist: []\n"), ioutil.File))

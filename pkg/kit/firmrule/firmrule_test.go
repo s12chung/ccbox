@@ -1,11 +1,15 @@
 package firmrule
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 func TestMatchRules(t *testing.T) {
@@ -64,4 +68,34 @@ func TestMatchRules(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHasValidGitDir(t *testing.T) {
+	v := firm.Value[bool](HasValidGitDir{})
+
+	t.Run("false passes without resolving the dir", func(t *testing.T) {
+		t.Setenv("XDG_CONFIG_HOME", "")
+		t.Setenv("HOME", "") // would error if the rule resolved the dir
+
+		assert.Nil(t, v.Validate(false).ToNil())
+	})
+
+	t.Run("true passes when the host git dir resolves", func(t *testing.T) {
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+		require.NoError(t, os.MkdirAll(filepath.Join(xdg, "git"), ioutil.Dir))
+
+		assert.Nil(t, v.Validate(true).ToNil())
+	})
+
+	t.Run("true errors when the host git dir is unresolvable", func(t *testing.T) {
+		file := filepath.Join(t.TempDir(), "not-a-dir")
+		require.NoError(t, os.WriteFile(file, nil, ioutil.File))
+		t.Setenv("XDG_CONFIG_HOME", file) // a file, not a dir: stat <file>/git errors
+
+		errMap := v.Validate(true)
+		require.NotEmpty(t, errMap)
+		assert.Contains(t, errMap.Error(), "HasValidGitDir")
+		assert.Contains(t, errMap.Error(), "not a directory")
+	})
 }

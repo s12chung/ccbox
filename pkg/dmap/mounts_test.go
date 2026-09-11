@@ -64,13 +64,13 @@ func TestVolumes(t *testing.T) {
 
 func TestGitBinds(t *testing.T) {
 	t.Run("no bind when disabled", func(t *testing.T) {
-		assert.Nil(t, gitBinds(&projectcfg.Config{HostGitConfig: new(false)}))
+		assert.Nil(t, gitBinds(false))
 	})
 
 	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
 		t.Setenv("HOME", t.TempDir())
 		t.Setenv("XDG_CONFIG_HOME", "")
-		assert.Nil(t, gitBinds(&projectcfg.Config{HostGitConfig: new(true)}))
+		assert.Nil(t, gitBinds(true))
 	})
 
 	t.Run("binds the host git dir read-only at git's XDG path", func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestGitBinds(t *testing.T) {
 
 		assert.Equal(t, []docker.Mount{
 			docker.NewBind(filepath.Join(home, ".config", "git"), gitConfigMountPath).ReadOnly(),
-		}, gitBinds(&projectcfg.Config{HostGitConfig: new(true)}))
+		}, gitBinds(true))
 	})
 
 	t.Run("binds XDG_CONFIG_HOME's git dir at the container's default XDG path", func(t *testing.T) {
@@ -91,7 +91,7 @@ func TestGitBinds(t *testing.T) {
 
 		assert.Equal(t, []docker.Mount{
 			docker.NewBind(filepath.Join(xdg, "git"), gitConfigMountPath).ReadOnly(),
-		}, gitBinds(&projectcfg.Config{HostGitConfig: new(true)}))
+		}, gitBinds(true))
 	})
 }
 
