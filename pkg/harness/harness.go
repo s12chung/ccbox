@@ -90,14 +90,15 @@ var userConfigDir = userdir.ConfigDir()
 // DOES NOT detect whether the directory exists, this should be detected on init()--see package NOTE
 func userCLIsFS() fs.FS { return os.DirFS(userConfigDir) }
 
-// mustLoadAll parses the embedded clis, then merges user-defined ones beneath
-// them, sorted by name: a user cli conflicting with an embedded name is skipped
-// with a warning.
+// mustLoadAll parses the embedded clis, then merges user-defined ones over
+// them, sorted by name: a user cli takes priority over an embedded cli of the
+// same name, replacing it.
 func mustLoadAll() []CLI {
 	clis := mustLoadEmbedCLIs()
 	for _, c := range loadUserCLIs() {
-		if slices.ContainsFunc(clis, func(e CLI) bool { return e.Name == c.Name }) {
-			log.Warnf("skipping user cli %q: conflicts with an embedded cli", c.Name)
+		if i := slices.IndexFunc(clis, func(e CLI) bool { return e.Name == c.Name }); i != -1 {
+			log.Infof("user cli %q overrides the embedded cli", c.Name)
+			clis[i] = c
 			continue
 		}
 		clis = append(clis, c)

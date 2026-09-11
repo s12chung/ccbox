@@ -77,7 +77,6 @@ func TestLoadUser(t *testing.T) {
 			configs map[string]string
 		}{
 			{name: "mycli", body: userCliYAML}, // sanity: a good cli does merge
-			{name: "claude", body: userCliYAML},
 			{name: "bad", body: "bogus: true\n"},
 			{name: "dual", body: "npm:\n  package: x\nversionurl:\n  url: y\n"},
 			{name: "filecfg", body: userCliYAML, configs: map[string]string{"config": "junk"}}, // seed config is a file
@@ -85,6 +84,26 @@ func TestLoadUser(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) { testLoadUserSkips(t, tt.name, tt.body, tt.configs) })
 		}
 	})
+}
+
+func TestLoadUser_OverridesEmbedded(t *testing.T) {
+	dir := resetAll(t)
+	writeUserCli(t, dir, "claude", userCliYAML, nil)
+	all = mustLoadAll()
+
+	claudes := 0
+	for _, c := range all {
+		if c.Name == "claude" {
+			claudes++
+		}
+	}
+	assert.Equal(t, 1, claudes, "one claude: the user cli replaces the embedded one")
+	assert.Len(t, all, 4)
+
+	got, ok := For("claude")
+	require.True(t, ok)
+	assert.Equal(t, ".mycli", got.ConfigHomeMount, "the user cli's spec wins")
+	assert.Equal(t, []string{"mycli.dev"}, got.AllowDomains)
 }
 
 // testLoadUserSkips loads a single user cli and pins how loading treats it.
@@ -98,16 +117,6 @@ func testLoadUserSkips(t *testing.T, name, body string, configs map[string]strin
 	case "mycli":
 		assert.Contains(t, allNames(), "mycli")
 		assert.Len(t, all, 5)
-	case "claude":
-		claudes := 0
-		for _, c := range all {
-			if c.Name == "claude" {
-				claudes++
-			}
-		}
-		assert.Equal(t, 1, claudes,
-			"the embedded cli stays; the conflicting user one is not merged")
-		assert.Len(t, all, 4)
 	default: // skip cases
 		assert.NotContains(t, allNames(), name)
 		assert.Len(t, all, 4)
