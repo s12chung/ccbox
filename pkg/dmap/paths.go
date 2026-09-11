@@ -1,9 +1,7 @@
 package dmap
 
 import (
-	"fmt"
 	"path/filepath"
-	"strings"
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/git"
@@ -47,14 +45,4 @@ func CLIDataBindHostPath(userDir, cliName, key string) string {
 // workspaceMountPath is the in-container workspace path: the WorkingDir and bind target for the host cwd.
 func workspaceMountPath(hostCwd string) string {
 	return filepath.Join(containerHome, filepath.Base(hostCwd))
-}
-
-// safeMountPath joins a project-relative path under workspaceMountPath
-// rejecting unsafe paths ("..", absolute)
-func safeMountPath(workspaceMountPath, hostPath string) (string, error) {
-	dest := filepath.Join(workspaceMountPath, hostPath)
-	if rel, err := filepath.Rel(workspaceMountPath, dest); err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes workspace: %q", hostPath)
-	}
-	return dest, nil
 }

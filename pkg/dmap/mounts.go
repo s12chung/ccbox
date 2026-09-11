@@ -14,17 +14,13 @@ import (
 )
 
 // tmpfsMasks maps each project-relative dir to its masked container path.
-func tmpfsMasks(hostCwd string, hostDirs []string) ([]string, error) {
+func tmpfsMasks(hostCwd string, hostDirs []string) []string {
 	workspace := workspaceMountPath(hostCwd)
 	paths := make([]string, 0, len(hostDirs))
 	for _, d := range hostDirs {
-		mountPath, err := safeMountPath(workspace, d)
-		if err != nil {
-			return nil, err
-		}
-		paths = append(paths, mountPath)
+		paths = append(paths, filepath.Join(workspace, d))
 	}
-	return paths, nil
+	return paths
 }
 
 // binds composes the run's binds and volumes in a deterministic order: the workspace and
@@ -32,15 +28,6 @@ func tmpfsMasks(hostCwd string, hostDirs []string) ([]string, error) {
 // shared agents doc's scratch bind is appended after, once AgentsMdShare has begun.
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	cwd := rm.cfg.ProjectDir()
-	maskVolumes, err := volumeMasks(cwd, rm.cfg.VolumeMasksPresent())
-	if err != nil {
-		return nil, nil, err
-	}
-	roBinds, err := readOnlyBinds(cwd, rm.cfg.ReadOnlyPathsPresent())
-	if err != nil {
-		return nil, nil, err
-	}
-
 	scratch, clean, err := harness.AgentsMdShare{CLI: rm.cli}.Begin()
 	if err != nil {
 		return nil, nil, err
@@ -54,42 +41,33 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		},
 		volumes(globalVolumesMap, true),
 		volumes(cacheVolumeNames(cwd), false),
-		maskVolumes,
-		roBinds,
+		volumeMasks(cwd, rm.cfg.VolumeMasksPresent()),
+		readOnlyBinds(cwd, rm.cfg.ReadOnlyPathsPresent()),
 		gitBinds(rm.cfg),
 		cliDataBinds(rm.userDir, rm.cli),
 		agentsMdBind(scratch, rm.cli),
 	), clean, nil
 }
 
-// volumeMasks masks each project-relative dir with a persistent per-project volume,
-// owned by the container user so the run's own content seeds it.
-func volumeMasks(hostCwd string, hostDirs []string) ([]docker.Mount, error) {
+// volumeMasks masks each load-validated project-relative dir with a persistent
+// per-project volume, owned by the container user so the run's own content seeds it.
+func volumeMasks(hostCwd string, hostDirs []string) []docker.Mount {
 	workspace := workspaceMountPath(hostCwd)
 	volumes := make([]docker.Mount, 0, len(hostDirs))
 	for _, d := range hostDirs {
-		mountPath, err := safeMountPath(workspace, d)
-		if err != nil {
-			return nil, err
-		}
-
-		volumes = append(volumes, docker.NewVolume(volumeName(hostCwd, d), mountPath).Owned())
+		volumes = append(volumes, docker.NewVolume(volumeName(hostCwd, d), filepath.Join(workspace, d)).Owned())
 	}
-	return volumes, nil
+	return volumes
 }
 
-// readOnlyBinds re-mounts each project-relative path read-only.
-func readOnlyBinds(hostCwd string, hostPaths []string) ([]docker.Mount, error) {
+// readOnlyBinds re-mounts each walk-matched project-relative path read-only.
+func readOnlyBinds(hostCwd string, hostPaths []string) []docker.Mount {
 	workspace := workspaceMountPath(hostCwd)
 	binds := make([]docker.Mount, 0, len(hostPaths))
 	for _, p := range hostPaths {
-		mountPath, err := safeMountPath(workspace, p)
-		if err != nil {
-			return nil, err
-		}
-		binds = append(binds, docker.NewBind(filepath.Join(hostCwd, p), mountPath).ReadOnly())
+		binds = append(binds, docker.NewBind(filepath.Join(hostCwd, p), filepath.Join(workspace, p)).ReadOnly())
 	}
-	return binds, nil
+	return binds
 }
 
 // volumes renders a name→dir map as volume binds under the given scope, sorted for a

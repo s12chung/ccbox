@@ -17,14 +17,8 @@ import (
 )
 
 func TestTmpfsMasks(t *testing.T) {
-	got, err := tmpfsMasks("/Users/me/proj", []string{".idea", "dist"})
-	require.NoError(t, err)
-	assert.Equal(t, []string{"/home/ccbox/proj/.idea", "/home/ccbox/proj/dist"}, got)
-
-	for _, p := range []string{"../escape", "../../x"} {
-		_, err := tmpfsMasks("/Users/me/proj", []string{p})
-		assert.Error(t, err, p)
-	}
+	assert.Equal(t, []string{"/home/ccbox/proj/.idea", "/home/ccbox/proj/dist"},
+		tmpfsMasks("/Users/me/proj", []string{".idea", "dist"}))
 }
 
 // testRunMap builds a RunMap over a fresh temp project's config.
@@ -40,35 +34,19 @@ func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 }
 
 func TestVolumeMasks(t *testing.T) {
-	got, err := volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"})
-	require.NoError(t, err)
-
 	// the name slugifies the mask path under the project slug; owned so the run
 	// seeds the volume with its own content
 	assert.Equal(t, []docker.Mount{
 		docker.NewVolume("ccbox-Users-me-proj-node_modules", "/home/ccbox/proj/node_modules").Owned(),
 		docker.NewVolume("ccbox-Users-me-proj-vendor-bundle", "/home/ccbox/proj/vendor/bundle").Owned(),
-	}, got)
-
-	for _, p := range []string{"../escape", "../../x"} {
-		_, err := volumeMasks("/Users/me/proj", []string{p})
-		assert.Error(t, err, p)
-	}
+	}, volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"}))
 }
 
 func TestReadOnlyBinds(t *testing.T) {
-	got, err := readOnlyBinds("/Users/me/proj", []string{".env", "certs/server.pem"})
-	require.NoError(t, err)
-
 	assert.Equal(t, []docker.Mount{
 		docker.NewBind("/Users/me/proj/.env", "/home/ccbox/proj/.env").ReadOnly(),
 		docker.NewBind("/Users/me/proj/certs/server.pem", "/home/ccbox/proj/certs/server.pem").ReadOnly(),
-	}, got)
-
-	for _, p := range []string{"../escape", "../../x"} {
-		_, err := readOnlyBinds("/Users/me/proj", []string{p})
-		assert.Error(t, err, p)
-	}
+	}, readOnlyBinds("/Users/me/proj", []string{".env", "certs/server.pem"}))
 }
 
 func TestVolumes(t *testing.T) {

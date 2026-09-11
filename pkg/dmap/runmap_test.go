@@ -80,31 +80,6 @@ func TestRunMap_HostOptions(t *testing.T) {
 	assert.Equal(t, []string{workspace + "/dist"}, hostOptions.TmpfsPaths)
 }
 
-func TestRunMap_HostOptions_MaskErrorStillSettles(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	require.NoError(t, harness.SafeSeedAgentsMd())
-
-	cwd := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(filepath.Dir(cwd), "escape"), ioutil.Dir))
-
-	cfg, err := projectcfg.Load(cwd, projectcfg.Config{
-		CLI:           new("codex"),
-		HostGitConfig: new(false),
-	})
-	require.NoError(t, err)
-	cfg.TmpfsMasks = []string{"../escape"} // set post-Load to create an error
-
-	// the mask error comes after binds() began the scratch: clean still settles it
-	_, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions()
-	require.Error(t, err)
-	require.NoError(t, clean())
-
-	cli := harness.MustFor("codex")
-	_, statErr := os.Stat(filepath.Join(home, ".ccbox", "tmp", cli.Name, cli.SeedAgentsFilename))
-	assert.True(t, os.IsNotExist(statErr))
-}
-
 func TestRunMap_Env(t *testing.T) {
 	t.Setenv("GH_TOKEN", "tok")
 	rm := testRunMap(t, projectcfg.Config{

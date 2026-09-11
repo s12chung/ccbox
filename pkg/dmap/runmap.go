@@ -36,16 +36,12 @@ func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
 	if err != nil {
 		return docker.RunHostOptions{}, stack.Run, err
 	}
-	tmpfsPaths, err := tmpfsMasks(cwd, rm.cfg.TmpfsMasksPresent())
-	if err != nil {
-		return docker.RunHostOptions{}, stack.Run, err
-	}
 
 	return docker.RunHostOptions{
 		Cwd:                cwd,
 		WorkspaceMountPath: workspaceMountPath(cwd),
 		Mounts:             binds,
-		TmpfsPaths:         tmpfsPaths,
+		TmpfsPaths:         tmpfsMasks(cwd, rm.cfg.TmpfsMasksPresent()),
 	}, stack.Run, nil
 }
 
