@@ -27,8 +27,8 @@ func TestMatchRules(t *testing.T) {
 		},
 		{
 			"MaskDir", MaskDir,
-			[]string{"node_modules", ".idea", "vendor/bundle", "a"},
-			[]string{"", "/etc", "../escape", "..", "./x", "."},
+			[]string{"node_modules", ".idea", "vendor/bundle", "a", "a/.venv", ".local/share/opencode/auth.json"},
+			[]string{"", "/etc", "../escape", "..", "./x", ".", "a/..", "a//b", "a/", "x/..", "~/x", "a/~"},
 		},
 		{
 			"MaskGlob", MaskGlob,

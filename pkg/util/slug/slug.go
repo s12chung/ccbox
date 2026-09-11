@@ -3,5 +3,8 @@ package slug
 
 import "strings"
 
-// Path slugifies a path: each "/" becomes a "-" (e.g. /Users/me/app → -Users-me-app).
-func Path(p string) string { return strings.ReplaceAll(p, "/", "-") }
+// Path slugifies a path: "-" doubles to "--", then "/" becomes "-" (e.g.
+// /Users/me/a-b → -Users-me-a--b)
+func Path(p string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(p, "-", "--"), "/", "-")
+}

@@ -141,6 +141,9 @@ var globalVolumesMap = map[string]string{
 	"ccbox-clis": install.DefaultRoot, // ccboxtools installs the coding CLI here at start
 }
 
+// cacheVolumeSuffix is the suffix for cacheVolumesMap in case of collisions
+const cacheVolumeSuffix = "-cache-default"
+
 // cacheVolumesMap maps suffix of volume name → container directory for cacheVolumeNames()
 var cacheVolumesMap = map[string]string{
 	"go":         "/home/ccbox/go",          // go mod tidy module cache + GOBIN
@@ -152,11 +155,11 @@ var cacheVolumesMap = map[string]string{
 	"tmp":        "/tmp",                    // agent tmp workspace to try things out
 }
 
-// cacheVolumeNames maps volume name → container dir under hostCwd's project slug.
+// cacheVolumeNames maps volume name → container dir under hostCwd's project slug
 func cacheVolumeNames(hostCwd string) map[string]string {
 	volumes := make(map[string]string, len(cacheVolumesMap))
 	for suffix, dir := range cacheVolumesMap {
-		volumes[volumeName(hostCwd, suffix)] = dir
+		volumes[volumeName(hostCwd, suffix)+cacheVolumeSuffix] = dir
 	}
 	return volumes
 }

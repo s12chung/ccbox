@@ -13,8 +13,10 @@ var (
 	Domain = rule.Match{Regexp: regexp.MustCompile(`^([a-z0-9-]+\.)*[a-z0-9-]+$`)}
 	// EnvVar is a POSIX-ish env var name
 	EnvVar = rule.Match{Regexp: regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)}
-	// MaskDir is a project-relative dir to mask: no leading slash or ".." (".idea" is fine)
-	MaskDir = rule.Match{Regexp: regexp.MustCompile(`^[.]?[^./]`)}
+	// MaskDir is a project-relative dir to mask: no leading slash or "~", and no ".",
+	// "..", or empty segment (".idea" and "vendor/bundle" are fine)
+	MaskDir = rule.Match{Regexp: regexp.MustCompile(
+		`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$`)}
 	// MaskGlob is a project-relative glob of guarded paths: no leading slash, no ".." segment
 	MaskGlob = rule.Match{Regexp: regexp.MustCompile(
 		`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$`)}

@@ -43,7 +43,7 @@ func TestVolumeMasks(t *testing.T) {
 	got, err := volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"})
 	require.NoError(t, err)
 
-	// the name slugifies the path (/ → -) under the project slug; owned so the run
+	// the name slugifies the mask path under the project slug; owned so the run
 	// seeds the volume with its own content
 	assert.Equal(t, []docker.Mount{
 		docker.NewVolume("ccbox-Users-me-proj-node_modules", "/home/ccbox/proj/node_modules").Owned(),
@@ -170,17 +170,21 @@ func TestAgentsMdBind(t *testing.T) {
 func TestCacheVolumeNames(t *testing.T) {
 	s := slug.Path("/Users/me/proj")
 	assert.Equal(t, map[string]string{
-		"ccbox" + s + "-go":         "/home/ccbox/go",
-		"ccbox" + s + "-cache":      "/home/ccbox/.cache",
-		"ccbox" + s + "-gem":        "/home/ccbox/.gem",
-		"ccbox" + s + "-npm":        "/home/ccbox/.npm",
-		"ccbox" + s + "-npm-global": "/home/ccbox/.npm-global",
-		"ccbox" + s + "-local":      "/home/ccbox/.local",
-		"ccbox" + s + "-tmp":        "/tmp",
+		"ccbox" + s + "-cache-cache-default":       "/home/ccbox/.cache",
+		"ccbox" + s + "-gem-cache-default":         "/home/ccbox/.gem",
+		"ccbox" + s + "-go-cache-default":          "/home/ccbox/go",
+		"ccbox" + s + "-local-cache-default":       "/home/ccbox/.local",
+		"ccbox" + s + "-npm-cache-default":         "/home/ccbox/.npm",
+		"ccbox" + s + "-npm--global-cache-default": "/home/ccbox/.npm-global",
+		"ccbox" + s + "-tmp-cache-default":         "/tmp",
 	}, cacheVolumeNames("/Users/me/proj"))
+
+	// protect against mounts at "tmp"
+	assert.NotContains(t, cacheVolumeNames("/Users/me/proj"), volumeName("/Users/me/proj", "tmp"))
 }
 
 func TestVolumeName(t *testing.T) {
 	assert.Equal(t, "ccbox-Users-me-proj-go", volumeName("/Users/me/proj", "go"))
 	assert.Equal(t, "ccbox-Users-me-proj-go-with-me", volumeName("/Users/me/proj", "go/with/me"))
+	assert.Equal(t, "ccbox-Users-me-my--proj-go", volumeName("/Users/me/my-proj", "go"))
 }
