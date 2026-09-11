@@ -24,8 +24,8 @@ func TestTmpfsMasks(t *testing.T) {
 // testRunMap builds a RunMap over a fresh temp project's config.
 func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 	t.Helper()
-	if flags.CLI == nil {
-		flags.CLI = new("codex")
+	if flags.CLIName == nil {
+		flags.CLIName = new("codex")
 	}
 	flags.HostGitConfig = new(false)
 	cfg, err := projectcfg.Load(t.TempDir(), flags)

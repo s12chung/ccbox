@@ -19,12 +19,12 @@ import (
 
 func TestNewRunMap(t *testing.T) {
 	t.Run("ResolvesConfigCLI", func(t *testing.T) {
-		rm := testRunMap(t, projectcfg.Config{CLI: new("claude")})
+		rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
 		assert.Equal(t, harness.MustFor("claude"), rm.cli)
 	})
 	t.Run("UnknownCLIPanics", func(t *testing.T) {
 		assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() {
-			NewRunMap(t.TempDir(), &projectcfg.Config{CLI: new("emacs")})
+			NewRunMap(t.TempDir(), &projectcfg.Config{CLIName: new("emacs")})
 		})
 	})
 }
@@ -41,7 +41,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 
 	userDir := t.TempDir()
 	cfg, err := projectcfg.Load(cwd, projectcfg.Config{
-		CLI:           new("codex"),
+		CLIName:       new("codex"),
 		HostGitConfig: new(false),
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"node_modules"},
@@ -83,8 +83,8 @@ func TestRunMap_HostOptions(t *testing.T) {
 func TestRunMap_Env(t *testing.T) {
 	t.Setenv("GH_TOKEN", "tok")
 	rm := testRunMap(t, projectcfg.Config{
-		CLI: new("claude"),
-		Env: map[string]string{"DISABLE_AUTOUPDATER": "0"},
+		CLIName: new("claude"),
+		Env:     map[string]string{"DISABLE_AUTOUPDATER": "0"},
 	})
 	env, err := rm.Env()
 	require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestRunMap_Env(t *testing.T) {
 }
 
 func TestRunMap_Cmd(t *testing.T) {
-	rm := testRunMap(t, projectcfg.Config{CLI: new("claude")})
+	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
 
 	assert.Equal(t, []string{"claude"}, rm.Cmd(false, false, false, nil))
 	assert.Nil(t, rm.Cmd(true, false, false, nil), "shell runs the image default instead")

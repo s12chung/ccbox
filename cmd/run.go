@@ -101,13 +101,13 @@ func init() {
 
 // seedRunMounts seeds the run mounts in userDir
 func seedRunMounts(userDir string) error {
-	if err := safeSeedCLIConfig(userDir, *projectCfg.CLI, false); err != nil {
+	if err := safeSeedCLIConfig(userDir, *projectCfg.CLIName, false); err != nil {
 		return err
 	}
 	if err := safeSeedProjectStateDir(userDir, projectCfg.ProjectDir()); err != nil {
 		return err
 	}
-	return safeSeedCLIDataBinds(userDir, harness.MustFor(*projectCfg.CLI))
+	return safeSeedCLIDataBinds(userDir, harness.MustFor(*projectCfg.CLIName))
 }
 
 // safeSeedProjectStateDir seeds dmap.ProjectStateHostPath() if missing

@@ -1,7 +1,7 @@
 # Run `ccbox config` to see effective config. Arrays and maps merge down scoped configs.
 
 # cli: which coding CLI the image installs and launches
-cli:{{yaml .CLI}}
+cli:{{yaml .CLIName}}
 
 # host_git_config: read-only mount the host's ~/.config/git
 host_git_config:{{yaml .HostGitConfig}}

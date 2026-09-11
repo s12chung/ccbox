@@ -21,7 +21,7 @@ var reseedCmd = &cobra.Command{
 	Use:   "reseed",
 	Short: "Seed the host config dir for the configured CLI from the embedded seed, backing up overwrites",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return safeSeedCLIConfig(userdir.Dir(), *projectCfg.CLI, true)
+		return safeSeedCLIConfig(userdir.Dir(), *projectCfg.CLIName, true)
 	},
 }
 

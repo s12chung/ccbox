@@ -104,7 +104,7 @@ func TestSeedUserConfig(t *testing.T) {
 
 	// the seed is the defaults' carrier
 	want := Config{
-		CLI:           new("claude"),
+		CLIName:       new("claude"),
 		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
@@ -231,7 +231,7 @@ func TestLoad_UnsetRequiredErrors(t *testing.T) {
 
 	_, err := Load(dir, Config{})
 	require.Error(t, err)
-	require.ErrorContains(t, err, "CLI.Nil: CLI is nil")
+	require.ErrorContains(t, err, "CLIName.Nil: CLIName is nil")
 	assert.ErrorContains(t, err, "HostGitConfig.Nil: HostGitConfig is nil")
 }
 
@@ -283,7 +283,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", *c.CLI)             // later layer wins
+	assert.Equal(t, "codex", *c.CLIName)         // later layer wins
 	assert.Equal(t, new(false), c.HostGitConfig) // later layer wins
 
 	// lists append raw, lowest layer first, the seed's tokens carried as-is
@@ -303,7 +303,7 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
-			assert.Equal(t, "grok", *c.CLI)
+			assert.Equal(t, "grok", *c.CLIName)
 			if cf.term == "user" { // the user file replaces the seed wholesale
 				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
 			} else { // the user seed's token still underlies the project/local file
@@ -332,7 +332,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		body string
 		want []string
 	}{
-		{"unknown cli", "cli: emacs\n", []string{"CLI", "is not one of [claude codex grok opencode]"}},
+		{"unknown cli", "cli: emacs\n", []string{"CLIName", "is not one of [claude codex grok opencode]"}},
 		{"absolute tmpfs_masks", "tmpfs_masks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
 		{"tmpfs_masks traversal", "tmpfs_masks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
 		{"absolute volume_masks", "volume_masks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
@@ -378,14 +378,14 @@ func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localConfigFileName), []byte("cli: codex\n"), ioutil.File))
 
-	c, err := Load(dir, Config{CLI: new("grok")})
+	c, err := Load(dir, Config{CLIName: new("grok")})
 	require.NoError(t, err)
-	assert.Equal(t, "grok", *c.CLI) // a set flag wins over both files
+	assert.Equal(t, "grok", *c.CLIName) // a set flag wins over both files
 
 	c, err = Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", *c.CLI) // an unset flag keeps the files' layering
+	assert.Equal(t, "codex", *c.CLIName) // an unset flag keeps the files' layering
 
-	_, err = Load(dir, Config{CLI: new("emacs")})
+	_, err = Load(dir, Config{CLIName: new("emacs")})
 	assert.ErrorContains(t, err, "is not one of") // the flag value validates like a file's
 }

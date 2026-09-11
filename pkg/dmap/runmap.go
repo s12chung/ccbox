@@ -23,7 +23,7 @@ type RunMap struct {
 
 // NewRunMap returns a new RunMap
 func NewRunMap(userDir string, cfg *projectcfg.Config) *RunMap {
-	return &RunMap{userDir: userDir, cfg: cfg, cli: harness.MustFor(*cfg.CLI)}
+	return &RunMap{userDir: userDir, cfg: cfg, cli: harness.MustFor(*cfg.CLIName)}
 }
 
 // HostOptions renders the run's host options for docker.Run.

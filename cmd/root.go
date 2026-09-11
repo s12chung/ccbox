@@ -66,7 +66,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		projectCfg, err = projectcfg.Load(cwd, projectcfg.Config{CLI: flagCLI})
+		projectCfg, err = projectcfg.Load(cwd, projectcfg.Config{CLIName: flagCLI})
 		return err
 	},
 }

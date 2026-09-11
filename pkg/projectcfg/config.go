@@ -22,7 +22,7 @@ import (
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLI           *string           `yaml:"cli"`             // coding CLI to install + launch
+	CLIName       *string           `yaml:"cli"`             // coding CLI to install + launch
 	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git
 	TmpfsMasks    []string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
 	VolumeMasks   []string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
@@ -41,9 +41,9 @@ type Config struct {
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Config]().
-		NotNil("CLI", "HostGitConfig").
+		NotNil("CLIName", "HostGitConfig").
 		Validates(firm.RuleMap{
-			"CLI":           {rule.OneOf[string]{Values: harness.Names()}},
+			"CLIName":       {rule.OneOf[string]{Values: harness.Names()}},
 			"HostGitConfig": {firmrule.HasValidGitDir{}},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal
@@ -68,8 +68,8 @@ func (c *Config) merge(other Config) {
 	c.ReadOnlyGlobs = mergeempty.Slice(c.ReadOnlyGlobs, other.ReadOnlyGlobs)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
 	c.Env = mergeempty.Map(c.Env, other.Env)
-	if other.CLI != nil {
-		c.CLI = other.CLI
+	if other.CLIName != nil {
+		c.CLIName = other.CLIName
 	}
 	if other.HostGitConfig != nil {
 		c.HostGitConfig = other.HostGitConfig
@@ -169,7 +169,7 @@ func (c *Config) AllowlistExpanded() []string {
 func (c *Config) MarshalYAML() (any, error) {
 	type resolved Config // same yaml tags, no MarshalYAML method
 	return resolved{
-		CLI:           c.CLI,
+		CLIName:       c.CLIName,
 		HostGitConfig: c.HostGitConfig,
 		TmpfsMasks:    c.TmpfsMasksPresent(),
 		VolumeMasks:   c.VolumeMasksPresent(),

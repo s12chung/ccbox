@@ -26,7 +26,7 @@ func TestConfig_ProjectDir(t *testing.T) {
 
 func TestConfig_mergeOverlays(t *testing.T) {
 	c := Config{
-		CLI:           new("claude"),
+		CLIName:       new("claude"),
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
@@ -35,7 +35,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		HostGitConfig: new(true),
 	}
 	other := Config{
-		CLI:           new("codex"),
+		CLIName:       new("codex"),
 		TmpfsMasks:    []string{"build"},
 		VolumeMasks:   []string{"cache"},
 		ReadOnlyGlobs: []string{".envrc"},
@@ -48,7 +48,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 
 	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
 	assert.Equal(t, Config{
-		CLI:           new("codex"),
+		CLIName:       new("codex"),
 		HostGitConfig: new(false), // a set later layer wins
 		TmpfsMasks:    []string{"dist", "build"},
 		VolumeMasks:   []string{"target", "cache"},
@@ -73,7 +73,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 			"an all-nil config expands every list to nothing", t.TempDir(),
 			"cli: claude\nhost_git_config: true\n",
 			Config{
-				CLI:           new("claude"),
+				CLIName:       new("claude"),
 				HostGitConfig: new(true),
 			},
 			nil, nil, nil, nil,
@@ -84,7 +84,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 				"tmpfs_masks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
 				"read_only_globs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
 			Config{
-				CLI:           new("claude"),
+				CLIName:       new("claude"),
 				HostGitConfig: new(true),
 				TmpfsMasks:    []string{DefaultsToken, "dist", DefaultsToken},
 				ReadOnlyGlobs: []string{DefaultsToken, ".env", DefaultsToken},
@@ -97,7 +97,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 		{
 			"an explicit empty list stays empty like an unset one", t.TempDir(),
 			"cli: claude\nhost_git_config: true\nvolume_masks: []\n",
-			Config{CLI: new("claude"), HostGitConfig: new(true), VolumeMasks: []string{}},
+			Config{CLIName: new("claude"), HostGitConfig: new(true), VolumeMasks: []string{}},
 			nil, nil, nil, nil,
 		},
 	}
@@ -352,7 +352,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	// present stays resolved in, the absent drop: build, .venv, vendor/bundle, cache, .env
 	mkDirs(t, dir, append(append([]string{}, tmpfsDefaults...), "dist", "node_modules", "target", "secrets")...)
 	c := &Config{
-		CLI:           new("claude"),
+		CLIName:       new("claude"),
 		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken, "dist", "build"},
 		VolumeMasks:   []string{DefaultsToken, "target", "cache"},
@@ -370,7 +370,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	var got Config
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	want := Config{
-		CLI:           new("claude"),
+		CLIName:       new("claude"),
 		HostGitConfig: new(true),
 		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
 		VolumeMasks:   []string{"node_modules", "target"},

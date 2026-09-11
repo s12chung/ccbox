@@ -65,7 +65,7 @@ func Init(projectDir string) (string, error) {
 // userSeedConfig is the user-level seed's data with ccbox defaults--referenced in tests
 func userSeedConfig(cli string) *Config {
 	return &Config{
-		CLI:           new(cli),
+		CLIName:       new(cli),
 		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
