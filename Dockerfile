@@ -39,9 +39,6 @@ RUN set -eux; \
 RUN groupadd --gid 1000 ccbox && useradd --uid 1000 --gid ccbox --shell /bin/bash --create-home ccbox
 ENV DEVCONTAINER=true
 
-# Managed-policy CLAUDE.md: org-wide memory, highest precedence, loaded every session for all users.
-COPY docker/image/CLAUDE.admin.md /etc/claude-code/CLAUDE.md
-
 ENV TZ="America/New_York"
 
 # Let ccbox install packages in every ecosystem with no root

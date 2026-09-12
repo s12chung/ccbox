@@ -14,7 +14,7 @@ import (
 
 // The tests pin AgentsMdShare on claude's paths under a temp userDir.
 
-// resetUserDir points userdir at a fresh temp tree with the shared AGENTS doc seeded
+// resetUserDir points userdir at a fresh temp tree with the shared AGENTS docs seeded
 func resetUserDir(t *testing.T) string {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
@@ -35,10 +35,21 @@ func claudeShareBegin(t *testing.T, body func(shareBindPath string)) {
 }
 
 func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", "CLAUDE.md") }
+func claudeAdminMd(userDir string) string {
+	return filepath.Join(userDir, "claude", adminMdFileName("CLAUDE.md"))
+}
+func userAgentsMd(userDir string) string { return filepath.Join(userDir, userAgentsMdFileName) }
+func userAgentsAdminMd(userDir string) string {
+	return filepath.Join(userDir, adminMdFileName(userAgentsMdFileName))
+}
+
+func userAgentsReadmeMd(userDir string) string {
+	return filepath.Join(userDir, userAgentsReadmeMdFileName)
+}
+
 func claudeScratch(userDir string) string {
 	return filepath.Join(userDir, "tmp", "claude", "CLAUDE.md")
 }
-func userAgentsMd(userDir string) string { return filepath.Join(userDir, userAgentsMdFileName) }
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
@@ -60,91 +71,253 @@ func gone(t *testing.T, path string) bool {
 }
 
 func TestSafeSeedAgentsMd(t *testing.T) {
-	userDir := resetUserDir(t)
-	assert.Empty(t, readFile(t, userAgentsMd(userDir)), "laid empty")
+	for _, tc := range []struct {
+		caseName string
+		setup    func(t *testing.T, userDir string) // laid before the seed
+		admin    *string                            // the admin variant's body after the seed; nil when gone
+		readme   *string                            // the explainer's body after the seed; nil when gone
+	}{
+		{
+			caseName: "LaysAll",
+			admin:    new(""),
+			readme:   new(agentsReadmeMd),
+		},
+		{
+			caseName: "SkipsExistingAdmin",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsAdminMd(userDir), "kept")
+			},
+			admin: new("kept"),
+		},
+		{
+			caseName: "UserDocPreventsAdminAndReadme",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "mine")
+			},
+		},
+	} {
+		t.Run(tc.caseName, func(t *testing.T) {
+			t.Setenv("HOME", t.TempDir())
+			userDir := userdir.Dir()
+			if tc.setup != nil {
+				tc.setup(t, userDir)
+			}
+
+			require.NoError(t, SafeSeedAgentsMd())
+
+			if tc.admin == nil {
+				assert.True(t, gone(t, userAgentsAdminMd(userDir)), "the admin variant is not laid")
+			} else {
+				assert.Equal(t, *tc.admin, readFile(t, userAgentsAdminMd(userDir)))
+			}
+			if tc.readme == nil {
+				assert.True(t, gone(t, userAgentsReadmeMd(userDir)), "the explainer is not laid")
+			} else {
+				assert.Equal(t, *tc.readme, readFile(t, userAgentsReadmeMd(userDir)))
+			}
+		})
+	}
 }
 
-func TestSafeSeedAgentsMd_SkipsExisting(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, userAgentsMd(userDir), "kept")
+// TestAgentsMdShare_Begin binds the share's source doc, most specific first
+func TestAgentsMdShare_Begin(t *testing.T) {
+	for _, tc := range []struct {
+		caseName string
+		setup    func(t *testing.T, userDir string)
+		binds    bool   // whether the share binds a scratch
+		err      bool   // whether the share errors; no scratch is laid
+		body     string // the bound scratch's body; unset when !binds
+	}{
+		{
+			caseName: "ScratchCopy",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "shared")
+			},
+			binds: true,
+			body:  "shared",
+		},
+		{
+			caseName: "AdminPrefixedScratch",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsAdminMd(userDir), "admin rules")
+			},
+			binds: true,
+			body:  adminMd + "admin rules",
+		},
+		{
+			caseName: "SeededDefault",
+			binds:    true,
+			body:     adminMd,
+		},
+		{
+			caseName: "EmptyUserDocOverridesAdmin",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "")
+				writeFile(t, userAgentsAdminMd(userDir), "admin rules")
+			},
+			binds: true,
+		},
+		{
+			caseName: "CliAdminPrefixedScratch",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "shared")
+				writeFile(t, claudeAdminMd(userDir), "cli rules")
+			},
+			binds: true,
+			body:  adminMd + "cli rules",
+		},
+		{
+			caseName: "SkipsWhenCliFileExists",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, claudeCliFile(userDir), "cli")
+				writeFile(t, claudeAdminMd(userDir), "cli rules")
+			},
+		},
+		{
+			caseName: "ErrorsWhenNoSourceDoc",
+			setup: func(t *testing.T, userDir string) {
+				require.NoError(t, os.Remove(userAgentsAdminMd(userDir)))
+			},
+			err: true,
+		},
+	} {
+		t.Run(tc.caseName, func(t *testing.T) {
+			userDir := resetUserDir(t)
+			if tc.setup != nil {
+				tc.setup(t, userDir)
+			}
 
-	require.NoError(t, SafeSeedAgentsMd())
+			if tc.err {
+				shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+				require.Error(t, err)
+				assert.Empty(t, shareBindPath)
+				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+				require.NoError(t, cleanup())
+				return
+			}
 
-	assert.Equal(t, "kept", readFile(t, userAgentsMd(userDir)))
+			claudeShareBegin(t, func(shareBindPath string) {
+				if !tc.binds {
+					assert.Empty(t, shareBindPath)
+					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+					return
+				}
+				assert.Equal(t, claudeScratch(userDir), shareBindPath)
+				assert.Equal(t, tc.body, readFile(t, shareBindPath), "the bound scratch's body")
+			})
+		})
+	}
 }
 
-func TestAgentsMdShare_Begin_BindsScratchCopy(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, userAgentsMd(userDir), "shared")
+// TestAgentsMdShare_Begin_SettlesLeftover settles a crashed run's leftover scratch
+func TestAgentsMdShare_Begin_SettlesLeftover(t *testing.T) {
+	for _, tc := range []struct {
+		caseName string
+		setup    func(t *testing.T, userDir string)
+		leftover string // the scratch left by the crashed run
+		promoted string // the promoted cliFile's body; gone when unset
+	}{
+		{caseName: "PromotesChanged", leftover: "edited", promoted: "edited"},
+		{
+			caseName: "DropsUnchanged",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "shared") // what the leftover was copied from
+			},
+			leftover: "shared",
+		},
+	} {
+		t.Run(tc.caseName, func(t *testing.T) {
+			userDir := resetUserDir(t)
+			if tc.setup != nil {
+				tc.setup(t, userDir)
+			}
+			writeFile(t, claudeScratch(userDir), tc.leftover)
 
-	claudeShareBegin(t, func(shareBindPath string) {
-		assert.Equal(t, claudeScratch(userDir), shareBindPath)
-		assert.Equal(t, "shared", readFile(t, shareBindPath), "scratch is a copy of the original")
-	})
+			claudeShareBegin(t, func(shareBindPath string) {
+				assert.Empty(t, shareBindPath, "the settled leftover skips the bind")
+			})
+
+			if tc.promoted != "" {
+				assert.Equal(t, tc.promoted, readFile(t, claudeCliFile(userDir)))
+			} else {
+				assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted")
+			}
+			assert.True(t, gone(t, claudeScratch(userDir)))
+		})
+	}
 }
 
-func TestAgentsMdShare_Begin_SkipsWhenCliFileExists(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, claudeCliFile(userDir), "cli")
+// TestAgentsMdShare_Cleanup settles the bound scratch into the cliFile: a diff is promoted
+// as-is, and the doc it was bound from is left untouched
+func TestAgentsMdShare_Cleanup(t *testing.T) {
+	for _, tc := range []struct {
+		caseName           string
+		setup              func(t *testing.T, userDir string) (path, body string) // the doc kept untouched
+		scratchChange      string                                                 // written to the bound scratch during the run; empty skips the edit
+		expectedClaudeFile *string                                                // the expected cliFile body after the cleanup
+	}{
+		{
+			caseName: "PromotesChanged",
+			setup: func(t *testing.T, userDir string) (string, string) {
+				writeFile(t, userAgentsMd(userDir), "shared")
+				return userAgentsMd(userDir), "shared"
+			},
+			scratchChange:      "memory",
+			expectedClaudeFile: new("memory"),
+		},
+		{
+			caseName: "PromotesAdminScratchWithPrefix",
+			setup: func(t *testing.T, userDir string) (string, string) {
+				writeFile(t, userAgentsAdminMd(userDir), "admin rules")
+				return userAgentsAdminMd(userDir), "admin rules"
+			},
+			scratchChange:      adminMd + "admin rules, edited",
+			expectedClaudeFile: new(adminMd + "admin rules, edited"),
+		},
+		{
+			caseName: "PromotesCLIAdminScratchWithPrefix",
+			setup: func(t *testing.T, userDir string) (string, string) {
+				writeFile(t, claudeAdminMd(userDir), "admin claude rules")
+				return claudeAdminMd(userDir), "admin claude rules"
+			},
+			scratchChange:      adminMd + "admin claude rules, edited",
+			expectedClaudeFile: new(adminMd + "admin claude rules, edited"),
+		},
+		{
+			caseName: "KeepsOriginalWhenUnchanged",
+			setup: func(t *testing.T, userDir string) (string, string) {
+				writeFile(t, userAgentsMd(userDir), "shared")
+				return userAgentsMd(userDir), "shared"
+			},
+		},
+		{
+			caseName: "NoopWhenNotBound",
+			setup: func(t *testing.T, userDir string) (string, string) {
+				writeFile(t, claudeCliFile(userDir), "cli")
+				return claudeCliFile(userDir), "cli"
+			},
+			expectedClaudeFile: new("cli"),
+		},
+	} {
+		t.Run(tc.caseName, func(t *testing.T) {
+			userDir := resetUserDir(t)
+			protectedPath, protectedBody := tc.setup(t, userDir)
 
-	claudeShareBegin(t, func(shareBindPath string) {
-		assert.Empty(t, shareBindPath, "the cliFile wins")
-		assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
-	})
-}
+			claudeShareBegin(t, func(shareBindPath string) {
+				if tc.scratchChange != "" {
+					writeFile(t, shareBindPath, tc.scratchChange)
+				}
+			})
 
-func TestAgentsMdShare_Begin_PromotesChangedLeftover(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, claudeScratch(userDir), "edited") // left by a crashed run
-
-	claudeShareBegin(t, func(shareBindPath string) {
-		assert.Equal(t, "edited", readFile(t, claudeCliFile(userDir)))
-		assert.Empty(t, shareBindPath, "the promoted copy wins over a fresh bind")
-		assert.True(t, gone(t, claudeScratch(userDir)))
-	})
-}
-
-func TestAgentsMdShare_Begin_DropsUnchangedLeftover(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, userAgentsMd(userDir), "shared") // what the leftover was copied from
-	writeFile(t, claudeScratch(userDir), "shared")
-
-	claudeShareBegin(t, func(shareBindPath string) {
-		assert.Empty(t, shareBindPath, "leftover run skips the bind")
-		assert.True(t, gone(t, claudeScratch(userDir)))
-		assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted")
-	})
-}
-
-func TestAgentsMdShare_Cleanup_PromotesChanged(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, userAgentsMd(userDir), "shared")
-	claudeShareBegin(t, func(shareBindPath string) {
-		writeFile(t, shareBindPath, "memory")
-	})
-
-	assert.Equal(t, "memory", readFile(t, claudeCliFile(userDir)))
-	assert.Equal(t, "shared", readFile(t, userAgentsMd(userDir)), "original untouched")
-	assert.True(t, gone(t, claudeScratch(userDir)))
-}
-
-func TestAgentsMdShare_Cleanup_KeepsOriginalWhenUnchanged(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, userAgentsMd(userDir), "shared")
-	claudeShareBegin(t, nil)
-
-	assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted")
-	assert.True(t, gone(t, claudeScratch(userDir)), "scratch removed")
-	assert.Equal(t, "shared", readFile(t, userAgentsMd(userDir)), "original untouched")
-}
-
-func TestAgentsMdShare_Cleanup_NoopWhenNotBound(t *testing.T) {
-	userDir := resetUserDir(t)
-	writeFile(t, claudeCliFile(userDir), "cli")
-	claudeShareBegin(t, nil)
-
-	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)), "the cliFile is untouched")
-	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+			if tc.expectedClaudeFile == nil {
+				assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted")
+			} else {
+				assert.Equal(t, *tc.expectedClaudeFile, readFile(t, claudeCliFile(userDir)))
+			}
+			assert.True(t, gone(t, claudeScratch(userDir)), "scratch removed")
+			assert.Equal(t, protectedBody, readFile(t, protectedPath), "the source doc is untouched")
+		})
+	}
 }
 
 func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {

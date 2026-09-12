@@ -32,7 +32,7 @@ func TestNewRunMap(t *testing.T) {
 func TestRunMap_HostOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the shared doc is seeded
+	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
 
 	projectDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), ioutil.Dir))

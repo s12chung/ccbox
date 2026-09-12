@@ -1,6 +1,6 @@
 ## Overview
 
-This project is a hardened Docker devbox wrapper for an LLM CLI — Claude Code or Codex, selected per project via `.ccbox.yaml`'s `cli` key. You are currently running inside of it, you already loaded its brief specifications in your managed-policy CLAUDE.md.
+This project is a hardened Docker devbox wrapper for an LLM CLI — Claude Code or Codex, selected per project via `.ccbox.yaml`'s `cli` key. You are currently running inside of it.
 
 You run inside the container defined at `Dockerfile`, and we often swap containers as the Dockerfile changes, especially mid-debug — so the running image may not match the file on disk. When container/Dockerfile changes come up, ask whether the state is old or new.
 

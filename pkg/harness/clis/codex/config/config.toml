@@ -14,9 +14,3 @@ glob_scan_max_depth = 4 # depth for the unbounded **/ deny globs below
 "secrets/**" = "deny"
 "**/*.pem" = "deny"
 "**/*.key" = "deny"
-
-# Managed-policy CLAUDE.md — Codex has no /etc/claude-code equivalent
-[[hooks.SessionStart]]
-[[hooks.SessionStart.hooks]]
-type = "command"
-command = "cat /etc/claude-code/CLAUDE.md"

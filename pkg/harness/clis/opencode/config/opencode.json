@@ -2,7 +2,6 @@
   "$schema": "https://opencode.ai/config.json",
   "autoupdate": false,
   "share": "disabled",
-  "instructions": ["/etc/claude-code/CLAUDE.md"],
   "permission": {
     "read": {
       "*": "allow",

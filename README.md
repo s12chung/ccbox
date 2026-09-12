@@ -33,5 +33,5 @@ Protect your protect these configs:
 
 ## Docs
 
-- **[`docker/image/CLAUDE.admin.md`](docker/image/CLAUDE.admin.md)** — start here: the container the CLI runs inside (user, network wall, what's installed).
+- **[`pkg/harness/admin.md`](pkg/harness/admin.md)** — start here: the container the CLI runs inside (user, network wall, what's installed), prepended to the agents docs' `ccbox-admin` variants.
 - **[`AGENTS.md`](AGENTS.md)** — the project layout: the `ccbox` CLI, the build inputs, and how to build/test.
