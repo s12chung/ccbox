@@ -133,10 +133,10 @@ func TestAgentsMdBind(t *testing.T) {
 			{cli: "codex", dir: ".codex", file: "AGENTS.md"},   // parse default
 			{cli: "opencode", dir: ".config/opencode", file: "AGENTS.md"},
 		} {
-			host := "/host/.ccbox/tmp/" + tc.cli + "/" + tc.file
+			scratchPath := "/host/.ccbox/tmp/" + tc.cli + "/" + tc.file
 			cli := harness.MustFor(tc.cli)
-			assert.Equal(t, []docker.Mount{docker.NewBind(host, path.Join(containerHome, tc.dir, tc.file))},
-				agentsMdBind(host, cli), tc.cli)
+			assert.Equal(t, []docker.Mount{docker.NewBind(scratchPath, path.Join(containerHome, tc.dir, tc.file))},
+				agentsMdBind(scratchPath, cli), tc.cli)
 		}
 	})
 

@@ -167,6 +167,14 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 			body:  adminMd + "cli rules",
 		},
 		{
+			caseName: "CliFileIsShadowFile",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, claudeCliFile(userDir), shadowBody) // ccbox's shadow file, left by a past run
+			},
+			binds: true,
+			body:  adminMd,
+		},
+		{
 			caseName: "SkipsWhenCliFileExists",
 			setup: func(t *testing.T, userDir string) {
 				writeFile(t, claudeCliFile(userDir), "cli")
@@ -204,47 +212,56 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 				}
 				assert.Equal(t, claudeScratch(userDir), shareBindPath)
 				assert.Equal(t, tc.body, readFile(t, shareBindPath), "the bound scratch's body")
+				assert.FileExists(t, claudeCliFile(userDir), "the shadow file is laid")
+				assert.Equal(t, shadowBody, readFile(t, claudeCliFile(userDir)), "the shadow file is marked as ccbox's")
 			})
 		})
 	}
 }
 
-// TestAgentsMdShare_Begin_SettlesLeftover settles a crashed run's leftover scratch
-func TestAgentsMdShare_Begin_SettlesLeftover(t *testing.T) {
-	for _, tc := range []struct {
-		caseName string
-		setup    func(t *testing.T, userDir string)
-		leftover string // the scratch left by the crashed run
-		promoted string // the promoted cliFile's body; gone when unset
-	}{
-		{caseName: "PromotesChanged", leftover: "edited", promoted: "edited"},
-		{
-			caseName: "DropsUnchanged",
-			setup: func(t *testing.T, userDir string) {
-				writeFile(t, userAgentsMd(userDir), "shared") // what the leftover was copied from
-			},
-			leftover: "shared",
-		},
-	} {
-		t.Run(tc.caseName, func(t *testing.T) {
-			userDir := resetUserDir(t)
-			if tc.setup != nil {
-				tc.setup(t, userDir)
-			}
-			writeFile(t, claudeScratch(userDir), tc.leftover)
+func TestAgentsMdShare_Begin_EmptyCliFileIsOwned(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, claudeCliFile(userDir), "")
 
-			claudeShareBegin(t, func(shareBindPath string) {
-				assert.Empty(t, shareBindPath, "the settled leftover skips the bind")
-			})
+	shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+	require.NoError(t, err)
 
-			if tc.promoted != "" {
-				assert.Equal(t, tc.promoted, readFile(t, claudeCliFile(userDir)))
-			} else {
-				assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted")
-			}
-			assert.True(t, gone(t, claudeScratch(userDir)))
-		})
-	}
+	assert.Empty(t, shareBindPath, "an empty cliFile is the user's own doc")
+	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+
+	require.NoError(t, cleanup())
+	assert.Empty(t, readFile(t, claudeCliFile(userDir)), "the empty doc is untouched")
+}
+
+func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, claudeScratch(userDir), "edited") // leftover scratch: edited by the crashed run
+
+	claudeShareBegin(t, func(shareBindPath string) {
+		assert.Empty(t, shareBindPath) // leftover promoted, do nothing
+	})
+
+	// check promotion
+	assert.Equal(t, "edited", readFile(t, claudeCliFile(userDir)))
+	assert.True(t, gone(t, claudeScratch(userDir)))
+}
+
+func TestAgentsMdShare_Begin_SettlesLeftover_ResharesUnchanged(t *testing.T) {
+	userDir := resetUserDir(t)
+
+	// leftover scratch: unchanged from its source doc
+	writeFile(t, userAgentsMd(userDir), "shared")
+	writeFile(t, claudeScratch(userDir), "shared")
+
+	// during session: re-bound as a fresh scratch
+	claudeShareBegin(t, func(shareBindPath string) {
+		assert.Equal(t, claudeScratch(userDir), shareBindPath)
+		assert.Equal(t, "shared", readFile(t, shareBindPath))
+		assert.Equal(t, shadowBody, readFile(t, claudeCliFile(userDir)), "the shadow file is laid")
+	})
+
+	assert.True(t, gone(t, claudeCliFile(userDir))) // shadow dropped
+	assert.True(t, gone(t, claudeScratch(userDir))) // scratch gone
 }
 
 // TestAgentsMdShare_Cleanup settles the bound scratch into the cliFile: a diff is promoted
@@ -310,7 +327,7 @@ func TestAgentsMdShare_Cleanup(t *testing.T) {
 			})
 
 			if tc.expectedClaudeFile == nil {
-				assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted")
+				assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted; the laid shadow file is dropped")
 			} else {
 				assert.Equal(t, *tc.expectedClaudeFile, readFile(t, claudeCliFile(userDir)))
 			}
@@ -320,12 +337,34 @@ func TestAgentsMdShare_Cleanup(t *testing.T) {
 	}
 }
 
+func TestAgentsMdShare_Cleanup_LoneShadow(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, claudeCliFile(userDir), shadowBody) // leftover shadow: its scratch is already gone
+
+	require.NoError(t, AgentsMdShare{CLI: MustFor("claude")}.clean())
+
+	assert.True(t, gone(t, claudeCliFile(userDir)), "the lone shadow is dropped")
+}
+
+func TestAgentsMdShare_Cleanup_DiffErrorDropsShadow(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, claudeCliFile(userDir), shadowBody)
+	writeFile(t, claudeScratch(userDir), "leftover")
+	require.NoError(t, os.Remove(userAgentsAdminMd(userDir))) // no source doc: the diff errors
+
+	require.Error(t, AgentsMdShare{CLI: MustFor("claude")}.clean())
+
+	assert.True(t, gone(t, claudeCliFile(userDir)), "the shadow is dropped despite the failed settle")
+	assert.False(t, gone(t, claudeScratch(userDir)), "the scratch is kept for the next run")
+}
+
 func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 	userDir := resetUserDir(t)
 	shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
 	require.NoError(t, err)
 	writeFile(t, shareBindPath, "memory")
-	require.NoError(t, os.MkdirAll(claudeCliFile(userDir), ioutil.Dir)) // blocks the promotion
+	require.NoError(t, os.Remove(claudeCliFile(userDir)))               // clear the laid shadow file
+	require.NoError(t, os.MkdirAll(claudeCliFile(userDir), ioutil.Dir)) // a directory is unreadable: promotion fails
 
 	require.Error(t, cleanup(), "cliFile is a directory")
 	assert.Equal(t, "memory", readFile(t, shareBindPath), "scratch kept for the next run")

@@ -28,7 +28,7 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 // shared agents doc's scratch bind is appended after, once AgentsMdShare has begun.
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
-	scratch, clean, err := harness.AgentsMdShare{CLI: rm.cli}.Begin()
+	scratchPath, clean, err := harness.AgentsMdShare{CLI: rm.cli}.Begin()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -45,7 +45,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		readOnlyBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		gitBinds(*rm.cfg.HostGitConfig),
 		cliDataBinds(rm.userDir, rm.cli),
-		agentsMdBind(scratch, rm.cli),
+		agentsMdBind(scratchPath, rm.cli),
 	), clean, nil
 }
 
@@ -111,11 +111,11 @@ func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 
 // agentsMdBind binds the shared doc's scratch copy at the CLI's config path.
 // host "" = the CLI has its own agents file: no bind.
-func agentsMdBind(host string, cli harness.CLI) []docker.Mount {
-	if host == "" {
+func agentsMdBind(scratchPath string, cli harness.CLI) []docker.Mount {
+	if scratchPath == "" {
 		return nil
 	}
-	return []docker.Mount{docker.NewBind(host, path.Join(containerHome, cli.ConfigHomeMount, cli.SeedAgentsFilename))}
+	return []docker.Mount{docker.NewBind(scratchPath, path.Join(containerHome, cli.ConfigHomeMount, cli.SeedAgentsFilename))}
 }
 
 // globalVolumesMap maps volume name → container directory for volumes shared by every project

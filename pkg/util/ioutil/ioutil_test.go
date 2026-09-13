@@ -41,3 +41,66 @@ func TestDirs_Present(t *testing.T) {
 		})
 	}
 }
+
+func TestSafeWriteFile(t *testing.T) {
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, dir string) string // lays the pre-state, returns the path to write
+		body       string
+		err        bool   // whether the write errs
+		createdDir string // non-empty: dir the write creates, asserted with Dir perms
+	}{
+		{
+			name:       "creates the parent dir",
+			setup:      func(_ *testing.T, dir string) string { return filepath.Join(dir, "missing/parent/file") },
+			body:       "body",
+			createdDir: "missing/parent",
+		},
+		{
+			name: "overwrites an existing file",
+			setup: func(t *testing.T, dir string) string {
+				path := filepath.Join(dir, "file")
+				require.NoError(t, os.WriteFile(path, []byte("old"), File))
+				return path
+			},
+			body: "new",
+		},
+		{
+			name: "errs when the parent is a file",
+			setup: func(t *testing.T, dir string) string {
+				parent := filepath.Join(dir, "afile")
+				require.NoError(t, os.WriteFile(parent, nil, File))
+				return filepath.Join(parent, "file")
+			},
+			body: "body",
+			err:  true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := tt.setup(t, dir)
+
+			err := SafeWriteFile(path, []byte(tt.body))
+			if tt.err {
+				assert.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			body, err := os.ReadFile(path) // #nosec G304 -- the test's own path
+			require.NoError(t, err)
+			assert.Equal(t, tt.body, string(body))
+
+			file, err := os.Stat(path)
+			require.NoError(t, err)
+			assert.Equal(t, File, file.Mode().Perm())
+
+			if tt.createdDir != "" {
+				created, err := os.Stat(filepath.Join(dir, tt.createdDir))
+				require.NoError(t, err)
+				assert.Equal(t, Dir, created.Mode().Perm())
+			}
+		})
+	}
+}

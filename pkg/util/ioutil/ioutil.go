@@ -24,6 +24,14 @@ func Missing(path string) bool {
 // Present returns whether path exists
 func Present(path string) bool { return !Missing(path) }
 
+// SafeWriteFile writes body at path with File perms, creating its parent dir when missing
+func SafeWriteFile(path string, body []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), Dir); err != nil {
+		return err
+	}
+	return os.WriteFile(path, body, File)
+}
+
 // DirsPresent returns the entries of dirs that exist as directories under src.
 func DirsPresent(src string, dirs []string) []string {
 	var out []string
