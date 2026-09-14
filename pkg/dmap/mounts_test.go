@@ -122,26 +122,19 @@ func TestCLIDataBinds(t *testing.T) {
 	})
 }
 
-func TestAgentsMdBind(t *testing.T) {
-	t.Run("binds the scratch as the CLI's seed file within its config dir", func(t *testing.T) {
-		for _, tc := range []struct {
-			cli  string
-			dir  string
-			file string
-		}{
-			{cli: "claude", dir: ".claude", file: "CLAUDE.md"}, // yaml override
-			{cli: "codex", dir: ".codex", file: "AGENTS.md"},   // parse default
-			{cli: "opencode", dir: ".config/opencode", file: "AGENTS.md"},
-		} {
-			scratchPath := "/host/.ccbox/tmp/" + tc.cli + "/" + tc.file
-			cli := harness.MustFor(tc.cli)
-			assert.Equal(t, []docker.Mount{docker.NewBind(scratchPath, path.Join(containerHome, tc.dir, tc.file))},
-				agentsMdBind(scratchPath, cli), tc.cli)
+func TestCliTmpBind(t *testing.T) {
+	t.Run("binds the scratch dir at cliTmpMount", func(t *testing.T) {
+		for _, cliName := range []string{"claude", "codex", "opencode"} {
+			cli := harness.MustFor(cliName)
+			scratchDir := "/host/.ccbox/tmp/" + cliName
+			assert.Equal(t,
+				[]docker.Mount{docker.NewBind(scratchDir, cliTmpMount(cli))},
+				cliTmpBind(scratchDir, cliTmpMount(cli)), cliName)
 		}
 	})
 
-	t.Run("no bind when the CLI has its own", func(t *testing.T) {
-		assert.Empty(t, agentsMdBind("", harness.MustFor("claude")))
+	t.Run("no bind when scratchDir is empty (no scratch created)", func(t *testing.T) {
+		assert.Empty(t, cliTmpBind("", ""))
 	})
 }
 

@@ -22,17 +22,25 @@ func resetUserDir(t *testing.T) string {
 	return userdir.Dir()
 }
 
-// claudeShareBegin begins a bound share for claude, runs body with the bound scratch, then
-// cleans up
-func claudeShareBegin(t *testing.T, body func(shareBindPath string)) {
+// claudeShare is the share under test
+func claudeShare() AgentsMdShare {
+	return AgentsMdShare{CLI: MustFor("claude"), ScratchMountDir: "/home/ccbox/.ccbox/tmp/claude"}
+}
+
+// claudeShareBegin begins a bound share for claude, runs body with the bound scratch dir,
+// then cleans up
+func claudeShareBegin(t *testing.T, body func(scratchDir string)) {
 	t.Helper()
-	shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+	scratchDir, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
 	if body != nil {
-		body(shareBindPath)
+		body(scratchDir)
 	}
 	require.NoError(t, cleanup())
 }
+
+// claudeTarget is the cliFile symlink's target
+func claudeTarget() string { return claudeShare().cliFileTarget() }
 
 func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", "CLAUDE.md") }
 func claudeAdminMd(userDir string) string {
@@ -47,8 +55,10 @@ func userAgentsReadmeMd(userDir string) string {
 	return filepath.Join(userDir, userAgentsReadmeMdFileName)
 }
 
+func claudeCliTmpPath(userDir string) string { return filepath.Join(userDir, "tmp", "claude") }
+
 func claudeScratch(userDir string) string {
-	return filepath.Join(userDir, "tmp", "claude", "CLAUDE.md")
+	return filepath.Join(claudeCliTmpPath(userDir), "CLAUDE.md")
 }
 
 func writeFile(t *testing.T, path, body string) {
@@ -68,6 +78,39 @@ func gone(t *testing.T, path string) bool {
 	t.Helper()
 	_, err := os.Stat(path)
 	return os.IsNotExist(err)
+}
+
+// lstatGone is gone without following symlinks
+func lstatGone(t *testing.T, path string) bool {
+	t.Helper()
+	_, err := os.Lstat(path)
+	return os.IsNotExist(err)
+}
+
+// linkFile lays ccbox's symlink at path, pointing at target
+func linkFile(t *testing.T, path, target string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
+	require.NoError(t, os.Symlink(target, path))
+}
+
+// assertSymlinked asserts the cliFile is ccbox's own symlink into the scratch mount
+func assertSymlinked(t *testing.T, cliFile string) {
+	t.Helper()
+	info, err := os.Lstat(cliFile)
+	require.NoError(t, err)
+	require.NotEqual(t, 0, info.Mode()&os.ModeSymlink, "the cliFile is laid as a symlink")
+	target, err := os.Readlink(cliFile)
+	require.NoError(t, err)
+	assert.Equal(t, claudeTarget(), target)
+}
+
+// assertRegular asserts path is a regular file, not a symlink
+func assertRegular(t *testing.T, path string) {
+	t.Helper()
+	info, err := os.Lstat(path)
+	require.NoError(t, err)
+	assert.True(t, info.Mode().IsRegular(), "a regular file, not a symlink")
 }
 
 func TestSafeSeedAgentsMd(t *testing.T) {
@@ -167,9 +210,9 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 			body:  adminMd + "cli rules",
 		},
 		{
-			caseName: "CliFileIsShadowFile",
+			caseName: "CliFileIsCcboxSymlink",
 			setup: func(t *testing.T, userDir string) {
-				writeFile(t, claudeCliFile(userDir), shadowBody) // ccbox's shadow file, left by a past run
+				linkFile(t, claudeCliFile(userDir), claudeTarget()) // ccbox's symlink, left by a past run
 			},
 			binds: true,
 			body:  adminMd,
@@ -196,24 +239,23 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 			}
 
 			if tc.err {
-				shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+				scratchDir, cleanup, err := claudeShare().Begin()
 				require.Error(t, err)
-				assert.Empty(t, shareBindPath)
+				assert.Empty(t, scratchDir)
 				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
 				require.NoError(t, cleanup())
 				return
 			}
 
-			claudeShareBegin(t, func(shareBindPath string) {
+			claudeShareBegin(t, func(scratchDir string) {
 				if !tc.binds {
-					assert.Empty(t, shareBindPath)
+					assert.Empty(t, scratchDir)
 					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
 					return
 				}
-				assert.Equal(t, claudeScratch(userDir), shareBindPath)
-				assert.Equal(t, tc.body, readFile(t, shareBindPath), "the bound scratch's body")
-				assert.FileExists(t, claudeCliFile(userDir), "the shadow file is laid")
-				assert.Equal(t, shadowBody, readFile(t, claudeCliFile(userDir)), "the shadow file is marked as ccbox's")
+				assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+				assert.Equal(t, tc.body, readFile(t, claudeScratch(userDir)), "the bound scratch's body")
+				assertSymlinked(t, claudeCliFile(userDir))
 			})
 		})
 	}
@@ -223,26 +265,43 @@ func TestAgentsMdShare_Begin_EmptyCliFileIsOwned(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeCliFile(userDir), "")
 
-	shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+	scratchDir, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
 
-	assert.Empty(t, shareBindPath, "an empty cliFile is the user's own doc")
+	assert.Empty(t, scratchDir, "an empty cliFile is the user's own doc")
 	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
 
 	require.NoError(t, cleanup())
 	assert.Empty(t, readFile(t, claudeCliFile(userDir)), "the empty doc is untouched")
 }
 
+func TestAgentsMdShare_Begin_ForeignSymlinkIsOwned(t *testing.T) {
+	userDir := resetUserDir(t)
+	linkFile(t, claudeCliFile(userDir), "/elsewhere/CLAUDE.md") // e.g. the user's dotfiles repo
+
+	scratchDir, cleanup, err := claudeShare().Begin()
+	require.NoError(t, err)
+
+	assert.Empty(t, scratchDir, "a foreign symlink is the user's own doc")
+	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+
+	require.NoError(t, cleanup())
+	target, err := os.Readlink(claudeCliFile(userDir))
+	require.NoError(t, err)
+	assert.Equal(t, "/elsewhere/CLAUDE.md", target, "the foreign symlink is untouched")
+}
+
 func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeScratch(userDir), "edited") // leftover scratch: edited by the crashed run
 
-	claudeShareBegin(t, func(shareBindPath string) {
-		assert.Empty(t, shareBindPath) // leftover promoted, do nothing
+	claudeShareBegin(t, func(scratchDir string) {
+		assert.Empty(t, scratchDir) // leftover promoted, do nothing
 	})
 
 	// check promotion
 	assert.Equal(t, "edited", readFile(t, claudeCliFile(userDir)))
+	assertRegular(t, claudeCliFile(userDir))
 	assert.True(t, gone(t, claudeScratch(userDir)))
 }
 
@@ -254,14 +313,14 @@ func TestAgentsMdShare_Begin_SettlesLeftover_ResharesUnchanged(t *testing.T) {
 	writeFile(t, claudeScratch(userDir), "shared")
 
 	// during session: re-bound as a fresh scratch
-	claudeShareBegin(t, func(shareBindPath string) {
-		assert.Equal(t, claudeScratch(userDir), shareBindPath)
-		assert.Equal(t, "shared", readFile(t, shareBindPath))
-		assert.Equal(t, shadowBody, readFile(t, claudeCliFile(userDir)), "the shadow file is laid")
+	claudeShareBegin(t, func(scratchDir string) {
+		assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+		assert.Equal(t, "shared", readFile(t, claudeScratch(userDir)))
+		assertSymlinked(t, claudeCliFile(userDir))
 	})
 
-	assert.True(t, gone(t, claudeCliFile(userDir))) // shadow dropped
-	assert.True(t, gone(t, claudeScratch(userDir))) // scratch gone
+	assert.True(t, lstatGone(t, claudeCliFile(userDir))) // symlink dropped
+	assert.True(t, gone(t, claudeScratch(userDir)))      // scratch gone
 }
 
 // TestAgentsMdShare_Cleanup settles the bound scratch into the cliFile: a diff is promoted
@@ -320,16 +379,17 @@ func TestAgentsMdShare_Cleanup(t *testing.T) {
 			userDir := resetUserDir(t)
 			protectedPath, protectedBody := tc.setup(t, userDir)
 
-			claudeShareBegin(t, func(shareBindPath string) {
+			claudeShareBegin(t, func(_ string) {
 				if tc.scratchChange != "" {
-					writeFile(t, shareBindPath, tc.scratchChange)
+					writeFile(t, claudeScratch(userDir), tc.scratchChange)
 				}
 			})
 
 			if tc.expectedClaudeFile == nil {
-				assert.True(t, gone(t, claudeCliFile(userDir)), "nothing promoted; the laid shadow file is dropped")
+				assert.True(t, lstatGone(t, claudeCliFile(userDir)), "nothing promoted; the laid symlink is dropped")
 			} else {
 				assert.Equal(t, *tc.expectedClaudeFile, readFile(t, claudeCliFile(userDir)))
+				assertRegular(t, claudeCliFile(userDir))
 			}
 			assert.True(t, gone(t, claudeScratch(userDir)), "scratch removed")
 			assert.Equal(t, protectedBody, readFile(t, protectedPath), "the source doc is untouched")
@@ -337,35 +397,35 @@ func TestAgentsMdShare_Cleanup(t *testing.T) {
 	}
 }
 
-func TestAgentsMdShare_Cleanup_LoneShadow(t *testing.T) {
+func TestAgentsMdShare_Cleanup_LoneSymlink(t *testing.T) {
 	userDir := resetUserDir(t)
-	writeFile(t, claudeCliFile(userDir), shadowBody) // leftover shadow: its scratch is already gone
+	linkFile(t, claudeCliFile(userDir), claudeTarget()) // leftover symlink: its scratch is already gone
 
-	require.NoError(t, AgentsMdShare{CLI: MustFor("claude")}.clean())
+	require.NoError(t, claudeShare().clean())
 
-	assert.True(t, gone(t, claudeCliFile(userDir)), "the lone shadow is dropped")
+	assert.True(t, lstatGone(t, claudeCliFile(userDir)), "the lone symlink is dropped")
 }
 
-func TestAgentsMdShare_Cleanup_DiffErrorDropsShadow(t *testing.T) {
+func TestAgentsMdShare_Cleanup_DiffErrorDropsSymlink(t *testing.T) {
 	userDir := resetUserDir(t)
-	writeFile(t, claudeCliFile(userDir), shadowBody)
+	linkFile(t, claudeCliFile(userDir), claudeTarget())
 	writeFile(t, claudeScratch(userDir), "leftover")
 	require.NoError(t, os.Remove(userAgentsAdminMd(userDir))) // no source doc: the diff errors
 
-	require.Error(t, AgentsMdShare{CLI: MustFor("claude")}.clean())
+	require.Error(t, claudeShare().clean())
 
-	assert.True(t, gone(t, claudeCliFile(userDir)), "the shadow is dropped despite the failed settle")
+	assert.True(t, lstatGone(t, claudeCliFile(userDir)), "the symlink is dropped despite the failed settle")
 	assert.False(t, gone(t, claudeScratch(userDir)), "the scratch is kept for the next run")
 }
 
 func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 	userDir := resetUserDir(t)
-	shareBindPath, cleanup, err := AgentsMdShare{CLI: MustFor("claude")}.Begin()
+	_, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
-	writeFile(t, shareBindPath, "memory")
-	require.NoError(t, os.Remove(claudeCliFile(userDir)))               // clear the laid shadow file
+	writeFile(t, claudeScratch(userDir), "memory")
+	require.NoError(t, os.Remove(claudeCliFile(userDir)))               // clear the laid symlink
 	require.NoError(t, os.MkdirAll(claudeCliFile(userDir), ioutil.Dir)) // a directory is unreadable: promotion fails
 
 	require.Error(t, cleanup(), "cliFile is a directory")
-	assert.Equal(t, "memory", readFile(t, shareBindPath), "scratch kept for the next run")
+	assert.Equal(t, "memory", readFile(t, claudeScratch(userDir)), "scratch kept for the next run")
 }

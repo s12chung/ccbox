@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -38,14 +39,17 @@ func SafeSeedAgentsMd() error {
 type AgentsMdShare struct {
 	// CLI is the run's CLI
 	CLI CLI
+
+	// ScratchMountDir is the scratch dir's container path; the cliFile symlink points into it
+	ScratchMountDir string
 }
 
 var noop = func() error { return nil }
 
-// Begin shares the AGENTS doc with a CLI that has no cliFile: it returns the scratch path to
+// Begin shares the AGENTS doc with a CLI that has no cliFile: it returns the scratch dir to
 // bind and a cleanup settling changes into the cliFile.
 func (s AgentsMdShare) Begin() (string, func() error, error) {
-	if err := s.clean(); err != nil { // clean leftover scratch and shadow
+	if err := s.clean(); err != nil { // clean a crashed run's leftover symlink and scratch
 		return "", noop, err
 	}
 	if s.definedCliFileExists() {
@@ -56,30 +60,25 @@ func (s AgentsMdShare) Begin() (string, func() error, error) {
 	if err != nil {
 		return "", noop, err // no source doc: the bind errors
 	}
-	scratch := s.scratchFilePath()
-	if err := ioutil.SafeWriteFile(scratch, body); err != nil {
+	if err := ioutil.SafeWriteFile(s.scratchFilePath(), body); err != nil {
 		return "", noop, err
 	}
-	if !ioutil.Present(s.cliFile()) {
-		// create shadow file due to mount creating an empty file via. runc
-		if err := ioutil.SafeWriteFile(s.cliFile(), []byte(shadowBody)); err != nil {
-			return "", noop, err
-		}
+	if err := ioutil.SafeSymlink(s.cliFile(), s.cliFileTarget()); err != nil {
+		return "", noop, err
 	}
-	return scratch, s.clean, nil
+	return s.cliTmpPath(), s.clean, nil
 }
 
-// clean deletes the shadow and scratch, promoting the scratch if changed
 func (s AgentsMdShare) clean() error {
-	// drop the shadow first, like definedCliFileExists(), only remove actual shadow files
-	if cliFileBody, err := os.ReadFile(s.cliFile()); err == nil && isShadowBody(cliFileBody) {
+	// drop the laid symlink first
+	if ioutil.IsSymlinkTo(s.cliFile(), s.cliFileTarget()) {
 		if err := os.Remove(s.cliFile()); err != nil {
 			return err
 		}
 	}
 
-	scratchPath := s.scratchFilePath()
-	if ioutil.Missing(scratchPath) {
+	scratch := s.scratchFilePath()
+	if ioutil.Missing(scratch) {
 		return nil
 	}
 
@@ -92,7 +91,7 @@ func (s AgentsMdShare) clean() error {
 			return err
 		}
 	}
-	return os.Remove(scratchPath)
+	return os.Remove(scratch)
 }
 
 // scratchDiff reads the scratch and compares it to the source doc
@@ -142,9 +141,12 @@ func (s AgentsMdShare) promote(body []byte) error {
 	return nil
 }
 
+// cliTmpPath is the scratch file's dir: ~/.ccbox/tmp/<cli_name>
+func (s AgentsMdShare) cliTmpPath() string { return filepath.Join(userdir.Dir(), "tmp", s.CLI.Name) }
+
 // scratchFilePath is the path of the shared doc: ~/.ccbox/tmp/<cli_name>/<SeedAgentsFilename>
 func (s AgentsMdShare) scratchFilePath() string {
-	return filepath.Join(userdir.Dir(), "tmp", s.CLI.Name, s.CLI.SeedAgentsFilename)
+	return filepath.Join(s.cliTmpPath(), s.CLI.SeedAgentsFilename)
 }
 
 //go:embed admin.md
@@ -159,9 +161,6 @@ const (
 	agentsMdExt                = ".md"
 	// ccboxAdminSuffix is the prefix to prepend the ccbox admin context
 	ccboxAdminSuffix = ".ccbox-admin.md"
-
-	// shadowBody marks the cliFile as ccbox's temp shadow file
-	shadowBody = "ccbox temp file — safe to delete"
 )
 
 // cliFile is the CLI's AGENTS doc: ~/.ccbox/<cli_name>/<SeedAgentsFilename>
@@ -169,20 +168,26 @@ func (s AgentsMdShare) cliFile() string {
 	return filepath.Join(userdir.Dir(), s.CLI.Name, s.CLI.SeedAgentsFilename)
 }
 
+// cliFileTarget is the cliFile symlink's target
+func (s AgentsMdShare) cliFileTarget() string {
+	return path.Join(s.ScratchMountDir, s.CLI.SeedAgentsFilename)
+}
+
 // definedCliFileExists reports whether the CLI's own doc exists at the cliFile
 func (s AgentsMdShare) definedCliFileExists() bool {
-	body, err := os.ReadFile(s.cliFile())
+	info, err := os.Lstat(s.cliFile())
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return false // no doc of its own
 	case err != nil:
 		return true // unreadable (e.g. a directory): don't touch it
 	}
-	return !isShadowBody(body)
+	if info.Mode()&os.ModeSymlink == 0 {
+		return true
+	}
+	target, err := os.Readlink(s.cliFile())
+	return err != nil || target != s.cliFileTarget() // unreadable/foreign: leave it be
 }
-
-// isShadowBody reports whether body is the shadow file's: ccbox's temp body
-func isShadowBody(body []byte) bool { return string(body) == shadowBody }
 
 // cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: ~/.ccbox/<cli_name>/CLAUDE.ccbox-admin.md
 func (s AgentsMdShare) cliAdminPath() string {

@@ -32,6 +32,25 @@ func SafeWriteFile(path string, body []byte) error {
 	return os.WriteFile(path, body, File)
 }
 
+// SafeSymlink symlinks path to target, creating its parent dir when missing. The target
+// may be missing: a symlink is never followed to lay it.
+func SafeSymlink(path, target string) error {
+	if err := os.MkdirAll(filepath.Dir(path), Dir); err != nil {
+		return err
+	}
+	return os.Symlink(target, path)
+}
+
+// IsSymlinkTo reports whether path is a symlink to target
+func IsSymlinkTo(path, target string) bool {
+	info, err := os.Lstat(path)
+	if err != nil || info.Mode()&os.ModeSymlink == 0 {
+		return false
+	}
+	link, err := os.Readlink(path)
+	return err == nil && link == target
+}
+
 // DirsPresent returns the entries of dirs that exist as directories under src.
 func DirsPresent(src string, dirs []string) []string {
 	var out []string

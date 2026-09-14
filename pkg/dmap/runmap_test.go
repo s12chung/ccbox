@@ -73,7 +73,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewVolume("ccbox"+s+"-tmp-cache-default", "/tmp"),
 		docker.NewVolume("ccbox"+s+"-node_modules", workspace+"/node_modules").Owned(),
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
-		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex", "AGENTS.md"), "/home/ccbox/.codex/AGENTS.md"),
+		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex"), cliTmpMount(harness.MustFor("codex"))),
 	}, hostOptions.Mounts)
 
 	assert.Equal(t, workspace, hostOptions.WorkspaceMount)

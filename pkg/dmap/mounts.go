@@ -23,12 +23,11 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 	return paths
 }
 
-// binds composes the run's binds and volumes in a deterministic order: the workspace and
-// host dirs, then the shared volumes, then the config's masks and per-CLI binds. The
-// shared agents doc's scratch bind is appended after, once AgentsMdShare has begun.
+// binds composes the run's binds and volumes in a deterministic order
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
-	scratchPath, clean, err := harness.AgentsMdShare{CLI: rm.cli}.Begin()
+	share := harness.AgentsMdShare{CLI: rm.cli, ScratchMountDir: cliTmpMount(rm.cli)}
+	scratchDir, clean, err := share.Begin()
 	if err != nil {
 		return nil, nil, err
 	}
@@ -45,7 +44,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		readOnlyBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		gitBinds(*rm.cfg.HostGitConfig),
 		cliDataBinds(rm.userDir, rm.cli),
-		agentsMdBind(scratchPath, rm.cli),
+		cliTmpBind(scratchDir, share.ScratchMountDir),
 	), clean, nil
 }
 
@@ -109,13 +108,16 @@ func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 	return dataBinds
 }
 
-// agentsMdBind binds the shared doc's scratch copy at the CLI's config path.
-// host "" = the CLI has its own agents file: no bind.
-func agentsMdBind(scratchPath string, cli harness.CLI) []docker.Mount {
-	if scratchPath == "" {
+// cliTmpMount is the CLI's tmp dir's container path: <containerHome>/.ccbox/tmp/<cli_name>
+func cliTmpMount(cli harness.CLI) string { return path.Join(containerHome, ".ccbox", "tmp", cli.Name) }
+
+// cliTmpBind binds the shared doc's scratch dir at cliTmpMount; the cliFile symlink
+// points into it. host "" = no bind.
+func cliTmpBind(scratchDir, mount string) []docker.Mount {
+	if scratchDir == "" {
 		return nil
 	}
-	return []docker.Mount{docker.NewBind(scratchPath, path.Join(containerHome, cli.ConfigHomeMount, cli.SeedAgentsFilename))}
+	return []docker.Mount{docker.NewBind(scratchDir, mount)}
 }
 
 // globalVolumesMap maps volume name → container directory for volumes shared by every project
