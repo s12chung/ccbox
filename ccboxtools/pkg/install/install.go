@@ -30,6 +30,7 @@ func Run(pkgDir pkger.PkgDir) error {
 			log.Infof("%s %s is up to date", pkgDir.Name(), latest)
 			return nil
 		}
+		log.Infof("installing %s %s", pkgDir.Name(), latest)
 
 		if err := install(pkgDir, latest); err != nil {
 			return err
