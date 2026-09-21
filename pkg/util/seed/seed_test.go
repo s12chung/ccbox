@@ -14,7 +14,7 @@ import (
 
 func srcFS() fstest.MapFS {
 	return fstest.MapFS{
-		"CLAUDE.md":         {Data: []byte("new claude")},
+		"AGENTS.md":         {Data: []byte("new agents")},
 		"settings.json":     {Data: []byte("new settings")},
 		"hooks/tripwire.sh": {Data: []byte("new hook")}, // nested → exercises tree + .sh mode
 	}
@@ -28,7 +28,7 @@ func TestTree_Fresh(t *testing.T) {
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
 	// Nested file preserved; modes set by extension.
-	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
@@ -38,21 +38,21 @@ func TestTree_Fresh(t *testing.T) {
 
 func TestTree_BacksUpExisting(t *testing.T) {
 	dest := t.TempDir()
-	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
+	writeFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
 	renamed, err := Tree(srcFS(), dest)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
-		filepath.Join(dest, "CLAUDE.old.md"),
+		filepath.Join(dest, "AGENTS.old.md"),
 		filepath.Join(dest, "settings.old.json"),
 	}, renamed)
 
 	// Backups hold old contents; new contents are in place.
-	assertFile(t, filepath.Join(dest, "CLAUDE.old.md"), "old claude")
+	assertFile(t, filepath.Join(dest, "AGENTS.old.md"), "old agents")
 	assertFile(t, filepath.Join(dest, "settings.old.json"), "old settings")
-	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 
 	// The file with no pre-existing dest is written, with no backup.
@@ -63,7 +63,7 @@ func TestTree_BacksUpExisting(t *testing.T) {
 func TestTree_SkipsIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// Each dest already holds its source contents.
-	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	writeFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	mkdirAll(t, filepath.Join(dest, "hooks"))
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
@@ -73,40 +73,40 @@ func TestTree_SkipsIdentical(t *testing.T) {
 	assert.Empty(t, renamed, "identical files should back up nothing")
 
 	// Untouched: contents stay, no backups created.
-	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
-	assertNotExist(t, filepath.Join(dest, "CLAUDE.old.md"))
+	assertNotExist(t, filepath.Join(dest, "AGENTS.old.md"))
 	assertNotExist(t, filepath.Join(dest, "settings.old.json"))
 }
 
 func TestTree_PartiallyIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// One dest matches its source; another differs.
-	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	writeFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
 	renamed, err := Tree(srcFS(), dest)
 	require.NoError(t, err, "a change alongside identical files is not ErrNoChanges")
 	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, renamed)
 
-	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "new claude")
+	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 }
 
 func TestTree_BackupExistsErrors(t *testing.T) {
 	dest := t.TempDir()
-	writeFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
-	writeFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
+	writeFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
+	writeFile(t, filepath.Join(dest, "AGENTS.old.md"), "stale backup")
 
 	// The live file's backup already exists.
-	src := fstest.MapFS{"CLAUDE.md": {Data: []byte("new claude")}}
+	src := fstest.MapFS{"AGENTS.md": {Data: []byte("new agents")}}
 	_, err := Tree(src, dest)
 	require.Error(t, err)
 
 	// Neither the live file nor the pre-existing backup was touched.
-	assertFile(t, filepath.Join(dest, "CLAUDE.md"), "old claude")
-	assertFile(t, filepath.Join(dest, "CLAUDE.old.md"), "stale backup")
+	assertFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
+	assertFile(t, filepath.Join(dest, "AGENTS.old.md"), "stale backup")
 }
 
 func TestFile_Seeds(t *testing.T) {

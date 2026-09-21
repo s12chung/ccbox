@@ -26,8 +26,6 @@ var (
 		`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$`)}
 	// HomePath is a $HOME-relative path, e.g. .claude or .config/opencode
 	HomePath = rule.Match{Regexp: regexp.MustCompile(`^[^/].*$`)}
-	// FileName is a bare filename, no directories
-	FileName = rule.Match{Regexp: regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)}
 	// HTTPSURL is an https endpoint; download templates may carry a literal $version
 	HTTPSURL = rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
 )

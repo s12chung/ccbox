@@ -45,11 +45,6 @@ func TestMatchRules(t *testing.T) {
 			[]string{"", "/etc/cli", "/"},
 		},
 		{
-			"FileName", FileName,
-			[]string{"AGENTS.md", "CLAUDE.md", "a", "a-b_c.d"},
-			[]string{"", "dir/a.md", ".hidden", "-x", "a b"},
-		},
-		{
 			"HTTPSURL", HTTPSURL,
 			[]string{"https://x.ai/cli/stable", "https://x.ai/cli/grok-$version-linux-x86_64"},
 			[]string{"", "http://x", "ftp://x", "https://", "x.ai/cli"},

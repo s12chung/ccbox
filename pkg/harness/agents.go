@@ -8,7 +8,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/userdir"
@@ -144,9 +143,9 @@ func (s AgentsMdShare) promote(body []byte) error {
 // cliTmpPath is the scratch file's dir: ~/.ccbox/tmp/<cli_name>
 func (s AgentsMdShare) cliTmpPath() string { return filepath.Join(userdir.Dir(), "tmp", s.CLI.Name) }
 
-// scratchFilePath is the path of the shared doc: ~/.ccbox/tmp/<cli_name>/<SeedAgentsFilename>
+// scratchFilePath is the path of the shared doc: ~/.ccbox/tmp/<cli_name>/AGENTS.md
 func (s AgentsMdShare) scratchFilePath() string {
-	return filepath.Join(s.cliTmpPath(), s.CLI.SeedAgentsFilename)
+	return filepath.Join(s.cliTmpPath(), agentsMdFileName)
 }
 
 //go:embed admin.md
@@ -156,22 +155,21 @@ var adminMd string
 var agentsReadmeMd string
 
 const (
+	agentsMdFileName      = "AGENTS.md"
+	agentsAdminMdFileName = "AGENTS.ccbox-admin.md"
+
 	userAgentsMdFileName       = "AGENTS.user.md"
+	userAgentsAdminMdFileName  = "AGENTS.user.ccbox-admin.md"
 	userAgentsReadmeMdFileName = "AGENTS.README.md"
-	agentsMdExt                = ".md"
-	// ccboxAdminSuffix is the prefix to prepend the ccbox admin context
-	ccboxAdminSuffix = ".ccbox-admin.md"
 )
 
-// cliFile is the CLI's AGENTS doc: ~/.ccbox/<cli_name>/<SeedAgentsFilename>
+// cliFile is the CLI's AGENTS doc: ~/.ccbox/<cli_name>/AGENTS.md
 func (s AgentsMdShare) cliFile() string {
-	return filepath.Join(userdir.Dir(), s.CLI.Name, s.CLI.SeedAgentsFilename)
+	return filepath.Join(userdir.Dir(), s.CLI.Name, agentsMdFileName)
 }
 
 // cliFileTarget is the cliFile symlink's target
-func (s AgentsMdShare) cliFileTarget() string {
-	return path.Join(s.ScratchMountDir, s.CLI.SeedAgentsFilename)
-}
+func (s AgentsMdShare) cliFileTarget() string { return path.Join(s.ScratchMountDir, agentsMdFileName) }
 
 // definedCliFileExists reports whether the CLI's own doc exists at the cliFile
 func (s AgentsMdShare) definedCliFileExists() bool {
@@ -189,25 +187,16 @@ func (s AgentsMdShare) definedCliFileExists() bool {
 	return err != nil || target != s.cliFileTarget() // unreadable/foreign: leave it be
 }
 
-// cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: ~/.ccbox/<cli_name>/CLAUDE.ccbox-admin.md
+// cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: ~/.ccbox/<cli_name>/AGENTS.ccbox-admin.md
 func (s AgentsMdShare) cliAdminPath() string {
-	return filepath.Join(userdir.Dir(), s.CLI.Name, adminMdFileName(s.CLI.SeedAgentsFilename))
+	return filepath.Join(userdir.Dir(), s.CLI.Name, agentsAdminMdFileName)
 }
 
 // userAgentsMdPath is the shared AGENTS doc's host path: ~/.ccbox/AGENTS.user.md
 func userAgentsMdPath() string { return filepath.Join(userdir.Dir(), userAgentsMdFileName) }
 
 // userAgentsAdminMdPath is the shared AGENTS doc's ccbox-admin variant: ~/.ccbox/AGENTS.user.ccbox-admin.md
-func userAgentsAdminMdPath() string {
-	return filepath.Join(userdir.Dir(), adminMdFileName(userAgentsMdFileName))
-}
+func userAgentsAdminMdPath() string { return filepath.Join(userdir.Dir(), userAgentsAdminMdFileName) }
 
 // userAgentsReadmeMdPath is the shared AGENTS docs' explainer: ~/.ccbox/AGENTS.README.md
-func userAgentsReadmeMdPath() string {
-	return filepath.Join(userdir.Dir(), userAgentsReadmeMdFileName)
-}
-
-// adminMdFileName names a doc's ccbox-admin variant: CLAUDE.md -> CLAUDE.ccbox-admin.md
-func adminMdFileName(fileName string) string {
-	return strings.TrimSuffix(fileName, agentsMdExt) + ccboxAdminSuffix
-}
+func userAgentsReadmeMdPath() string { return filepath.Join(userdir.Dir(), userAgentsReadmeMdFileName) }

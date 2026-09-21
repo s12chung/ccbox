@@ -225,7 +225,7 @@ func TestParse_Rejects(t *testing.T) {
 func TestSeedCLIFS(t *testing.T) {
 	for _, c := range All() {
 		fsys := SeedCLIFS(c.Name)
-		assert.NotContainsf(t, seedPaths(t, fsys), c.SeedAgentsFilename,
+		assert.NotContainsf(t, seedPaths(t, fsys), "AGENTS.md",
 			"shared AGENTS doc is bind-mounted at runtime, never seeded: %s", c.Name)
 	}
 
@@ -332,11 +332,6 @@ func TestCLI_SessionCmd(t *testing.T) {
 		got := tt.cli.SessionCmd(tt.shell, tt.cont, tt.resume, tt.args)
 		assert.Equal(t, tt.want, got, "%s shell=%v cont=%v resume=%v", tt.cli.Name, tt.shell, tt.cont, tt.resume)
 	}
-}
-
-func TestSeed_AgentsFilename(t *testing.T) {
-	assert.Equal(t, "CLAUDE.md", MustFor("claude").SeedAgentsFilename) // yaml override
-	assert.Equal(t, "AGENTS.md", MustFor("codex").SeedAgentsFilename)  // parse default
 }
 
 func TestEnv(t *testing.T) {

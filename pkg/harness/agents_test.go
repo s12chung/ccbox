@@ -42,13 +42,14 @@ func claudeShareBegin(t *testing.T, body func(scratchDir string)) {
 // claudeTarget is the cliFile symlink's target
 func claudeTarget() string { return claudeShare().cliFileTarget() }
 
-func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", "CLAUDE.md") }
+func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", agentsMdFileName) }
+
 func claudeAdminMd(userDir string) string {
-	return filepath.Join(userDir, "claude", adminMdFileName("CLAUDE.md"))
+	return filepath.Join(userDir, "claude", agentsAdminMdFileName)
 }
 func userAgentsMd(userDir string) string { return filepath.Join(userDir, userAgentsMdFileName) }
 func userAgentsAdminMd(userDir string) string {
-	return filepath.Join(userDir, adminMdFileName(userAgentsMdFileName))
+	return filepath.Join(userDir, userAgentsAdminMdFileName)
 }
 
 func userAgentsReadmeMd(userDir string) string {
@@ -58,7 +59,7 @@ func userAgentsReadmeMd(userDir string) string {
 func claudeCliTmpPath(userDir string) string { return filepath.Join(userDir, "tmp", "claude") }
 
 func claudeScratch(userDir string) string {
-	return filepath.Join(claudeCliTmpPath(userDir), "CLAUDE.md")
+	return filepath.Join(claudeCliTmpPath(userDir), agentsMdFileName)
 }
 
 func writeFile(t *testing.T, path, body string) {
@@ -277,7 +278,7 @@ func TestAgentsMdShare_Begin_EmptyCliFileIsOwned(t *testing.T) {
 
 func TestAgentsMdShare_Begin_ForeignSymlinkIsOwned(t *testing.T) {
 	userDir := resetUserDir(t)
-	linkFile(t, claudeCliFile(userDir), "/elsewhere/CLAUDE.md") // e.g. the user's dotfiles repo
+	linkFile(t, claudeCliFile(userDir), "/elsewhere/AGENTS.md") // e.g. the user's dotfiles repo
 
 	scratchDir, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
@@ -288,7 +289,7 @@ func TestAgentsMdShare_Begin_ForeignSymlinkIsOwned(t *testing.T) {
 	require.NoError(t, cleanup())
 	target, err := os.Readlink(claudeCliFile(userDir))
 	require.NoError(t, err)
-	assert.Equal(t, "/elsewhere/CLAUDE.md", target, "the foreign symlink is untouched")
+	assert.Equal(t, "/elsewhere/AGENTS.md", target, "the foreign symlink is untouched")
 }
 
 func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {

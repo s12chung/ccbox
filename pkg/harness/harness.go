@@ -191,9 +191,6 @@ func cliNameFromPath(p string) string { return path.Base(path.Dir(p)) }
 
 func defaulted(p string, c CLI) CLI {
 	c.Name = cliNameFromPath(p)
-	if c.SeedAgentsFilename == "" {
-		c.SeedAgentsFilename = "AGENTS.md"
-	}
 	return c
 }
 
@@ -234,11 +231,6 @@ type CLI struct {
 	// every run of this CLI.
 	Env map[string]string `yaml:"env"`
 
-	// SeedAgentsFilename is the destination name of the shared/ AGENTS.md
-	//
-	// Empty defaults to AGENTS.md at parse.
-	SeedAgentsFilename string `yaml:"seed_agents_filename"`
-
 	// Cmd is the launch argv prefix; ContinueArgs/ResumeArgs extend it for the
 	// run flags (-c/--resume) in each CLI's own session syntax.
 	Cmd          string `yaml:"cmd"`
@@ -264,9 +256,8 @@ func init() {
 			"ContinueArgs": {rule.Present{}},
 			"ResumeArgs":   {rule.Present{}},
 
-			"ConfigHomeMount":    {firmrule.HomePath},
-			"ConfigDirEnvKey":    {firmrule.EnvVar},
-			"SeedAgentsFilename": {firmrule.FileName},
+			"ConfigHomeMount": {firmrule.HomePath},
+			"ConfigDirEnvKey": {firmrule.EnvVar},
 			"Env": {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
