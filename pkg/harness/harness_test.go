@@ -78,7 +78,7 @@ func TestLoadUser(t *testing.T) {
 		}{
 			{name: "mycli", body: userCliYAML}, // sanity: a good cli does merge
 			{name: "bad", body: "bogus: true\n"},
-			{name: "dual", body: "npm:\n  package: x\nversionurl:\n  url: y\n"},
+			{name: "dual", body: "npm:\n  package: x\nversion_url:\n  url: y\n"},
 			{name: "filecfg", body: userCliYAML, configs: map[string]string{"config": "junk"}}, // seed config is a file
 		} {
 			t.Run(tt.name, func(t *testing.T) { testLoadUserSkips(t, tt.name, tt.body, tt.configs) })
@@ -134,11 +134,11 @@ func TestParse_Rejects(t *testing.T) {
 	}{
 		{
 			"no install source", "cmd: mycli\n",
-			[]string{"CLI.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got []"},
+			[]string{"CLI.PkgInfo.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got []"},
 		},
 		{
-			"both install sources", "npm:\n  package: mycli\nversionurl:\n  url: https://x\n",
-			[]string{"CLI.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got [Npm VersionURL]"},
+			"both install sources", "npm:\n  package: mycli\nversion_url:\n  url: https://x\n",
+			[]string{"CLI.PkgInfo.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got [Npm VersionURL]"},
 		},
 		{
 			"empty npm package", "npm:\n  package: \"\"\n",
@@ -149,11 +149,11 @@ func TestParse_Rejects(t *testing.T) {
 			[]string{"Npm.Package.Match"},
 		},
 		{
-			"partial versionurl urls", "versionurl:\n  url: https://x\n",
+			"partial version_url urls", "version_url:\n  url: https://x\n",
 			[]string{"LinuxX64URL.Match", "LinuxArm64URL.Match"},
 		},
 		{
-			"non-https versionurl url", "versionurl:\n  url: \"ftp://x\"\n  linux_x64_url: https://x\n  linux_arm64_url: https://x\n",
+			"non-https version_url url", "version_url:\n  url: \"ftp://x\"\n  linux_x64_url: https://x\n  linux_arm64_url: https://x\n",
 			[]string{"URL.Match"},
 		},
 		{
@@ -273,11 +273,11 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 	// the CLI_PKGINFO env JSON each CLI's install source renders
 	body, err := MustFor("claude").PkgInfoJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"versionurl":null}`, body)
+	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"version_url":null}`, body)
 
 	body, err = MustFor("grok").PkgInfoJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"grok","npm":null,"versionurl":{"url":"https://x.ai/cli/stable",`+
+	assert.JSONEq(t, `{"name":"grok","npm":null,"version_url":{"url":"https://x.ai/cli/stable",`+
 		`"linux_x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",`+
 		`"linux_arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"}}`, body)
 }

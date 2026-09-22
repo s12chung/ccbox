@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
@@ -98,7 +99,7 @@ func TestGitBinds(t *testing.T) {
 func TestCLIDataBinds(t *testing.T) {
 	t.Run("renders rw binds under containerHome, sorted for a deterministic spec", func(t *testing.T) {
 		userDir := "/home/me/.ccbox"
-		cli := harness.CLI{Name: "opencode", DataBinds: map[string]*string{
+		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{
 			".local/share/opencode/auth.json":     new("{}"), // file with seed content
 			".local/share/opencode/sessions.json": nil,       // dir despite the extension
 			".config/opencode":                    nil,       // dir
@@ -118,7 +119,7 @@ func TestCLIDataBinds(t *testing.T) {
 	})
 
 	t.Run("no binds when the CLI has none", func(t *testing.T) {
-		assert.Empty(t, cliDataBinds("/home/me/.ccbox", harness.CLI{Name: "mycli"}))
+		assert.Empty(t, cliDataBinds("/home/me/.ccbox", harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli"}}))
 	})
 }
 

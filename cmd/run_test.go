@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/dmap"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -87,7 +88,7 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 	t.Run("creates file at slugged host path", func(t *testing.T) {
 		userDir := t.TempDir()
 		content := "{}"
-		cli := harness.CLI{Name: "opencode", DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
+		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
 
 		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
 
@@ -100,7 +101,7 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 
 	t.Run("creates dir", func(t *testing.T) {
 		userDir := t.TempDir()
-		cli := harness.CLI{Name: "mycli", DataBinds: map[string]*string{".local/share/mycli/store": nil}}
+		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli"}, DataBinds: map[string]*string{".local/share/mycli/store": nil}}
 
 		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
 
@@ -112,7 +113,7 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 	t.Run("skips existing file", func(t *testing.T) {
 		userDir := t.TempDir()
 		content := "{}"
-		cli := harness.CLI{Name: "opencode", DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
+		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
 		host := dmap.CLIDataBindPath(userDir, "opencode", ".local/share/opencode/auth.json")
 
 		require.NoError(t, os.MkdirAll(filepath.Dir(host), ioutil.Dir))

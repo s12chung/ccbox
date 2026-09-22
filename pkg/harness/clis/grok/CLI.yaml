@@ -1,5 +1,5 @@
 # Grok Build (xAI).
-versionurl:
+version_url:
   url: "https://x.ai/cli/stable"
   linux_x64_url: "https://x.ai/cli/grok-$version-linux-x86_64"
   linux_arm64_url: "https://x.ai/cli/grok-$version-linux-aarch64"

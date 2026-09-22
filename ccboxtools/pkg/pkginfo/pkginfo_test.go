@@ -8,38 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPkgInfo_JSON(t *testing.T) {
-	tests := []struct {
-		name string
-		p    PkgInfo
-		want string
-	}{
-		{
-			"npm",
-			PkgInfo{Name: "claude", Npm: &Npm{Package: "@anthropic-ai/claude-code"}},
-			`{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"versionurl":null}`,
-		},
-		{
-			"versionurl",
-			PkgInfo{Name: "grok", VersionURL: &VersionURL{
-				URL:           "https://x.ai/cli/stable",
-				LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
-				LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
-			}},
-			`{"name":"grok","npm":null,"versionurl":{"url":"https://x.ai/cli/stable",` +
-				`"linux_x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",` +
-				`"linux_arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"}}`,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			body, err := tt.p.JSON()
-			require.NoError(t, err)
-			assert.JSONEq(t, tt.want, body)
-		})
-	}
-}
-
 func TestPkgInfo_Validate(t *testing.T) {
 	tests := []struct {
 		name string

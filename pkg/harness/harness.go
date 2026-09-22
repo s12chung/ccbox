@@ -16,6 +16,7 @@ package harness
 import (
 	"bytes"
 	"embed"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -210,13 +211,12 @@ func validateSeedConfigDir(fsys fs.FS, cliDir string, fromUserDir bool) error {
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {
-	Name string `yaml:"-"`
+	// PkgInfo is the CLI's install source: its name plus exactly one of Npm or VersionURL;
+	// Name is always overridden by defaulted() from the CLI's directory name
+	pkginfo.PkgInfo `yaml:",inline"`
+
 	// fromUserDir is true if it's from the user dir
 	fromUserDir bool
-
-	// Npm installs from the npm registry. Exactly one of Npm or VersionURL is set.
-	Npm        *pkginfo.Npm        `yaml:"npm"`
-	VersionURL *pkginfo.VersionURL `yaml:"versionurl"`
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
 	// mounted config is found with no override; ConfigDirEnvKey points the CLI's env var at it.
@@ -246,10 +246,8 @@ type CLI struct {
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[CLI]().
-		ValidatesSelf(rule.OneNotNil{Fields: []string{"Npm", "VersionURL"}}).
 		Validates(firm.RuleMap{
-			"Npm":        {firm.Backed()},
-			"VersionURL": {firm.Backed()},
+			"PkgInfo": {firm.Backed()},
 
 			"Cmd":          {rule.Present{}},
 			"ContinueArgs": {rule.Present{}},
@@ -271,7 +269,11 @@ func init() {
 
 // PkgInfoJSON renders c's install source as the CLI_PKGINFO JSON for the container env.
 func (c CLI) PkgInfoJSON() (string, error) {
-	return pkginfo.PkgInfo{Name: c.Name, Npm: c.Npm, VersionURL: c.VersionURL}.JSON()
+	body, err := json.Marshal(c.PkgInfo)
+	if err != nil {
+		return "", fmt.Errorf("harness: %w", err)
+	}
+	return string(body), nil
 }
 
 // For looks up the CLI by name. ok is false for an unknown name.
