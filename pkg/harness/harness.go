@@ -57,6 +57,18 @@ func Names() []string { return slices.Sorted(maps.Keys(all)) }
 // SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
 const SeedConfigDir = "config"
 
+// clis tree layout: <root>/clis/<name>/CLI.yaml plus <root>/clis/<name>/config/
+const (
+	clisDir      = "clis"
+	clisYAMLGlob = "clis/*/CLI.yaml"
+)
+
+// cliDir is a cli's dir in a clis tree: clis/<name>
+func cliDir(name string) string { return path.Join(clisDir, name) }
+
+// cliConfigPath is a cli's seed config tree in a clis tree: clis/<name>/config
+func cliConfigPath(name string) string { return path.Join(cliDir(name), SeedConfigDir) }
+
 var (
 	//go:embed clis
 	embedCLIFS embed.FS
@@ -68,22 +80,21 @@ var (
 // user-clis from UserCLIsDir().
 func SeedCLIFS(cliName string) fs.FS {
 	cli := MustFor(cliName)
-	cliConfigPath := path.Join("clis", cliName, SeedConfigDir)
 	fsys := fs.FS(embedCLIFS)
 	if cli.fromUserDir {
 		vfs := fsutil.MustNewFS(userCLIsFS())
-		// vfs.MkdirAll ensures that cliConfigPath exists for the caller
-		if err := vfs.MkdirAll(cliConfigPath); err != nil { // ensure MustSub() doesn't panic, no-op if dir path already exists
+		// vfs.MkdirAll ensures cliConfigPath exists for the caller, no-op if the dir exists
+		if err := vfs.MkdirAll(cliConfigPath(cliName)); err != nil { // ensures MustSub() doesn't panic
 			panic(err) // unreachable: loadFsYAML skips user clis whose clis/<cliName>/config is a file
 		}
 		fsys = vfs
 	}
 	// any cliName passed down will match a CLI in All() - see package NOTE
-	return fsutil.MustSub(fsys, cliConfigPath)
+	return fsutil.MustSub(fsys, cliConfigPath(cliName))
 }
 
 // UserCLIsDir is the host dir of user-defined clis: ~/.ccbox/config/clis.
-func UserCLIsDir() string { return filepath.Join(userdir.ConfigDir(), "clis") }
+func UserCLIsDir() string { return filepath.Join(userConfigDir, clisDir) }
 
 // userConfigDir is the user config dir: ~/.ccbox/config. Tests point it at a temp tree.
 var userConfigDir = userdir.ConfigDir()
@@ -134,7 +145,7 @@ func loadUserCLIs() []CLI {
 // <cli>, ordered by name. A user tree (fromUserDir) skips broken entries with a
 // warning; an embed tree fails instead — its contents are compile-time constants.
 func loadFsYAML(fsys fs.FS, fromUserDir bool) ([]CLI, error) {
-	paths, err := fs.Glob(fsys, "clis/*/CLI.yaml")
+	paths, err := fs.Glob(fsys, clisYAMLGlob)
 	if err != nil {
 		// unreachable: glob never changes
 		return nil, err
@@ -142,33 +153,36 @@ func loadFsYAML(fsys fs.FS, fromUserDir bool) ([]CLI, error) {
 
 	clis := make([]CLI, 0, len(paths))
 	for _, p := range paths {
-		body, err := fs.ReadFile(fsys, p)
+		c, err := loadCLI(fsys, p, fromUserDir)
 		if err != nil {
-			if fromUserDir {
-				log.Warnf("read error in %q: %s, skipping", cliNameFromPath(p), err)
-				continue
+			err = fmt.Errorf("%s: %w", cliNameFromPath(p), err)
+			if !fromUserDir {
+				return nil, err
 			}
-			return nil, err
-		}
-		c, err := parse(p, body)
-		if err != nil {
-			if fromUserDir {
-				log.Warnf("parse error in %q: %s, skipping", cliNameFromPath(p), err)
-				continue
-			}
-			return nil, err
-		}
-		if err := validateSeedConfigDir(fsys, path.Dir(p), fromUserDir); err != nil {
-			if fromUserDir {
-				log.Warnf("bad seed config in %q: %s, skipping", cliNameFromPath(p), err)
-				continue
-			}
-			return nil, err
+			log.Warnf("%s, skipping", err)
+			continue
 		}
 		c.fromUserDir = fromUserDir
 		clis = append(clis, c)
 	}
 	return clis, nil
+}
+
+// loadCLI reads, parses, and validates the CLI.yaml at p; fromUserDir tolerates
+// an absent seed config dir.
+func loadCLI(fsys fs.FS, p string, fromUserDir bool) (CLI, error) {
+	body, err := fs.ReadFile(fsys, p)
+	if err != nil {
+		return CLI{}, err
+	}
+	c, err := parse(p, body)
+	if err != nil {
+		return CLI{}, err
+	}
+	if err := validateSeedConfigDir(fsys, cliDir(c.Name), fromUserDir); err != nil {
+		return CLI{}, err
+	}
+	return c, nil
 }
 
 // parse decodes one CLI.yaml into its CLI, named after its directory.
