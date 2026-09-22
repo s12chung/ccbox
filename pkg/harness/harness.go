@@ -14,10 +14,8 @@
 package harness
 
 import (
-	"bytes"
 	"embed"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
@@ -29,7 +27,6 @@ import (
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
-	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
@@ -54,26 +51,31 @@ func All() []CLI {
 // Names lists every supported CLI's name, sorted by name.
 func Names() []string { return slices.Sorted(maps.Keys(all)) }
 
-// SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
-const SeedConfigDir = "config"
-
 // clis tree layout: <root>/clis/<name>/CLI.yaml plus <root>/clis/<name>/config/
 const (
-	clisDir      = "clis"
-	clisYAMLGlob = "clis/*/CLI.yaml"
+	clisDir       = "clis"
+	clisYAMLGlob  = "clis/*/CLI.yaml"
+	seedConfigDir = "config"
 )
 
 // cliDir is a cli's dir in a clis tree: clis/<name>
 func cliDir(name string) string { return path.Join(clisDir, name) }
 
 // cliConfigPath is a cli's seed config tree in a clis tree: clis/<name>/config
-func cliConfigPath(name string) string { return path.Join(cliDir(name), SeedConfigDir) }
+func cliConfigPath(name string) string { return path.Join(cliDir(name), seedConfigDir) }
+
+// UserCLIsDir is the host dir of user-defined clis: ~/.ccbox/config/clis.
+func UserCLIsDir() string { return filepath.Join(userConfigDir, clisDir) }
+
+// userCLIsFS returns the user clis tree at userConfigDir
+// DOES NOT detect whether the directory exists, this should be detected on init()--see package NOTE
+func userCLIsFS() fs.FS { return os.DirFS(userConfigDir) }
 
 var (
 	//go:embed clis
 	embedCLIFS embed.FS
-	//go:embed user-clis
-	userCLIFS embed.FS
+	// userConfigDir is the user config dir: ~/.ccbox/config. Tests point it at a temp tree.
+	userConfigDir = userdir.ConfigDir()
 )
 
 // SeedCLIFS returns cli's seed fs: the CLI's own config tree, from embed or
@@ -93,21 +95,11 @@ func SeedCLIFS(cliName string) fs.FS {
 	return fsutil.MustSub(fsys, cliConfigPath(cliName))
 }
 
-// UserCLIsDir is the host dir of user-defined clis: ~/.ccbox/config/clis.
-func UserCLIsDir() string { return filepath.Join(userConfigDir, clisDir) }
-
-// userConfigDir is the user config dir: ~/.ccbox/config. Tests point it at a temp tree.
-var userConfigDir = userdir.ConfigDir()
-
-// userCLIsFS returns the user clis tree at userConfigDir
-// DOES NOT detect whether the directory exists, this should be detected on init()--see package NOTE
-func userCLIsFS() fs.FS { return os.DirFS(userConfigDir) }
-
 // mustLoadAll parses the embedded clis, then merges user-defined ones over
 // them: a user cli takes priority over an embedded cli of the same name,
 // replacing it.
 func mustLoadAll() map[string]CLI {
-	embed, user := mustLoadEmbedCLIs(), loadUserCLIs()
+	embed, user := mustLoadEmbedCLIs(), mustLoadUserCLIs()
 	all := make(map[string]CLI, len(embed)+len(user))
 	for _, c := range slices.Concat(embed, user) {
 		if _, ok := all[c.Name]; ok {
@@ -119,117 +111,23 @@ func mustLoadAll() map[string]CLI {
 }
 
 // mustLoadEmbedCLIs parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,
-// ordered by name. It panics on any parse error.
+// ordered by name. It panics on any load error.
 func mustLoadEmbedCLIs() []CLI {
 	clis, err := embedTree().load()
 	if err != nil {
 		panic(err) // unreachable: the source is a compile-time embed constant
 	}
-	if len(clis) == 0 {
-		panic("harness: no clis/*/CLI.yaml found") // unreachable: the source is a compile-time embed constant
-	}
 	return clis
 }
 
-// loadUserCLIs parses each user-defined <cli>/CLI.yaml in the user clis tree,
+// mustLoadUserCLIs parses each user-defined <cli>/CLI.yaml in the user clis tree,
 // skipping broken ones with a warning.
-func loadUserCLIs() []CLI {
+func mustLoadUserCLIs() []CLI {
 	clis, err := userTree().load()
 	if err != nil {
 		panic(err) // unreachable: userTree().load() should never return an error
 	}
 	return clis
-}
-
-// clisTree is a clis tree — clis/<name>/CLI.yaml
-type clisTree struct {
-	fsys        fs.FS
-	fromUserDir bool
-}
-
-// embedTree is the compile-time embedded clis tree.
-func embedTree() clisTree { return clisTree{fsys: embedCLIFS} }
-
-// userTree is the host's user-defined clis tree at userConfigDir.
-func userTree() clisTree { return clisTree{fsys: userCLIsFS(), fromUserDir: true} }
-
-// load parses each clis/<cli>/CLI.yaml into a CLI named <cli>, ordered by name.
-func (t clisTree) load() ([]CLI, error) {
-	paths, err := fs.Glob(t.fsys, clisYAMLGlob)
-	if err != nil {
-		// unreachable: glob never changes
-		return nil, err
-	}
-
-	clis := make([]CLI, 0, len(paths))
-	for _, p := range paths {
-		c, err := t.loadCLI(p)
-		if err != nil {
-			err = fmt.Errorf("%s: %w", cliNameFromPath(p), err)
-			if !t.fromUserDir {
-				return nil, err
-			}
-			log.Warnf("%s, skipping", err)
-			continue
-		}
-		clis = append(clis, c)
-	}
-	return clis, nil
-}
-
-// loadCLI reads, parses, and validates the CLI.yaml at p.
-func (t clisTree) loadCLI(p string) (CLI, error) {
-	body, err := fs.ReadFile(t.fsys, p)
-	if err != nil {
-		return CLI{}, err
-	}
-	c, err := parse(p, body)
-	if err != nil {
-		return CLI{}, err
-	}
-	if err := t.validateConfigDir(cliDir(c.Name)); err != nil {
-		return CLI{}, err
-	}
-	c.fromUserDir = t.fromUserDir
-	return c, nil
-}
-
-// parse decodes one CLI.yaml into its CLI, named after its directory.
-func parse(p string, body []byte) (CLI, error) {
-	var c CLI
-	dec := yaml.NewDecoder(bytes.NewReader(body))
-	dec.KnownFields(true)
-	if err := dec.Decode(&c); err != nil {
-		return CLI{}, fmt.Errorf("harness: parse %s: %w", p, err)
-	}
-
-	c = defaulted(p, c)
-	if errMap := firm.ValidateAny(c); errMap != nil { // fail at startup, not on first use
-		return CLI{}, fmt.Errorf("harness: parse %s: %w", p, errMap)
-	}
-	return c, nil
-}
-
-func cliNameFromPath(p string) string { return path.Base(path.Dir(p)) }
-
-func defaulted(p string, c CLI) CLI {
-	c.Name = cliNameFromPath(p)
-	return c
-}
-
-// validateConfigDir checks <cliDir>/config: for user trees it may be absent, but must not be a file;
-// embed trees also require existence — their contents are compile-time constants.
-func (t clisTree) validateConfigDir(cliDir string) error {
-	info, err := fs.Stat(t.fsys, path.Join(cliDir, SeedConfigDir))
-	switch {
-	case t.fromUserDir && errors.Is(err, fs.ErrNotExist):
-		return nil // seeded fresh by SeedCLIFS
-	case err != nil:
-		return err
-	case !info.IsDir():
-		return fmt.Errorf("%s: not a directory", path.Join(cliDir, SeedConfigDir))
-	}
-	return nil
 }
 
 // CLI holds everything ccbox does differently per coding CLI.
@@ -312,8 +210,11 @@ func MustFor(name string) CLI {
 	return c
 }
 
+//go:embed user-clis
+var userCLIFSSeed embed.FS
+
 // SeedUserClisFS returns the embedded tree laid onto a fresh user clis dir.
-func SeedUserClisFS() fs.FS { return fsutil.MustSub(userCLIFS, "user-clis") }
+func SeedUserClisFS() fs.FS { return fsutil.MustSub(userCLIFSSeed, "user-clis") }
 
 // SessionCmd maps the run flags to the CLI's session syntax: continue the last
 // session, resume one (bare for the picker, or named via args), or launch fresh.
