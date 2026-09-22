@@ -21,7 +21,7 @@ COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
 # System config (at /etc/mise) read by `mise install` below installs to shared /usr/local
 # _temp_ MISE_DATA_DIR aims full install there  (`mise install --system` doesn't put shims)
 # _temp_ so at runtime ccbox's `mise use` -> ~/.local.
-COPY docker/image/mise-system.toml /etc/mise/config.toml
+COPY docker/mise-system.toml /etc/mise/config.toml
 ENV PATH=/usr/local/share/mise/shims:$PATH
 
 # Ruby build headers: install, compile Ruby, then purge (runtime libs kept above)

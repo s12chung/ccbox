@@ -12,6 +12,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -49,7 +50,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	env, err := rm.Env()
 	require.NoError(t, err)
 
-	options, clean, err := rm.RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{NoProxy: true}}, testProxyConfigFS)
+	options, clean, err := rm.RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{NoProxy: true}})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -59,7 +60,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	assert.Equal(t, "dev:tag", options.Tag)
 	assert.Equal(t, []string{"claude"}, options.Cmd)
 	assert.Equal(t, docker.ProxyOptions{
-		Config:    testProxyConfigFS,
+		Config:    tinyproxy.Config,
 		Overrides: docker.AllowOverride(cfg.AllowlistExpanded()),
 	}, options.Proxy)
 	assert.Equal(t, "/home/me/.ccbox/proxy.log", options.ProxyLogPath)

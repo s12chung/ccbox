@@ -13,12 +13,9 @@ import (
 // embed a nested module either, so embed a ccboxtools binary
 // that's checked at build time by `ccbox doctor tools`
 
-//go:embed Dockerfile docker/image/* dist/ccboxtools
+//go:embed Dockerfile docker/* dist/ccboxtools
 var buildContext embed.FS
 
-//go:embed docker/tinyproxy/*
-var proxyConfig embed.FS
-
 func main() {
-	os.Exit(cmd.Execute(buildContext, proxyConfig))
+	os.Exit(cmd.Execute(buildContext))
 }

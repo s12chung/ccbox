@@ -1,7 +1,6 @@
 package dmap
 
 import (
-	"io/fs"
 	"os"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
@@ -43,7 +42,7 @@ type RunModes struct {
 }
 
 // RunOptions renders the run's full docker.RunOptions
-func (rm *RunMap) RunOptions(flags RunFlags, proxyConfigFS fs.FS) (docker.RunOptions, func() error, error) {
+func (rm *RunMap) RunOptions(flags RunFlags) (docker.RunOptions, func() error, error) {
 	hostOptions, clean, err := rm.HostOptions()
 	if err != nil {
 		return docker.RunOptions{}, clean, err
@@ -58,7 +57,7 @@ func (rm *RunMap) RunOptions(flags RunFlags, proxyConfigFS fs.FS) (docker.RunOpt
 		Tag:            flags.Tag,
 		Env:            env,
 		Cmd:            rm.Cmd(flags),
-		Proxy:          NewProxyMap(proxyConfigFS, rm.cfg).Options(),
+		Proxy:          NewProxyMap(rm.cfg).Options(),
 		ProxyLogPath:   ProxyLogPath(rm.userDir),
 		NoProxy:        flags.Modes.NoProxy,
 	}, clean, nil

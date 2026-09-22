@@ -12,6 +12,6 @@ var proxyCmd = &cobra.Command{
 	Use:   "proxy",
 	Short: "Run the tinyproxy egress wall in the foreground",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return docker.Proxy(dock.MustNewCtxD(cmd.Context()), dmap.NewProxyMap(proxyConfig, projectCfg).Options())
+		return docker.Proxy(dock.MustNewCtxD(cmd.Context()), dmap.NewProxyMap(projectCfg).Options())
 	},
 }

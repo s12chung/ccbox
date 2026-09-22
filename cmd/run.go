@@ -52,7 +52,7 @@ func run(cmd *cobra.Command, args []string) error {
 		Tag:   flagTag,
 		Args:  args,
 		Modes: runModes,
-	}, proxyConfig)
+	})
 	defer log.Defer("settle shared agents doc", clean)
 	if err != nil {
 		return err

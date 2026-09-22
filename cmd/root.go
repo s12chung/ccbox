@@ -5,7 +5,6 @@ package cmd
 import (
 	"embed"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -21,11 +20,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
-// Injected from main (package main can't be imported, so the embed FSes come in here).
-var (
-	buildContext embed.FS // Dockerfile + docker/image/* — the build context
-	proxyConfig  fs.FS    // docker/tinyproxy/* — the egress wall configs, subbed at Execute
-)
+// Injected from main (package main can't be imported, so the embed FS comes in here).
+var buildContext embed.FS // Dockerfile + docker/* — the build context
 
 // Shared flags.
 var (
@@ -73,14 +69,8 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute runs the CLI and returns the process exit code.
-func Execute(build, proxy embed.FS) int {
+func Execute(build embed.FS) int {
 	buildContext = build
-	proxySub, err := fs.Sub(proxy, "docker/tinyproxy")
-	if err != nil {
-		log.Errorf("proxy config missing: %v", err) // unreachable: //go:embed pins the dir
-		return 1
-	}
-	proxyConfig = proxySub
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)
 		return 1

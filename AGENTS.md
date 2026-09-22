@@ -11,7 +11,7 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
   - `ccbox config` - prints the effective .ccbox.yaml
 
 This curated directory will help you discover common patterns (`pkg/util` and `pkg/kit`) and navigate the project:
-- **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/image/*`) and proxy configs (`docker/tinyproxy/*`) into the binary, then hands off to `cmd`.
+- **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/*`) into the binary, then hands off to `cmd`.
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run
@@ -24,11 +24,10 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
     - `ioutil/` — io utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
     - `log/` — log helpers and abstraction, never use `fmt.Print*`
   - `kit/` - contains non-std lib abstractions and utilities
+    - `tinyproxy/` — the egress wall configs
 - **`Dockerfile`** — builds the devbox image from the inputs under `docker/`.
-- **`docker/`**
-  - `image/` — baked into the image:
-    - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
-  - `tinyproxy/` — the egress wall configs
+- **`docker/`** — baked into the image:
+  - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:
   - `make build` — builds the `ccbox` binary to `/tmp/ccbox` in the **container**
