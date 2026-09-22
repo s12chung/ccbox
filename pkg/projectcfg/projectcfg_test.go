@@ -11,6 +11,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -78,15 +79,10 @@ var configFiles = []struct {
 // user-level config; useHome overrides per-test.
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "projectcfg")
-	if err != nil {
-		panic(err)
-	}
-	if err := os.Setenv("HOME", dir); err != nil {
-		panic(err)
-	}
-	if _, err := SeedUserConfig("claude"); err != nil {
-		panic(err)
-	}
+	must.Do(err)
+	must.Do(os.Setenv("HOME", dir))
+	_, err = SeedUserConfig("claude")
+	must.Do(err)
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)

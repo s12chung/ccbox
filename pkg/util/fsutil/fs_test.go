@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 func TestNewFS(t *testing.T) {
@@ -446,11 +448,7 @@ func mustRenamedFS() *FS {
 		"a.txt":     {Data: []byte("A")},
 		"sub/b.txt": {Data: []byte("B")},
 	})
-	if err := fsys.Rename("a.txt", "renamed.txt"); err != nil {
-		panic(err) // unreachable: sources exist above
-	}
-	if err := fsys.Rename("sub/b.txt", "deep/c.txt"); err != nil {
-		panic(err)
-	}
+	must.Do(fsys.Rename("a.txt", "renamed.txt")) // unreachable: sources exist above
+	must.Do(fsys.Rename("sub/b.txt", "deep/c.txt"))
 	return fsys
 }

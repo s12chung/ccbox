@@ -18,6 +18,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 // Injected from main (package main can't be imported, so the embed FS comes in here).
@@ -83,9 +84,7 @@ func init() {
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.Var(flagutils.StringPtr(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
 	// unreachable error: "cli" is registered above
-	if err := rootCmd.RegisterFlagCompletionFunc("cli", cobra.FixedCompletions(harness.Names(), cobra.ShellCompDirectiveNoFileComp)); err != nil {
-		panic(err)
-	}
+	must.Do(rootCmd.RegisterFlagCompletionFunc("cli", cobra.FixedCompletions(harness.Names(), cobra.ShellCompDirectiveNoFileComp)))
 
 	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
 }

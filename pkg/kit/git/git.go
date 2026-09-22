@@ -27,12 +27,3 @@ func XDGConfigDir() (string, error) {
 		return "", err
 	}
 }
-
-// MustXDGConfigDir is XDGConfigDir that panics on error (missing dir)
-func MustXDGConfigDir() string {
-	dir, err := XDGConfigDir()
-	if err != nil {
-		panic(err)
-	}
-	return dir
-}

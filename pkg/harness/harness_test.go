@@ -8,12 +8,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 func TestMain(m *testing.M) {
 	// ignore any user clis on this machine: tests pin the embedded set
-	all = make(map[string]CLI, len(mustLoadEmbedCLIs()))
-	for _, c := range mustLoadEmbedCLIs() {
+	embedClis := must.Get(embedTree().load())
+	all = make(map[string]CLI, len(embedClis))
+	for _, c := range embedClis {
 		all[c.Name] = c
 	}
 	os.Exit(m.Run())

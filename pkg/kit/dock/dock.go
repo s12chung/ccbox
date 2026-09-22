@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/client"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
 )
 
@@ -37,13 +38,7 @@ func NewCtxD(ctx context.Context) (*CtxD, error) {
 }
 
 // MustNewCtxD is NewCtxD, panicking on error.
-func MustNewCtxD(ctx context.Context) *CtxD {
-	ctxD, err := NewCtxD(ctx)
-	if err != nil {
-		panic(err)
-	}
-	return ctxD
-}
+func MustNewCtxD(ctx context.Context) *CtxD { return must.Get(NewCtxD(ctx)) }
 
 // EnsureOwnedVolume creates the named volume (with labels) if absent and chowns it to uid
 func EnsureOwnedVolume(ctxD *CtxD, image, volumeName, uid string, labels map[string]string) error {

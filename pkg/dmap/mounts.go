@@ -10,6 +10,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/git"
+	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -89,7 +90,7 @@ func gitBinds(enabled bool) []docker.Mount {
 	if !enabled {
 		return nil
 	}
-	if host := git.MustXDGConfigDir(); host != "" {
+	if host := must.Get(git.XDGConfigDir()); host != "" {
 		return []docker.Mount{docker.NewBind(host, gitConfigMount).ReadOnly()}
 	}
 	return nil

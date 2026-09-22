@@ -34,6 +34,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
+	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 // all is every known CLI by name, loaded in the init() at the bottom of this file.
@@ -84,11 +85,10 @@ func SeedCLIFS(cliName string) fs.FS {
 	cli := MustFor(cliName)
 	fsys := fs.FS(embedCLIFS)
 	if cli.fromUserDir {
+		// vfs.MkdirAll ensures cliConfigPath exists for the caller, so MustSub() below
+		// doesn't panic: loadFsYAML skips user clis whose clis/<cliName>/config is a file
 		vfs := fsutil.MustNewFS(userCLIsFS())
-		// vfs.MkdirAll ensures cliConfigPath exists for the caller, no-op if the dir exists
-		if err := vfs.MkdirAll(cliConfigPath(cliName)); err != nil { // ensures MustSub() doesn't panic
-			panic(err) // unreachable: loadFsYAML skips user clis whose clis/<cliName>/config is a file
-		}
+		must.Do(vfs.MkdirAll(cliConfigPath(cliName)))
 		fsys = vfs
 	}
 	// any cliName passed down will match a CLI in All() - see package NOTE
@@ -99,35 +99,17 @@ func SeedCLIFS(cliName string) fs.FS {
 // them: a user cli takes priority over an embedded cli of the same name,
 // replacing it.
 func mustLoadAll() map[string]CLI {
-	embed, user := mustLoadEmbedCLIs(), mustLoadUserCLIs()
-	all := make(map[string]CLI, len(embed)+len(user))
-	for _, c := range slices.Concat(embed, user) {
+	embedClis := must.Get(embedTree().load()) // unreachable: the source is a compile-time embed constant
+	userClis := must.Get(userTree().load())   // unreachable: userTree().load() should never return an error
+
+	all := make(map[string]CLI, len(embedClis)+len(userClis))
+	for _, c := range slices.Concat(embedClis, userClis) {
 		if _, ok := all[c.Name]; ok {
 			log.Infof("user cli %q overrides the embedded cli", c.Name)
 		}
 		all[c.Name] = c
 	}
 	return all
-}
-
-// mustLoadEmbedCLIs parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,
-// ordered by name. It panics on any load error.
-func mustLoadEmbedCLIs() []CLI {
-	clis, err := embedTree().load()
-	if err != nil {
-		panic(err) // unreachable: the source is a compile-time embed constant
-	}
-	return clis
-}
-
-// mustLoadUserCLIs parses each user-defined <cli>/CLI.yaml in the user clis tree,
-// skipping broken ones with a warning.
-func mustLoadUserCLIs() []CLI {
-	clis, err := userTree().load()
-	if err != nil {
-		panic(err) // unreachable: userTree().load() should never return an error
-	}
-	return clis
 }
 
 // CLI holds everything ccbox does differently per coding CLI.

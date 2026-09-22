@@ -10,6 +10,7 @@ import (
 	"syscall"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 // fsnode is one path of a merged tree: its position in the tree is its (renamed)
@@ -56,13 +57,7 @@ func NewFS(fsys fs.FS) (*FS, error) {
 }
 
 // MustNewFS is NewFS, panicking on error.
-func MustNewFS(fsys fs.FS) *FS {
-	f, err := NewFS(fsys)
-	if err != nil {
-		panic(err)
-	}
-	return f
-}
+func MustNewFS(fsys fs.FS) *FS { return must.Get(NewFS(fsys)) }
 
 // Merge merges fsys into the tree; it takes ownership of any path it holds.
 func (f *FS) Merge(fsys fs.FS) error {
@@ -96,9 +91,7 @@ func (f *FS) mergeDir(node *fsnode, dir fs.FS, index int, prefix string) error {
 
 // MustMerge is Merge, panicking on error, returning the receiver for chaining.
 func (f *FS) MustMerge(fsys fs.FS) *FS {
-	if err := f.Merge(fsys); err != nil {
-		panic(err)
-	}
+	must.Do(f.Merge(fsys))
 	return f
 }
 
