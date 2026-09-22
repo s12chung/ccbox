@@ -6,11 +6,11 @@ import (
 	"embed"
 	"io/fs"
 
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 //go:embed project-slug
 var stateFS embed.FS
 
 // SeedFS returns the embedded state tree, rooted at its content.
-func SeedFS() fs.FS { return fsutil.MustSub(stateFS, "project-slug") }
+func SeedFS() fs.FS { return must.Get(fs.Sub(stateFS, "project-slug")) }

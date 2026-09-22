@@ -32,8 +32,8 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
+	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
@@ -85,14 +85,14 @@ func SeedCLIFS(cliName string) fs.FS {
 	cli := MustFor(cliName)
 	fsys := fs.FS(embedCLIFS)
 	if cli.fromUserDir {
-		// vfs.MkdirAll ensures cliConfigPath exists for the caller, so MustSub() below
-		// doesn't panic: loadFsYAML skips user clis whose clis/<cliName>/config is a file
-		vfs := fsutil.MustNewFS(userCLIsFS())
-		must.Do(vfs.MkdirAll(cliConfigPath(cliName)))
-		fsys = vfs
+		// mergedFS.MkdirAll ensures cliConfigPath exists for the caller, so the fs.Sub()
+		// below doesn't panic: loadFsYAML skips user clis whose clis/<cliName>/config is a file
+		mergedFS := mfs.MustNewFS(userCLIsFS())
+		must.Do(mergedFS.MkdirAll(cliConfigPath(cliName)))
+		fsys = mergedFS
 	}
 	// any cliName passed down will match a CLI in All() - see package NOTE
-	return fsutil.MustSub(fsys, cliConfigPath(cliName))
+	return must.Get(fs.Sub(fsys, cliConfigPath(cliName)))
 }
 
 // mustLoadAll parses the embedded clis, then merges user-defined ones over
@@ -196,7 +196,7 @@ func MustFor(name string) CLI {
 var userCLIFSSeed embed.FS
 
 // SeedUserClisFS returns the embedded tree laid onto a fresh user clis dir.
-func SeedUserClisFS() fs.FS { return fsutil.MustSub(userCLIFSSeed, "user-clis") }
+func SeedUserClisFS() fs.FS { return must.Get(fs.Sub(userCLIFSSeed, "user-clis")) }
 
 // SessionCmd maps the run flags to the CLI's session syntax: continue the last
 // session, resume one (bare for the picker, or named via args), or launch fresh.

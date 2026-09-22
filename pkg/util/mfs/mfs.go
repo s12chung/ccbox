@@ -1,4 +1,6 @@
-package fsutil
+// Package mfs implements a mergeable fs.FS: an ordered set of fs.FS merged
+// into one tree.
+package mfs
 
 import (
 	"errors"
@@ -39,7 +41,7 @@ const (
 // isDir reports whether n is a directory: dirs are tree-served and carry no origin.
 func (n *fsnode) isDir() bool { return n.originPath == "" }
 
-// FS is an ordered set of fs.FS merged into one virtual tree; on colliding
+// FS is an ordered set of fs.FS merged into one tree; on colliding
 // paths, later merges own the path, like map merges. Rename moves paths within
 // the tree; files keep their originPath, so content serves from its owner.
 type FS struct {
@@ -111,9 +113,9 @@ func (f *FS) MkdirAll(path string) error {
 func (f *FS) Rename(oldPath, newPath string) error {
 	switch {
 	case !fs.ValidPath(newPath): // !fs.ValidPath(oldPath) runs in f.lookup() just below
-		return fmt.Errorf("fsutil: invalid rename destination %q", newPath)
+		return fmt.Errorf("mfs: invalid rename destination %q", newPath)
 	case oldPath == "." || newPath == ".":
-		return fmt.Errorf("fsutil: cannot rename %q", ".")
+		return fmt.Errorf("mfs: cannot rename %q", ".")
 	case newPath == oldPath:
 		return nil
 	case strings.HasPrefix(newPath, oldPath+"/"):
@@ -121,7 +123,7 @@ func (f *FS) Rename(oldPath, newPath string) error {
 	}
 	node, parent, err := f.lookup(opRename, oldPath)
 	if err != nil {
-		return fmt.Errorf("fsutil: rename source %q not found", oldPath)
+		return fmt.Errorf("mfs: rename source %q not found", oldPath)
 	}
 	if err := f.ensureDir(opRename, path.Dir(newPath), false); err != nil {
 		return err

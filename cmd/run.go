@@ -13,8 +13,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/projectstate"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -88,7 +88,7 @@ func seedRunMounts(userDir string) error {
 
 // safeSeedProjectStateDir seeds dmap.ProjectStateDir() if missing
 func safeSeedProjectStateDir(userDir, projectDir string) error {
-	return safeSeed(fsutil.MustNewFS(projectstate.SeedFS()), dmap.ProjectStateDir(userDir, projectDir), false)
+	return safeSeed(mfs.MustNewFS(projectstate.SeedFS()), dmap.ProjectStateDir(userDir, projectDir), false)
 }
 
 // safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>
