@@ -18,18 +18,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
-func TestNewRunMap(t *testing.T) {
-	t.Run("ResolvesConfigCLI", func(t *testing.T) {
-		rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
-		assert.Equal(t, harness.MustFor("claude"), rm.cli)
-	})
-	t.Run("UnknownCLIPanics", func(t *testing.T) {
-		assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() {
-			NewRunMap(t.TempDir(), &projectcfg.Config{CLIName: new("emacs")})
-		})
-	})
-}
-
 func TestRunMap_RunOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)

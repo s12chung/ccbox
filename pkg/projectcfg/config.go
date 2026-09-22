@@ -61,6 +61,10 @@ func init() {
 // ProjectDir is the project dir the config was loaded from
 func (c *Config) ProjectDir() string { return c.projectDir }
 
+// CLI resolves the config's cli name to its harness.CLI; MustFor is
+// infallible for a loaded config
+func (c *Config) CLI() harness.CLI { return harness.MustFor(*c.CLIName) }
+
 // merge layers other onto c — lists append, a set later scalar wins
 func (c *Config) merge(other Config) {
 	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)

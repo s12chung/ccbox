@@ -14,7 +14,11 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	all = mustLoadEmbedCLIs() // ignore any user clis on this machine: tests pin the embedded set
+	// ignore any user clis on this machine: tests pin the embedded set
+	all = make(map[string]CLI, len(mustLoadEmbedCLIs()))
+	for _, c := range mustLoadEmbedCLIs() {
+		all[c.Name] = c
+	}
 	os.Exit(m.Run())
 }
 
@@ -52,11 +56,7 @@ func TestLoadUser(t *testing.T) {
 		writeUserCli(t, dir, "mycli", userCliYAML, nil)
 		all = mustLoadAll()
 
-		names := make([]string, 0, len(all))
-		for _, c := range all {
-			names = append(names, c.Name)
-		}
-		assert.Equal(t, []string{"claude", "codex", "grok", "mycli", "opencode"}, names)
+		assert.Equal(t, []string{"claude", "codex", "grok", "mycli", "opencode"}, Names())
 
 		c, ok := For("mycli")
 		require.True(t, ok)
@@ -91,14 +91,9 @@ func TestLoadUser_OverridesEmbedded(t *testing.T) {
 	writeUserCli(t, dir, "claude", userCliYAML, nil)
 	all = mustLoadAll()
 
-	claudes := 0
-	for _, c := range all {
-		if c.Name == "claude" {
-			claudes++
-		}
-	}
-	assert.Equal(t, 1, claudes, "one claude: the user cli replaces the embedded one")
+	// map keys are unique: the user cli replaces the embedded one, not appends to it
 	assert.Len(t, all, 4)
+	assert.Contains(t, Names(), "claude")
 
 	got, ok := For("claude")
 	require.True(t, ok)
@@ -115,21 +110,12 @@ func testLoadUserSkips(t *testing.T, name, body string, configs map[string]strin
 
 	switch name {
 	case "mycli":
-		assert.Contains(t, allNames(), "mycli")
+		assert.Contains(t, Names(), "mycli")
 		assert.Len(t, all, 5)
 	default: // skip cases
-		assert.NotContains(t, allNames(), name)
+		assert.NotContains(t, Names(), name)
 		assert.Len(t, all, 4)
 	}
-}
-
-// allNames lists every loaded cli's name.
-func allNames() []string {
-	names := make([]string, 0, len(all))
-	for _, c := range all {
-		names = append(names, c.Name)
-	}
-	return names
 }
 
 func TestNames(t *testing.T) {

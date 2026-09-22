@@ -83,7 +83,7 @@ func seedRunMounts(userDir string) error {
 	if err := safeSeedProjectStateDir(userDir, projectCfg.ProjectDir()); err != nil {
 		return err
 	}
-	return safeSeedCLIDataBinds(userDir, harness.MustFor(*projectCfg.CLIName))
+	return safeSeedCLIDataBinds(userDir, projectCfg.CLI())
 }
 
 // safeSeedProjectStateDir seeds dmap.ProjectStateDir() if missing

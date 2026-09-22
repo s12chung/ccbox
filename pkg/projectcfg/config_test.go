@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -22,6 +23,19 @@ func TestConfig_ProjectDir(t *testing.T) {
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	assert.Equal(t, dir, c.ProjectDir())
+}
+
+func TestConfig_CLI(t *testing.T) {
+	dir := t.TempDir()
+	useHome(t) // no user file
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: false\n")
+
+	c, err := Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, harness.MustFor("claude"), c.CLI())
+
+	bare := Config{CLIName: new("emacs")}
+	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { bare.CLI() })
 }
 
 func TestConfig_mergeOverlays(t *testing.T) {

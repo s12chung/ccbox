@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -34,23 +35,23 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/pkg/util/maputil"
 )
 
-// all is every known CLI, loaded in the init() at the bottom of this file.
-var all []CLI
+// all is every known CLI by name, loaded in the init() at the bottom of this file.
+var all map[string]CLI
 
-// All lists every supported CLI, in stable order.
-func All() []CLI { return slices.Clone(all) }
-
-// Names lists every supported CLI's name, in All's order.
-func Names() []string {
-	all := All()
-	names := make([]string, 0, len(all))
-	for _, c := range all {
-		names = append(names, c.Name)
+// All lists every supported CLI, sorted by name.
+func All() []CLI {
+	clis := make([]CLI, 0, len(all))
+	for _, name := range Names() {
+		clis = append(clis, all[name])
 	}
-	return names
+	return clis
 }
+
+// Names lists every supported CLI's name, sorted by name.
+func Names() []string { return slices.Sorted(maps.Keys(all)) }
 
 // SeedConfigDir is the per-CLI subdirectory holding the CLI's own seed tree.
 const SeedConfigDir = "config"
@@ -91,20 +92,18 @@ var userConfigDir = userdir.ConfigDir()
 func userCLIsFS() fs.FS { return os.DirFS(userConfigDir) }
 
 // mustLoadAll parses the embedded clis, then merges user-defined ones over
-// them, sorted by name: a user cli takes priority over an embedded cli of the
-// same name, replacing it.
-func mustLoadAll() []CLI {
-	clis := mustLoadEmbedCLIs()
-	for _, c := range loadUserCLIs() {
-		if i := slices.IndexFunc(clis, func(e CLI) bool { return e.Name == c.Name }); i != -1 {
+// them: a user cli takes priority over an embedded cli of the same name,
+// replacing it.
+func mustLoadAll() map[string]CLI {
+	embed, user := mustLoadEmbedCLIs(), loadUserCLIs()
+	all := make(map[string]CLI, len(embed)+len(user))
+	for _, c := range slices.Concat(embed, user) {
+		if _, ok := all[c.Name]; ok {
 			log.Infof("user cli %q overrides the embedded cli", c.Name)
-			clis[i] = c
-			continue
 		}
-		clis = append(clis, c)
+		all[c.Name] = c
 	}
-	slices.SortFunc(clis, func(a, b CLI) int { return strings.Compare(a.Name, b.Name) })
-	return clis
+	return all
 }
 
 // mustLoadEmbedCLIs parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,
@@ -276,14 +275,7 @@ func (c CLI) PkgInfoJSON() (string, error) {
 }
 
 // For looks up the CLI by name. ok is false for an unknown name.
-func For(name string) (CLI, bool) {
-	for _, c := range All() {
-		if c.Name == name {
-			return c, true
-		}
-	}
-	return CLI{}, false
-}
+func For(name string) (CLI, bool) { return maputil.Get(all, name) }
 
 // MustFor is For for names already validated (projectcfg.Load rejects unknown
 // cli values); it panics on an unknown name.

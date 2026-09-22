@@ -25,8 +25,9 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 
 // binds composes the run's binds and volumes in a deterministic order
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
+	cli := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
-	share := harness.AgentsMdShare{CLI: rm.cli, ScratchMountDir: cliTmpMount(rm.cli)}
+	share := harness.AgentsMdShare{CLI: cli, ScratchMountDir: cliTmpMount(cli)}
 	scratchDir, clean, err := share.Begin()
 	if err != nil {
 		return nil, nil, err
@@ -35,7 +36,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
-			docker.NewBind(CLIConfigDir(rm.userDir, rm.cli.Name), path.Join(containerHome, rm.cli.ConfigHomeMount)),
+			docker.NewBind(CLIConfigDir(rm.userDir, cli.Name), path.Join(containerHome, cli.ConfigHomeMount)),
 			docker.NewBind(ProjectStateDir(rm.userDir, projectDir), projectStateMount),
 		},
 		volumes(globalVolumesMap, true),
@@ -43,7 +44,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		gitBinds(*rm.cfg.HostGitConfig),
-		cliDataBinds(rm.userDir, rm.cli),
+		cliDataBinds(rm.userDir, cli),
 		cliTmpBind(scratchDir, share.ScratchMountDir),
 	), clean, nil
 }
