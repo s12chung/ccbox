@@ -121,12 +121,12 @@ func mustLoadAll() map[string]CLI {
 // mustLoadEmbedCLIs parses each embedded clis/<cli>/CLI.yaml into a CLI named <cli>,
 // ordered by name. It panics on any parse error.
 func mustLoadEmbedCLIs() []CLI {
-	clis, err := loadFsYAML(embedCLIFS, false)
+	clis, err := embedTree().load()
 	if err != nil {
 		panic(err) // unreachable: the source is a compile-time embed constant
 	}
 	if len(clis) == 0 {
-		panic("harness: no clis/*/CLI.yaml found")
+		panic("harness: no clis/*/CLI.yaml found") // unreachable: the source is a compile-time embed constant
 	}
 	return clis
 }
@@ -134,18 +134,28 @@ func mustLoadEmbedCLIs() []CLI {
 // loadUserCLIs parses each user-defined <cli>/CLI.yaml in the user clis tree,
 // skipping broken ones with a warning.
 func loadUserCLIs() []CLI {
-	clis, err := loadFsYAML(userCLIsFS(), true)
+	clis, err := userTree().load()
 	if err != nil {
-		panic(err) // unreachable: loadFsYAML(_, true) should never return an error
+		panic(err) // unreachable: userTree().load() should never return an error
 	}
 	return clis
 }
 
-// loadFsYAML parses each <root>/clis/<cli>/CLI.yaml under fsys into a CLI named
-// <cli>, ordered by name. A user tree (fromUserDir) skips broken entries with a
-// warning; an embed tree fails instead — its contents are compile-time constants.
-func loadFsYAML(fsys fs.FS, fromUserDir bool) ([]CLI, error) {
-	paths, err := fs.Glob(fsys, clisYAMLGlob)
+// clisTree is a clis tree — clis/<name>/CLI.yaml
+type clisTree struct {
+	fsys        fs.FS
+	fromUserDir bool
+}
+
+// embedTree is the compile-time embedded clis tree.
+func embedTree() clisTree { return clisTree{fsys: embedCLIFS} }
+
+// userTree is the host's user-defined clis tree at userConfigDir.
+func userTree() clisTree { return clisTree{fsys: userCLIsFS(), fromUserDir: true} }
+
+// load parses each clis/<cli>/CLI.yaml into a CLI named <cli>, ordered by name.
+func (t clisTree) load() ([]CLI, error) {
+	paths, err := fs.Glob(t.fsys, clisYAMLGlob)
 	if err != nil {
 		// unreachable: glob never changes
 		return nil, err
@@ -153,25 +163,23 @@ func loadFsYAML(fsys fs.FS, fromUserDir bool) ([]CLI, error) {
 
 	clis := make([]CLI, 0, len(paths))
 	for _, p := range paths {
-		c, err := loadCLI(fsys, p, fromUserDir)
+		c, err := t.loadCLI(p)
 		if err != nil {
 			err = fmt.Errorf("%s: %w", cliNameFromPath(p), err)
-			if !fromUserDir {
+			if !t.fromUserDir {
 				return nil, err
 			}
 			log.Warnf("%s, skipping", err)
 			continue
 		}
-		c.fromUserDir = fromUserDir
 		clis = append(clis, c)
 	}
 	return clis, nil
 }
 
-// loadCLI reads, parses, and validates the CLI.yaml at p; fromUserDir tolerates
-// an absent seed config dir.
-func loadCLI(fsys fs.FS, p string, fromUserDir bool) (CLI, error) {
-	body, err := fs.ReadFile(fsys, p)
+// loadCLI reads, parses, and validates the CLI.yaml at p.
+func (t clisTree) loadCLI(p string) (CLI, error) {
+	body, err := fs.ReadFile(t.fsys, p)
 	if err != nil {
 		return CLI{}, err
 	}
@@ -179,9 +187,10 @@ func loadCLI(fsys fs.FS, p string, fromUserDir bool) (CLI, error) {
 	if err != nil {
 		return CLI{}, err
 	}
-	if err := validateSeedConfigDir(fsys, cliDir(c.Name), fromUserDir); err != nil {
+	if err := t.validateConfigDir(cliDir(c.Name)); err != nil {
 		return CLI{}, err
 	}
+	c.fromUserDir = t.fromUserDir
 	return c, nil
 }
 
@@ -208,12 +217,12 @@ func defaulted(p string, c CLI) CLI {
 	return c
 }
 
-// validateSeedConfigDir checks <cliDir>/config: for user trees it may be absent, but must not be a file;
+// validateConfigDir checks <cliDir>/config: for user trees it may be absent, but must not be a file;
 // embed trees also require existence — their contents are compile-time constants.
-func validateSeedConfigDir(fsys fs.FS, cliDir string, fromUserDir bool) error {
-	info, err := fs.Stat(fsys, path.Join(cliDir, SeedConfigDir))
+func (t clisTree) validateConfigDir(cliDir string) error {
+	info, err := fs.Stat(t.fsys, path.Join(cliDir, SeedConfigDir))
 	switch {
-	case fromUserDir && errors.Is(err, fs.ErrNotExist):
+	case t.fromUserDir && errors.Is(err, fs.ErrNotExist):
 		return nil // seeded fresh by SeedCLIFS
 	case err != nil:
 		return err
