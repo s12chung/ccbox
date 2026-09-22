@@ -9,7 +9,7 @@ import (
 
 const (
 	containerHome     = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
-	projectStateMount = "/home/ccbox/.ccbox/project" // per-project devbox state (e.g. lessons)
+	projectStateMount = "/home/ccbox/.ccbox/project" // per-project devbox state
 
 	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
 )
@@ -28,6 +28,9 @@ func ProjectStateDir(userDir, projectDir string) string {
 func CLIDataBindPath(userDir, cliName, key string) string {
 	return filepath.Join(userDir, "data", cliName, slug.Path(key))
 }
+
+// ProxyLogPath is the host file an auto-started wall's logs are appended to: userDir/proxy.log
+func ProxyLogPath(userDir string) string { return filepath.Join(userDir, "proxy.log") }
 
 // workspaceMount is the in-container workspace path: the WorkingDir and bind target for the project dir.
 func workspaceMount(projectDir string) string {

@@ -5,6 +5,7 @@ package cmd
 import (
 	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -23,7 +24,7 @@ import (
 // Injected from main (package main can't be imported, so the embed FSes come in here).
 var (
 	buildContext embed.FS // Dockerfile + docker/image/* — the build context
-	proxyConfig  embed.FS // docker/tinyproxy/* — the egress wall configs
+	proxyConfig  fs.FS    // docker/tinyproxy/* — the egress wall configs, subbed at Execute
 )
 
 // Shared flags.
@@ -74,7 +75,12 @@ var rootCmd = &cobra.Command{
 // Execute runs the CLI and returns the process exit code.
 func Execute(build, proxy embed.FS) int {
 	buildContext = build
-	proxyConfig = proxy
+	proxySub, err := fs.Sub(proxy, "docker/tinyproxy")
+	if err != nil {
+		log.Errorf("proxy config missing: %v", err) // unreachable: //go:embed pins the dir
+		return 1
+	}
+	proxyConfig = proxySub
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)
 		return 1

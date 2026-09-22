@@ -36,6 +36,15 @@ func NewCtxD(ctx context.Context) (*CtxD, error) {
 	return &CtxD{Ctx: ctx, D: cli}, nil
 }
 
+// MustNewCtxD is NewCtxD, panicking on error.
+func MustNewCtxD(ctx context.Context) *CtxD {
+	ctxD, err := NewCtxD(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return ctxD
+}
+
 // EnsureOwnedVolume creates the named volume (with labels) if absent and chowns it to uid
 func EnsureOwnedVolume(ctxD *CtxD, image, volumeName, uid string, labels map[string]string) error {
 	switch _, err := ctxD.D.VolumeInspect(ctxD.Ctx, volumeName); {

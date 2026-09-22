@@ -18,7 +18,7 @@ import (
 const testProjectDir = "/work/myproj"
 
 func TestResumeArgs(t *testing.T) {
-	defer func() { flagResume = false }()
+	defer func() { runModes.Resume = false }()
 
 	tests := []struct {
 		name    string
@@ -33,7 +33,7 @@ func TestResumeArgs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flagResume = tt.resume
+			runModes.Resume = tt.resume
 			err := resumeArgs(nil, tt.args)
 			if tt.wantErr {
 				assert.Error(t, err)

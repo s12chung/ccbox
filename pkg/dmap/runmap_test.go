@@ -29,6 +29,43 @@ func TestNewRunMap(t *testing.T) {
 	})
 }
 
+func TestRunMap_RunOptions(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
+
+	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+		CLIName:       new("claude"),
+		HostGitConfig: new(false),
+		Allowlist:     []string{projectcfg.DefaultsToken, "example.com"},
+	})
+	require.NoError(t, err)
+	rm := NewRunMap("/home/me/.ccbox", cfg)
+
+	// the pieces RunOptions composes
+	hostOptions, hostClean, err := rm.HostOptions()
+	require.NoError(t, err)
+	defer func() { require.NoError(t, hostClean()) }()
+	env, err := rm.Env()
+	require.NoError(t, err)
+
+	options, clean, err := rm.RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{NoProxy: true}}, testProxyConfigFS)
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+
+	assert.Equal(t, hostOptions, options.RunHostOptions)
+	assert.Equal(t, env, options.Env)
+	assert.Equal(t, "dev:tag", options.Tag)
+	assert.Equal(t, []string{"claude"}, options.Cmd)
+	assert.Equal(t, docker.ProxyOptions{
+		Config:    testProxyConfigFS,
+		Overrides: docker.AllowOverride(cfg.AllowlistExpanded()),
+	}, options.Proxy)
+	assert.Equal(t, "/home/me/.ccbox/proxy.log", options.ProxyLogPath)
+	assert.True(t, options.NoProxy)
+}
+
 func TestRunMap_HostOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -102,8 +139,9 @@ func TestRunMap_Env(t *testing.T) {
 func TestRunMap_Cmd(t *testing.T) {
 	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
 
-	assert.Equal(t, []string{"claude"}, rm.Cmd(false, false, false, nil))
-	assert.Nil(t, rm.Cmd(true, false, false, nil), "shell runs the image default instead")
-	assert.Equal(t, []string{"claude", "-c"}, rm.Cmd(false, true, false, nil))
-	assert.Equal(t, []string{"claude", "--resume", "sess"}, rm.Cmd(false, false, true, []string{"sess"}))
+	assert.Equal(t, []string{"claude"}, rm.Cmd(RunFlags{}))
+	assert.Nil(t, rm.Cmd(RunFlags{Modes: RunModes{Shell: true}}), "shell runs the image default instead")
+	assert.Equal(t, []string{"claude", "-c"}, rm.Cmd(RunFlags{Modes: RunModes{Continue: true}}))
+	assert.Equal(t, []string{"claude", "--resume", "sess"},
+		rm.Cmd(RunFlags{Args: []string{"sess"}, Modes: RunModes{Resume: true}}))
 }
