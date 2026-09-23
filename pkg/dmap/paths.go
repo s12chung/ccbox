@@ -19,11 +19,6 @@ func CLIConfigDir(userDir, cliName string) string {
 	return filepath.Join(userDir, harness.MustFor(cliName).Name)
 }
 
-// PersistDir is the host state dir persisted for a project: userDir/persist/<slug>
-func PersistDir(userDir, projectDir string) string {
-	return filepath.Join(userDir, "persist", slug.Path(projectDir))
-}
-
 // CLIDataBindPath is a data bind's shared host path: userDir/data/<cli_name>/<slug-of-key>
 func CLIDataBindPath(userDir, cliName, key string) string {
 	return filepath.Join(userDir, "data", cliName, slug.Path(key))

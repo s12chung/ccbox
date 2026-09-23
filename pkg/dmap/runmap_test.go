@@ -29,7 +29,8 @@ func TestRunMap_RunOptions(t *testing.T) {
 		Allowlist:     []string{projectcfg.DefaultsToken, "example.com"},
 	})
 	require.NoError(t, err)
-	rm := NewRunMap("/home/me/.ccbox", cfg)
+	userDir := t.TempDir()
+	rm := NewRunMap(userDir, cfg)
 
 	// the pieces RunOptions composes
 	hostOptions, hostClean, err := rm.HostOptions()
@@ -51,7 +52,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 		Config:    tinyproxy.Config,
 		Overrides: docker.AllowOverride(cfg.AllowlistExpanded()),
 	}, options.Proxy)
-	assert.Equal(t, "/home/me/.ccbox/proxy.log", options.ProxyLogPath)
+	assert.Equal(t, filepath.Join(userDir, "proxy.log"), options.ProxyLogPath)
 	assert.True(t, options.NoProxy)
 }
 
@@ -88,7 +89,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	assert.Equal(t, []docker.Mount{
 		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(userDir, "codex"), "/home/ccbox/.codex"),
-		docker.NewBind(filepath.Join(userDir, "persist", s), "/home/ccbox/.ccbox/persist"),
+		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "persist", s), "/home/ccbox/.ccbox/persist"),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),
 		docker.NewVolume("ccbox"+s+"-gem-cache-default", "/home/ccbox/.gem"),

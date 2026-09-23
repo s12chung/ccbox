@@ -10,6 +10,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/git"
+	"github.com/s12chung/ccbox/pkg/persist"
+	"github.com/s12chung/ccbox/pkg/util/cleanup"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
@@ -28,17 +30,20 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	cli := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
-	share := harness.AgentsMdShare{CLI: cli, ScratchMountDir: cliTmpMount(cli)}
-	scratchDir, clean, err := share.Begin()
+	var scratchDir, persistDir string
+	clean, err := cleanup.Share{
+		harness.AgentsMdShare{CLI: cli, ScratchMountDir: cliTmpMount(cli)},
+		persist.Share{ProjectDir: projectDir},
+	}.Begin(&scratchDir, &persistDir)
 	if err != nil {
-		return nil, nil, err
+		return nil, clean, err
 	}
 
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
 			docker.NewBind(CLIConfigDir(rm.userDir, cli.Name), path.Join(containerHome, cli.ConfigHomeMount)),
-			docker.NewBind(PersistDir(rm.userDir, projectDir), persistMount),
+			docker.NewBind(persistDir, persistMount),
 		},
 		volumes(globalVolumesMap, true),
 		volumes(cacheVolumeNames(projectDir), false),
@@ -46,7 +51,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		readOnlyBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		gitBinds(*rm.cfg.HostGitConfig),
 		cliDataBinds(rm.userDir, cli),
-		cliTmpBind(scratchDir, share.ScratchMountDir),
+		cliTmpBind(scratchDir, cliTmpMount(cli)),
 	), clean, nil
 }
 

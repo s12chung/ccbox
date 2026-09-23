@@ -141,7 +141,7 @@ func (s AgentsMdShare) promote(body []byte) error {
 }
 
 // cliTmpPath is the scratch file's dir: ~/.ccbox/tmp/<cli_name>
-func (s AgentsMdShare) cliTmpPath() string { return filepath.Join(userdir.Dir(), "tmp", s.CLI.Name) }
+func (s AgentsMdShare) cliTmpPath() string { return filepath.Join(userdir.Tmp(), s.CLI.Name) }
 
 // scratchFilePath is the path of the shared doc: ~/.ccbox/tmp/<cli_name>/AGENTS.md
 func (s AgentsMdShare) scratchFilePath() string {

@@ -15,6 +15,9 @@ func Dir() string { return filepath.Join(mustHome(), ".ccbox") }
 // ConfigDir is ccbox's per-user config directory: ~/.ccbox/config
 func ConfigDir() string { return path.Join(Dir(), "config") }
 
+// Tmp is ccbox's per-user scratch directory: ~/.ccbox/tmp
+func Tmp() string { return path.Join(Dir(), "tmp") }
+
 func mustHome() string {
 	home, err := os.UserHomeDir()
 	if err != nil {

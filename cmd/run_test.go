@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -15,8 +13,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
-
-const testProjectDir = "/work/myproj"
 
 func TestResumeArgs(t *testing.T) {
 	defer func() { runModes.Resume = false }()
@@ -43,45 +39,6 @@ func TestResumeArgs(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestSafeSeedPersistDir_MissingSeeds(t *testing.T) {
-	userDir := t.TempDir()
-	wantDir := dmap.PersistDir(userDir, testProjectDir)
-
-	var gotDir string
-	called := false
-	defer stubSeedTreeFn(func(_ fs.FS, dest string) ([]string, error) {
-		called, gotDir = true, dest
-		return nil, nil
-	})()
-
-	require.NoError(t, safeSeedPersistDir(userDir, testProjectDir))
-	assert.True(t, called, "seedTreeFn not called for missing dir")
-	assert.Equal(t, wantDir, gotDir, "seeded dir")
-}
-
-func TestSafeSeedPersistDir_ExistingSkips(t *testing.T) {
-	userDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(dmap.PersistDir(userDir, testProjectDir), ioutil.Dir))
-
-	called := false
-	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
-		called = true
-		return nil, nil
-	})()
-
-	require.NoError(t, safeSeedPersistDir(userDir, testProjectDir))
-	assert.False(t, called, "seedTreeFn called for existing dir")
-}
-
-func TestSafeSeedPersistDir_PropagatesSeedError(t *testing.T) {
-	wantErr := errors.New("boom")
-	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
-		return nil, wantErr
-	})()
-
-	assert.ErrorIs(t, safeSeedPersistDir(t.TempDir(), testProjectDir), wantErr)
 }
 
 func TestSafeSeedCLIDataBinds(t *testing.T) {

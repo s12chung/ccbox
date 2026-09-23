@@ -6,7 +6,6 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/util/cleanup"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
 
@@ -63,13 +62,10 @@ func (rm *RunMap) RunOptions(flags RunFlags) (docker.RunOptions, func() error, e
 
 // HostOptions renders the run's host options for docker.Run.
 func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
-	var stack cleanup.Stack
-
 	projectDir := rm.cfg.ProjectDir()
 	binds, clean, err := rm.binds()
-	stack.Push("settle shared agents doc", clean)
 	if err != nil {
-		return docker.RunHostOptions{}, stack.Run, err
+		return docker.RunHostOptions{}, clean, err
 	}
 
 	return docker.RunHostOptions{
@@ -77,7 +73,7 @@ func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
 		WorkspaceMount: workspaceMount(projectDir),
 		Mounts:         binds,
 		TmpfsPaths:     tmpfsMasks(projectDir, rm.cfg.TmpfsMasksPresent()),
-	}, stack.Run, nil
+	}, clean, nil
 }
 
 // Env renders the container's env in one map: the CLI's fixed env under the config's

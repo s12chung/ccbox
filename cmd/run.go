@@ -11,10 +11,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
-	"github.com/s12chung/ccbox/pkg/persist"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -53,7 +51,7 @@ func run(cmd *cobra.Command, args []string) error {
 		Args:  args,
 		Modes: runModes,
 	})
-	defer log.Defer("settle shared agents doc", clean)
+	defer log.Defer("clean run files", clean)
 	if err != nil {
 		return err
 	}
@@ -80,15 +78,7 @@ func seedRunMounts(userDir string) error {
 	if err := safeSeedCLIConfig(userDir, *projectCfg.CLIName, false); err != nil {
 		return err
 	}
-	if err := safeSeedPersistDir(userDir, projectCfg.ProjectDir()); err != nil {
-		return err
-	}
 	return safeSeedCLIDataBinds(userDir, projectCfg.CLI())
-}
-
-// safeSeedPersistDir seeds dmap.PersistDir() if missing
-func safeSeedPersistDir(userDir, projectDir string) error {
-	return safeSeed(mfs.MustNewFS(persist.SeedFS()), dmap.PersistDir(userDir, projectDir), false)
 }
 
 // safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>
