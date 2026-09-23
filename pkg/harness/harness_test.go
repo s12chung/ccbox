@@ -14,7 +14,7 @@ import (
 
 func TestMain(m *testing.M) {
 	// ignore any user clis on this machine: tests pin the embedded set
-	embedClis := must.Get(embedTree().load())
+	embedClis := must.Get(wrapTreeLoad(embedTree().load()))
 	all = make(map[string]CLI, len(embedClis))
 	for _, c := range embedClis {
 		all[c.Name] = c

@@ -1,7 +1,8 @@
 // Package harness abstracts the coding CLIs ccbox can install and launch
 //
 // NOTE: Multiple timeframes and actions to separate in chronological order:
-//  1. on init() - CLI.yaml are loaded, which cannot have errors to configure `ccbox` itself. They are from:
+//  1. on Load(), called from cmd.rootCmd.PersistentPreRunE() - CLI.yaml are loaded,
+//     which cannot have errors to configure `ccbox` itself. They are from:
 //     a. embed, where we panic() instead, due compile-time embed constant
 //     b. UserCLIsDir(), where we log.Warn() and skip instead. Validations on the CLI.yaml and config/
 //     dir are done, _effectively guaranteeing_ valid CLI structs and workable config/ dir onwards
@@ -37,6 +38,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
+// Load loads the cli set
+func Load() { all = mustLoadAll() }
+
 // all is every known CLI by name, loaded in the init() at the bottom of this file.
 var all map[string]CLI
 
@@ -55,7 +59,8 @@ func Names() []string { return slices.Sorted(maps.Keys(all)) }
 // clis tree layout: <root>/clis/<name>/CLI.yaml plus <root>/clis/<name>/config/
 const (
 	clisDir       = "clis"
-	clisYAMLGlob  = "clis/*/CLI.yaml"
+	clisGlob      = "clis/*"
+	cliYAML       = "CLI.yaml"
 	seedConfigDir = "config"
 )
 
@@ -99,8 +104,8 @@ func SeedCLIFS(cliName string) fs.FS {
 // them: a user cli takes priority over an embedded cli of the same name,
 // replacing it.
 func mustLoadAll() map[string]CLI {
-	embedClis := must.Get(embedTree().load()) // unreachable: the source is a compile-time embed constant
-	userClis := must.Get(userTree().load())   // unreachable: userTree().load() should never return an error
+	embedClis := must.Get(wrapTreeLoad(embedTree().load())) // unreachable: the source is a compile-time embed constant
+	userClis := must.Get(wrapTreeLoad(userTree().load()))   // unreachable: userTree().load() should never return an error
 
 	all := make(map[string]CLI, len(embedClis)+len(userClis))
 	for _, c := range slices.Concat(embedClis, userClis) {
@@ -111,6 +116,17 @@ func mustLoadAll() map[string]CLI {
 	}
 	return all
 }
+
+// wrapTreeLoad runs a clis tree load, printing its warnings
+func wrapTreeLoad(clis []CLI, warns []error, err error) ([]CLI, error) {
+	for _, warn := range warns {
+		log.Warnf("%s, skipping", warn)
+	}
+	return clis, err
+}
+
+// LoadUserCLIs loads just the user clis tree, returning its load warnings
+func LoadUserCLIs() ([]CLI, []error, error) { return userTree().load() }
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {
@@ -217,6 +233,3 @@ func (c CLI) SessionCmd(shell, cont, resume bool, args []string) []string {
 	})
 	return strings.Split(strings.Join(cmd, " "), " ")
 }
-
-// init() loads after the firm registration following the CLI struct, which parse() validates against.
-func init() { all = mustLoadAll() }

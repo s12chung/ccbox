@@ -47,16 +47,19 @@ var rootCmd = &cobra.Command{
 	RunE:          run,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
-			return nil // completion only reads flag/CLI definitions: no seeding, no config load
+			harness.Load() // --cli completions read the cli names: no seeding, no config load
+			return nil
 		}
 		for c := cmd; c != nil; c = c.Parent() {
 			if c.Name() == doctorCmd.Name() {
-				return nil // the hidden maintainer command: no seeding, no config load
+				return nil // doctor loads its own way (doctor clis): no seeding, no config load
 			}
 		}
 		if err := safeSeedHarness(); err != nil {
 			return err
 		}
+		// before safeSeedUserConfig's picker and projectcfg.Load, which read harness.Names()
+		harness.Load()
 		if err := safeSeedUserConfig(); err != nil {
 			return err
 		}
@@ -84,7 +87,10 @@ func init() {
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.Var(flagutils.StringPtr(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
 	// unreachable error: "cli" is registered above
-	must.Do(rootCmd.RegisterFlagCompletionFunc("cli", cobra.FixedCompletions(harness.Names(), cobra.ShellCompDirectiveNoFileComp)))
+	must.Do(rootCmd.RegisterFlagCompletionFunc("cli", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
+		// a closure, so that harness.Load() runs first in PersistentPreRunE
+		return harness.Names(), cobra.ShellCompDirectiveNoFileComp
+	}))
 
 	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
 }

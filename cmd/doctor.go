@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -13,18 +14,20 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/toolsbuild"
+	"github.com/s12chung/ccbox/pkg/userdir"
 )
 
 var doctorCmd = &cobra.Command{
-	Use:    "doctor",
-	Short:  "Check build-time invariants of this ccbox binary",
-	Hidden: true, // a maintainer command; runs at build time (see the Makefile)
+	Use:   "doctor",
+	Short: "Check this ccbox install",
 }
 
 var doctorToolsCmd = &cobra.Command{
-	Use:   "tools",
-	Short: "Check the embedded ccboxtools binary is a fresh build of ccboxtools/",
+	Use:    "tools",
+	Short:  "Check the embedded ccboxtools binary is a fresh build of ccboxtools/",
+	Hidden: true, // a maintainer command; runs at build time (see the Makefile)
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		embedded, err := fs.ReadFile(buildContext, "dist/ccboxtools")
 		if err != nil {
@@ -40,7 +43,28 @@ var doctorToolsCmd = &cobra.Command{
 	},
 }
 
-func init() { doctorCmd.AddCommand(doctorToolsCmd) }
+var doctorClisCmd = &cobra.Command{
+	Use:   "clis",
+	Short: "Check the user-defined clis load",
+	RunE:  func(_ *cobra.Command, _ []string) error { return checkUserClis(harness.LoadUserCLIs()) },
+}
+
+func init() { doctorCmd.AddCommand(doctorToolsCmd, doctorClisCmd) }
+
+// checkUserClis reports the user clis tree's load warnings as errors — a bad
+// cli.yaml is skipped with a startup warning, so doctor is where they surface.
+func checkUserClis(_ []harness.CLI, warns []error, err error) error {
+	if err != nil {
+		return err
+	}
+	for _, warn := range warns {
+		log.Errorf("%s", warn)
+	}
+	if len(warns) > 0 {
+		return fmt.Errorf("%d user cli(s) failed to load in %s", len(warns), userdir.Tilde(harness.UserCLIsDir()))
+	}
+	return nil
+}
 
 // toolsGoarch is the image arch the embedded binary was built for: make passes
 // GOARCH on the doctor recipe line; a bare run falls back to the compiler default,

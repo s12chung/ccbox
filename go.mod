@@ -13,7 +13,7 @@ require (
 	github.com/moby/buildkit v0.31.0
 	github.com/moby/term v0.5.2
 	github.com/s12chung/ccbox/ccboxtools v0.0.0-00010101000000-000000000000
-	github.com/s12chung/firm v0.2.2-0.20260908201413-0b00145893b3
+	github.com/s12chung/firm v0.2.2-0.20260924005317-1d95c56131cf
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1

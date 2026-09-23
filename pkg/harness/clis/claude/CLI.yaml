@@ -1,17 +1,28 @@
-# Claude Code (Anthropic).
+# Claude Code (Anthropic). The reference built-in: copy this for a new CLI and fill in
+# each field from that CLI's own docs. Not on npm? Take grok's version_url block instead.
 npm:
   package: "@anthropic-ai/claude-code"
 
+# The CLI's config dir, mounted at $HOME/<name> in-container so the CLI's native default
+# location just works. Some CLIs only look there when an env var points at it.
 config_home_mount: ".claude"
 config_dir_env_key: "CLAUDE_CONFIG_DIR"
+
+# Off-switches for self-update and background traffic
 env:
   CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
   DISABLE_AUTOUPDATER: "1"
 
+# CLIs that sandbox themselves with bubblewrap are buggy in this container without root —
+# pass their no-sandbox flag (see codex). claude needs none.
 cmd: "claude"
+# -c reopens the latest session, --resume opens the picker. Syntax differs per CLI:
+# grok's bare --resume just takes the latest (no picker exists), codex has a `resume`
+# subcommand (`resume --last` to continue).
 continue_args: "-c"
 resume_args: "--resume"
 
+# Egress wall allowlist — every domain the CLI hits, incl. login and telemetry.
 allow_domains:
   - platform.claude.com
   - api.anthropic.com

@@ -10,6 +10,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestCheckUserClis(t *testing.T) {
+	tests := []struct {
+		name    string
+		warns   []error
+		loadErr error
+		wantErr string
+	}{
+		{"clean", nil, nil, ""},
+		{"warnings fail the check", []error{errors.New("bad: bogus field"), errors.New("stray: not found")}, nil, "2 user cli(s) failed to load"},
+		{"load error passthrough", nil, errors.New("boom"), "boom"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := checkUserClis(nil, tt.warns, tt.loadErr)
+
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
+}
+
 func TestValidateTools(t *testing.T) {
 	embedded := []byte("embedded bytes")
 

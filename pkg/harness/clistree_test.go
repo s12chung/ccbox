@@ -75,6 +75,33 @@ func TestLoadUser(t *testing.T) {
 	})
 }
 
+func TestLoad_Warnings(t *testing.T) {
+	t.Run("user tree returns a warning per bad and stray entry", func(t *testing.T) {
+		dir := resetAll(t)
+		writeUserCli(t, dir, "bad", "bogus: true\n", nil)
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "clis", "stray"), ioutil.Dir)) // stray dir
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "clis", "strayfile"), []byte("junk"), ioutil.File))
+
+		clis, warns, err := userTree().load()
+
+		require.NoError(t, err)
+		assert.Empty(t, clis)
+		require.Len(t, warns, 3) // glob order
+		require.ErrorContains(t, warns[0], "bad: ")
+		require.ErrorContains(t, warns[1], "stray: ")
+		require.ErrorContains(t, warns[1], "not found")
+		assert.ErrorContains(t, warns[2], "strayfile: ")
+	})
+
+	t.Run("embed tree never warns", func(t *testing.T) {
+		clis, warns, err := embedTree().load()
+
+		require.NoError(t, err)
+		assert.NotEmpty(t, clis)
+		assert.Empty(t, warns)
+	})
+}
+
 func TestLoadUser_OverridesEmbedded(t *testing.T) {
 	dir := resetAll(t)
 	writeUserCli(t, dir, "claude", userCliYAML, nil)

@@ -83,6 +83,9 @@ func TestMain(m *testing.M) {
 	must.Do(os.Setenv("HOME", dir))
 	_, err = SeedUserConfig("claude")
 	must.Do(err)
+
+	harness.Load()
+
 	code := m.Run()
 	_ = os.RemoveAll(dir)
 	os.Exit(code)
