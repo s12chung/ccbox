@@ -70,17 +70,21 @@ RUN rm -rf /root/.cache /tmp; mkdir -m 1777 /tmp; \
 
 USER ccbox
 
-# Pre-create mountpoints so named volumes inherit uid 1000 (else root-owned, unwritable)
-# - cacheVolumes - per-project caches mapped to pkg/docker/mounts.go (/tmp is created above to keep 1777)
-# - globalVolumes - global volumes mapped to pkg/docker/mounts.go
-# - /home/ccbox/.config /home/ccbox/.local/share/ - opencode uses it
-# - /tmp/opencode - opencode's scratch (opencode CLI creates it root-only otherwise)
+# Pre-create **generic** mountpoints so named volumes inherit uid 1000 (else root-owned, unwritable)
+# - cacheVolumes - per-project caches mapped to pkg/dmap/mounts.go (/tmp is created above to keep 1777)
+# - globalVolumes - global volumes mapped to pkg/dmap/mounts.go
+# - /home/ccbox/.config - opencode's config dir's parent
 # - git config ... - handles container user non-match repo owner problem - https://github.blog/open-source/git/git-security-vulnerability-announced/
 RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
              /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local \
              /opt/ccbox/clis \
-             /home/ccbox/.config /home/ccbox/.local/share/opencode /tmp/opencode && \
+             /home/ccbox/.config && \
     git config --file /home/ccbox/.gitconfig --add safe.directory '*'
+
+# data_bind_dirs is for pre-creating harness CLI mountpoints so named volumes inherit uid 1000 (else root-owned, unwritable)
+ARG data_bind_dirs=""
+# hadolint ignore=SC2086
+RUN [ -z "$data_bind_dirs" ] || mkdir -p $data_bind_dirs
 
 ENTRYPOINT ["/usr/local/bin/ccboxtools", "entrypoint"]
 CMD ["bash"]

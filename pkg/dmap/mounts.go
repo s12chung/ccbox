@@ -51,12 +51,13 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 }
 
 // volumeMasks masks each load-validated project-relative dir with a persistent
-// per-project volume, owned by the container user so the run's own content seeds it.
+// per-project volume; ensured fresh, then chowned to the container user, so the run's
+// own content seeds it.
 func volumeMasks(projectDir string, relDirs []string) []docker.Mount {
 	workspace := workspaceMount(projectDir)
 	volumes := make([]docker.Mount, 0, len(relDirs))
 	for _, d := range relDirs {
-		volumes = append(volumes, docker.NewVolume(volumeName(projectDir, d), filepath.Join(workspace, d)).Owned())
+		volumes = append(volumes, docker.NewVolume(volumeName(projectDir, d), filepath.Join(workspace, d)))
 	}
 	return volumes
 }
@@ -96,6 +97,8 @@ func gitBinds(enabled bool) []docker.Mount {
 	return nil
 }
 
+// cliDataBinds renders cli's data binds as binds under containerHome, sorted for a
+// deterministic spec.
 func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 	binds := make(map[string]string, len(cli.DataBinds))
 	for key := range cli.DataBinds {

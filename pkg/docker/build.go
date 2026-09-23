@@ -21,7 +21,8 @@ import (
 
 // BuildOptions configures an image build.
 type BuildOptions struct {
-	Tag string
+	Tag       string
+	BuildArgs map[string]string
 }
 
 // Build builds the devbox image from the embedded build context (src) on BuildKit,
@@ -60,8 +61,9 @@ func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
 
 	opts := map[string]build.Options{"default": {
 		// Context tar on stdin (ContextPath "-"); the Dockerfile rides at its root.
-		Inputs: build.Inputs{ContextPath: "-", InStream: build.NewSyncMultiReader(contextTar)},
-		Tags:   []string{o.Tag},
+		Inputs:    build.Inputs{ContextPath: "-", InStream: build.NewSyncMultiReader(contextTar)},
+		Tags:      []string{o.Tag},
+		BuildArgs: o.BuildArgs,
 		// ExporterDocker loads the built image into the daemon store (the --load equivalent).
 		// Attrs must be non-nil: buildx writes the tag into it ("name") without nil-checking.
 		Exports: []client.ExportEntry{{Type: client.ExporterDocker, Attrs: map[string]string{}}},

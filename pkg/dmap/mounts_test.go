@@ -35,11 +35,11 @@ func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 }
 
 func TestVolumeMasks(t *testing.T) {
-	// the name slugifies the mask path under the project slug; owned so the run
-	// seeds the volume with its own content
+	// the name slugifies the mask path under the project slug; ensured fresh, then
+	// chowned to the container user at run start
 	assert.Equal(t, []docker.Mount{
-		docker.NewVolume("ccbox-Users-me-proj-node_modules", "/home/ccbox/proj/node_modules").Owned(),
-		docker.NewVolume("ccbox-Users-me-proj-vendor-bundle", "/home/ccbox/proj/vendor/bundle").Owned(),
+		docker.NewVolume("ccbox-Users-me-proj-node_modules", "/home/ccbox/proj/node_modules"),
+		docker.NewVolume("ccbox-Users-me-proj-vendor-bundle", "/home/ccbox/proj/vendor/bundle"),
 	}, volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"}))
 }
 

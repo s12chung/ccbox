@@ -11,14 +11,17 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
 
-// ensureMounts creates each mount's named volume, so the run's mounts resolve.
+// ensureMounts creates each volume mount's named volume, so the run's mounts resolve,
+// chowning fresh volumes' roots to the container user in one batch — mask volumes hold
+// content the run owns. Binds need no ensuring.
 func ensureMounts(ctxD *dock.CtxD, imageTag, projectDir string, mounts []Mount) error {
+	vols := make([]dock.OwnedVolume, 0, len(mounts))
 	for _, mount := range mounts {
-		if err := mount.ensure(ctxD, imageTag, projectDir); err != nil {
-			return err
+		if v, ok := mount.(Volume); ok {
+			vols = append(vols, dock.OwnedVolume{Name: v.name, Labels: v.labels(projectDir)})
 		}
 	}
-	return nil
+	return dock.EnsureOwnedVolumes(ctxD, imageTag, containerUID, vols)
 }
 
 // mountSpecs renders each mount, in slice order, for the HostConfig.
@@ -32,8 +35,7 @@ func mountSpecs(mounts []Mount) []string {
 
 // Mount is a mount into the devbox container
 type Mount interface {
-	spec() string                                              // renders the mount's spec
-	ensure(ctxD *dock.CtxD, imageTag, projectDir string) error // ensures the resources are available to mount
+	spec() string // renders the mount's spec
 }
 
 // Bind bind-mounts a host path at a container path.
@@ -61,16 +63,14 @@ func (b Bind) spec() string {
 	return b.host + ":" + b.container
 }
 
-func (Bind) ensure(*dock.CtxD, string, string) error { return nil }
-
 // Volume mounts a named volume at a container path. Global shares the volume across
-// every project; otherwise it is project-scoped (labeled with projectDir). Owned chowns the
-// volume to the container user when ensured, so masked dirs hold content the run owns.
+// every project; otherwise it is project-scoped (labeled with projectDir). A fresh
+// volume's root is chowned to the container user when ensured (ensureMounts), so masked
+// dirs hold content the run owns.
 type Volume struct {
 	name      string
 	container string
 	global    bool
-	owned     bool
 }
 
 // NewVolume mounts the named volume at container.
@@ -84,21 +84,7 @@ func (v Volume) Global() Volume {
 	return v
 }
 
-// Owned chowns the volume to the container user when ensured.
-func (v Volume) Owned() Volume {
-	v.owned = true
-	return v
-}
-
 func (v Volume) spec() string { return v.name + ":" + v.container }
-
-func (v Volume) ensure(ctxD *dock.CtxD, imageTag, projectDir string) error {
-	if v.owned {
-		return dock.EnsureOwnedVolume(ctxD, imageTag, v.name, containerUID, v.labels(projectDir))
-	}
-	_, err := ctxD.D.VolumeCreate(ctxD.Ctx, volume.CreateOptions{Name: v.name, Labels: v.labels(projectDir)})
-	return err
-}
 
 const (
 	ccboxLabelKey        = "ccbox"

@@ -97,7 +97,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewVolume("ccbox"+s+"-npm--global-cache-default", "/home/ccbox/.npm-global"),
 		docker.NewVolume("ccbox"+s+"-npm-cache-default", "/home/ccbox/.npm"),
 		docker.NewVolume("ccbox"+s+"-tmp-cache-default", "/tmp"),
-		docker.NewVolume("ccbox"+s+"-node_modules", workspace+"/node_modules").Owned(),
+		docker.NewVolume("ccbox"+s+"-node_modules", workspace+"/node_modules"),
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex"), cliTmpMount(harness.MustFor("codex"))),
 	}, hostOptions.Mounts)

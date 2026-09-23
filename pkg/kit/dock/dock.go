@@ -19,6 +19,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
+	"github.com/s12chung/ccbox/pkg/util/uslice"
 )
 
 // CtxD pairs a D Engine client with the context its calls run under.
@@ -40,33 +41,58 @@ func NewCtxD(ctx context.Context) (*CtxD, error) {
 // MustNewCtxD is NewCtxD, panicking on error.
 func MustNewCtxD(ctx context.Context) *CtxD { return must.Get(NewCtxD(ctx)) }
 
-// EnsureOwnedVolume creates the named volume (with labels) if absent and chowns it to uid
-func EnsureOwnedVolume(ctxD *CtxD, image, volumeName, uid string, labels map[string]string) error {
-	switch _, err := ctxD.D.VolumeInspect(ctxD.Ctx, volumeName); {
-	case err == nil:
-		return nil
-	case !errdefs.IsNotFound(err):
-		return err
-	}
-	if _, err := ctxD.D.VolumeCreate(ctxD.Ctx, volume.CreateOptions{Name: volumeName, Labels: labels}); err != nil {
-		return err
-	}
-	return ChownVolume(ctxD, image, volumeName, uid+":"+uid)
+// OwnedVolume is a volume EnsureOwnedVolumes ensures: created (with labels) if absent.
+type OwnedVolume struct {
+	Name   string
+	Labels map[string]string
 }
 
-// ChownVolume chown's volume to owner ("uid:gid") via a throwaway root container  running image.
-func ChownVolume(ctxD *CtxD, image, volumeName, owner string) error {
-	mountPoint := "/mnt"
+// EnsureOwnedVolumes creates each missing volume (with labels) and chowns the fresh
+// ones' roots to uid via ONE throwaway root container running image. Existing volumes
+// are never re-chowned
+func EnsureOwnedVolumes(ctxD *CtxD, image, uid string, vols []OwnedVolume) error {
+	var fresh []OwnedVolume
+	for _, vol := range vols {
+		isFresh, err := ensureVolume(ctxD, vol)
+		if err != nil {
+			return err
+		}
+		if isFresh {
+			fresh = append(fresh, vol)
+		}
+	}
+	if len(fresh) == 0 {
+		return nil
+	}
+	return runChownContainer(ctxD, image, uid, fresh)
+}
 
+// ensureVolume creates vol (with labels) if absent, reporting whether it was fresh.
+func ensureVolume(ctxD *CtxD, vol OwnedVolume) (bool, error) {
+	switch _, err := ctxD.D.VolumeInspect(ctxD.Ctx, vol.Name); {
+	case err == nil:
+		return false, nil
+	case !errdefs.IsNotFound(err):
+		return false, err
+	}
+	if _, err := ctxD.D.VolumeCreate(ctxD.Ctx, volume.CreateOptions{Name: vol.Name, Labels: vol.Labels}); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// runChownContainer chowns the fresh volumes' roots via the throwaway root container,
+// waiting for it to exit.
+func runChownContainer(ctxD *CtxD, image, uid string, fresh []OwnedVolume) error {
 	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
 		&container.Config{
 			Image:      image,
 			User:       "0:0",
-			Entrypoint: []string{"chown", owner, mountPoint},
+			Entrypoint: append([]string{"chown", uid + ":" + uid}, uslice.Map(fresh, chownMnt)...),
 		},
 		&container.HostConfig{
 			NetworkMode: "none",
-			Binds:       []string{volumeName + ":" + mountPoint},
+			Binds:       uslice.Map(fresh, chownBind),
 		},
 		nil, nil, "")
 	if err != nil {
@@ -86,11 +112,19 @@ func ChownVolume(ctxD *CtxD, image, volumeName, owner string) error {
 		return err
 	case st := <-statusCh:
 		if st.StatusCode != 0 {
-			return fmt.Errorf("chown volume %q: container exited %d", volumeName, st.StatusCode)
+			return fmt.Errorf("chown volumes %v: container exited %d",
+				uslice.Map(fresh, func(vol OwnedVolume) string { return vol.Name }), st.StatusCode)
 		}
 		return nil
 	}
 }
+
+// chownMnt is vol's mount point in the chown container: /mnt/<volume-name>. Volume names
+// are DNS-label-safe ([a-zA-Z0-9_.-]), so they're valid path segments.
+func chownMnt(vol OwnedVolume) string { return "/mnt/" + vol.Name }
+
+// chownBind is vol's bind spec in the chown container: <name>:<mount point>
+func chownBind(vol OwnedVolume) string { return vol.Name + ":" + chownMnt(vol) }
 
 // EnsureImageExists pulls ref only when it isn't present locally (the SDK, unlike the
 // CLI, never auto-pulls on create). Inspect resolves the digest-pinned ref that a

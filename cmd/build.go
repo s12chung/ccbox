@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/pkg/dmap"
 	"github.com/s12chung/ccbox/pkg/docker"
 )
 
@@ -18,5 +19,5 @@ var buildCmd = &cobra.Command{
 
 // build builds the CLI-agnostic devbox image; `run` calls it too, mirroring the old `run: build`.
 func build(ctx context.Context) error {
-	return docker.Build(ctx, buildContext, docker.BuildOptions{Tag: flagTag})
+	return docker.Build(ctx, buildContext, dmap.NewBuildMap(flagTag).Options())
 }

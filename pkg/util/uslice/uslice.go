@@ -13,3 +13,12 @@ func Minus[E comparable](a, b []E) []E {
 	}
 	return out
 }
+
+// Map renders each element with f, keeping order.
+func Map[E, R any](s []E, f func(E) R) []R {
+	out := make([]R, len(s))
+	for i, e := range s {
+		out[i] = f(e)
+	}
+	return out
+}
