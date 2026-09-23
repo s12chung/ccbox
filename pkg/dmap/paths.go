@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	containerHome     = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
-	projectStateMount = "/home/ccbox/.ccbox/project" // per-project devbox state
+	containerHome = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
+	persistMount  = "/home/ccbox/.ccbox/persist" // persistent per-project state
 
 	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
 )
@@ -19,9 +19,9 @@ func CLIConfigDir(userDir, cliName string) string {
 	return filepath.Join(userDir, harness.MustFor(cliName).Name)
 }
 
-// ProjectStateDir is the host state dir for a project: userDir/projects/<slug>
-func ProjectStateDir(userDir, projectDir string) string {
-	return filepath.Join(userDir, "projects", slug.Path(projectDir))
+// PersistDir is the host state dir persisted for a project: userDir/persist/<slug>
+func PersistDir(userDir, projectDir string) string {
+	return filepath.Join(userDir, "persist", slug.Path(projectDir))
 }
 
 // CLIDataBindPath is a data bind's shared host path: userDir/data/<cli_name>/<slug-of-key>

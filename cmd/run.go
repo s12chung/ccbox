@@ -11,7 +11,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
-	"github.com/s12chung/ccbox/pkg/projectstate"
+	"github.com/s12chung/ccbox/pkg/persist"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
@@ -80,15 +80,15 @@ func seedRunMounts(userDir string) error {
 	if err := safeSeedCLIConfig(userDir, *projectCfg.CLIName, false); err != nil {
 		return err
 	}
-	if err := safeSeedProjectStateDir(userDir, projectCfg.ProjectDir()); err != nil {
+	if err := safeSeedPersistDir(userDir, projectCfg.ProjectDir()); err != nil {
 		return err
 	}
 	return safeSeedCLIDataBinds(userDir, projectCfg.CLI())
 }
 
-// safeSeedProjectStateDir seeds dmap.ProjectStateDir() if missing
-func safeSeedProjectStateDir(userDir, projectDir string) error {
-	return safeSeed(mfs.MustNewFS(projectstate.SeedFS()), dmap.ProjectStateDir(userDir, projectDir), false)
+// safeSeedPersistDir seeds dmap.PersistDir() if missing
+func safeSeedPersistDir(userDir, projectDir string) error {
+	return safeSeed(mfs.MustNewFS(persist.SeedFS()), dmap.PersistDir(userDir, projectDir), false)
 }
 
 // safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>

@@ -88,7 +88,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	assert.Equal(t, []docker.Mount{
 		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(userDir, "codex"), "/home/ccbox/.codex"),
-		docker.NewBind(filepath.Join(userDir, "projects", s), "/home/ccbox/.ccbox/project"),
+		docker.NewBind(filepath.Join(userDir, "persist", s), "/home/ccbox/.ccbox/persist"),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),
 		docker.NewVolume("ccbox"+s+"-gem-cache-default", "/home/ccbox/.gem"),

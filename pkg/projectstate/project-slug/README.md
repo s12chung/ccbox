@@ -1,1 +1,0 @@
-This directory mounted from the host at `/home/ccbox/.ccbox/project/` and is shared amongst all ccbox runs for the project.

@@ -38,7 +38,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
 			docker.NewBind(CLIConfigDir(rm.userDir, cli.Name), path.Join(containerHome, cli.ConfigHomeMount)),
-			docker.NewBind(ProjectStateDir(rm.userDir, projectDir), projectStateMount),
+			docker.NewBind(PersistDir(rm.userDir, projectDir), persistMount),
 		},
 		volumes(globalVolumesMap, true),
 		volumes(cacheVolumeNames(projectDir), false),

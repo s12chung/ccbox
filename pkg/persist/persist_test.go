@@ -1,4 +1,4 @@
-package projectstate
+package persist
 
 import (
 	"testing"

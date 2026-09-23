@@ -12,9 +12,9 @@ func TestCLIConfigDir(t *testing.T) {
 	assert.Equal(t, filepath.Join(userDir, "claude"), CLIConfigDir(userDir, "claude"))
 }
 
-func TestProjectStateDir(t *testing.T) {
-	assert.Equal(t, "/home/me/.ccbox/projects/-Users-me-proj",
-		ProjectStateDir("/home/me/.ccbox", "/Users/me/proj"))
+func TestPersistDir(t *testing.T) {
+	assert.Equal(t, "/home/me/.ccbox/persist/-Users-me-proj",
+		PersistDir("/home/me/.ccbox", "/Users/me/proj"))
 }
 
 func TestCLIDataBindPath(t *testing.T) {
