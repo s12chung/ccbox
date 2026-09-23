@@ -45,7 +45,7 @@ func TestLoadUser(t *testing.T) {
 		writeUserCli(t, dir, "mycli", userCliYAML, nil)
 		all = mustLoadAll()
 
-		assert.Equal(t, []string{"claude", "codex", "grok", "mycli", "opencode"}, Names())
+		assert.Equal(t, []string{"claude", "codex", "grok", "mycli", "opencode", "pi"}, Names())
 
 		c, ok := For("mycli")
 		require.True(t, ok)
@@ -56,7 +56,7 @@ func TestLoadUser(t *testing.T) {
 	t.Run("missing dir loads nothing", func(t *testing.T) {
 		resetAll(t)
 		all = mustLoadAll()
-		assert.Len(t, all, 4)
+		assert.Len(t, all, 5)
 	})
 
 	t.Run("skips bad clis with a warning", func(t *testing.T) {
@@ -81,7 +81,7 @@ func TestLoadUser_OverridesEmbedded(t *testing.T) {
 	all = mustLoadAll()
 
 	// map keys are unique: the user cli replaces the embedded one, not appends to it
-	assert.Len(t, all, 4)
+	assert.Len(t, all, 5)
 	assert.Contains(t, Names(), "claude")
 
 	got, ok := For("claude")
@@ -100,10 +100,10 @@ func testLoadUserSkips(t *testing.T, name, body string, configs map[string]strin
 	switch name {
 	case "mycli":
 		assert.Contains(t, Names(), "mycli")
-		assert.Len(t, all, 5)
+		assert.Len(t, all, 6)
 	default: // skip cases
 		assert.NotContains(t, Names(), name)
-		assert.Len(t, all, 4)
+		assert.Len(t, all, 5)
 	}
 }
 

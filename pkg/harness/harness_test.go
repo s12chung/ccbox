@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNames(t *testing.T) {
-	assert.Equal(t, []string{"claude", "codex", "grok", "opencode"}, Names())
+	assert.Equal(t, []string{"claude", "codex", "grok", "opencode", "pi"}, Names())
 }
 
 func TestSeedCLIFS(t *testing.T) {
@@ -131,6 +131,12 @@ func TestCLI_SessionCmd(t *testing.T) {
 		// Bare --resume resumes the most recent session
 		{cli: MustFor("grok"), resume: true, want: []string{"grok", "--resume"}},
 		{cli: MustFor("grok"), resume: true, args: []string{"abc-uuid"}, want: []string{"grok", "--resume", "abc-uuid"}},
+
+		{cli: MustFor("pi"), want: []string{"pi"}},
+		{cli: MustFor("pi"), cont: true, want: []string{"pi", "-c"}},
+		// No picker flag: bare --session errors, so -r needs an id
+		{cli: MustFor("pi"), resume: true, want: []string{"pi", "--session"}},
+		{cli: MustFor("pi"), resume: true, args: []string{"abc123"}, want: []string{"pi", "--session", "abc123"}},
 	}
 	for _, tt := range tests {
 		got := tt.cli.SessionCmd(tt.shell, tt.cont, tt.resume, tt.args)
@@ -155,6 +161,9 @@ func TestEnv(t *testing.T) {
 
 	assert.Nil(t, MustFor("grok").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, MustFor("grok").Env)
+
+	assert.Nil(t, MustFor("pi").ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{"PI_SKIP_VERSION_CHECK": "1"}, MustFor("pi").Env)
 }
 
 func TestCLI_CLIDataBinds(t *testing.T) {
@@ -163,7 +172,7 @@ func TestCLI_CLIDataBinds(t *testing.T) {
 		map[string]*string{".local/share/opencode/auth.json": &authJSON},
 		MustFor("opencode").DataBinds)
 
-	for _, name := range []string{"claude", "codex", "grok"} {
+	for _, name := range []string{"claude", "codex", "grok", "pi"} {
 		assert.Emptyf(t, MustFor(name).DataBinds, "%s has no data binds", name)
 	}
 }

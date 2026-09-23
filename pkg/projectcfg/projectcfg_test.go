@@ -328,7 +328,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		body string
 		want []string
 	}{
-		{"unknown cli", "cli: emacs\n", []string{"CLIName", "is not one of [claude codex grok opencode]"}},
+		{"unknown cli", "cli: emacs\n", []string{"CLIName", "is not one of [claude codex grok opencode pi]"}},
 		{"absolute tmpfs_masks", "tmpfs_masks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
 		{"tmpfs_masks traversal", "tmpfs_masks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
 		{"absolute volume_masks", "volume_masks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
