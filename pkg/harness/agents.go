@@ -59,6 +59,9 @@ func (s AgentsMdShare) Begin() (string, func() error, error) {
 	if err != nil {
 		return "", noop, err // no source doc: the bind errors
 	}
+	if err := ioutil.SafeWriteFile(s.baseFilePath(), body); err != nil {
+		return "", noop, err
+	}
 	if err := ioutil.SafeWriteFile(s.scratchFilePath(), body); err != nil {
 		return "", noop, err
 	}
@@ -78,7 +81,7 @@ func (s AgentsMdShare) clean() error {
 
 	scratch := s.scratchFilePath()
 	if ioutil.Missing(scratch) {
-		return nil
+		return s.removeBase() // a crashed run's lone baseline
 	}
 
 	scratchBody, changed, err := s.scratchDiff()
@@ -90,20 +93,41 @@ func (s AgentsMdShare) clean() error {
 			return err
 		}
 	}
-	return os.Remove(scratch)
+	if err := os.Remove(scratch); err != nil {
+		return err
+	}
+	return s.removeBase()
 }
 
-// scratchDiff reads the scratch and compares it to the source doc
+// removeBase removes the baseline copy when present
+func (s AgentsMdShare) removeBase() error {
+	if ioutil.Missing(s.baseFilePath()) {
+		return nil
+	}
+	return os.Remove(s.baseFilePath())
+}
+
+// scratchDiff reads the scratch and compares it to the body it was bound from
 func (s AgentsMdShare) scratchDiff() ([]byte, bool, error) {
 	scratchBody, err := os.ReadFile(s.scratchFilePath()) // #nosec G304 -- the run's own scratch copy
 	if err != nil {
 		return nil, false, err
 	}
-	srcBody, err := s.source()
+	base, err := s.base()
 	if err != nil {
 		return nil, false, err
 	}
-	return scratchBody, !bytes.Equal(scratchBody, srcBody), nil
+	return scratchBody, !bytes.Equal(scratchBody, base), nil
+}
+
+// base is the body the scratch was bound from: the baseline copy, or the source doc when the
+// copy is missing (a past run's leftovers)
+func (s AgentsMdShare) base() ([]byte, error) {
+	body, err := os.ReadFile(s.baseFilePath()) // #nosec G304 -- the run's own baseline copy
+	if !errors.Is(err, fs.ErrNotExist) {
+		return body, err
+	}
+	return s.source()
 }
 
 // source is the doc the scratch binds, most specific first: the CLI's ccbox-admin variant,
@@ -146,6 +170,12 @@ func (s AgentsMdShare) cliTmpPath() string { return filepath.Join(userdir.Tmp(),
 // scratchFilePath is the path of the shared doc: ~/.ccbox/tmp/<cli_name>/AGENTS.md
 func (s AgentsMdShare) scratchFilePath() string {
 	return filepath.Join(s.cliTmpPath(), agentsMdFileName)
+}
+
+// baseFilePath is the baseline copy the scratch is diffed against. It sits outside the bound
+// scratch dir, so the container can't touch it: ~/.ccbox/tmp/<cli_name>.AGENTS.md.orig
+func (s AgentsMdShare) baseFilePath() string {
+	return filepath.Join(userdir.Tmp(), s.CLI.Name+"."+agentsMdFileName+".orig")
 }
 
 //go:embed admin.md

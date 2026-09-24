@@ -62,6 +62,10 @@ func claudeScratch(userDir string) string {
 	return filepath.Join(claudeCliTmpPath(userDir), agentsMdFileName)
 }
 
+func claudeBase(userDir string) string {
+	return filepath.Join(userDir, "tmp", "claude."+agentsMdFileName+".orig")
+}
+
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
@@ -244,6 +248,7 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 				require.Error(t, err)
 				assert.Empty(t, scratchDir)
 				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+				assert.True(t, gone(t, claudeBase(userDir)), "no baseline laid")
 				require.NoError(t, cleanup())
 				return
 			}
@@ -252,10 +257,12 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 				if !tc.binds {
 					assert.Empty(t, scratchDir)
 					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+					assert.True(t, gone(t, claudeBase(userDir)), "no baseline laid")
 					return
 				}
 				assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
 				assert.Equal(t, tc.body, readFile(t, claudeScratch(userDir)), "the bound scratch's body")
+				assert.Equal(t, tc.body, readFile(t, claudeBase(userDir)), "the laid baseline's body")
 				assertSymlinked(t, claudeCliFile(userDir))
 			})
 		})
@@ -322,6 +329,7 @@ func TestAgentsMdShare_Begin_SettlesLeftover_ResharesUnchanged(t *testing.T) {
 
 	assert.True(t, lstatGone(t, claudeCliFile(userDir))) // symlink dropped
 	assert.True(t, gone(t, claudeScratch(userDir)))      // scratch gone
+	assert.True(t, gone(t, claudeBase(userDir)))         // baseline gone
 }
 
 // TestAgentsMdShare_Cleanup settles the bound scratch into the cliFile: a diff is promoted
@@ -393,6 +401,7 @@ func TestAgentsMdShare_Cleanup(t *testing.T) {
 				assertRegular(t, claudeCliFile(userDir))
 			}
 			assert.True(t, gone(t, claudeScratch(userDir)), "scratch removed")
+			assert.True(t, gone(t, claudeBase(userDir)), "baseline removed")
 			assert.Equal(t, protectedBody, readFile(t, protectedPath), "the source doc is untouched")
 		})
 	}
@@ -429,4 +438,137 @@ func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 
 	require.Error(t, cleanup(), "cliFile is a directory")
 	assert.Equal(t, "memory", readFile(t, claudeScratch(userDir)), "scratch kept for the next run")
+	assert.Equal(t, adminMd, readFile(t, claudeBase(userDir)), "baseline kept with the scratch")
+}
+
+// TestAgentsMdShare_Cleanup_HostChangedDuringRun: the host's doc edits settle nothing; the
+// container's scratch edits still promote
+func TestAgentsMdShare_Cleanup_HostChangedDuringRun(t *testing.T) {
+	for _, tc := range []struct {
+		caseName           string
+		setup              func(t *testing.T, userDir string)
+		scratchEdit        string                             // written to the bound scratch during the run
+		hostEdit           func(t *testing.T, userDir string) // a host-side change during the run
+		check              func(t *testing.T, userDir string) // the shared docs' state after
+		expectedClaudeFile *string                            // the expected cliFile body after the cleanup
+	}{
+		{
+			caseName: "UserDocEdited",
+			hostEdit: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "host edit")
+			},
+			check: func(t *testing.T, userDir string) {
+				assert.Equal(t, "host edit", readFile(t, userAgentsMd(userDir)))
+			},
+		},
+		{
+			caseName: "AdminDocEdited",
+			hostEdit: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsAdminMd(userDir), "host admin")
+			},
+			check: func(t *testing.T, userDir string) {
+				assert.Equal(t, "host admin", readFile(t, userAgentsAdminMd(userDir)))
+			},
+		},
+		{
+			caseName: "UserDocDeleted",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "shared")
+			},
+			hostEdit: func(t *testing.T, userDir string) {
+				require.NoError(t, os.Remove(userAgentsMd(userDir)))
+			},
+			check: func(t *testing.T, userDir string) {
+				assert.True(t, gone(t, userAgentsMd(userDir)))
+			},
+		},
+		{
+			caseName: "AdminDocDeleted",
+			hostEdit: func(t *testing.T, userDir string) {
+				require.NoError(t, os.Remove(userAgentsAdminMd(userDir)))
+			},
+			check: func(t *testing.T, userDir string) {
+				assert.True(t, gone(t, userAgentsAdminMd(userDir)))
+			},
+		},
+		{
+			caseName: "UserDocEditedAndContainerEdited",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "shared")
+			},
+			scratchEdit: "memory",
+			hostEdit: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsMd(userDir), "host edit")
+			},
+			check: func(t *testing.T, userDir string) {
+				assert.Equal(t, "host edit", readFile(t, userAgentsMd(userDir)))
+			},
+			expectedClaudeFile: new("memory"),
+		},
+	} {
+		t.Run(tc.caseName, func(t *testing.T) {
+			userDir := resetUserDir(t)
+			if tc.setup != nil {
+				tc.setup(t, userDir)
+			}
+
+			// during the run: the container edits its scratch, then the host edits its doc
+			claudeShareBegin(t, func(_ string) {
+				if tc.scratchEdit != "" {
+					writeFile(t, claudeScratch(userDir), tc.scratchEdit)
+				}
+				tc.hostEdit(t, userDir)
+			})
+
+			// the host's edit stands
+			tc.check(t, userDir)
+
+			// a container-edited scratch promotes; an unchanged one is dropped
+			if tc.expectedClaudeFile == nil {
+				assert.True(t, lstatGone(t, claudeCliFile(userDir)))
+			} else {
+				assert.Equal(t, *tc.expectedClaudeFile, readFile(t, claudeCliFile(userDir)))
+				assertRegular(t, claudeCliFile(userDir))
+			}
+			assert.True(t, gone(t, claudeScratch(userDir)))
+			assert.True(t, gone(t, claudeBase(userDir)))
+		})
+	}
+}
+
+// TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun: the leftover settle diffs against the
+// crashed run's baseline, so host edits made while down are not promoted
+func TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
+	userDir := resetUserDir(t)
+
+	// a crashed run leaves its scratch and baseline
+	_, _, err := claudeShare().Begin()
+	require.NoError(t, err)
+
+	// the host edits while it's down
+	writeFile(t, userAgentsMd(userDir), "host edit")
+
+	// the next run settles the leftovers: nothing promoted
+	require.NoError(t, claudeShare().clean())
+	assert.True(t, lstatGone(t, claudeCliFile(userDir)))
+	assert.True(t, gone(t, claudeScratch(userDir)))
+	assert.True(t, gone(t, claudeBase(userDir)))
+
+	// re-binds the host's fresh doc
+	claudeShareBegin(t, func(scratchDir string) {
+		assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+		assert.Equal(t, "host edit", readFile(t, claudeScratch(userDir)))
+		assert.Equal(t, "host edit", readFile(t, claudeBase(userDir)))
+	})
+}
+
+func TestAgentsMdShare_Cleanup_LoneBaseline(t *testing.T) {
+	userDir := resetUserDir(t)
+
+	// a crash left its baseline; the scratch is gone
+	writeFile(t, claudeBase(userDir), adminMd)
+
+	// the lone baseline is removed
+	require.NoError(t, claudeShare().clean())
+	assert.True(t, gone(t, claudeBase(userDir)))
 }
