@@ -1,6 +1,6 @@
 ## Overview
 
-This project is a hardened Docker devbox wrapper for an LLM CLI — Claude Code or Codex, selected per project via `.ccbox.yaml`'s `cli` key. You are currently running inside of it.
+This project is a hardened Docker devbox wrapper for an LLM CLI. You are currently running inside of it.
 
 You run inside the container defined at `Dockerfile`, and we often swap containers as the Dockerfile changes, especially mid-debug — so the running image may not match the file on disk. When container/Dockerfile changes come up, ask whether the state is old or new.
 
@@ -8,29 +8,31 @@ You run inside the container defined at `Dockerfile`, and we often swap containe
 The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang files map to `cmd/`, which talks to the Docker Engine SDK in-process. Commands:
   - `ccbox` (no subcommand) — runs the devbox container interactively behind the wall, wiring the local terminal to the container's pty; launches the configured CLI by default (`--shell` for a plain shell, `--no-proxy` to skip the wall for direct egress). Maps to `cmd/run.go`.
   - `ccbox proxy` — runs the `tinyproxy` egress wall in the foreground
-  - `ccbox config` - prints the effective .ccbox.yaml
+  - `ccbox config` — prints the effective .ccbox.yaml
 
 This curated directory will help you discover common patterns (`pkg/util` and `pkg/kit`) and navigate the project:
-- **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/*`) into the binary, then hands off to `cmd`.
+- **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/*`) plus the prebuilt `dist/ccboxtools` binary into the binary, then hands off to `cmd`.
+- **`toolsbuild/`** — `go run` command that builds `dist/ccboxtools`
+- **`ccboxtools/`** — the container's entrypoint — it verifies the container security and installs and maintains the harness CLI
+  - `pkg/log` — log helpers and abstraction, never use `fmt.Print*`
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `projectcfg/` — related to `ccbox` Config as described in the README
-  - `harness/` — individual harness/cli related code; embeds its seed trees under `clis/`: it lays these onto the host config dir which is then mounted to the container. Only the configured CLI's config dir is seeded and mounted.
-    - `(per-CLI directories)/` — each CLI's native config, `~/.ccbox/<cli>` → `~/ccbox/.<config>` (e.g. `.claude`)
-  - `util/` - contains std lib utility packages
+  - `harness/` — individual harness/cli related code. Built-in CLIs are `go:embed` at `clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins. See `AGENTS.README.md` for the AGENTS docs wiring TLDR.
+  - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
+  - `util/` — std lib utility packages, notable: `must`, `seed`, `slug`, `mergeempty`, `uslice`
     - `httputil/` — http utilities for requests
     - `ioutil/` — io utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
-    - `log/` — log helpers and abstraction, never use `fmt.Print*`
-  - `kit/` - contains non-std lib abstractions and utilities
+  - `kit/` — non-std lib abstractions and utilities, most used: `dock`, `pick`, `firmrule`
     - `tinyproxy/` — the egress wall configs
 - **`Dockerfile`** — builds the devbox image from the inputs under `docker/`.
 - **`docker/`** — baked into the image:
   - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:
-  - `make build` — builds the `ccbox` binary to `/tmp/ccbox` in the **container**
+  - `make build` — builds `dist/ccboxtools` via `toolsbuild/`, verifies it with `doctor tools`, then builds the `ccbox` binary to `/tmp/ccbox` in the **container**
   - `make lint` - all linting
   - `make test` — runs all linting and tests that are possible without a Docker daemon
 
