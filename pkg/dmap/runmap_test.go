@@ -109,6 +109,8 @@ func TestRunMap_HostOptions(t *testing.T) {
 
 func TestRunMap_Env(t *testing.T) {
 	t.Setenv("GH_TOKEN", "tok")
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "truecolor")
 	rm := testRunMap(t, projectcfg.Config{
 		CLIName: new("claude"),
 		Env:     map[string]string{"DISABLE_AUTOUPDATER": "0"},
@@ -121,9 +123,22 @@ func TestRunMap_Env(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", // from CLI.yaml
 		"DISABLE_AUTOUPDATER":                      "0", // overrides CLI.yaml from above
+		"TERM":                                     "xterm-256color",
+		"COLORTERM":                                "truecolor",
 		pkginfo.EnvVar:                             pkgInfo,
 		"GH_TOKEN":                                 "tok",
 	}, env)
+}
+
+func TestRunMap_Env_SkipsUnsetTerminalVars(t *testing.T) {
+	t.Setenv("TERM", "")
+	t.Setenv("COLORTERM", "")
+	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
+
+	env, err := rm.Env()
+	require.NoError(t, err)
+	assert.NotContains(t, env, "TERM")
+	assert.NotContains(t, env, "COLORTERM")
 }
 
 func TestRunMap_Cmd(t *testing.T) {
