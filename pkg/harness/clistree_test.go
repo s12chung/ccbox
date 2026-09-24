@@ -76,7 +76,7 @@ func TestLoadUser(t *testing.T) {
 }
 
 func TestLoad_Warnings(t *testing.T) {
-	t.Run("user tree returns a warning per bad and stray entry", func(t *testing.T) {
+	t.Run("user tree warns per bad and stray dir, ignoring stray files", func(t *testing.T) {
 		dir := resetAll(t)
 		writeUserCli(t, dir, "bad", "bogus: true\n", nil)
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "clis", "stray"), ioutil.Dir)) // stray dir
@@ -86,11 +86,10 @@ func TestLoad_Warnings(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Empty(t, clis)
-		require.Len(t, warns, 3) // glob order
+		require.Len(t, warns, 2) // glob order; strayfile is ignored
 		require.ErrorContains(t, warns[0], "bad: ")
 		require.ErrorContains(t, warns[1], "stray: ")
 		require.ErrorContains(t, warns[1], "not found")
-		assert.ErrorContains(t, warns[2], "strayfile: ")
 	})
 
 	t.Run("embed tree never warns", func(t *testing.T) {

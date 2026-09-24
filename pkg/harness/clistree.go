@@ -23,7 +23,8 @@ func embedTree() clisTree { return clisTree{fsys: embedCLIFS} }
 // userTree is the host's user-defined clis tree at userConfigDir.
 func userTree() clisTree { return clisTree{fsys: userCLIsFS(), fromUserDir: true} }
 
-// load parses each clis/<cli> dir's CLI.yaml into a CLI named <cli>, ordered by name.
+// load parses each clis/<cli> dir's CLI.yaml into a CLI named <cli>, ordered by name,
+// ignoring files dropped into clis/.
 func (t clisTree) load() ([]CLI, []error, error) {
 	paths, err := fs.Glob(t.fsys, clisGlob)
 	if err != nil {
@@ -34,6 +35,13 @@ func (t clisTree) load() ([]CLI, []error, error) {
 	clis := make([]CLI, 0, len(paths))
 	var warns []error
 	for _, p := range paths {
+		info, err := fs.Stat(t.fsys, p)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !info.IsDir() {
+			continue
+		}
 		c, err := t.loadCLI(p)
 		if err != nil {
 			err = fmt.Errorf("%s: %w", path.Base(p), err)
