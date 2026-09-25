@@ -109,9 +109,6 @@ func mustLoadAll() map[string]CLI {
 
 	all := make(map[string]CLI, len(embedClis)+len(userClis))
 	for _, c := range slices.Concat(embedClis, userClis) {
-		if _, ok := all[c.Name]; ok {
-			log.Infof("user cli %q overrides the embedded cli", c.Name)
-		}
 		all[c.Name] = c
 	}
 	return all
