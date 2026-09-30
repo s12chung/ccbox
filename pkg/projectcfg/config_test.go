@@ -445,7 +445,8 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	dir := t.TempDir()
 	// present stays resolved in, the absent drop: build, .venv, vendor/bundle, cache, .env
 	mkDirs(t, dir, append(append([]string{}, tmpfsDefaults...), "dist", "node_modules", "target", "secrets")...)
-	home := os.Getenv("HOME") // TestMain's temp home
+	t.Setenv("XDG_CONFIG_HOME", "") // the gitconfig bind resolves $HOME's XDG dir
+	home := os.Getenv("HOME")       // TestMain's temp home
 	mkDirs(t, home, ".config/git")
 	c := &Config{
 		CLIName:       new("claude"),

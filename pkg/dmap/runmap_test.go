@@ -59,6 +59,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 func TestRunMap_HostOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")                // the gitconfig bind resolves $HOME's XDG dir
 	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
 
 	projectDir := t.TempDir()

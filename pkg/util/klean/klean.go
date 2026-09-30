@@ -1,7 +1,6 @@
 // Package klean collects teardown steps and runs them on demand, like defer that
 // isn't tied to a function's scope (e.g. handed back to a caller to run later):
-// Stack runs its steps in reverse, all of them; Queue runs them in order, stopping
-// at the first error.
+// Joiner runs every step, joining their errors; Queue stops at the first.
 package klean
 
 import (
@@ -16,21 +15,21 @@ type step struct {
 	fn   func() error
 }
 
-// Stack holds named teardown steps and runs them in reverse order.
-type Stack struct {
+// Joiner holds named teardown steps.
+type Joiner struct {
 	steps []step
 }
 
 // Push adds a teardown step; a nil fn is no step.
-func (s *Stack) Push(what string, fn func() error) {
+func (s *Joiner) Push(what string, fn func() error) {
 	if fn == nil {
 		return
 	}
 	s.steps = append(s.steps, step{what: what, fn: fn})
 }
 
-// Run runs the pushed steps in reverse (LIFO), the order defer would.
-func (s *Stack) Run() error {
+// Run runs all the steps in reverse, joining their errors.
+func (s *Joiner) Run() error {
 	var errs []error
 	for _, st := range slices.Backward(s.steps) {
 		if err := st.fn(); err != nil {
@@ -40,13 +39,13 @@ func (s *Stack) Run() error {
 	return errors.Join(errs...)
 }
 
-// Queue holds steps run in order — unlike Stack's LIFO run-all, later steps run only
-// while earlier ones succeed: the first error stops the run and returns.
+// Queue holds steps run only while earlier ones succeed: the first error stops
+// the run.
 type Queue struct {
 	steps []func() error
 }
 
-// NewQueue returns a Queue of fns, in order; a nil fn is no step.
+// NewQueue returns a Queue of fns; a nil fn is no step.
 func NewQueue(fns ...func() error) *Queue {
 	var q Queue
 	for _, fn := range fns {
@@ -57,7 +56,7 @@ func NewQueue(fns ...func() error) *Queue {
 	return &q
 }
 
-// Run runs the steps in order, stopping at and returning the first error.
+// Run runs the steps, stopping at and returning the first error.
 func (q *Queue) Run() error {
 	for _, fn := range q.steps {
 		if err := fn(); err != nil {

@@ -41,15 +41,15 @@ type ProxyOptions struct {
 // proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
 func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (func() error, error) {
 	var err error
-	var stack klean.Stack
+	var joiner klean.Joiner
 	defer func() {
 		if err != nil {
-			log.Defer("teardown wall", stack.Run)
+			log.Defer("teardown wall", joiner.Run)
 		}
 	}()
 
 	ensureNetwork(ctxD)
-	stack.Push("remove wall network", func() error {
+	joiner.Push("remove wall network", func() error {
 		return tearIdleNetwork(ctxD)
 	})
 
@@ -67,7 +67,7 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 		return nil, err
 	}
 	id := resp.ID
-	stack.Push("remove container", func() error {
+	joiner.Push("remove container", func() error {
 		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
@@ -81,7 +81,7 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	if err = ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
 		return nil, err
 	}
-	stack.Push("container stop", func() error {
+	joiner.Push("container stop", func() error {
 		timeout := 5
 		return ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
 	})
@@ -90,11 +90,11 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	if err != nil {
 		return nil, err
 	}
-	stack.Push("close logs", logs.Close)
+	joiner.Push("close logs", logs.Close)
 
 	logDone := streamLogs(logFn, logs)
 	return func() error {
-		return errors.Join(stack.Run(), <-logDone)
+		return errors.Join(joiner.Run(), <-logDone)
 	}, nil
 }
 
