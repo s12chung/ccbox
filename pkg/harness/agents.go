@@ -51,7 +51,7 @@ type AgentsMdShare struct {
 // the one scratch: the first run lays it, latecomers bind it as-is, the last out settles it.
 func (s AgentsMdShare) Begin() (string, func() error, error) {
 	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
-	clean := klean.SwallowErr(klean.NewChain(leave, s.clean).Run, flock.ErrNotLast)
+	clean := klean.SwallowErr(klean.NewQueue(leave, s.clean).Run, flock.ErrNotLast)
 	if err != nil {
 		return "", clean, err
 	}

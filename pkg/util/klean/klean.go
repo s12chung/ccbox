@@ -1,6 +1,6 @@
 // Package klean collects teardown steps and runs them on demand, like defer that
 // isn't tied to a function's scope (e.g. handed back to a caller to run later):
-// Stack runs its steps in reverse, all of them; Chain runs them in order, stopping
+// Stack runs its steps in reverse, all of them; Queue runs them in order, stopping
 // at the first error.
 package klean
 
@@ -40,26 +40,26 @@ func (s *Stack) Run() error {
 	return errors.Join(errs...)
 }
 
-// Chain holds steps run in order — unlike Stack's LIFO run-all, later steps run only
-// while earlier ones succeed: the first error stops the chain and returns.
-type Chain struct {
+// Queue holds steps run in order — unlike Stack's LIFO run-all, later steps run only
+// while earlier ones succeed: the first error stops the run and returns.
+type Queue struct {
 	steps []func() error
 }
 
-// NewChain returns a Chain of fns, in order; a nil fn is no step.
-func NewChain(fns ...func() error) *Chain {
-	var c Chain
+// NewQueue returns a Queue of fns, in order; a nil fn is no step.
+func NewQueue(fns ...func() error) *Queue {
+	var q Queue
 	for _, fn := range fns {
 		if fn != nil {
-			c.steps = append(c.steps, fn)
+			q.steps = append(q.steps, fn)
 		}
 	}
-	return &c
+	return &q
 }
 
-// Run runs the pushed steps in order, stopping at and returning the first error.
-func (c *Chain) Run() error {
-	for _, fn := range c.steps {
+// Run runs the steps in order, stopping at and returning the first error.
+func (q *Queue) Run() error {
+	for _, fn := range q.steps {
 		if err := fn(); err != nil {
 			return err
 		}
