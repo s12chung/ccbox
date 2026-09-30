@@ -2,6 +2,7 @@ package harness
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -39,7 +40,7 @@ func claudeShareBegin(t *testing.T, body func(scratchDir string)) {
 	require.NoError(t, cleanup())
 }
 
-// claudeTarget is the cliFile symlink's target
+// claudeTarget is the realCliFile symlink's target
 func claudeTarget() string { return claudeShare().cliFileTarget() }
 
 func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", agentsMdFileName) }
@@ -99,12 +100,12 @@ func linkFile(t *testing.T, path, target string) {
 	require.NoError(t, os.Symlink(target, path))
 }
 
-// assertSymlinked asserts the cliFile is ccbox's own symlink into the scratch mount
+// assertSymlinked asserts the realCliFile is ccbox's own symlink into the scratch mount
 func assertSymlinked(t *testing.T, cliFile string) {
 	t.Helper()
 	info, err := os.Lstat(cliFile)
 	require.NoError(t, err)
-	require.NotEqual(t, 0, info.Mode()&os.ModeSymlink, "the cliFile is laid as a symlink")
+	require.NotEqual(t, 0, info.Mode()&os.ModeSymlink, "the realCliFile is laid as a symlink")
 	target, err := os.Readlink(cliFile)
 	require.NoError(t, err)
 	assert.Equal(t, claudeTarget(), target)
@@ -276,7 +277,7 @@ func TestAgentsMdShare_Begin_EmptyCliFileIsOwned(t *testing.T) {
 	scratchDir, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
 
-	assert.Empty(t, scratchDir, "an empty cliFile is the user's own doc")
+	assert.Empty(t, scratchDir, "an empty realCliFile is the user's own doc")
 	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
 
 	require.NoError(t, cleanup())
@@ -297,6 +298,70 @@ func TestAgentsMdShare_Begin_ForeignSymlinkIsOwned(t *testing.T) {
 	target, err := os.Readlink(claudeCliFile(userDir))
 	require.NoError(t, err)
 	assert.Equal(t, "/elsewhere/AGENTS.md", target, "the foreign symlink is untouched")
+}
+
+func TestAgentsMdShare_Begin_Piggyback(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, userAgentsMd(userDir), "shared")
+
+	// a live run lays the share
+	_, clean, err := claudeShare().Begin()
+	require.NoError(t, err)
+
+	// a second run piggybacks: the same scratch binds, the laid share untouched
+	scratchDir, piggybackClean, err := claudeShare().Begin()
+	require.NoError(t, err)
+	assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+	assert.Equal(t, "shared", readFile(t, claudeScratch(userDir)))
+	assert.Equal(t, "shared", readFile(t, claudeBase(userDir)))
+	assertSymlinked(t, claudeCliFile(userDir))
+
+	// the piggyback's cleanup leaves the share for the live run
+	require.NoError(t, piggybackClean())
+	assert.DirExists(t, claudeCliTmpPath(userDir))
+	assertSymlinked(t, claudeCliFile(userDir))
+
+	// the last run out promotes and removes the share
+	writeFile(t, claudeScratch(userDir), "memory")
+	require.NoError(t, clean())
+	assert.Equal(t, "memory", readFile(t, claudeCliFile(userDir)))
+	assertRegular(t, claudeCliFile(userDir))
+	assert.True(t, gone(t, claudeScratch(userDir)))
+	assert.True(t, gone(t, claudeBase(userDir)))
+}
+
+// TestAgentsMdShare_Begin_LatecomerBindsOwnDoc: a latecomer joining a live scratch session
+// whose host has laid its own realCliFile mid-session binds nothing, and the live run's share
+// is left alone
+func TestAgentsMdShare_Begin_LatecomerBindsOwnDoc(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, userAgentsMd(userDir), "shared")
+
+	// a live run lays the share
+	_, clean, err := claudeShare().Begin()
+	require.NoError(t, err)
+
+	// the host replaces the share's symlink with its own doc mid-session
+	require.NoError(t, os.Remove(claudeCliFile(userDir)))
+	writeFile(t, claudeCliFile(userDir), "cli")
+
+	// the latecomer binds nothing
+	scratchDir, piggybackClean, err := claudeShare().Begin()
+	require.NoError(t, err)
+	assert.Empty(t, scratchDir)
+	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
+
+	// the live run's share is untouched until its last out settles
+	require.NoError(t, piggybackClean())
+	assert.FileExists(t, claudeScratch(userDir))
+	assert.FileExists(t, claudeBase(userDir))
+
+	// the last out settles nothing: the scratch was never edited, and the host's doc stands
+	require.NoError(t, clean())
+	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
+	assertRegular(t, claudeCliFile(userDir))
+	assert.True(t, gone(t, claudeScratch(userDir)))
+	assert.True(t, gone(t, claudeBase(userDir)))
 }
 
 func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {
@@ -332,7 +397,46 @@ func TestAgentsMdShare_Begin_SettlesLeftover_ResharesUnchanged(t *testing.T) {
 	assert.True(t, gone(t, claudeBase(userDir)))         // baseline gone
 }
 
-// TestAgentsMdShare_Cleanup settles the bound scratch into the cliFile: a diff is promoted
+// TestAgentsMdShare_Begin_SettlesLeftover_AfterPromote: a crash between the promote and the
+// cleanup's removals leaves the promoted doc, its scratch, and the baseline; the next run
+// finishes the settle and binds nothing
+func TestAgentsMdShare_Begin_SettlesLeftover_AfterPromote(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, userAgentsMd(userDir), "shared")
+	writeFile(t, claudeScratch(userDir), "edited")
+	writeFile(t, claudeBase(userDir), "shared")
+	writeFile(t, claudeCliFile(userDir), "edited") // the promoted edit
+
+	claudeShareBegin(t, func(scratchDir string) {
+		assert.Empty(t, scratchDir)
+	})
+
+	assert.Equal(t, "edited", readFile(t, claudeCliFile(userDir)))
+	assertRegular(t, claudeCliFile(userDir))
+	assert.True(t, gone(t, claudeScratch(userDir)))
+	assert.True(t, gone(t, claudeBase(userDir)))
+}
+
+// crashRun lays the claude share in a child process that exits without cleanup: the
+// kernel releases the crashed run's registry entry, as a real crash does
+func crashRun(t *testing.T, userDir string) {
+	t.Helper()
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestHelperCrashRun$") // #nosec G204,G702 -- re-execs the test binary itself
+	cmd.Env = append(os.Environ(), "HOME="+filepath.Dir(userDir), "CCBOX_CRASH_RUN=1")    // userDir is ~/.ccbox
+	out, err := cmd.CombinedOutput()
+	require.NoError(t, err, "child output:\n%s", out)
+}
+
+// TestHelperCrashRun is crashRun's child process
+func TestHelperCrashRun(t *testing.T) {
+	if os.Getenv("CCBOX_CRASH_RUN") != "1" {
+		t.Skip("helper: not under test")
+	}
+	_, _, err := claudeShare().Begin()
+	require.NoError(t, err)
+}
+
+// TestAgentsMdShare_Cleanup settles the bound scratch into the realCliFile: a diff is promoted
 // as-is, and the doc it was bound from is left untouched
 func TestAgentsMdShare_Cleanup(t *testing.T) {
 	for _, tc := range []struct {
@@ -436,7 +540,7 @@ func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 	require.NoError(t, os.Remove(claudeCliFile(userDir)))               // clear the laid symlink
 	require.NoError(t, os.MkdirAll(claudeCliFile(userDir), ioutil.Dir)) // a directory is unreadable: promotion fails
 
-	require.Error(t, cleanup(), "cliFile is a directory")
+	require.Error(t, cleanup(), "realCliFile is a directory")
 	assert.Equal(t, "memory", readFile(t, claudeScratch(userDir)), "scratch kept for the next run")
 	assert.Equal(t, adminMd, readFile(t, claudeBase(userDir)), "baseline kept with the scratch")
 }
@@ -541,9 +645,8 @@ func TestAgentsMdShare_Cleanup_HostChangedDuringRun(t *testing.T) {
 func TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
 	userDir := resetUserDir(t)
 
-	// a crashed run leaves its scratch and baseline
-	_, _, err := claudeShare().Begin()
-	require.NoError(t, err)
+	// a crashed run leaves its scratch, baseline, and symlink
+	crashRun(t, userDir)
 
 	// the host edits while it's down
 	writeFile(t, userAgentsMd(userDir), "host edit")

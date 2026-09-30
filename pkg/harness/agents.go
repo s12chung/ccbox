@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/cleanup"
+	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
@@ -34,47 +37,63 @@ func SafeSeedAgentsMd() error {
 }
 
 // AgentsMdShare shares the AGENTS doc across CLIs: the original is bound via a scratch copy,
-// and changes are preserved into the cliFile. The bound doc is the share's source (see source).
+// and changes are preserved into the realCliFile. The bound doc is the share's source (see source).
 type AgentsMdShare struct {
 	// CLI is the run's CLI
 	CLI CLI
 
-	// ScratchMountDir is the scratch dir's container path; the cliFile symlink points into it
+	// ScratchMountDir is the scratch dir's container path; the realCliFile symlink points into it
 	ScratchMountDir string
 }
 
-var noop = func() error { return nil }
-
-// Begin shares the AGENTS doc with a CLI that has no cliFile: it returns the scratch dir to
-// bind and a cleanup settling changes into the cliFile.
+// Begin shares the AGENTS doc with a CLI that has no realCliFile, returning the scratch
+// dir to bind and a cleanup settling changes into the realCliFile. Concurrent runs share
+// the one scratch: the first run lays it, latecomers bind it as-is, the last out settles it.
 func (s AgentsMdShare) Begin() (string, func() error, error) {
-	if err := s.clean(); err != nil { // clean a crashed run's leftover symlink and scratch
-		return "", noop, err
+	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
+	clean := cleanup.SwallowErr(cleanup.NewChain(leave, s.clean).Run, flock.ErrNotLast)
+	if err != nil {
+		return "", clean, err
 	}
-	if s.definedCliFileExists() {
-		return "", noop, nil
+	if s.realCliFileExists() {
+		return "", clean, nil // "" indicates no mount, the file is already in the realCliFile()
+	}
+	return s.cliScratchDir(), clean, nil
+}
+
+// verifyShared verifies the share a live entry implies was laid
+func (s AgentsMdShare) verifyShared() error {
+	if ioutil.Missing(s.scratchFilePath()) {
+		return fmt.Errorf("harness: live run's scratch missing at %s", userdir.Tilde(s.scratchFilePath()))
+	}
+	return nil
+}
+
+func (s AgentsMdShare) initialShare() error {
+	if err := s.clean(); err != nil { // clean a crashed run's leftover symlink and scratch
+		return err
+	}
+	if s.realCliFileExists() { // a concurrent settle materialized it mid-Begin
+		return nil
 	}
 
 	body, err := s.source()
 	if err != nil {
-		return "", noop, err // no source doc: the bind errors
+		return err // no source doc: the bind errors
 	}
 	if err := ioutil.SafeWriteFile(s.baseFilePath(), body); err != nil {
-		return "", noop, err
+		return err
 	}
 	if err := ioutil.SafeWriteFile(s.scratchFilePath(), body); err != nil {
-		return "", noop, err
+		return err
 	}
-	if err := ioutil.SafeSymlink(s.cliFile(), s.cliFileTarget()); err != nil {
-		return "", noop, err
-	}
-	return s.cliTmpPath(), s.clean, nil
+	return ioutil.SafeSymlink(s.realCliFile(), s.cliFileTarget())
 }
 
 func (s AgentsMdShare) clean() error {
 	// drop the laid symlink first
-	if ioutil.IsSymlinkTo(s.cliFile(), s.cliFileTarget()) {
-		if err := os.Remove(s.cliFile()); err != nil {
+	if ioutil.IsSymlinkTo(s.realCliFile(), s.cliFileTarget()) {
+		if err := os.Remove(s.realCliFile()); err != nil {
 			return err
 		}
 	}
@@ -154,22 +173,27 @@ func readAgentsMd(path string, admin bool) ([]byte, error) {
 	return append([]byte(adminMd), body...), nil
 }
 
-// promote writes body to the cliFile, logging the set
+// promote writes body to the realCliFile, logging the set
 func (s AgentsMdShare) promote(body []byte) error {
-	cliFile := s.cliFile()
-	if err := ioutil.SafeWriteFile(cliFile, body); err != nil {
+	realCliFile := s.realCliFile()
+	if err := ioutil.SafeWriteFile(realCliFile, body); err != nil {
 		return err
 	}
-	log.Infof("set %s", userdir.Tilde(cliFile))
+	log.Infof("set %s", userdir.Tilde(realCliFile))
 	return nil
 }
 
-// cliTmpPath is the scratch file's dir: ~/.ccbox/tmp/<cli_name>
-func (s AgentsMdShare) cliTmpPath() string { return filepath.Join(userdir.Tmp(), s.CLI.Name) }
+// cliScratchDir is the scratch file's dir: ~/.ccbox/tmp/<cli_name>
+func (s AgentsMdShare) cliScratchDir() string { return filepath.Join(userdir.Tmp(), s.CLI.Name) }
+
+// multiflock tracks the CLI's live runs: ~/.ccbox/tmp/runs/agents/<cli_name>
+func (s AgentsMdShare) multiflock() flock.MultiFlock {
+	return flock.MultiFlock{Dir: filepath.Join(userdir.Runs(), "agents", s.CLI.Name)}
+}
 
 // scratchFilePath is the path of the shared doc: ~/.ccbox/tmp/<cli_name>/AGENTS.md
 func (s AgentsMdShare) scratchFilePath() string {
-	return filepath.Join(s.cliTmpPath(), agentsMdFileName)
+	return filepath.Join(s.cliScratchDir(), agentsMdFileName)
 }
 
 // baseFilePath is the baseline copy the scratch is diffed against. It sits outside the bound
@@ -193,17 +217,17 @@ const (
 	userAgentsReadmeMdFileName = "AGENTS.README.md"
 )
 
-// cliFile is the CLI's AGENTS doc: ~/.ccbox/<cli_name>/AGENTS.md
-func (s AgentsMdShare) cliFile() string {
+// realCliFile is the CLI's AGENTS doc: ~/.ccbox/<cli_name>/AGENTS.md
+func (s AgentsMdShare) realCliFile() string {
 	return filepath.Join(userdir.Dir(), s.CLI.Name, agentsMdFileName)
 }
 
-// cliFileTarget is the cliFile symlink's target
+// cliFileTarget is the realCliFile symlink's target
 func (s AgentsMdShare) cliFileTarget() string { return path.Join(s.ScratchMountDir, agentsMdFileName) }
 
-// definedCliFileExists reports whether the CLI's own doc exists at the cliFile
-func (s AgentsMdShare) definedCliFileExists() bool {
-	info, err := os.Lstat(s.cliFile())
+// realCliFileExists reports whether the CLI's own doc exists at the realCliFile
+func (s AgentsMdShare) realCliFileExists() bool {
+	info, err := os.Lstat(s.realCliFile())
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 		return false // no doc of its own
@@ -213,7 +237,7 @@ func (s AgentsMdShare) definedCliFileExists() bool {
 	if info.Mode()&os.ModeSymlink == 0 {
 		return true
 	}
-	target, err := os.Readlink(s.cliFile())
+	target, err := os.Readlink(s.realCliFile())
 	return err != nil || target != s.cliFileTarget() // unreadable/foreign: leave it be
 }
 

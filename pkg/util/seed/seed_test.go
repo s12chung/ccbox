@@ -109,6 +109,79 @@ func TestTree_BackupExistsErrors(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "AGENTS.old.md"), "stale backup")
 }
 
+func TestMerge_Fresh(t *testing.T) {
+	parent := t.TempDir()
+	src, dst := filepath.Join(parent, "src"), filepath.Join(parent, "dst") // dst absent
+	mkdirAll(t, src)
+	writeFile(t, filepath.Join(src, "AGENTS.md"), "new agents")
+	mkdirAll(t, filepath.Join(src, "hooks"))
+	writeFile(t, filepath.Join(src, "hooks/tripwire.sh"), "new hook")
+
+	asides, err := Merge(src, dst, "run-test")
+	require.NoError(t, err)
+	assert.Empty(t, asides, "a fresh dst moves nothing aside")
+
+	// the whole src dir moved in
+	assertFile(t, filepath.Join(dst, "AGENTS.md"), "new agents")
+	assertFile(t, filepath.Join(dst, "hooks/tripwire.sh"), "new hook")
+	assert.NoDirExists(t, src)
+}
+
+func TestMerge_NewAndIdentical(t *testing.T) {
+	parent := t.TempDir()
+	src, dst := filepath.Join(parent, "src"), filepath.Join(parent, "dst")
+	mkdirAll(t, src)
+	writeFile(t, filepath.Join(src, "same.txt"), "same")
+	mkdirAll(t, filepath.Join(src, "notes"))
+	writeFile(t, filepath.Join(src, "notes/new.txt"), "new")
+	mkdirAll(t, dst)
+	writeFile(t, filepath.Join(dst, "same.txt"), "same")
+
+	asides, err := Merge(src, dst, "run-test")
+	require.NoError(t, err)
+	assert.Empty(t, asides)
+
+	// the new file is written in; src keeps everything: its caller drops it wholesale
+	assertFile(t, filepath.Join(dst, "notes/new.txt"), "new")
+	assertFile(t, filepath.Join(dst, "same.txt"), "same")
+	assertFile(t, filepath.Join(src, "same.txt"), "same")
+	assertFile(t, filepath.Join(src, "notes/new.txt"), "new")
+}
+
+func TestMerge_AllIdentical(t *testing.T) {
+	parent := t.TempDir()
+	src, dst := filepath.Join(parent, "src"), filepath.Join(parent, "dst")
+	mkdirAll(t, src)
+	writeFile(t, filepath.Join(src, "same.txt"), "same")
+	mkdirAll(t, dst)
+	writeFile(t, filepath.Join(dst, "same.txt"), "same")
+
+	// unlike Tree, an unchanged merge is no error: Merge has no ErrNoChanges
+	asides, err := Merge(src, dst, "run-test")
+	require.NoError(t, err)
+	assert.Empty(t, asides)
+	assertFile(t, filepath.Join(dst, "same.txt"), "same")
+}
+
+func TestMerge_ChangedAsideDst(t *testing.T) {
+	parent := t.TempDir()
+	src, dst := filepath.Join(parent, "src"), filepath.Join(parent, "dst")
+	mkdirAll(t, src)
+	writeFile(t, filepath.Join(src, "README.md"), "run's edit")
+	mkdirAll(t, filepath.Join(dst, "notes"))
+	writeFile(t, filepath.Join(dst, "README.md"), "dir's edit")
+	writeFile(t, filepath.Join(dst, "notes/keep.txt"), "keep")
+
+	asides, err := Merge(src, dst, "run-test")
+	require.NoError(t, err)
+	assert.Equal(t, []string{filepath.Join(dst, "README.run-test.md")}, asides)
+
+	// the run's copy lands in dst; dst's copy moved aside; the dst-only file is untouched
+	assertFile(t, filepath.Join(dst, "README.md"), "run's edit")
+	assertFile(t, filepath.Join(dst, "README.run-test.md"), "dir's edit")
+	assertFile(t, filepath.Join(dst, "notes/keep.txt"), "keep")
+}
+
 func TestFile_Seeds(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config", "ccbox.yaml") // parent dir absent
 

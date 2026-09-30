@@ -18,6 +18,11 @@ func TestMustHome(t *testing.T) {
 	assert.Panics(t, func() { MustHome() })
 }
 
+func TestRuns(t *testing.T) {
+	t.Setenv("HOME", "/home/me")
+	assert.Equal(t, "/home/me/.ccbox/tmp/runs", Runs())
+}
+
 func TestTilde(t *testing.T) {
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)

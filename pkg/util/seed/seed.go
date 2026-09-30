@@ -39,15 +39,49 @@ var ErrNoChanges = errors.New("seed: all files identical")
 
 // Tree seeds fsys's tree onto destDir (creating it), preserving the tree.
 // A destination already matching the source is left untouched. Other existing
-// destination files are backed up to <base>.old<ext> before being overwritten; the
-// backed-up paths are returned. A pre-existing backup is never clobbered — it's a hard error.
+// destination files are moved aside to <base>.old<ext> before being overwritten; the
+// aside paths are returned. A pre-existing aside is never clobbered — it's a hard error.
 // When every file is left untouched, ErrNoChanges is returned.
 func Tree(fsys fs.FS, destDir string) ([]string, error) {
-	var renamed []string
-	var changed int
+	asides, changed, err := sync(fsys, destDir, "old")
+	if err == nil && !changed {
+		return asides, ErrNoChanges
+	}
+	return asides, err
+}
+
+// Merge moves srcDir's changes into dstDir, creating dstDir when missing: files
+// dstDir lacks are written in as-is, identical files are dropped, and differing
+// files land in dstDir with dstDir's copies moved aside as <base>.<infix>.<ext> —
+// one merge's asides sharing one infix. The aside paths are returned.
+func Merge(srcDir, dstDir, infix string) ([]string, error) {
+	switch _, err := os.Stat(dstDir); {
+	case errors.Is(err, fs.ErrNotExist):
+		if err := os.MkdirAll(filepath.Dir(dstDir), ioutil.Dir); err != nil {
+			return nil, err
+		}
+		return nil, os.Rename(srcDir, dstDir)
+	case err != nil:
+		return nil, err
+	}
+	asides, _, err := sync(os.DirFS(srcDir), dstDir, infix)
+	return asides, err
+}
+
+// sync lays fsys's tree onto destDir (creating it), preserving the tree: a
+// destination matching its source is left untouched; every other file is written
+// over, its differing copy moved aside to <base>.<infix><ext> first — a pre-existing
+// aside is never clobbered, it's a hard error. Empty dirs are laid as-is. The second
+// return reports that any file was written.
+func sync(fsys fs.FS, destDir, infix string) ([]string, bool, error) {
+	var asides []string
+	var changed bool
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() {
+		if err != nil {
 			return err
+		}
+		if d.IsDir() {
+			return os.MkdirAll(filepath.Join(destDir, p), ioutil.Dir)
 		}
 		body, err := fs.ReadFile(fsys, p)
 		if err != nil {
@@ -58,34 +92,36 @@ func Tree(fsys fs.FS, destDir string) ([]string, error) {
 		if err := os.MkdirAll(filepath.Dir(dest), ioutil.Dir); err != nil {
 			return err
 		}
-		if existing, err := os.ReadFile(dest); err == nil { // #nosec G304 -- dest is the seeded tree's own path
+		if existing, err := os.ReadFile(dest); err == nil { // #nosec G304 -- dest is the synced tree's own path
 			if bytes.Equal(existing, body) {
 				return nil
 			}
-			backup := backupPath(dest)
-			if _, err := os.Stat(backup); err == nil {
-				return fmt.Errorf("seed: backup already exists, refusing to overwrite: %s", backup)
-			} else if !os.IsNotExist(err) {
+			aside, err := asideDest(dest, infix)
+			if err != nil {
 				return err
 			}
-			if err := os.Rename(dest, backup); err != nil {
-				return err
-			}
-			renamed = append(renamed, backup)
+			asides = append(asides, aside)
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return err
 		}
-		changed++
+		changed = true
 		return os.WriteFile(dest, body, fileMode(dest))
 	})
-	if err == nil && changed == 0 {
-		err = ErrNoChanges
-	}
-	return renamed, err
+	return asides, changed, err
 }
 
-// backupPath inserts ".old" before the extension: foo/bar.json -> foo/bar.old.json.
-func backupPath(p string) string {
-	ext := filepath.Ext(p)
-	return strings.TrimSuffix(p, ext) + ".old" + ext
+// asideDest moves dest aside to <base>.<infix><ext>, refusing to clobber a
+// pre-existing aside
+func asideDest(dest, infix string) (string, error) {
+	ext := filepath.Ext(dest)
+	aside := strings.TrimSuffix(dest, ext) + "." + infix + ext
+	switch _, err := os.Stat(aside); {
+	case err == nil:
+		return "", fmt.Errorf("seed: aside already exists, refusing to overwrite: %s", aside)
+	case !errors.Is(err, fs.ErrNotExist):
+		return "", err
+	}
+	return aside, os.Rename(dest, aside)
 }
 
 // fileMode makes shell scripts executable; everything else is a regular file.

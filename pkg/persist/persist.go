@@ -5,15 +5,19 @@ package persist
 import (
 	"embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/cleanup"
+	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/pkg/util/runid"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
@@ -33,24 +37,44 @@ func Dir(projectDir string) string {
 // copy, and the run's changes are settled into the Dir.
 type Share struct{ ProjectDir string }
 
-var noop = func() error { return nil }
-
-// Begin binds the persist mount: an existing Dir binds directly; a missing one binds
-// a seeded scratch copy, whose cleanup settles changes into the Dir.
+// Begin binds the persist mount: an existing Dir directly; a missing one, a seeded
+// scratch copy whose cleanup settles changes into the Dir. Concurrent runs share the
+// one scratch: the first run seeds it, latecomers bind it as-is, the last out settles it.
 func (s Share) Begin() (string, func() error, error) {
-	if err := s.clean(); err != nil { // clean a crashed run's leftover scratch
-		return "", noop, err
+	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
+	clean := cleanup.SwallowErr(cleanup.NewChain(leave, s.clean).Run, flock.ErrNotLast)
+	if err != nil {
+		return "", clean, err
 	}
-	if ioutil.Present(s.dir()) {
-		return s.dir(), noop, nil
+	if ioutil.Present(s.realDir()) {
+		return s.realDir(), clean, nil
 	}
-	if _, err := seed.Tree(SeedFS(), s.scratch()); err != nil && !errors.Is(err, seed.ErrNoChanges) {
-		return "", noop, err
-	}
-	return s.scratch(), s.clean, nil
+	return s.scratch(), clean, nil
 }
 
-// clean settles the run's changes into a missing Dir, then drops the scratch
+// verifyShared verifies the scratch a live entry implies was seeded
+func (s Share) verifyShared() error {
+	if ioutil.Missing(s.scratch()) {
+		return fmt.Errorf("persist: live run's scratch missing at %s", userdir.Tilde(s.scratch()))
+	}
+	return nil
+}
+
+func (s Share) initialShare() error {
+	if err := s.clean(); err != nil { // clean a crashed run's leftover scratch
+		return err
+	}
+	if ioutil.Present(s.realDir()) { // a concurrent settle materialized it mid-Begin
+		return nil
+	}
+	_, err := seed.Tree(SeedFS(), s.scratch())
+	if errors.Is(err, seed.ErrNoChanges) {
+		return nil
+	}
+	return err
+}
+
+// clean settles the run's changes into the Dir, then drops the scratch
 func (s Share) clean() error {
 	scratch := s.scratch()
 	if ioutil.Missing(scratch) {
@@ -60,26 +84,35 @@ func (s Share) clean() error {
 	if err != nil {
 		return err
 	}
-	if !matches {
-		return s.promote()
+	if matches {
+		return os.RemoveAll(scratch) // unchanged: an untouched folder leaves nothing on the host
 	}
-	return os.RemoveAll(scratch) // unchanged: an untouched folder leaves nothing on the host
+	if err := s.promote(); err != nil {
+		return err
+	}
+	return os.RemoveAll(scratch)
 }
 
-// promote settles the scratch into Dir, logging the set
+// promote settles the scratch into the Dir, moving the Dir's differing copies
+// aside for the run's changes
 func (s Share) promote() error {
-	if err := os.MkdirAll(filepath.Dir(s.dir()), ioutil.Dir); err != nil {
+	asides, err := seed.Merge(s.scratch(), s.realDir(), "run-"+runid.New())
+	if err != nil {
 		return err
 	}
-	if err := os.Rename(s.scratch(), s.dir()); err != nil {
-		return err
+	for _, aside := range asides {
+		log.Warnf("due to duplicate, run persist files saved as %s", userdir.Tilde(aside))
 	}
-	log.Infof("set %s", userdir.Tilde(s.dir()))
 	return nil
 }
 
-// dir is the project's Dir: ~/.ccbox/persist/<slug>
-func (s Share) dir() string { return Dir(s.ProjectDir) }
+// realDir is the project's Dir: ~/.ccbox/persist/<slug>
+func (s Share) realDir() string { return Dir(s.ProjectDir) }
+
+// multiflock tracks the project's live runs: ~/.ccbox/tmp/runs/persist/<slug>
+func (s Share) multiflock() flock.MultiFlock {
+	return flock.MultiFlock{Dir: filepath.Join(userdir.Runs(), "persist", slug.Path(s.ProjectDir))}
+}
 
 // scratch is the seeded scratch copy of dir: ~/.ccbox/tmp/persist/<slug>
 func (s Share) scratch() string {
