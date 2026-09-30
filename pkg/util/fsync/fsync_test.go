@@ -1,4 +1,4 @@
-package seed
+package fsync
 
 import (
 	"os"
@@ -20,10 +20,10 @@ func srcFS() fstest.MapFS {
 	}
 }
 
-func TestTree_Fresh(t *testing.T) {
+func TestSeed_Fresh(t *testing.T) {
 	dest := t.TempDir()
 
-	renamed, err := Tree(srcFS(), dest)
+	renamed, err := Seed(srcFS(), dest)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
@@ -36,12 +36,12 @@ func TestTree_Fresh(t *testing.T) {
 	assertMode(t, filepath.Join(dest, "settings.json"), ioutil.File)
 }
 
-func TestTree_BacksUpExisting(t *testing.T) {
+func TestSeed_BacksUpExisting(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Tree(srcFS(), dest)
+	renamed, err := Seed(srcFS(), dest)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
@@ -60,7 +60,7 @@ func TestTree_BacksUpExisting(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "hooks/tripwire.old.sh"))
 }
 
-func TestTree_SkipsIdentical(t *testing.T) {
+func TestSeed_SkipsIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// Each dest already holds its source contents.
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
@@ -68,7 +68,7 @@ func TestTree_SkipsIdentical(t *testing.T) {
 	mkdirAll(t, filepath.Join(dest, "hooks"))
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	renamed, err := Tree(srcFS(), dest)
+	renamed, err := Seed(srcFS(), dest)
 	require.ErrorIs(t, err, ErrNoChanges)
 	assert.Empty(t, renamed, "identical files should back up nothing")
 
@@ -80,13 +80,13 @@ func TestTree_SkipsIdentical(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "settings.old.json"))
 }
 
-func TestTree_PartiallyIdentical(t *testing.T) {
+func TestSeed_PartiallyIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// One dest matches its source; another differs.
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Tree(srcFS(), dest)
+	renamed, err := Seed(srcFS(), dest)
 	require.NoError(t, err, "a change alongside identical files is not ErrNoChanges")
 	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, renamed)
 
@@ -94,14 +94,14 @@ func TestTree_PartiallyIdentical(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 }
 
-func TestTree_BackupExistsErrors(t *testing.T) {
+func TestSeed_BackupExistsErrors(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
 	writeFile(t, filepath.Join(dest, "AGENTS.old.md"), "stale backup")
 
 	// The live file's backup already exists.
 	src := fstest.MapFS{"AGENTS.md": {Data: []byte("new agents")}}
-	_, err := Tree(src, dest)
+	_, err := Seed(src, dest)
 	require.Error(t, err)
 
 	// Neither the live file nor the pre-existing backup was touched.
@@ -156,7 +156,7 @@ func TestMerge_AllIdentical(t *testing.T) {
 	mkdirAll(t, dst)
 	writeFile(t, filepath.Join(dst, "same.txt"), "same")
 
-	// unlike Tree, an unchanged merge is no error: Merge has no ErrNoChanges
+	// unlike Seed, an unchanged merge is no error: Merge has no ErrNoChanges
 	asides, err := Merge(src, dst, "run-test")
 	require.NoError(t, err)
 	assert.Empty(t, asides)

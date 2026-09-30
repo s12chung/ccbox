@@ -51,7 +51,7 @@ func entryNames(t *testing.T, dir string) []string {
 	return names
 }
 
-// holdLock takes an uncontended install lock the way lock.Do does, for the test
+// holdLock takes an uncontended install lock the way flock.Do does, for the test
 // to contend against.
 func holdLock(t *testing.T, lockPath string) func() {
 	t.Helper()

@@ -18,7 +18,7 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
-	"github.com/s12chung/ccbox/pkg/util/cleanup"
+	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
 	"github.com/s12chung/ccbox/pkg/util/tarutil"
 )
@@ -41,7 +41,7 @@ type ProxyOptions struct {
 // proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
 func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (func() error, error) {
 	var err error
-	var stack cleanup.Stack
+	var stack klean.Stack
 	defer func() {
 		if err != nil {
 			log.Defer("teardown wall", stack.Run)

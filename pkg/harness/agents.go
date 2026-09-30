@@ -12,10 +12,10 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/cleanup"
 	"github.com/s12chung/ccbox/pkg/util/flock"
+	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/seed"
+	"github.com/s12chung/ccbox/pkg/util/klean"
 )
 
 // SafeSeedAgentsMd lays the shared AGENTS docs when missing: the ccbox-admin variant empty
@@ -24,13 +24,13 @@ func SafeSeedAgentsMd() error {
 	if ioutil.Present(userAgentsMdPath()) {
 		return nil
 	}
-	if err := seed.File(userAgentsAdminMdPath(), ""); err != nil {
-		if !errors.Is(err, seed.ErrExists) {
+	if err := fsync.File(userAgentsAdminMdPath(), ""); err != nil {
+		if !errors.Is(err, fsync.ErrExists) {
 			return err
 		}
 		return nil
 	}
-	if err := seed.File(userAgentsReadmeMdPath(), agentsReadmeMd); err != nil && !errors.Is(err, seed.ErrExists) {
+	if err := fsync.File(userAgentsReadmeMdPath(), agentsReadmeMd); err != nil && !errors.Is(err, fsync.ErrExists) {
 		return err
 	}
 	return nil
@@ -51,7 +51,7 @@ type AgentsMdShare struct {
 // the one scratch: the first run lays it, latecomers bind it as-is, the last out settles it.
 func (s AgentsMdShare) Begin() (string, func() error, error) {
 	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
-	clean := cleanup.SwallowErr(cleanup.NewChain(leave, s.clean).Run, flock.ErrNotLast)
+	clean := klean.SwallowErr(klean.NewChain(leave, s.clean).Run, flock.ErrNotLast)
 	if err != nil {
 		return "", clean, err
 	}

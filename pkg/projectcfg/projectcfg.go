@@ -16,8 +16,8 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 const (
@@ -57,7 +57,7 @@ func Init(projectDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := seed.File(path, body); err != nil {
+	if err := fsync.File(path, body); err != nil {
 		return "", err
 	}
 	return path, nil
@@ -86,8 +86,8 @@ func SeedUserConfig(cli string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := seed.File(UserConfigFile(), body); err != nil {
-		if errors.Is(err, seed.ErrExists) { // lost a seed race: no seed, no log
+	if err := fsync.File(UserConfigFile(), body); err != nil {
+		if errors.Is(err, fsync.ErrExists) { // lost a seed race: no seed, no log
 			return "", nil
 		}
 		return "", err

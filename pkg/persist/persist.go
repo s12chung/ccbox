@@ -12,13 +12,13 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/cleanup"
 	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/runid"
-	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -42,7 +42,7 @@ type Share struct{ ProjectDir string }
 // one scratch: the first run seeds it, latecomers bind it as-is, the last out settles it.
 func (s Share) Begin() (string, func() error, error) {
 	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
-	clean := cleanup.SwallowErr(cleanup.NewChain(leave, s.clean).Run, flock.ErrNotLast)
+	clean := klean.SwallowErr(klean.NewChain(leave, s.clean).Run, flock.ErrNotLast)
 	if err != nil {
 		return "", clean, err
 	}
@@ -67,8 +67,8 @@ func (s Share) initialShare() error {
 	if ioutil.Present(s.realDir()) { // a concurrent settle materialized it mid-Begin
 		return nil
 	}
-	_, err := seed.Tree(SeedFS(), s.scratch())
-	if errors.Is(err, seed.ErrNoChanges) {
+	_, err := fsync.Seed(SeedFS(), s.scratch())
+	if errors.Is(err, fsync.ErrNoChanges) {
 		return nil
 	}
 	return err
@@ -96,7 +96,7 @@ func (s Share) clean() error {
 // promote settles the scratch into the Dir, moving the Dir's differing copies
 // aside for the run's changes
 func (s Share) promote() error {
-	asides, err := seed.Merge(s.scratch(), s.realDir(), "run-"+runid.New())
+	asides, err := fsync.Merge(s.scratch(), s.realDir(), "run-"+runid.New())
 	if err != nil {
 		return err
 	}

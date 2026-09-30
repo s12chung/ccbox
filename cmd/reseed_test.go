@@ -16,9 +16,9 @@ import (
 
 // stubSeedTreeFn swaps the seed step for a test double and returns a restore func.
 func stubSeedTreeFn(fn func(fs.FS, string) ([]string, error)) func() {
-	orig := seedTreeFn
-	seedTreeFn = fn
-	return func() { seedTreeFn = orig }
+	orig := seedFn
+	seedFn = fn
+	return func() { seedFn = orig }
 }
 
 // Each CLI seeds the merged tree (shared + per-CLI) into its config dir.

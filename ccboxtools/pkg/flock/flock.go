@@ -1,7 +1,7 @@
-// Package lock guards volume-shared installs across containers. The flock is
+// Package flock guards volume-shared installs across containers. The flock is
 // kernel-held — released when the holding container dies — so the persisted
 // lock file needs no stale handling.
-package lock
+package flock
 
 import (
 	"errors"

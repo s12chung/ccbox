@@ -22,7 +22,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
   - `projectcfg/` — related to `ccbox` Config as described in the README
   - `harness/` — individual harness/cli related code. Built-in CLIs are `go:embed` at `clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins. See `AGENTS.README.md` for the AGENTS docs wiring TLDR.
   - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
-  - `util/` — std lib utility packages, notable: `must`, `seed`, `slug`, `mergeempty`, `uslice`
+  - `util/` — std lib utility packages, notable: `must`, `fsync`, `slug`, `mergeempty`, `uslice`
     - `httputil/` — http utilities for requests
     - `ioutil/` — io utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
   - `kit/` — non-std lib abstractions and utilities, most used: `dock`, `pick`, `firmrule`

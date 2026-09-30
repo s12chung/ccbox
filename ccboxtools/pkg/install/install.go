@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/lock"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/flock"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
 )
@@ -16,7 +16,7 @@ import (
 // and prunes every other version of the CLI — all under the CLI's install lock.
 // A Run() failure keeps the installed version; with nothing installed, it fails.
 func Run(pkgDir pkger.PkgDir) error {
-	return lock.Do(pkgDir.LockPath(), func() error {
+	return flock.Do(pkgDir.LockPath(), func() error {
 		active := currentVersion(pkgDir)
 		latest, err := pkgDir.Latest()
 		if err != nil {

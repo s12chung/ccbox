@@ -11,9 +11,9 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
-	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 // mkDirs creates the given project-relative dirs under dir, so presence-sensitive
@@ -214,7 +214,7 @@ func TestInit_RefusesExisting(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("tmpfs_masks: []\n"), ioutil.File))
 
 	_, err := Init(dir)
-	assert.ErrorIs(t, err, seed.ErrExists)
+	assert.ErrorIs(t, err, fsync.ErrExists)
 }
 
 func TestAllowDefaults_IncludeEveryCli(t *testing.T) {

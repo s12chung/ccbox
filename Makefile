@@ -22,7 +22,7 @@ ci: lint test
 test.all: test test.docker
 
 test: lint
-	cd ccboxtools && go test -race -count=2 ./pkg/lock ./pkg/install # -race -count=2 for lock interplay
+	cd ccboxtools && go test -race -count=2 ./pkg/flock ./pkg/install # -race -count=2 for lock interplay
 	cd ccboxtools && go test ./...
 	go test ./...
 

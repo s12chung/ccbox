@@ -1,4 +1,4 @@
-package cleanup
+package klean
 
 import "fmt"
 
@@ -13,7 +13,7 @@ type Share []Sharer
 // Begin begins each Sharer in order
 func (s Share) Begin(dirs ...*string) (func() error, error) {
 	if len(dirs) != len(s) {
-		return nil, fmt.Errorf("cleanup: dir pointer count (%d) does not match Sharer count (%d)", len(dirs), len(s))
+		return nil, fmt.Errorf("klean: dir pointer count (%d) does not match Sharer count (%d)", len(dirs), len(s))
 	}
 	var stack Stack
 	for i, sharer := range s {

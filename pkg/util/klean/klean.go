@@ -1,8 +1,8 @@
-// Package cleanup collects teardown steps and runs them on demand, like defer that
+// Package klean collects teardown steps and runs them on demand, like defer that
 // isn't tied to a function's scope (e.g. handed back to a caller to run later):
 // Stack runs its steps in reverse, all of them; Chain runs them in order, stopping
 // at the first error.
-package cleanup
+package klean
 
 import (
 	"errors"

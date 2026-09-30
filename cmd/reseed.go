@@ -14,7 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/seed"
+	"github.com/s12chung/ccbox/pkg/util/fsync"
 )
 
 var reseedCmd = &cobra.Command{
@@ -30,8 +30,8 @@ func safeSeedCLIConfig(userDir, cliName string, confirm bool) error {
 	return safeSeed(harness.SeedCLIFS(cliName), dmap.CLIConfigDir(userDir, cliName), confirm)
 }
 
-// seedTreeFn is seed.Tree, indirected so tests can stub out the file-copying step.
-var seedTreeFn = seed.Tree
+// seedFn is fsync.Seed, indirected so tests can stub out the file-copying step.
+var seedFn = fsync.Seed
 
 // safeSeed seeds dst from fsys when dst doesn't exist yet — or re-seeds after
 // confirmation when confirm is set, backing up overwritten files.
@@ -53,9 +53,9 @@ func safeSeed(fsys fs.FS, dst string, confirm bool) error {
 		return err
 	}
 
-	renamed, err := seedTreeFn(fsys, dst)
+	renamed, err := seedFn(fsys, dst)
 	switch {
-	case errors.Is(err, seed.ErrNoChanges):
+	case errors.Is(err, fsync.ErrNoChanges):
 		log.Infof("no seed changes")
 	case err != nil:
 		return err

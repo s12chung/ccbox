@@ -12,7 +12,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/persist"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/util/cleanup"
+	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -31,7 +31,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	cli := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
 	var scratchDir, persistDir string
-	clean, err := cleanup.Share{
+	clean, err := klean.Share{
 		harness.AgentsMdShare{CLI: cli, ScratchMountDir: cliTmpMount(cli)},
 		persist.Share{ProjectDir: projectDir},
 	}.Begin(&scratchDir, &persistDir)

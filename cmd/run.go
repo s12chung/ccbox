@@ -12,8 +12,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 var runModes dmap.RunModes
@@ -89,7 +89,7 @@ func safeSeedCLIDataBinds(userDir string, cli harness.CLI) error {
 			if err := os.MkdirAll(host, ioutil.Dir); err != nil {
 				return err
 			}
-		} else if err := seed.File(host, *content); err != nil && !errors.Is(err, seed.ErrExists) {
+		} else if err := fsync.File(host, *content); err != nil && !errors.Is(err, fsync.ErrExists) {
 			return err
 		}
 	}

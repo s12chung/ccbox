@@ -1,6 +1,6 @@
-// Package seed lays config content onto host paths: whole trees, backing up any
+// Package fsync lays config content onto host paths: whole trees, backing up any
 // files it would overwrite, and single files that never touch existing ones.
-package seed
+package fsync
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 
 // ErrExists reports that File's path already exists: an existing file is never
 // touched, so there is nothing to seed.
-var ErrExists = errors.New("seed: file already exists")
+var ErrExists = errors.New("fsync: file already exists")
 
 // File seeds path with body when absent, creating its parent dir. An existing file
 // is never touched: the returned error wraps ErrExists, carrying the path.
@@ -33,16 +33,16 @@ func File(path, body string) error {
 	return os.WriteFile(path, []byte(body), ioutil.File)
 }
 
-// ErrNoChanges reports that Tree made no changes: every destination already
+// ErrNoChanges reports that Seed made no changes: every destination already
 // matched its source, so nothing was written or backed up.
-var ErrNoChanges = errors.New("seed: all files identical")
+var ErrNoChanges = errors.New("fsync: all files identical")
 
-// Tree seeds fsys's tree onto destDir (creating it), preserving the tree.
+// Seed seeds fsys's tree onto destDir (creating it), preserving the tree.
 // A destination already matching the source is left untouched. Other existing
 // destination files are moved aside to <base>.old<ext> before being overwritten; the
 // aside paths are returned. A pre-existing aside is never clobbered — it's a hard error.
 // When every file is left untouched, ErrNoChanges is returned.
-func Tree(fsys fs.FS, destDir string) ([]string, error) {
+func Seed(fsys fs.FS, destDir string) ([]string, error) {
 	asides, changed, err := sync(fsys, destDir, "old")
 	if err == nil && !changed {
 		return asides, ErrNoChanges
@@ -117,7 +117,7 @@ func asideDest(dest, infix string) (string, error) {
 	aside := strings.TrimSuffix(dest, ext) + "." + infix + ext
 	switch _, err := os.Stat(aside); {
 	case err == nil:
-		return "", fmt.Errorf("seed: aside already exists, refusing to overwrite: %s", aside)
+		return "", fmt.Errorf("fsync: aside already exists, refusing to overwrite: %s", aside)
 	case !errors.Is(err, fs.ErrNotExist):
 		return "", err
 	}
