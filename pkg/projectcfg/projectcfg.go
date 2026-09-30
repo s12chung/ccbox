@@ -14,6 +14,7 @@ import (
 	"github.com/s12chung/firm"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
@@ -66,10 +67,10 @@ func Init(projectDir string) (string, error) {
 func userSeedConfig(cli string) *Config {
 	return &Config{
 		CLIName:       new(cli),
-		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
 		ReadOnlyGlobs: []string{DefaultsToken},
+		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
 		Allowlist:     []string{DefaultsToken},
 	}
 }

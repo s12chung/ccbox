@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Modes for the files and directories ccbox writes.
@@ -60,4 +61,12 @@ func DirsPresent(src string, dirs []string) []string {
 		}
 	}
 	return out
+}
+
+// ExpandHome resolves path's leading ~/ to home.
+func ExpandHome(path, home string) string {
+	if !strings.HasPrefix(path, "~/") {
+		return path
+	}
+	return filepath.Join(home, strings.TrimPrefix(path, "~"))
 }

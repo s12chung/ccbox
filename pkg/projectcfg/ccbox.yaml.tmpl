@@ -3,9 +3,6 @@
 # cli: which coding CLI the image installs and launches
 cli:{{yaml .CLIName}}
 
-# host_git_config: read-only mount the host's ~/.config/git
-host_git_config:{{yaml .HostGitConfig}}
-
 # tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
 # Use for editor junk (.vscode) or throwaway build output. Directories that do not exist in the project are safely ignored.
 tmpfs_masks:{{yaml .TmpfsMasks}}{{if .TmpfsMasks}} # `ccbox config defaults` for expansions{{end}}
@@ -21,6 +18,13 @@ volume_masks:{{yaml .VolumeMasks}}{{if .VolumeMasks}} # `ccbox config defaults` 
 # tmpfs_masks/volume_masks dirs are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
 read_only_globs:{{yaml .ReadOnlyGlobs}}{{if .ReadOnlyGlobs}} # `ccbox config defaults` for expansions{{end}}
   # - .conf
+
+# read_only_binds: bind host dirs into the container read-only. Use for config shared across
+# projects (AWS creds, CAs, dotfiles). Dirs missing on the host are safely ignored.
+read_only_binds:{{yaml .ReadOnlyBinds}}
+  # gitconfig: enabled # dynamically binds the host's gitconfig, honoring XDG_CONFIG_HOME
+  # ~/.aws: ~/.aws
+  # /srv/ca: /home/ccbox/.local/share/ca
 
 # env: extra environment variables set in the container
 env:{{yaml .Env}}

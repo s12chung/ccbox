@@ -11,6 +11,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -18,7 +19,7 @@ import (
 func TestConfig_ProjectDir(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
-	writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: true\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -28,7 +29,7 @@ func TestConfig_ProjectDir(t *testing.T) {
 func TestConfig_CLI(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
-	writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: false\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -44,31 +45,35 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
+		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
 		Env:           map[string]string{"FOO": "base", "BAR": "base"},
 		Allowlist:     []string{"ccbox-defaults"},
-		HostGitConfig: new(true),
 	}
 	other := Config{
 		CLIName:       new("codex"),
 		TmpfsMasks:    []string{"build"},
 		VolumeMasks:   []string{"cache"},
 		ReadOnlyGlobs: []string{".envrc"},
+		ReadOnlyBinds: map[string]string{"~/fonts": "/mnt/fonts", "~/certs": "/home/ccbox/certs"},
 		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
 		Allowlist:     []string{"example.com"},
-		HostGitConfig: new(false),
 	}
 
 	c.merge(other)
 
 	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
 	assert.Equal(t, Config{
-		CLIName:       new("codex"),
-		HostGitConfig: new(false), // a set later layer wins
+		CLIName:       new("codex"), // a set later layer wins
 		TmpfsMasks:    []string{"dist", "build"},
 		VolumeMasks:   []string{"target", "cache"},
 		ReadOnlyGlobs: []string{".env", ".envrc"},
-		Env:           map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"},
-		Allowlist:     []string{"ccbox-defaults", "example.com"},
+		ReadOnlyBinds: map[string]string{ // maps merge per key, the later layer's entry wins
+			GitConfigKey: firmrule.EnabledValue,
+			"~/fonts":    "/mnt/fonts",
+			"~/certs":    "/home/ccbox/certs",
+		},
+		Env:       map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"},
+		Allowlist: []string{"ccbox-defaults", "example.com"},
 	}, c)
 }
 
@@ -85,21 +90,17 @@ func TestConfig_ListsExpanded(t *testing.T) {
 	}{
 		{
 			"an all-nil config expands every list to nothing", t.TempDir(),
-			"cli: claude\nhost_git_config: true\n",
-			Config{
-				CLIName:       new("claude"),
-				HostGitConfig: new(true),
-			},
+			"cli: claude\n",
+			Config{CLIName: new("claude")},
 			nil, nil, nil, nil,
 		},
 		{
 			"the token expands in place, literals kept, repeats collapse", t.TempDir(),
-			"cli: claude\nhost_git_config: true\n" +
+			"cli: claude\n" +
 				"tmpfs_masks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
 				"read_only_globs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
 			Config{
 				CLIName:       new("claude"),
-				HostGitConfig: new(true),
 				TmpfsMasks:    []string{DefaultsToken, "dist", DefaultsToken},
 				ReadOnlyGlobs: []string{DefaultsToken, ".env", DefaultsToken},
 			},
@@ -110,8 +111,8 @@ func TestConfig_ListsExpanded(t *testing.T) {
 		},
 		{
 			"an explicit empty list stays empty like an unset one", t.TempDir(),
-			"cli: claude\nhost_git_config: true\nvolume_masks: []\n",
-			Config{CLIName: new("claude"), HostGitConfig: new(true), VolumeMasks: []string{}},
+			"cli: claude\nvolume_masks: []\n",
+			Config{CLIName: new("claude"), VolumeMasks: []string{}},
 			nil, nil, nil, nil,
 		},
 	}
@@ -136,7 +137,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file: no defaults token
 	mkDirs(t, dir, "dist")
-	writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: true\ntmpfs_masks:\n  - dist\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\ntmpfs_masks:\n  - dist\n")
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
@@ -148,6 +149,85 @@ func TestConfig_AccessorsCache(t *testing.T) {
 	require.NoError(t, os.Remove(filepath.Join(dir, "dist")))
 	assert.Nil(t, c.TmpfsMasksPresent())
 	assert.Equal(t, expanded, c.TmpfsMasksExpanded()) // the cached expansion holds
+}
+
+// loadBindsConfig loads a config whose read_only_binds are the given raw map
+func loadBindsConfig(t *testing.T, binds map[string]string) *Config {
+	t.Helper()
+	c, err := Load(t.TempDir(), Config{CLIName: new("claude"), ReadOnlyBinds: binds})
+	require.NoError(t, err)
+	return c
+}
+
+func TestConfig_ReadOnlyBinds(t *testing.T) {
+	t.Run("expands the special entry and ~/ keys, keeps absolute keys", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", "")
+
+		c := loadBindsConfig(t, map[string]string{
+			GitConfigKey:     firmrule.EnabledValue,
+			"~/shared/fonts": "/home/ccbox/fonts",
+			"/srv/ca":        "/home/ccbox/.local/share/ca",
+		})
+
+		assert.Equal(t, map[string]string{
+			filepath.Join(home, ".config", "git"): GitConfigMount,
+			filepath.Join(home, "shared/fonts"):   "/home/ccbox/fonts",
+			"/srv/ca":                             "/home/ccbox/.local/share/ca",
+		}, c.ReadOnlyBindsExpanded())
+	})
+
+	t.Run("gitconfig honors XDG_CONFIG_HOME", func(t *testing.T) {
+		xdg := t.TempDir()
+		t.Setenv("XDG_CONFIG_HOME", xdg)
+
+		c := loadBindsConfig(t, map[string]string{GitConfigKey: firmrule.EnabledValue})
+
+		assert.Equal(t, map[string]string{filepath.Join(xdg, "git"): GitConfigMount}, c.ReadOnlyBindsExpanded())
+	})
+
+	t.Run("an unresolvable home panics like userdir", func(t *testing.T) {
+		t.Setenv("HOME", "")
+		t.Setenv("XDG_CONFIG_HOME", "")
+
+		c := &Config{ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue}}
+
+		assert.Panics(t, func() { c.ReadOnlyBindsExpanded() })
+	})
+
+	t.Run("present keeps the host dirs on disk, absent takes the rest", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", "")
+		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
+
+		c := loadBindsConfig(t, map[string]string{
+			GitConfigKey: firmrule.EnabledValue,
+			"~/fonts":    "/home/ccbox/fonts",
+		})
+
+		assert.Equal(t, map[string]string{
+			filepath.Join(home, ".config", "git"): GitConfigMount,
+		}, c.ReadOnlyBindsPresent())
+		assert.Equal(t, map[string]string{
+			filepath.Join(home, "fonts"): "/home/ccbox/fonts",
+		}, c.ReadOnlyBindsAbsent())
+	})
+
+	t.Run("the expansion caches, the present-filter re-stats", func(t *testing.T) {
+		home := t.TempDir()
+		t.Setenv("HOME", home)
+		t.Setenv("XDG_CONFIG_HOME", "")
+
+		c := loadBindsConfig(t, map[string]string{GitConfigKey: firmrule.EnabledValue})
+		expanded := c.ReadOnlyBindsExpanded()
+		assert.Nil(t, c.ReadOnlyBindsPresent())
+
+		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
+		assert.Equal(t, map[string]string{filepath.Join(home, ".config", "git"): GitConfigMount}, c.ReadOnlyBindsPresent())
+		assert.Equal(t, expanded, c.ReadOnlyBindsExpanded()) // the cached expansion holds
+	})
 }
 
 func TestConfig_MasksPresent(t *testing.T) {
@@ -234,7 +314,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 // readOnlyGlobsConfig loads a config over the project body, ready for the glob accessors
 func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 	t.Helper()
-	body := "cli: claude\nhost_git_config: true\nread_only_globs:\n"
+	body := "cli: claude\nread_only_globs:\n"
 	var bodySb18 strings.Builder
 	for _, g := range globs {
 		bodySb18.WriteString("  - \"" + g + "\"\n") // quoted: a leading * is a YAML alias marker
@@ -311,7 +391,7 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	mkDirs(t, dir, "build", "certs")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "build", "main.o"), nil, ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "certs", "server.pem"), nil, ioutil.File))
-	body := "cli: claude\nhost_git_config: true\n" +
+	body := "cli: claude\n" +
 		"tmpfs_masks:\n  - build\n  - certs\n  - node_modules\n" +
 		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), ioutil.File))
@@ -365,12 +445,14 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	dir := t.TempDir()
 	// present stays resolved in, the absent drop: build, .venv, vendor/bundle, cache, .env
 	mkDirs(t, dir, append(append([]string{}, tmpfsDefaults...), "dist", "node_modules", "target", "secrets")...)
+	home := os.Getenv("HOME") // TestMain's temp home
+	mkDirs(t, home, ".config/git")
 	c := &Config{
 		CLIName:       new("claude"),
-		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken, "dist", "build"},
 		VolumeMasks:   []string{DefaultsToken, "target", "cache"},
 		ReadOnlyGlobs: []string{DefaultsToken, ".env"},
+		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
 		Env:           map[string]string{"FOO": "bar"},
 		Allowlist:     []string{"user.example.dev", DefaultsToken, "example.com"},
 		projectDir:    dir,
@@ -380,17 +462,20 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	require.NoError(t, err)
 
 	// round-trip the marshal back: masks resolved (token expanded in place, present
-	// filtered), globs resolved to their matches, allowlist resolved, the rest passed through
+	// filtered), globs resolved to their matches, binds resolved to the host's present
+	// dirs, allowlist resolved, the rest passed through
 	var got Config
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	want := Config{
 		CLIName:       new("claude"),
-		HostGitConfig: new(true),
 		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
 		VolumeMasks:   []string{"node_modules", "target"},
 		ReadOnlyGlobs: []string{"secrets"},
-		Env:           map[string]string{"FOO": "bar"},
-		Allowlist:     append(append([]string{"user.example.dev"}, AllowDefaults()...), "example.com"),
+		ReadOnlyBinds: map[string]string{ // the gitconfig dir is present here: kept, resolved
+			filepath.Join(home, ".config", "git"): GitConfigMount,
+		},
+		Env:       map[string]string{"FOO": "bar"},
+		Allowlist: append(append([]string{"user.example.dev"}, AllowDefaults()...), "example.com"),
 	}
 	assert.Equal(t, want, got)
 }

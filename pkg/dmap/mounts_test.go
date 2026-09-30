@@ -12,6 +12,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -28,26 +29,9 @@ func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 	if flags.CLIName == nil {
 		flags.CLIName = new("codex")
 	}
-	flags.HostGitConfig = new(false)
 	cfg, err := projectcfg.Load(t.TempDir(), flags)
 	require.NoError(t, err)
 	return NewRunMap(t.TempDir(), cfg)
-}
-
-func TestVolumeMasks(t *testing.T) {
-	// the name slugifies the mask path under the project slug; ensured fresh, then
-	// chowned to the container user at run start
-	assert.Equal(t, []docker.Mount{
-		docker.NewVolume("ccbox-Users-me-proj-node_modules", "/home/ccbox/proj/node_modules"),
-		docker.NewVolume("ccbox-Users-me-proj-vendor-bundle", "/home/ccbox/proj/vendor/bundle"),
-	}, volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"}))
-}
-
-func TestReadOnlyBinds(t *testing.T) {
-	assert.Equal(t, []docker.Mount{
-		docker.NewBind("/Users/me/proj/.env", "/home/ccbox/proj/.env").ReadOnly(),
-		docker.NewBind("/Users/me/proj/certs/server.pem", "/home/ccbox/proj/certs/server.pem").ReadOnly(),
-	}, readOnlyBinds("/Users/me/proj", []string{".env", "certs/server.pem"}))
 }
 
 func TestVolumes(t *testing.T) {
@@ -63,41 +47,70 @@ func TestVolumes(t *testing.T) {
 	assert.Empty(t, volumes(nil, true))
 }
 
-func TestGitBinds(t *testing.T) {
-	t.Run("no bind when disabled", func(t *testing.T) {
-		assert.Nil(t, gitBinds(false))
+func TestVolumeMasks(t *testing.T) {
+	// the name slugifies the mask path under the project slug; ensured fresh, then
+	// chowned to the container user at run start
+	assert.Equal(t, []docker.Mount{
+		docker.NewVolume("ccbox-Users-me-proj-node_modules", "/home/ccbox/proj/node_modules"),
+		docker.NewVolume("ccbox-Users-me-proj-vendor-bundle", "/home/ccbox/proj/vendor/bundle"),
+	}, volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"}))
+}
+
+func TestReadOnlyGlobBinds(t *testing.T) {
+	assert.Equal(t, []docker.Mount{
+		docker.NewBind("/Users/me/proj/.env", "/home/ccbox/proj/.env").ReadOnly(),
+		docker.NewBind("/Users/me/proj/certs/server.pem", "/home/ccbox/proj/certs/server.pem").ReadOnly(),
+	}, readOnlyGlobBinds("/Users/me/proj", []string{".env", "certs/server.pem"}))
+}
+
+func TestReadOnlyBinds(t *testing.T) {
+	t.Run("no binds without entries", func(t *testing.T) {
+		assert.Empty(t, readOnlyBinds(nil))
 	})
 
-	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
-		t.Setenv("HOME", t.TempDir())
-		t.Setenv("XDG_CONFIG_HOME", "")
-		assert.Nil(t, gitBinds(true))
+	t.Run("binds each pair read-only, sorted by the container mount", func(t *testing.T) {
+		assert.Equal(t, []docker.Mount{
+			docker.NewBind("/srv/ca", "/home/ccbox/.local/share/ca").ReadOnly(),
+			docker.NewBind("/home/me/fonts", "/home/ccbox/fonts").ReadOnly(),
+		}, readOnlyBinds(map[string]string{
+			"/home/me/fonts": "/home/ccbox/fonts", // unsorted input
+			"/srv/ca":        "/home/ccbox/.local/share/ca",
+		}))
 	})
 
-	t.Run("binds the host git dir read-only at git's XDG path", func(t *testing.T) {
+	t.Run("binds the enabled gitconfig at the container's default XDG path", func(t *testing.T) {
 		home := t.TempDir()
 		t.Setenv("HOME", home)
 		t.Setenv("XDG_CONFIG_HOME", "")
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
 
+		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+			CLIName:       new("codex"),
+			ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue},
+		})
+		require.NoError(t, err)
+
 		assert.Equal(t, []docker.Mount{
-			docker.NewBind(filepath.Join(home, ".config", "git"), gitConfigMount).ReadOnly(),
-		}, gitBinds(true))
+			docker.NewBind(filepath.Join(home, ".config", "git"), projectcfg.GitConfigMount).ReadOnly(),
+		}, readOnlyBinds(cfg.ReadOnlyBindsPresent()))
 	})
 
-	t.Run("binds XDG_CONFIG_HOME's git dir at the container's default XDG path", func(t *testing.T) {
-		xdg := t.TempDir()
-		t.Setenv("XDG_CONFIG_HOME", xdg)
-		require.NoError(t, os.MkdirAll(filepath.Join(xdg, "git"), ioutil.Dir))
+	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
+		t.Setenv("HOME", t.TempDir())
+		t.Setenv("XDG_CONFIG_HOME", "")
 
-		assert.Equal(t, []docker.Mount{
-			docker.NewBind(filepath.Join(xdg, "git"), gitConfigMount).ReadOnly(),
-		}, gitBinds(true))
+		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+			CLIName:       new("codex"),
+			ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue},
+		})
+		require.NoError(t, err)
+
+		assert.Empty(t, readOnlyBinds(cfg.ReadOnlyBindsPresent()))
 	})
 }
 
 func TestCLIDataBinds(t *testing.T) {
-	t.Run("renders rw binds under containerHome, sorted for a deterministic spec", func(t *testing.T) {
+	t.Run("renders rw binds under the container home, sorted for a deterministic spec", func(t *testing.T) {
 		userDir := "/home/me/.ccbox"
 		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{
 			".local/share/opencode/auth.json":     new("{}"), // file with seed content
@@ -106,14 +119,14 @@ func TestCLIDataBinds(t *testing.T) {
 		}}
 
 		assert.Equal(t, []docker.Mount{
-			docker.NewBind(filepath.Join(userDir, "data", "opencode", ".config-opencode"), path.Join(containerHome, ".config/opencode")),
+			docker.NewBind(filepath.Join(userDir, "data", "opencode", ".config-opencode"), path.Join(projectcfg.ContainerHome, ".config/opencode")),
 			docker.NewBind(
 				filepath.Join(userDir, "data", "opencode", ".local-share-opencode-auth.json"),
-				path.Join(containerHome, ".local/share/opencode/auth.json"),
+				path.Join(projectcfg.ContainerHome, ".local/share/opencode/auth.json"),
 			),
 			docker.NewBind(
 				filepath.Join(userDir, "data", "opencode", ".local-share-opencode-sessions.json"),
-				path.Join(containerHome, ".local/share/opencode/sessions.json"),
+				path.Join(projectcfg.ContainerHome, ".local/share/opencode/sessions.json"),
 			),
 		}, cliDataBinds(userDir, cli))
 	})

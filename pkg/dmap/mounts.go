@@ -1,6 +1,7 @@
 package dmap
 
 import (
+	"cmp"
 	"maps"
 	"path"
 	"path/filepath"
@@ -9,10 +10,9 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/persist"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/cleanup"
-	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -42,39 +42,17 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
-			docker.NewBind(CLIConfigDir(rm.userDir, cli.Name), path.Join(containerHome, cli.ConfigHomeMount)),
+			docker.NewBind(CLIConfigDir(rm.userDir, cli.Name), path.Join(projectcfg.ContainerHome, cli.ConfigHomeMount)),
 			docker.NewBind(persistDir, persistMount),
 		},
 		volumes(globalVolumesMap, true),
 		volumes(cacheVolumeNames(projectDir), false),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
-		readOnlyBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
-		gitBinds(*rm.cfg.HostGitConfig),
+		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
+		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
 		cliDataBinds(rm.userDir, cli),
 		cliTmpBind(scratchDir, cliTmpMount(cli)),
 	), clean, nil
-}
-
-// volumeMasks masks each load-validated project-relative dir with a persistent
-// per-project volume; ensured fresh, then chowned to the container user, so the run's
-// own content seeds it.
-func volumeMasks(projectDir string, relDirs []string) []docker.Mount {
-	workspace := workspaceMount(projectDir)
-	volumes := make([]docker.Mount, 0, len(relDirs))
-	for _, d := range relDirs {
-		volumes = append(volumes, docker.NewVolume(volumeName(projectDir, d), filepath.Join(workspace, d)))
-	}
-	return volumes
-}
-
-// readOnlyBinds re-mounts each walk-matched project-relative path read-only.
-func readOnlyBinds(projectDir string, relPaths []string) []docker.Mount {
-	workspace := workspaceMount(projectDir)
-	binds := make([]docker.Mount, 0, len(relPaths))
-	for _, p := range relPaths {
-		binds = append(binds, docker.NewBind(filepath.Join(projectDir, p), filepath.Join(workspace, p)).ReadOnly())
-	}
-	return binds
 }
 
 // volumes renders a name→dir map as volume binds under the given scope, sorted for a
@@ -91,18 +69,42 @@ func volumes(nameDirs map[string]string, global bool) []docker.Mount {
 	return volumes
 }
 
-// gitBinds binds the host global git dir read-only at gitConfigMount — git's default XDG path.
-func gitBinds(enabled bool) []docker.Mount {
-	if !enabled {
-		return nil
+// volumeMasks masks each load-validated project-relative dir with a persistent
+// per-project volume; ensured fresh, then chowned to the container user, so the run's
+// own content seeds it.
+func volumeMasks(projectDir string, relDirs []string) []docker.Mount {
+	workspace := workspaceMount(projectDir)
+	volumes := make([]docker.Mount, 0, len(relDirs))
+	for _, d := range relDirs {
+		volumes = append(volumes, docker.NewVolume(volumeName(projectDir, d), filepath.Join(workspace, d)))
 	}
-	if host := must.Get(git.XDGConfigDir()); host != "" {
-		return []docker.Mount{docker.NewBind(host, gitConfigMount).ReadOnly()}
-	}
-	return nil
+	return volumes
 }
 
-// cliDataBinds renders cli's data binds as binds under containerHome, sorted for a
+// readOnlyGlobBinds re-mounts each walk-matched project-relative path read-only.
+func readOnlyGlobBinds(projectDir string, relPaths []string) []docker.Mount {
+	workspace := workspaceMount(projectDir)
+	binds := make([]docker.Mount, 0, len(relPaths))
+	for _, p := range relPaths {
+		binds = append(binds, docker.NewBind(filepath.Join(projectDir, p), filepath.Join(workspace, p)).ReadOnly())
+	}
+	return binds
+}
+
+// readOnlyBinds binds each host dir read-only at its container mount, sorted by the mount for
+// a deterministic spec.
+func readOnlyBinds(binds map[string]string) []docker.Mount {
+	hosts := slices.SortedFunc(maps.Keys(binds), func(a, b string) int {
+		return cmp.Compare(binds[a], binds[b]) // sort by the container mount
+	})
+	mounts := make([]docker.Mount, 0, len(hosts))
+	for _, host := range hosts {
+		mounts = append(mounts, docker.NewBind(host, binds[host]).ReadOnly())
+	}
+	return mounts
+}
+
+// cliDataBinds renders cli's data binds as binds under the container home, sorted for a
 // deterministic spec.
 func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 	binds := make(map[string]string, len(cli.DataBinds))
@@ -113,13 +115,15 @@ func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 
 	dataBinds := make([]docker.Mount, 0, len(binds))
 	for _, host := range slices.Sorted(maps.Keys(binds)) {
-		dataBinds = append(dataBinds, docker.NewBind(host, path.Join(containerHome, binds[host])))
+		dataBinds = append(dataBinds, docker.NewBind(host, path.Join(projectcfg.ContainerHome, binds[host])))
 	}
 	return dataBinds
 }
 
-// cliTmpMount is the CLI's tmp dir's container path: <containerHome>/.ccbox/tmp/<cli_name>
-func cliTmpMount(cli harness.CLI) string { return path.Join(containerHome, ".ccbox", "tmp", cli.Name) }
+// cliTmpMount is the CLI's tmp dir's container path: <ContainerHome>/.ccbox/tmp/<cli_name>
+func cliTmpMount(cli harness.CLI) string {
+	return path.Join(projectcfg.ContainerHome, ".ccbox", "tmp", cli.Name)
+}
 
 // cliTmpBind binds the shared doc's scratch dir at cliTmpMount; the cliFile symlink
 // points into it. host "" = no bind.

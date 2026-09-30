@@ -16,7 +16,7 @@ func TestBuildMap_Options(t *testing.T) {
 }
 
 func TestDataBindDirs(t *testing.T) {
-	t.Run("joins every cli's data-bind parents under containerHome, sorted and deduped", func(t *testing.T) {
+	t.Run("joins every cli's data-bind parents under the container home, sorted and deduped", func(t *testing.T) {
 		clis := []harness.CLI{
 			{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{
 				".local/share/opencode/auth.json":     new("{}"), // file with seed content

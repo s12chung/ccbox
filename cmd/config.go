@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -40,13 +42,14 @@ func printLoadedPaths() {
 	log.Info("")
 }
 
-// printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs are
-// present-checked like any dir; globs can't be — their expansion shows what's armed instead.
+// printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs and bind
+// hosts are present-checked like any dir; globs can't be — their expansion shows what's armed instead.
 func printGuardMountWarnings() {
 	tmpfsMasks := projectCfg.TmpfsMasksAbsent()
 	volumeMasks := projectCfg.VolumeMasksAbsent()
 	globs := projectCfg.ReadOnlyGlobsExpanded()
-	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 || len(globs) > 0 {
+	binds := projectCfg.ReadOnlyBindsAbsent()
+	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 || len(globs) > 0 || len(binds) > 0 {
 		log.Info("")
 	}
 	if len(tmpfsMasks) > 0 {
@@ -57,6 +60,9 @@ func printGuardMountWarnings() {
 	}
 	if len(globs) > 0 {
 		log.Infof("# read_only_globs matches re-mount read-only at run: %s", strings.Join(globs, ", "))
+	}
+	if len(binds) > 0 {
+		log.Infof("# read_only_binds not on host, not mounted: %s", strings.Join(slices.Sorted(maps.Keys(binds)), ", "))
 	}
 }
 

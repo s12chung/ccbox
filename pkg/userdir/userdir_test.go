@@ -9,6 +9,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestMustHome(t *testing.T) {
+	home, err := os.UserHomeDir()
+	require.NoError(t, err)
+	assert.Equal(t, home, MustHome())
+
+	t.Setenv("HOME", "")
+	assert.Panics(t, func() { MustHome() })
+}
+
 func TestTilde(t *testing.T) {
 	home, err := os.UserHomeDir()
 	require.NoError(t, err)

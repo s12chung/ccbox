@@ -12,6 +12,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -24,9 +25,8 @@ func TestRunMap_RunOptions(t *testing.T) {
 	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
 
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
-		CLIName:       new("claude"),
-		HostGitConfig: new(false),
-		Allowlist:     []string{projectcfg.DefaultsToken, "example.com"},
+		CLIName:   new("claude"),
+		Allowlist: []string{projectcfg.DefaultsToken, "example.com"},
 	})
 	require.NoError(t, err)
 	userDir := t.TempDir()
@@ -65,14 +65,17 @@ func TestRunMap_HostOptions(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), ioutil.Dir))
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "node_modules"), ioutil.Dir))
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".env"), nil, ioutil.File))
+	// the binds' host dirs must exist to survive the present-filter
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, "fonts"), ioutil.Dir))
 
 	userDir := t.TempDir()
 	cfg, err := projectcfg.Load(projectDir, projectcfg.Config{
 		CLIName:       new("codex"),
-		HostGitConfig: new(false),
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"node_modules"},
 		ReadOnlyGlobs: []string{".env"},
+		ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
 	})
 	require.NoError(t, err)
 
@@ -100,6 +103,8 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewVolume("ccbox"+s+"-tmp-cache-default", "/tmp"),
 		docker.NewVolume("ccbox"+s+"-node_modules", workspace+"/node_modules"),
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
+		docker.NewBind(filepath.Join(home, ".config", "git"), projectcfg.GitConfigMount).ReadOnly(),
+		docker.NewBind(filepath.Join(home, "fonts"), "/home/ccbox/fonts").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex"), cliTmpMount(harness.MustFor("codex"))),
 	}, hostOptions.Mounts)
 

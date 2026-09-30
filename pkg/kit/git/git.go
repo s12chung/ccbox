@@ -4,26 +4,16 @@ package git
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/s12chung/ccbox/pkg/userdir"
 )
 
-// XDGConfigDir returns the host XDG git config dir (~/.config/git, honoring XDG_CONFIG_HOME) if it
-// exists as a directory, else "".
-func XDGConfigDir() (string, error) {
+// XDGConfigDir returns the host XDG git config dir (~/.config/git, honoring XDG_CONFIG_HOME).
+// The dir need not exist on disk — the caller present-checks.
+func XDGConfigDir() string {
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return "", err
-		}
-		base = filepath.Join(home, ".config")
+		base = filepath.Join(userdir.MustHome(), ".config")
 	}
-	dir := filepath.Join(base, "git")
-	switch info, err := os.Stat(dir); { // #nosec G703 -- dir is the user's own XDG git config path
-	case err == nil && info.IsDir():
-		return dir, nil
-	case err == nil || os.IsNotExist(err): // a non-dir or absent path → skip, not an error
-		return "", nil
-	default:
-		return "", err
-	}
+	return filepath.Join(base, "git")
 }

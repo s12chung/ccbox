@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/seed"
@@ -20,6 +21,7 @@ import (
 func mkDirs(t *testing.T, dir string, dirs ...string) {
 	t.Helper()
 	for _, d := range dirs {
+		// #nosec G703 -- the test's own paths: a temp project dir or TestMain's temp home
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, d), ioutil.Dir))
 	}
 }
@@ -104,10 +106,10 @@ func TestSeedUserConfig(t *testing.T) {
 	// the seed is the defaults' carrier
 	want := Config{
 		CLIName:       new("claude"),
-		HostGitConfig: new(true),
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
 		ReadOnlyGlobs: []string{DefaultsToken},
+		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
 		Allowlist:     []string{DefaultsToken},
 
 		projectDir: dir,
@@ -230,32 +232,23 @@ func TestLoad_UnsetRequiredErrors(t *testing.T) {
 
 	_, err := Load(dir, Config{})
 	require.Error(t, err)
-	require.ErrorContains(t, err, "CLIName.Nil: CLIName is nil")
-	assert.ErrorContains(t, err, "HostGitConfig.Nil: HostGitConfig is nil")
+	assert.ErrorContains(t, err, "CLIName.Nil: CLIName is nil")
 }
 
-func TestLoad_HostGitConfigUnresolvable(t *testing.T) {
-	dir := t.TempDir()
+func TestLoad_InvalidBindsErrors(t *testing.T) {
+	for _, cf := range configFiles {
+		t.Run(cf.term, func(t *testing.T) {
+			dir := t.TempDir()
+			if cf.term == "local" { // empty project file so the error attributes to local
+				writeConfig(t, dir, projectConfigFileName, "")
+			}
+			writeConfig(t, dir, cf.name, "cli: claude\nread_only_binds:\n  fonts: enabled\n")
 
-	t.Run("enabled errors", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: true\n")
-		file := filepath.Join(t.TempDir(), "not-a-dir")
-		require.NoError(t, os.WriteFile(file, nil, ioutil.File))
-		t.Setenv("XDG_CONFIG_HOME", file) // a file, not a dir: stat <file>/git errors
-
-		_, err := Load(dir, Config{})
-		require.Error(t, err)
-		require.ErrorContains(t, err, "HostGitConfig.HasValidGitDir")
-		assert.ErrorContains(t, err, "not a directory")
-	})
-
-	t.Run("disabled loads", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_git_config: false\n")
-
-		c, err := Load(dir, Config{})
-		require.NoError(t, err)
-		assert.Equal(t, new(false), c.HostGitConfig)
-	})
+			_, err := Load(dir, Config{})
+			require.Error(t, err)
+			assert.ErrorContains(t, err, "ReadOnlyBinds.[fonts]") // the error names the entry
+		})
+	}
 }
 
 func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
@@ -272,9 +265,15 @@ func TestLoad_LayersFiles(t *testing.T) {
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build", "cache") // the layers' own mask dirs must exist to survive
 	bodies := map[string]string{             // one entry per configFiles term
-		"user":    "cli: grok\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\nenv:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
-		"project": "cli: claude\ntmpfs_masks:\n  - build\nenv:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\nhost_git_config: true\n",
-		"local":   "cli: codex\ntmpfs_masks:\n  - cache\nenv:\n  FOO: local\nallowlist:\n  - example.com\nhost_git_config: false\n",
+		"user": "cli: grok\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
+			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
+			"env:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
+		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
+			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
+			"env:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\n",
+		"local": "cli: codex\ntmpfs_masks:\n  - cache\n" +
+			"read_only_binds:\n  ~/certs: /mnt/certs\n" +
+			"env:\n  FOO: local\nallowlist:\n  - example.com\n",
 	}
 	for _, cf := range configFiles {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
@@ -282,14 +281,20 @@ func TestLoad_LayersFiles(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", *c.CLIName)         // later layer wins
-	assert.Equal(t, new(false), c.HostGitConfig) // later layer wins
+	assert.Equal(t, "codex", *c.CLIName) // later layer wins
 
 	// lists append raw, lowest layer first, the seed's tokens carried as-is
 	assert.Equal(t, []string{DefaultsToken, "dist", "build", "cache"}, c.TmpfsMasks)
 
 	// env overlays, later wins
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)
+
+	// binds merge per key, the later layer's entry wins
+	assert.Equal(t, map[string]string{
+		"gitconfig": "enabled",
+		"~/fonts":   "/mnt/fonts",
+		"~/certs":   "/mnt/certs",
+	}, c.ReadOnlyBinds)
 
 	assert.Equal(t, []string{"user.example.dev", DefaultsToken, "example.com"}, c.Allowlist)
 }
@@ -298,7 +303,7 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 	for _, cf := range configFiles { // the other files are absent
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: grok\nhost_git_config: true\nallowlist:\n  - example.com\n")
+			writeConfig(t, dir, cf.name, "cli: grok\nallowlist:\n  - example.com\n")
 
 			c, err := Load(dir, Config{})
 			require.NoError(t, err)
@@ -341,6 +346,24 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},
+		{"bad bind key", "read_only_binds:\n  fonts: /mnt\n", []string{"ReadOnlyBinds.[fonts]", "must be gitconfig or a host path"}},
+		{"bind key traversal", "read_only_binds:\n  ../escape: /mnt\n", []string{"ReadOnlyBinds.[../escape]", "must be gitconfig or a host path"}},
+		{
+			"bind mount not a path", "read_only_binds:\n  ~/fonts: mnt\n",
+			[]string{"ReadOnlyBinds.[~/fonts]", "must be a container mount path"},
+		},
+		{
+			"bind mount traversal", "read_only_binds:\n  ~/fonts: /mnt/../x\n",
+			[]string{"ReadOnlyBinds.[~/fonts]", "must be a container mount path"},
+		},
+		{
+			"enabled off the gitconfig key", "read_only_binds:\n  ~/fonts: enabled\n",
+			[]string{"ReadOnlyBinds.[~/fonts]", "must be a container mount path"},
+		},
+		{
+			"gitconfig pairs with enabled only", "read_only_binds:\n  gitconfig: /home/ccbox/.config/git\n",
+			[]string{"ReadOnlyBinds.[gitconfig]", "must be enabled"},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

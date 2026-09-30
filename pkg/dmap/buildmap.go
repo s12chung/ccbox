@@ -8,6 +8,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
 // dataBindDirsArgKey is the image build-arg naming the per-CLI data-bind parent dirs (Dockerfile)
@@ -37,7 +38,7 @@ func dataBindDirs(clis []harness.CLI) string {
 	for _, cli := range clis {
 		for key := range cli.DataBinds {
 			if dir := path.Dir(key); dir != "." {
-				dirs[path.Join(containerHome, dir)] = struct{}{}
+				dirs[path.Join(projectcfg.ContainerHome, dir)] = struct{}{}
 			}
 		}
 	}

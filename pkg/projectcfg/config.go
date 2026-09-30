@@ -4,6 +4,8 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
+	"maps"
+	"os"
 	"path/filepath"
 	"slices"
 	"text/template"
@@ -14,42 +16,63 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/maputil"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
+)
+
+// ContainerHome is the container user's home: read_only_binds' ~/ mounts sit under it
+const ContainerHome = "/home/ccbox"
+
+// The read_only_binds' gitconfig special entry: the key carries the host's XDG git config
+// dir, and the value mounts it at its default container path
+const (
+	// GitConfigKey is read_only_binds' special key: the host's XDG git config dir
+	GitConfigKey = "gitconfig"
+	// GitConfigMount is the gitconfig entry's container mount (git's default XDG path)
+	GitConfigMount = ContainerHome + "/.config/git"
 )
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
 	CLIName       *string           `yaml:"cli"`             // coding CLI to install + launch
-	HostGitConfig *bool             `yaml:"host_git_config"` // read-only mount host ~/.config/git
 	TmpfsMasks    []string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
 	VolumeMasks   []string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyGlobs []string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
+	ReadOnlyBinds map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
 	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
 	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains
 
 	// projectDir anchors the masks' present-filters
 	projectDir string
-	// cache the DefaultsToken expansions of raw lists
+	// cache the DefaultsToken expansions of raw lists and the read_only_binds' path resolutions
 	expandedTmpfsMasks    []string
 	expandedVolumeMasks   []string
 	expandedReadOnlyGlobs []string
+	expandedReadOnlyBinds map[string]string
 	expandedAllowlist     []string
 }
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Config]().
-		NotNil("CLIName", "HostGitConfig").
+		NotNil("CLIName").
 		Validates(firm.RuleMap{
-			"CLIName":       {rule.OneOfFunc[string]{ValuesFunc: harness.Names}},
-			"HostGitConfig": {firmrule.HasValidGitDir{}},
+			"CLIName": {rule.OneOfFunc[string]{ValuesFunc: harness.Names}},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal
 			"TmpfsMasks":    {firm.Elems[[]string](firmrule.MaskDir)},
 			"VolumeMasks":   {firm.Elems[[]string](firmrule.MaskDir)},
 			"ReadOnlyGlobs": {firm.Elems[[]string](firmrule.MaskGlob)},
+
+			// host dir → container mount dir, bound read-only
+			"ReadOnlyBinds": {firm.KeyValues[map[string]string](firmrule.Bind{
+				Specials: []string{GitConfigKey},
+			})},
+
 			"Env": {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
@@ -65,22 +88,21 @@ func (c *Config) ProjectDir() string { return c.projectDir }
 // infallible for a loaded config
 func (c *Config) CLI() harness.CLI { return harness.MustFor(*c.CLIName) }
 
-// merge layers other onto c — lists append, a set later scalar wins
+// merge layers other onto c — lists append, a set later scalar wins, maps merge per key
 func (c *Config) merge(other Config) {
 	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)
 	c.VolumeMasks = mergeempty.Slice(c.VolumeMasks, other.VolumeMasks)
 	c.ReadOnlyGlobs = mergeempty.Slice(c.ReadOnlyGlobs, other.ReadOnlyGlobs)
+	c.ReadOnlyBinds = mergeempty.Map(c.ReadOnlyBinds, other.ReadOnlyBinds)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
 	c.Env = mergeempty.Map(c.Env, other.Env)
 	if other.CLIName != nil {
 		c.CLIName = other.CLIName
 	}
-	if other.HostGitConfig != nil {
-		c.HostGitConfig = other.HostGitConfig
-	}
 	c.expandedTmpfsMasks = nil
 	c.expandedVolumeMasks = nil
 	c.expandedReadOnlyGlobs = nil
+	c.expandedReadOnlyBinds = nil
 	c.expandedAllowlist = nil
 }
 
@@ -160,6 +182,29 @@ func (c *Config) ReadOnlyPathsPresent() []string {
 	return paths
 }
 
+// ReadOnlyBindsExpanded resolves the raw binds to host dir → container mount: the gitconfig
+// entry to the host's XDG git dir at GitConfigMount, the rest's ~/ paths to their own side's
+// home.
+func (c *Config) ReadOnlyBindsExpanded() map[string]string {
+	if c.expandedReadOnlyBinds == nil {
+		specials := []expansion{
+			{GitConfigKey, git.XDGConfigDir(), GitConfigMount}, // the host's XDG git dir at its default mount
+		}
+		c.expandedReadOnlyBinds = expandKeyValueHome(expandSpecials(c.ReadOnlyBinds, specials...))
+	}
+	return c.expandedReadOnlyBinds
+}
+
+// ReadOnlyBindsPresent filters ReadOnlyBindsExpanded() to the host dirs present on disk
+func (c *Config) ReadOnlyBindsPresent() map[string]string {
+	return presentKeys(c.ReadOnlyBindsExpanded())
+}
+
+// ReadOnlyBindsAbsent filters ReadOnlyBindsExpanded() to the host dirs NOT present on disk
+func (c *Config) ReadOnlyBindsAbsent() map[string]string {
+	return absentKeys(c.ReadOnlyBindsExpanded(), c.ReadOnlyBindsPresent())
+}
+
 // AllowlistExpanded expands the DefaultsToken tokens in Allowlist to AllowDefaults
 func (c *Config) AllowlistExpanded() []string {
 	if c.expandedAllowlist == nil {
@@ -169,15 +214,16 @@ func (c *Config) AllowlistExpanded() []string {
 }
 
 // MarshalYAML renders the effective config: masks resolved to the project's present
-// dirs, read_only_globs to their matched paths, list tokens expanded — what `ccbox config` prints.
+// dirs, read_only_globs to their matched paths, read_only_binds to the host's present dirs,
+// list tokens expanded — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
 	type resolved Config // same yaml tags, no MarshalYAML method
 	return resolved{
 		CLIName:       c.CLIName,
-		HostGitConfig: c.HostGitConfig,
 		TmpfsMasks:    c.TmpfsMasksPresent(),
 		VolumeMasks:   c.VolumeMasksPresent(),
 		ReadOnlyGlobs: c.ReadOnlyPathsPresent(),
+		ReadOnlyBinds: c.ReadOnlyBindsPresent(),
 		Env:           c.Env,
 		Allowlist:     c.AllowlistExpanded(),
 	}, nil
@@ -234,4 +280,56 @@ func absentDirs(projectDir string, dirs []string) []string {
 		}
 	}
 	return out
+}
+
+// expandKeyValueHome resolves each bind's ~/ key and mount to their own side's home
+func expandKeyValueHome(binds map[string]string) map[string]string {
+	home := userdir.MustHome()
+	expanded := make(map[string]string, len(binds))
+	for key, mount := range binds {
+		expanded[ioutil.ExpandHome(key, home)] = ioutil.ExpandHome(mount, ContainerHome)
+	}
+	return maputil.NilIfEmpty(expanded)
+}
+
+// presentKeys filters binds to the keys present as dirs on disk
+func presentKeys(binds map[string]string) map[string]string {
+	present := make(map[string]string, len(binds))
+	for key, value := range binds {
+		if info, err := os.Stat(key); err == nil && info.IsDir() { // #nosec G703 -- key is the user's own dir
+			present[key] = value
+		}
+	}
+	return maputil.NilIfEmpty(present)
+}
+
+// absentKeys filters binds to the keys missing from present
+func absentKeys(binds, present map[string]string) map[string]string {
+	absent := make(map[string]string, len(binds))
+	for key, value := range binds {
+		if _, ok := present[key]; !ok {
+			absent[key] = value
+		}
+	}
+	return maputil.NilIfEmpty(absent)
+}
+
+// expansion renames a raw bind entry to its resolved key/value pair
+type expansion struct {
+	srcKey    string
+	destKey   string
+	destValue string
+}
+
+// expandSpecials converts each special entry to its resolved key/value pair, keeping the
+// other entries as-is
+func expandSpecials(binds map[string]string, specials ...expansion) map[string]string {
+	converted := maps.Clone(binds) // fresh: the raw binds are never touched
+	for _, special := range specials {
+		if _, ok := converted[special.srcKey]; ok {
+			delete(converted, special.srcKey)
+			converted[special.destKey] = special.destValue
+		}
+	}
+	return converted
 }

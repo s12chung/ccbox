@@ -21,3 +21,9 @@ func TestGet(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, s)
 }
+
+func TestNilIfEmpty(t *testing.T) {
+	assert.Nil(t, NilIfEmpty(map[string]int{}))
+	assert.Nil(t, NilIfEmpty(map[string]int(nil)))
+	assert.Equal(t, map[string]int{"a": 1}, NilIfEmpty(map[string]int{"a": 1}))
+}

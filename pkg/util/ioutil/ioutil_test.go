@@ -176,3 +176,11 @@ func TestSafeWriteFile(t *testing.T) {
 		})
 	}
 }
+
+func TestExpandHome(t *testing.T) {
+	assert.Equal(t, "/home/me/x", ExpandHome("~/x", "/home/me"))
+	assert.Equal(t, "/home/me/x/y", ExpandHome("~/x/y", "/home/me"))
+	assert.Equal(t, "/abs/x", ExpandHome("/abs/x", "/home/me"))
+	assert.Equal(t, "relative/x", ExpandHome("relative/x", "/home/me"))
+	assert.Equal(t, "~x", ExpandHome("~x", "/home/me"), "only the ~/ prefix resolves")
+}

@@ -4,15 +4,12 @@ import (
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
-const (
-	containerHome = "/home/ccbox"                // mounts sit under containerHome at a per-project leaf
-	persistMount  = "/home/ccbox/.ccbox/persist" // persistent per-project state
-
-	gitConfigMount = "/home/ccbox/.config/git" // host global git dir, read-only (git's default XDG path)
-)
+// persistMount is the container path of the run's persistent per-project state.
+const persistMount = projectcfg.ContainerHome + "/.ccbox/persist"
 
 // CLIConfigDir is the host dir of cli's config: userDir/<cli_name>.
 func CLIConfigDir(userDir, cliName string) string {
@@ -29,5 +26,5 @@ func ProxyLogPath(userDir string) string { return filepath.Join(userDir, "proxy.
 
 // workspaceMount is the in-container workspace path: the WorkingDir and bind target for the project dir.
 func workspaceMount(projectDir string) string {
-	return filepath.Join(containerHome, filepath.Base(projectDir))
+	return filepath.Join(projectcfg.ContainerHome, filepath.Base(projectDir))
 }

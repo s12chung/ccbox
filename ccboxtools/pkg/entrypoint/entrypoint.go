@@ -27,9 +27,6 @@ func Run(argv []string) error {
 	if err := checkIdentity(os.Getuid(), currentUserName(), exec.LookPath); err != nil {
 		return err
 	}
-	if err := checkGitMountRO(gitConfigMount, linuxMountinfoPath); err != nil {
-		return err
-	}
 	if os.Getenv(proxyEnv) != "" {
 		if err := probeWall(); err != nil {
 			return err

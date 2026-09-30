@@ -4,11 +4,11 @@ package firmrule
 import (
 	"reflect"
 	"regexp"
+	"slices"
+	"strings"
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
-
-	"github.com/s12chung/ccbox/pkg/kit/git"
 )
 
 // Each pattern requires at least one char and rejects empty values -- no rule.Present needed.
@@ -28,31 +28,56 @@ var (
 	HomePath = rule.Match{Regexp: regexp.MustCompile(`^[^/].*$`)}
 	// HTTPSURL is an https endpoint; download templates may carry a literal $version
 	HTTPSURL = rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
+	// bindPath is a read_only_binds host dir or container mount: absolute (/…) or
+	// home-relative (~/…), segmented like MaskDir to bar ".." traversal
+	bindPath = rule.Match{Regexp: regexp.MustCompile(
+		`^(~/|/)([^/~]*[^./~][^/~]*)(/[^/~]*[^./~][^/~]*)*$`)}
 )
 
-const hasValidGitDirName = "HasValidGitDir"
+const (
+	// EnabledValue is read_only_binds' special value: a Specials key's entry mounts at its default
+	EnabledValue = "enabled"
+	bindName     = "Bind"
+)
 
-// HasValidGitDir checks a host_git_config bool: when enabled, the host's git config dir must be valid
-type HasValidGitDir struct{}
+// Bind validates a read_only_binds key-value pair for rule.KeyValues
+type Bind struct{ Specials []string }
 
-// ValidateValue checks the indirected bool (assumes TypeCheck is called)
-func (HasValidGitDir) ValidateValue(value reflect.Value) firm.ErrorMap {
-	if !value.Bool() {
-		return nil
-	}
-	if _, err := git.XDGConfigDir(); err != nil {
-		return firm.ErrorMap{hasValidGitDirName: firm.TemplateError{
-			Template:       "requires a resolvable host git config dir: {{.Err}}",
-			TemplateFields: map[string]string{"Err": err.Error()},
-		}}
+// TypeCheck restricts the rule to string maps
+func (Bind) TypeCheck(typ reflect.Type) *firm.RuleTypeError {
+	if typ.Kind() != reflect.Map || typ.Key().Kind() != reflect.String || typ.Elem().Kind() != reflect.String {
+		return firm.NewRuleTypeError(bindName, typ, "is not a Map with string keys and values")
 	}
 	return nil
 }
 
-// TypeCheck restricts the rule to bools
-func (HasValidGitDir) TypeCheck(typ reflect.Type) *firm.RuleTypeError {
-	if typ.Kind() != reflect.Bool {
-		return firm.NewRuleTypeError(hasValidGitDirName, typ, "is not a Bool")
+// ValidateValue validates the pair (assumes TypeCheck is called)
+func (b Bind) ValidateValue(value reflect.Value) firm.ErrorMap {
+	binds, ok := reflect.TypeAssert[map[string]string](value)
+	if !ok {
+		return nil
+	}
+	for host, mount := range binds {
+		if msg := bindEntryError(b.Specials, host, mount); msg != "" {
+			return firm.ErrorMap{bindName: firm.TemplateError{Template: msg}}
+		}
 	}
 	return nil
+}
+
+// bindEntryError describes the pair's first problem, or "" for a good pair
+func bindEntryError(specials []string, host, mount string) string {
+	switch {
+	case slices.Contains(specials, host):
+		if mount != EnabledValue {
+			return "must be enabled"
+		}
+		return ""
+	case !bindPath.Regexp.MatchString(host):
+		return "must be " + strings.Join(specials, ", ") + " or a host path (~/… or /…, no .. segment)"
+	case !bindPath.Regexp.MatchString(mount):
+		return "must be a container mount path (~/… or /…, no .. segment)"
+	default:
+		return ""
+	}
 }

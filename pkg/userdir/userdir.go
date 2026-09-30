@@ -10,7 +10,7 @@ import (
 )
 
 // Dir is ccbox's per-user directory: ~/.ccbox.
-func Dir() string { return filepath.Join(mustHome(), ".ccbox") }
+func Dir() string { return filepath.Join(MustHome(), ".ccbox") }
 
 // ConfigDir is ccbox's per-user config directory: ~/.ccbox/config
 func ConfigDir() string { return path.Join(Dir(), "config") }
@@ -18,7 +18,8 @@ func ConfigDir() string { return path.Join(Dir(), "config") }
 // Tmp is ccbox's per-user scratch directory: ~/.ccbox/tmp
 func Tmp() string { return path.Join(Dir(), "tmp") }
 
-func mustHome() string {
+// MustHome is the user's home dir; it panics on an unresolvable one.
+func MustHome() string {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(fmt.Sprintf("userdir: %v", err))

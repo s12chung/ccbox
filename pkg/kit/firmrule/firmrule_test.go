@@ -1,15 +1,12 @@
 package firmrule
 
 import (
-	"os"
-	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 func TestMatchRules(t *testing.T) {
@@ -65,32 +62,51 @@ func TestMatchRules(t *testing.T) {
 	}
 }
 
-func TestHasValidGitDir(t *testing.T) {
-	v := firm.Value[bool](HasValidGitDir{})
+func TestBind(t *testing.T) {
+	valid := []map[string]string{
+		{"gitconfig": "enabled"},
+		{"~/shared/fonts": "~/fonts"}, // a home-relative mount
+		{"~/shared/fonts": "/home/ccbox/fonts"},
+		{"/srv/ca": "/home/ccbox/.local/share/ca"},
+		{"~/.config": "/dot", "/srv": "/srv"},
+	}
+	invalid := []struct {
+		binds map[string]string
+		want  string
+	}{
+		{map[string]string{"gitconfig": "/home/ccbox/.config/git"}, "must be enabled"}, // no custom mount over the default
+		{map[string]string{"gitconfig": ""}, "must be enabled"},
+		{map[string]string{"fonts": "/mnt"}, "must be gitconfig or a host path"},
+		{map[string]string{"../escape": "/mnt"}, "must be gitconfig or a host path"},
+		{map[string]string{"fonts/": "/mnt"}, "must be gitconfig or a host path"},
+		{map[string]string{"~/fonts": "enabled"}, "must be a container mount path"},
+		{map[string]string{"~/fonts": "mnt"}, "must be a container mount path"},
+		{map[string]string{"~/fonts": "/mnt/../x"}, "must be a container mount path"},
+	}
 
-	t.Run("false passes without resolving the dir", func(t *testing.T) {
-		t.Setenv("XDG_CONFIG_HOME", "")
-		t.Setenv("HOME", "") // would error if the rule resolved the dir
+	// the pair rule runs per entry, as KeyValues passes it down
+	v := firm.KeyValues[map[string]string](Bind{Specials: []string{"gitconfig"}})
+	for _, binds := range valid {
+		assert.Nilf(t, v.Validate(binds).ToNil(), "want %v valid", binds)
+	}
+	for _, tt := range invalid {
+		errMap := v.Validate(tt.binds)
+		require.NotEmptyf(t, errMap, "want %v invalid", tt.binds)
+		assert.Containsf(t, errMap.Error(), tt.want, "%v", tt.binds)
+		for host := range tt.binds { // the error names the entry
+			assert.Containsf(t, errMap.Error(), "["+host+"]", "%v", tt.binds)
+		}
+	}
 
-		assert.Nil(t, v.Validate(false).ToNil())
+	t.Run("specials are injectable", func(t *testing.T) {
+		v := firm.KeyValues[map[string]string](Bind{Specials: []string{"cas"}})
+		assert.Nil(t, v.Validate(map[string]string{"cas": "enabled"}).ToNil())
+		assert.NotEmpty(t, v.Validate(map[string]string{"gitconfig": "enabled"})) // no longer special
 	})
 
-	t.Run("true passes when the host git dir resolves", func(t *testing.T) {
-		xdg := t.TempDir()
-		t.Setenv("XDG_CONFIG_HOME", xdg)
-		require.NoError(t, os.MkdirAll(filepath.Join(xdg, "git"), ioutil.Dir))
-
-		assert.Nil(t, v.Validate(true).ToNil())
-	})
-
-	t.Run("true errors when the host git dir is unresolvable", func(t *testing.T) {
-		file := filepath.Join(t.TempDir(), "not-a-dir")
-		require.NoError(t, os.WriteFile(file, nil, ioutil.File))
-		t.Setenv("XDG_CONFIG_HOME", file) // a file, not a dir: stat <file>/git errors
-
-		errMap := v.Validate(true)
-		require.NotEmpty(t, errMap)
-		assert.Contains(t, errMap.Error(), "HasValidGitDir")
-		assert.Contains(t, errMap.Error(), "not a directory")
+	t.Run("type checks to a string map", func(t *testing.T) {
+		assert.Nil(t, Bind{}.TypeCheck(reflect.TypeFor[map[string]string]()))
+		assert.NotNil(t, Bind{}.TypeCheck(reflect.TypeFor[map[string]int]()))
+		assert.NotNil(t, Bind{}.TypeCheck(reflect.TypeOf(true)))
 	})
 }
