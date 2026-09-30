@@ -1,0 +1,6 @@
+[Desktop Entry]
+Type=Application
+Name=GUI App
+Comment=Autostarts the GUI app in the VNC session
+Exec=/usr/local/bin/ccboxtools guiapp autostart
+Terminal=false

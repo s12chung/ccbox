@@ -138,6 +138,25 @@ func TestRun_ChannelFails_FallsBackToStale(t *testing.T) {
 	assert.Equal(t, "1.2.3", readLink(t, filepath.Join(root, "claude", "current")))
 }
 
+func TestRun_ChannelFails_StalePredatesLayout(t *testing.T) {
+	p := &fakePkger{name: "claude", latest: "1.2.3"}
+	root := t.TempDir()
+	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+
+	// the installed 1.2.3 predates the layout: the executable sits at the version
+	// dir's top, not under bin/ — it can't stand in, so the resolve failure surfaces
+	require.NoError(t, os.Rename(
+		filepath.Join(root, "claude", "1.2.3", "bin", "claude"),
+		filepath.Join(root, "claude", "1.2.3", "claude")))
+	p.latest, p.latestErr = "", errors.New("channel down")
+
+	err := Run(pkger.PkgDir{Pkger: p, Root: root})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "channel down")
+	assert.Contains(t, err.Error(), "lacks bin/claude")
+}
+
 func TestRun_ChannelFails_NothingInstalled(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "", latestErr: errors.New("channel down")}
 

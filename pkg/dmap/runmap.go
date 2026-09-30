@@ -5,6 +5,7 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
@@ -80,17 +81,23 @@ func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
 }
 
 // Env renders the container's env in one map: the CLI's fixed env and the host's terminal
-// passthrough under the config's overrides, plus the CLI's pkginfo and the host's GitHub token.
+// passthrough under the config's overrides, plus the CLI's and the GUI app's pkginfo
+// and the host's GitHub token.
 func (rm *RunMap) Env() (map[string]string, error) {
 	cli := rm.cfg.CLI()
 	pkgInfo, err := cli.PkgInfoJSON()
 	if err != nil {
 		return nil, err
 	}
+	guiAppPkgInfo, err := guiapp.JSON()
+	if err != nil {
+		return nil, err
+	}
 	env := mergeempty.Map(cli.Env, hostTerminalEnv())
 	return mergeempty.Map(mergeempty.Map(env, rm.cfg.Env), map[string]string{
-		pkginfo.EnvVar: pkgInfo,
-		envGHToken:     os.Getenv(envGHToken),
+		pkginfo.EnvVar:       pkgInfo,
+		pkginfo.GUIAppEnvVar: guiAppPkgInfo,
+		envGHToken:           os.Getenv(envGHToken),
 	}), nil
 }
 

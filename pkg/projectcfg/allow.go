@@ -1,12 +1,14 @@
 package projectcfg
 
-import "github.com/s12chung/ccbox/pkg/cli"
+import (
+	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/guiapp"
+)
 
-// AllowDefaults are the egress domains DefaultsToken expands to: the wall's built-in
-// allow — shared defaults plus every supported CLI's own domains, computed per call
-// from the loaded cli set.
+// AllowDefaults are the egress domains DefaultsToken expands to, computed per
+// call from the loaded cli set.
 func AllowDefaults() []string {
-	return append(append([]string{}, sharedAllowDefaults...), cliAllowDomains()...)
+	return append(append(append([]string{}, sharedAllowDefaults...), guiapp.AllowDomains...), cliAllowDomains()...)
 }
 
 // sharedAllowDefaults are the CLI-independent egress domains.

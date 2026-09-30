@@ -1,0 +1,10 @@
+#!/bin/sh
+# Exec the playwright-managed Chromium as the session's default GUI browser:
+# sandbox off (the devbox has no user namespaces), --test-type to drop the
+# warning banner that raises, dev-shm use moved off the container's tiny
+# /dev/shm, and no first-run prompt.
+for chrome in "${PLAYWRIGHT_BROWSERS_PATH:-/opt/ms-playwright}"/*/*/chrome; do
+  [ -f "$chrome" ] && exec "$chrome" --no-sandbox --test-type --disable-dev-shm-usage --no-first-run "$@"
+done
+echo "web-browser: no playwright chromium found under PLAYWRIGHT_BROWSERS_PATH" >&2
+exit 1

@@ -27,27 +27,6 @@ func TestURLTemplate_Latest(t *testing.T) {
 		assert.Equal(t, "1.0.5", v)
 	})
 
-	t.Run("arch template", func(t *testing.T) {
-		var hits []string
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			hits = append(hits, r.URL.Path)
-			_, _ = w.Write([]byte("1.0.5"))
-		}))
-		defer srv.Close()
-
-		u := NewURLTemplate(srv.URL+"/linux-$arch/manifest", pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
-
-		v, err := u.Latest()
-		require.NoError(t, err)
-		assert.Equal(t, "1.0.5", v)
-
-		want := "/linux-x64/manifest"
-		if runtime.GOARCH == "arm64" {
-			want = "/linux-arm64/manifest"
-		}
-		assert.Equal(t, []string{want}, hits)
-	})
-
 	for _, body := range []string{"", "not found", "<html>502</html>", "1.0.5\n1.0.6"} {
 		t.Run("rejects "+body, func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

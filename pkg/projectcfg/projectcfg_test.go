@@ -10,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -223,6 +224,12 @@ func TestAllowDefaults_IncludeEveryCli(t *testing.T) {
 		for _, d := range c.AllowDomains {
 			assert.Containsf(t, AllowDefaults(), d, "%s: %s", c.Name, d)
 		}
+	}
+}
+
+func TestAllowDefaults_IncludeGuiApp(t *testing.T) {
+	for _, d := range guiapp.AllowDomains {
+		assert.Containsf(t, AllowDefaults(), d, "guiapp: %s", d)
 	}
 }
 

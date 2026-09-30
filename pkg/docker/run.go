@@ -8,6 +8,7 @@ import (
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/docker/go-connections/nat"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
@@ -15,6 +16,13 @@ import (
 )
 
 const proxyPort = "8888"
+
+// desktopVNCPort is the port an image's desktop serves native VNC on. Published
+// on the host loopback, so a VNC client connects at localhost:5900 when the
+// image ships a desktop; nothing listens behind the port when it doesn't. 5900
+// is the stock RFB port, and macOS Screen Sharing only takes it without the
+// display number.
+const desktopVNCPort = "5900"
 
 // RunOptions configures the interactive devbox container.
 type RunOptions struct {
@@ -67,8 +75,11 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		NetworkMode: networkMode,
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
-		Binds:       mountSpecs(hostOptions.Mounts),
-		Tmpfs:       tmpfsMap(hostOptions.TmpfsPaths),
+		// Loopback-only: native RFB is VncAuth-password auth on a
+		// plain wire, so keep it off the network.
+		PortBindings: nat.PortMap{desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}}},
+		Binds:        mountSpecs(hostOptions.Mounts),
+		Tmpfs:        tmpfsMap(hostOptions.TmpfsPaths),
 	}, nil
 }
 

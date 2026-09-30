@@ -11,9 +11,10 @@ import (
 
 // `go:embed` can't reach above its own package dir and can't
 // embed a nested module either, so embed a ccboxtools binary
-// that's checked at build time by `ccbox doctor tools`
-
-//go:embed Dockerfile docker/* dist/ccboxtools
+// that's checked at build time by `ccbox doctor tools`.
+// all: keeps the desktop home's dot-dirs (.config) embedded.
+//
+//go:embed all:Dockerfile all:docker/* dist/ccboxtools
 var buildContext embed.FS
 
 func main() {

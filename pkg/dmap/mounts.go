@@ -132,6 +132,7 @@ func cliScratchBind(scratchFile, mount string) []docker.Mount {
 // globalVolumesMap maps volume name → container directory for volumes shared by every project
 var globalVolumesMap = map[string]string{
 	"ccbox-clis": install.DefaultRoot, // ccboxtools installs the coding CLI here at start
+	"ccbox-apps": install.AppsRoot,    // ccboxtools installs the GUI app here at start
 }
 
 // cacheVolumeSuffix is the suffix for cacheVolumesMap in case of collisions

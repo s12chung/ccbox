@@ -3,7 +3,7 @@
 package pkger
 
 import (
-	"errors"
+	"fmt"
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/artifact"
@@ -34,17 +34,33 @@ func ForPkgInfo(info pkginfo.PkgInfo) (Pkger, error) {
 		if err != nil {
 			return nil, err
 		}
-		return FilePkger{name: info.Name, Downloader: d, Installer: artifact.NewRawBin(info.Name)}, nil
+		installer, err := newInstaller(*info.ReleaseURL, info.Name)
+		if err != nil {
+			return nil, err
+		}
+		return FilePkger{name: info.Name, Downloader: d, Installer: installer}, nil
 	}
 }
 
-// pkgerize returns the download source for the pkginfo.ReleaseURL
+// pkgerize returns the download source for the pkginfo.ReleaseURL, its url's
+// $arch resolved for the running arch
 func pkgerize(rel pkginfo.ReleaseURL) (Downloader, error) {
-	if rel.DownloadTemplate == nil { // unrepresentable via firm-validated config; Go-constructed configs hit it
-		return nil, errors.New("pkger: no download_template")
+	if rel.DownloadTemplate == nil {
+		return dler.NewJQ(rel.ArchedURL(), rel.JQSchema)
 	}
+	return dler.NewURLTemplate(rel.ArchedURL(), *rel.DownloadTemplate), nil
+}
 
-	return dler.NewURLTemplate(rel.URL, *rel.DownloadTemplate), nil
+func newInstaller(rel pkginfo.ReleaseURL, name string) (Installer, error) {
+	if rel.Artifact == nil {
+		return artifact.NewRawBin(name), nil
+	}
+	switch rel.Artifact.Type {
+	case "deb":
+		return artifact.NewDeb(rel.Artifact.RelBin), nil
+	default: // unrepresentable via firm-validated config; Go-constructed configs hit it
+		return nil, fmt.Errorf("pkger: unknown artifact type %q", rel.Artifact.Type)
+	}
 }
 
 // PkgDir is a Pkger bound to a clis root: the volume paths the CLI installs to.

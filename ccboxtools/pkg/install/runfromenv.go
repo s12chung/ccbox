@@ -19,19 +19,23 @@ const LockWaitEnv = "CCBOX_LOCK_WAIT"
 // the CLI, ClisDirEnv overrides the clis root. The env-driven entry both the entrypoint
 // and `ccboxtools update` go through.
 func RunFromEnv() error {
-	body := os.Getenv(pkginfo.EnvVar)
-	if body == "" {
+	pkginfoJSON := os.Getenv(pkginfo.EnvVar)
+	if pkginfoJSON == "" {
 		return fmt.Errorf("%s is not set", pkginfo.EnvVar)
 	}
-	info, err := pkginfo.FromJSON(body)
+	info, err := pkginfo.FromJSON(pkginfoJSON)
 	if err != nil {
 		return err
 	}
-
 	root := os.Getenv(ClisDirEnv)
 	if root == "" {
 		root = DefaultRoot
 	}
+	return RunPkgInfo(info, root)
+}
+
+// RunPkgInfo installs info's CLI or GUI app at root.
+func RunPkgInfo(info pkginfo.PkgInfo, root string) error {
 	p, err := pkger.ForPkgInfo(info)
 	if err != nil {
 		return err

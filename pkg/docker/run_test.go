@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestRunConfig(t *testing.T) {
@@ -92,4 +94,23 @@ func TestRunConfig(t *testing.T) {
 			assert.Equal(t, tt.want, runConfig(tt.opts))
 		})
 	}
+}
+
+func TestRunHostConfig(t *testing.T) {
+	opts := RunOptions{
+		RunHostOptions: RunHostOptions{
+			ProjectDir: "/host/proj",
+			Mounts:     []Mount{NewBind("/host/proj", "/home/ccbox/proj")},
+			TmpfsPaths: []string{"/home/ccbox/.cache"},
+		},
+	}
+
+	hostConfig, err := runHostConfig(nil, opts)
+
+	require.NoError(t, err)
+	assert.Equal(t, nat.PortMap{
+		desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}},
+	}, hostConfig.PortBindings)
+	assert.Equal(t, []string{"/host/proj:/home/ccbox/proj"}, hostConfig.Binds)
+	assert.Equal(t, map[string]string{"/home/ccbox/.cache": tmpfsOpts}, hostConfig.Tmpfs)
 }

@@ -1,5 +1,5 @@
-// Package pkginfo describes a coding CLI's install source — npm or a version URL —
-// as the CLI_PKGINFO JSON the container consumes to install the CLI at start.
+// Package pkginfo describes an install source — a coding CLI or the GUI app —
+// as the env JSON the container consumes to install it at start.
 package pkginfo
 
 import (
@@ -15,7 +15,7 @@ import (
 // cliName is a filesystem-safe CLI name: no separators, no leading dot
 var cliName = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)}
 
-// EnvVar is the container env var carrying a PkgInfo's JSON.
+// EnvVar is the container env var carrying a coding CLI's PkgInfo JSON.
 const EnvVar = "CLI_PKGINFO"
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or

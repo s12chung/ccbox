@@ -1,0 +1,62 @@
+#!/bin/sh
+# Resize the VNC box on demand from the terminal, to any WxH — not just the
+# stock RANDR modes. For clients that cannot ask for a resize themselves:
+# a client window's size only reaches the server via RFB's SetDesktopSize
+# message (which e.g. macOS Screen Sharing never sends), so the box stays at
+# its last size and the client scales or letterboxes it.
+set -eu
+
+# The desktop's server sits on display :0 of this user; the devbox
+# terminal has no DISPLAY of its own.
+DISPLAY="${DISPLAY:-:0}"
+export DISPLAY
+
+die() { echo "vncsize: $*" >&2; exit 1; }
+usage() { echo "usage: vncsize [WxH|list]" >&2; exit 2; }
+
+# One probe feeds every read below — the helpers reuse $screen
+[ $# -le 1 ] || usage
+screen=$(xrandr -q 2>/dev/null) || die "no X display at $DISPLAY — is the desktop running?"
+output=$(printf '%s\n' "$screen" | awk '/ connected/ { print $1; exit }')
+[ -n "$output" ] || die "no connected output"
+
+have_mode() { printf '%s\n' "$screen" | awk -v m="$1" '$1 == m { f = 1 } END { exit !f }'; }
+# The screen's current mode is the one starred in the mode list
+current_mode() { printf '%s\n' "$screen" | awk '/\*/ { print $1; exit }'; }
+
+case "${1:-}" in
+"")
+  printf '%s\n' "$screen" | sed -n "1{s/^Screen 0: //;p};/^$output /p"
+  ;;
+list)
+  printf '%s\n' "$screen" | awk '$1 ~ /^[0-9]+x[0-9]+$/ { print $1 }' | sort -u
+  ;;
+[0-9]*x[0-9]*)
+  w=${1%%x*} h=${1#*x}
+  case "$w$h" in *[!0-9]*) usage ;; esac
+  # Strip leading zeros: dash reads them as octal in test and $(( )), and
+  # "0800" isn't even valid octal. "000" normalizes to 0, rejected by range.
+  w=${w#"${w%%[!0]*}"} h=${h#"${h%%[!0]*}"}
+  w=${w:-0} h=${h:-0}
+  [ "$w" -ge 32 ] && [ "$w" -le 16384 ] && [ "$h" -ge 32 ] && [ "$h" -le 16384 ] \
+    || die "size out of range 32..16384: $1"
+  if [ "$1" = "$(current_mode)" ]; then
+    exit 0
+  fi
+
+  # Sizes beyond the stock list need a mode added first. Xvnc ignores the
+  # modeline's timing values — these just fill in well-formed numbers —
+  # and sizes a SetDesktopSize client already asked for appear under the
+  # same WxH name, so have_mode reuses either instead of re-adding.
+  if ! have_mode "$1"; then
+    xrandr --newmode "$1" 100.00 "$w" $((w + 8)) $((w + 48)) $((w + 248)) \
+      "$h" $((h + 3)) $((h + 8)) $((h + 20)) -HSync +Vsync
+    xrandr --addmode "$output" "$1"
+  fi
+  xrandr --output "$output" --mode "$1"
+  echo "vncsize: $1"
+  ;;
+*)
+  usage
+  ;;
+esac

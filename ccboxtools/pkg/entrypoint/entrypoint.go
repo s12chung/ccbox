@@ -1,5 +1,5 @@
-// Package entrypoint is the container's fail-closed boot: it verifies the
-// container's identity and egress wall, updates the coding CLI, then execs the
+// Package entrypoint is the container's fail-closed boot: verify the container's
+// identity and egress wall, update the CLIs and GUI app, then exec the
 // container's command. Any check failure refuses the container to start.
 package entrypoint
 
@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/guiapp"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
@@ -20,9 +21,7 @@ const (
 	ccboxUser = "ccbox"
 )
 
-// Run verifies the container's identity and egress wall, updates the coding CLI,
-// then execs argv — replacing this process, so the container's command keeps PID 1.
-// Every check fails closed: one failure and the container refuses to start.
+// Run execs argv, replacing this process so the container's command keeps PID 1.
 func Run(argv []string) error {
 	if err := checkIdentity(os.Getuid(), currentUserName(), exec.LookPath); err != nil {
 		return err
@@ -37,11 +36,14 @@ func Run(argv []string) error {
 			return err
 		}
 	}
+	if startDesktop(exec.LookPath) {
+		guiapp.Install()
+	}
 	return execArgv(argv)
 }
 
-// execArgv replaces this process with argv, preserving PID 1 and its TTY — the
-// semantics of the shell `exec` this package replaces. Empty argv fails loudly.
+// execArgv execs argv with the shell `exec`'s semantics — the process is replaced
+// in place, PID 1 and its TTY preserved.
 func execArgv(argv []string) error {
 	if len(argv) == 0 {
 		return errors.New("no command to exec")

@@ -139,6 +139,27 @@ func testLoadUserSkips(t *testing.T, name, body string, configs map[string]strin
 const validCliYAML = "npm:\n  package: mycli\nconfig_home_mount: \".mycli\"\ncmd: \"mycli\"\n" +
 	"continue_args: \"-c\"\nresume_args: \"--resume\"\n"
 
+// TestParseCLI_ReleaseURLDoc loads a jq_schema version_url: the selector
+// must parse at load, not on first install.
+func TestParseCLI_ReleaseURLDoc(t *testing.T) {
+	body := "version_url:\n" +
+		"  url: \"https://zcode.z.ai/api/v1/releases/electron/manifest\"\n" +
+		"  jq_schema:\n" +
+		"    format: yaml\n" +
+		"    version: \".version\"\n" +
+		"    download_url: \".url\"\n" +
+		"config_home_mount: \".mycli\"\n" +
+		"cmd: \"mycli\"\n" +
+		"continue_args: \"-c\"\n" +
+		"resume_args: \"--resume\"\n"
+
+	c, err := parseCLI("mycli", []byte(body), false)
+	require.NoError(t, err)
+	rel := c.ReleaseURL
+	assert.Equal(t, "yaml", rel.JQSchema.Format)
+	assert.Equal(t, ".version", rel.JQSchema.Version)
+}
+
 func TestParseCLI_Rejects(t *testing.T) {
 	for _, tt := range []struct {
 		name string
@@ -162,8 +183,13 @@ func TestParseCLI_Rejects(t *testing.T) {
 			[]string{"Npm.Package.Match"},
 		},
 		{
-			"no download_template", "version_url:\n  url: https://x\n",
-			[]string{"ReleaseURL.DownloadTemplate.Nil", "DownloadTemplate is nil"},
+			"no download source", "version_url:\n  url: https://x\n",
+			[]string{"ReleaseURL.OneNotNil", "must have exactly one of [DownloadTemplate JQSchema] non-nil, got []"},
+		},
+		{
+			"jq schema on template mode", "version_url:\n  url: https://x\n  download_template:\n    x64_url: https://x\n    arm64_url: https://x\n" +
+				"  jq_schema:\n    format: yaml\n    version: \".version\"\n    download_url: \".url\"\n",
+			[]string{"ReleaseURL.OneNotNil", "must have exactly one of [DownloadTemplate JQSchema] non-nil, got [DownloadTemplate JQSchema]"},
 		},
 		{
 			"non-https version_url url", "version_url:\n  url: \"ftp://x\"\n  download_template:\n    x64_url: https://x\n    arm64_url: https://x\n",
@@ -172,6 +198,16 @@ func TestParseCLI_Rejects(t *testing.T) {
 		{
 			"non-https download_template", "version_url:\n  url: https://x\n  download_template:\n    x64_url: \"ftp://x\"\n    arm64_url: https://x\n",
 			[]string{"X64URL.Match"},
+		},
+		{
+			"bad jq format", "version_url:\n  url: https://x\n" +
+				"  jq_schema:\n    format: xml\n    version: \".version\"\n    download_url: \".url\"\n",
+			[]string{"Format.OneOf"},
+		},
+		{
+			"bad jq selector", "version_url:\n  url: https://x\n" +
+				"  jq_schema:\n    format: yaml\n    version: \".version]\"\n    download_url: \".url\"\n",
+			[]string{"JQExpr"},
 		},
 		{
 			"missing session args", "npm:\n  package: mycli\ncmd: \"mycli\"\nconfig_home_mount: \".mycli\"\n",
@@ -254,7 +290,7 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"grok","npm":null,"version_url":{"url":"https://x.ai/cli/stable",`+
 		`"download_template":{"x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",`+
-		`"arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"}}}`, body)
+		`"arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"},"jq_schema":null,"artifact":null}}`, body)
 }
 
 func TestCLI_SessionCmd(t *testing.T) {

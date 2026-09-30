@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- Desktop defaults: no icons — the desktop shows nothing. Installed under the
+     home at start, so it wins over a persistent home's saved channel. -->
+<channel name="xfce4-desktop" version="1.0">
+  <property name="last-settings-migration-version" type="uint" value="1"/>
+  <property name="desktop-icons" type="empty">
+    <property name="style" type="uint" value="0"/>
+  </property>
+</channel>

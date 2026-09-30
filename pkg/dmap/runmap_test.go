@@ -13,6 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
@@ -94,6 +95,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(home, ".ccbox", "codex"), "/home/ccbox/.codex"),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "persist", s), "/home/ccbox/.ccbox/persist"),
+		docker.NewVolume("ccbox-apps", install.AppsRoot).Global(),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),
 		docker.NewVolume("ccbox"+s+"-gem-cache-default", "/home/ccbox/.gem"),
@@ -126,12 +128,15 @@ func TestRunMap_Env(t *testing.T) {
 
 	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
 	require.NoError(t, err)
+	guiAppPkgInfo, err := guiapp.JSON()
+	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", // from CLI.yaml
 		"DISABLE_AUTOUPDATER":                      "0", // overrides CLI.yaml from above
 		"TERM":                                     "xterm-256color",
 		"COLORTERM":                                "truecolor",
 		pkginfo.EnvVar:                             pkgInfo,
+		pkginfo.GUIAppEnvVar:                       guiAppPkgInfo,
 		"GH_TOKEN":                                 "tok",
 	}, env)
 }

@@ -40,11 +40,30 @@ func TestForPkgInfo(t *testing.T) {
 		assert.Equal(t, "grok", filePkger.RelBin())
 	})
 
-	t.Run("no download_template", func(t *testing.T) {
+	t.Run("manifest deb", func(t *testing.T) {
+		p, err := ForPkgInfo(pkginfo.PkgInfo{
+			Name: "zcode",
+			ReleaseURL: &pkginfo.ReleaseURL{
+				URL:      srv.URL + "/manifest",
+				JQSchema: &pkginfo.JQSchema{Format: "yaml", Version: ".version", DownloadURL: ".url"},
+				Artifact: &pkginfo.Artifact{Type: "deb", RelBin: "opt/ZCode/zcode"},
+			},
+		})
+		require.NoError(t, err)
+		assert.Equal(t, "zcode", p.Name())
+
+		filePkger, ok := p.(FilePkger)
+		require.True(t, ok)
+		assert.IsType(t, dler.JQ{}, filePkger.Downloader)
+		assert.IsType(t, artifact.Deb{}, filePkger.Installer)
+		assert.Equal(t, "opt/ZCode/zcode", filePkger.RelBin())
+	})
+
+	t.Run("no download source", func(t *testing.T) {
 		_, err := ForPkgInfo(pkginfo.PkgInfo{Name: "grok", ReleaseURL: &pkginfo.ReleaseURL{
 			URL: "https://x",
 		}})
-		assert.ErrorContains(t, err, "no download_template")
+		assert.ErrorContains(t, err, "no download_template or jq_schema download_url")
 	})
 }
 
@@ -55,9 +74,22 @@ func TestPkgerize_ConfigError(t *testing.T) {
 		wantErr string
 	}{
 		{
-			"no download_template",
+			"no download source",
 			pkginfo.ReleaseURL{URL: "https://x"},
-			"no download_template",
+			"no download_template or jq_schema download_url",
+		},
+		{
+			"download_url missing",
+			pkginfo.ReleaseURL{URL: "https://x", JQSchema: &pkginfo.JQSchema{Format: "yaml", Version: ".version"}},
+			"no download_template or jq_schema download_url",
+		},
+		{
+			"unknown jq format",
+			pkginfo.ReleaseURL{
+				URL:      "https://x",
+				JQSchema: &pkginfo.JQSchema{Format: "xml", Version: ".version", DownloadURL: ".url"},
+			},
+			`unknown format "xml"`,
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

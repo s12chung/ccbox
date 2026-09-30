@@ -17,9 +17,13 @@ import (
 // which the PATH leads with its bin dir.
 const DefaultRoot = "/opt/ccbox/clis"
 
+// AppsRoot is the apps root's container mount: the ccbox-apps global volume's,
+// where the GUI app (pkginfo.GUIAppEnvVar) installs at start.
+const AppsRoot = "/opt/ccbox/apps"
+
 // Run resolves pkgDir's latest version, installs it unless it is already current,
 // and prunes every other version of the CLI — all under the CLI's install lock.
-// A Run() failure keeps the installed version; with nothing installed, it fails.
+// A Run() failure keeps the installed version; with nothing usable installed, it fails.
 func Run(pkgDir pkger.PkgDir) error {
 	return flock.Do(pkgDir.LockPath(), func() error {
 		active := fsutil.CurrentVersion(pkgDir.Current())
@@ -27,6 +31,11 @@ func Run(pkgDir pkger.PkgDir) error {
 		if err != nil {
 			if active == "" {
 				return fmt.Errorf("resolve %s latest: %w", pkgDir.Name(), err)
+			}
+			if !installed(pkgDir, active) {
+				// the stand-in must carry the executable: an install predating the
+				// layout can't serve the session, so surface the resolve failure
+				return fmt.Errorf("resolving %s latest failed (%w) and installed %s lacks %s", pkgDir.Name(), err, active, pkgDir.RelBin())
 			}
 			log.Warnf("resolving %s latest cli failed (%v); using installed %s", pkgDir.Name(), err, active)
 			return nil

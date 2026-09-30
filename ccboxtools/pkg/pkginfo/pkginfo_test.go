@@ -64,3 +64,19 @@ func TestPkgInfoFromJSON(t *testing.T) {
 		})
 	}
 }
+
+func TestFromJSON_BadFormat(t *testing.T) {
+	body := `{"name":"z","version_url":{"url":"https://z",` +
+		`"jq_schema":{"format":"xml","version":".version","download_url":".url"}}}`
+	_, err := FromJSON(body)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Format.OneOf")
+}
+
+func TestFromJSON_BadSelector(t *testing.T) {
+	body := `{"name":"z","version_url":{"url":"https://z",` +
+		`"jq_schema":{"format":"yaml","version":".version]","download_url":".url"}}}`
+	_, err := FromJSON(body)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Version.JQExpr")
+}

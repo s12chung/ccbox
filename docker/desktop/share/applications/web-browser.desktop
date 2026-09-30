@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Web Browser
+Exec=/usr/local/bin/web-browser %U
+Terminal=false
+Type=Application
+Icon=web-browser
+Categories=Network;WebBrowser;
+MimeType=x-scheme-handler/http;x-scheme-handler/https;text/html;

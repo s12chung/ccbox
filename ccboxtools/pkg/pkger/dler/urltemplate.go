@@ -11,9 +11,6 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/httputil"
 )
 
-// arm64Arch is the arm64 name the vendor urls and goarch share.
-const arm64Arch = "arm64"
-
 // URLTemplate downloads the version's file by substituting it into the config's
 // per-arch url templates: the template mode of the download source. The url's
 // body is the bare version, and the file is served as-is, unverified.
@@ -33,7 +30,7 @@ func NewURLTemplate(url string, tpl pkginfo.DownloadTemplate) URLTemplate {
 
 // Latest fetches the url's body — its bare version — versionRe-guarded.
 func (u URLTemplate) Latest() (string, error) {
-	body, err := fetchBody(u.client, u.url)
+	body, err := httputil.Body(u.client, u.url)
 	if err != nil {
 		return "", err
 	}
@@ -60,21 +57,11 @@ func (u URLTemplate) downloadURL(version string) (string, error) {
 	switch runtime.GOARCH {
 	case "amd64":
 		tmpl = u.X64URL
-	case arm64Arch:
+	case "arm64":
 		tmpl = u.Arm64URL
 	}
 	if tmpl == "" {
 		return tmpl, fmt.Errorf("dler: no download url for %s", runtime.GOARCH)
 	}
 	return strings.ReplaceAll(tmpl, "$version", version), nil
-}
-
-// subArch substitutes $arch in url with goarch's vendor name (x64/arm64); a url
-// without $arch passes through.
-func subArch(url, goarch string) string {
-	arch, ok := map[string]string{"amd64": "x64", arm64Arch: arm64Arch}[goarch]
-	if !ok {
-		return url
-	}
-	return strings.ReplaceAll(url, "$arch", arch)
 }
