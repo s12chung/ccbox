@@ -26,7 +26,6 @@ read_only_globs:
 # projects (AWS creds, CAs, dotfiles). Dirs missing on the host are safely ignored.
 read_only_binds:
   gitconfig: enabled
-  # gitconfig: enabled # dynamically binds the host's gitconfig, honoring XDG_CONFIG_HOME
   # ~/.aws: ~/.aws
   # /srv/ca: /home/ccbox/.local/share/ca
 

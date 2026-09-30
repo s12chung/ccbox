@@ -22,7 +22,6 @@ read_only_globs:
 # read_only_binds: bind host dirs into the container read-only. Use for config shared across
 # projects (AWS creds, CAs, dotfiles). Dirs missing on the host are safely ignored.
 read_only_binds:
-  # gitconfig: enabled # dynamically binds the host's gitconfig, honoring XDG_CONFIG_HOME
   # ~/.aws: ~/.aws
   # /srv/ca: /home/ccbox/.local/share/ca
 
