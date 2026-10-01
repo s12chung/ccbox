@@ -19,8 +19,8 @@ const (
 	lockFileName = ".lock"
 )
 
-// ErrNotLast reports that the leaving holder was not the last live one: a
-// settle-last caller swallows it to skip its settle
+// ErrNotLast reports that the leaving holder was not the last live one: the
+// last one out swallows it to skip its clean
 var ErrNotLast = errors.New("flock: a live holder remains")
 
 // MultiFlock tracks a shared resource's live holders in Dir: one flock-held entry per

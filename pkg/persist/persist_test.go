@@ -56,7 +56,7 @@ func TestShare_Begin_Scratch(t *testing.T) {
 	assert.NoDirExists(t, s.scratch())
 }
 
-func TestShare_Settle_Unchanged(t *testing.T) {
+func TestShare_Clean_Unchanged(t *testing.T) {
 	s := testShare(t)
 
 	_, clean, err := s.Begin()
@@ -67,7 +67,7 @@ func TestShare_Settle_Unchanged(t *testing.T) {
 	assert.NoDirExists(t, s.realDir(), "an untouched folder leaves nothing behind")
 }
 
-func TestShare_Settle_Changed(t *testing.T) {
+func TestShare_Clean_Changed(t *testing.T) {
 	s := testShare(t)
 
 	_, clean, err := s.Begin()
@@ -81,7 +81,7 @@ func TestShare_Settle_Changed(t *testing.T) {
 	assert.NoDirExists(t, s.scratch())
 }
 
-func TestShare_Settle_EmptyDirOnly(t *testing.T) {
+func TestShare_Clean_EmptyDirOnly(t *testing.T) {
 	s := testShare(t)
 
 	_, clean, err := s.Begin()
@@ -117,7 +117,7 @@ func TestShare_Begin_Piggyback(t *testing.T) {
 	assert.DirExists(t, s.scratch())
 	assert.NoDirExists(t, s.realDir())
 
-	// the last run out settles
+	// the last run out cleans up
 	require.NoError(t, clean())
 	assertSeeded(t, filepath.Join(s.realDir(), "README.md"))
 	assertFile(t, filepath.Join(s.realDir(), "notes/ideas.txt"), "live run's edit")
@@ -168,7 +168,7 @@ func TestShare_VerifyShared(t *testing.T) {
 	require.NoError(t, s.verifyShared(), "the Dir bound directly is the share")
 }
 
-func TestShare_Settle_IntoExistingDir(t *testing.T) {
+func TestShare_Clean_IntoExistingDir(t *testing.T) {
 	s := testShare(t)
 
 	_, clean, err := s.Begin()
@@ -185,7 +185,7 @@ func TestShare_Settle_IntoExistingDir(t *testing.T) {
 
 	require.NoError(t, clean())
 
-	// the run's copy settles in; the Dir's differing copy is kept aside as a variant
+	// the run's copy is promoted; the Dir's differing copy is kept aside as a variant
 	assertFile(t, filepath.Join(s.realDir(), "README.md"), "run's edit")
 	variants, err := filepath.Glob(filepath.Join(s.realDir(), "README.run-*.md"))
 	require.NoError(t, err)
@@ -202,16 +202,16 @@ func TestShare_Settle_IntoExistingDir(t *testing.T) {
 	assert.NoDirExists(t, s.scratch())
 }
 
-func TestShare_Settle_CrashLeftover_IntoExistingDir(t *testing.T) {
+func TestShare_Clean_CrashLeftover_IntoExistingDir(t *testing.T) {
 	s := testShare(t)
 
-	// a crashed run leaves a changed scratch; the Dir exists from an earlier settle
+	// a crashed run leaves a changed scratch; the Dir exists from an earlier clean
 	crashRun(t)
 	writeScratch(t, s, "notes.txt", "written before the crash")
 	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
 	require.NoError(t, os.WriteFile(filepath.Join(s.realDir(), "README.md"), []byte("dir's own"), ioutil.File))
 
-	// the next Begin settles the leftover scratch into the existing Dir
+	// the next Begin promotes the leftover scratch into the existing Dir
 	dir, clean, err := s.Begin()
 	require.NoError(t, err)
 	assert.Equal(t, s.realDir(), dir)
@@ -226,14 +226,14 @@ func TestShare_Settle_CrashLeftover_IntoExistingDir(t *testing.T) {
 	assert.NoDirExists(t, s.scratch())
 }
 
-func TestShare_Settle_CrashLeftover(t *testing.T) {
+func TestShare_Clean_CrashLeftover(t *testing.T) {
 	s := testShare(t)
 
 	// a run seeded the scratch, changed it, then crashed before its cleanup ran
 	crashRun(t)
 	writeScratch(t, s, "notes.txt", "written before the crash")
 
-	// the next Begin settles the leftover scratch
+	// the next Begin promotes the leftover scratch
 	dir, clean, err := s.Begin()
 	require.NoError(t, err)
 	assert.Equal(t, s.realDir(), dir)
@@ -247,7 +247,7 @@ func TestShare_Settle_CrashLeftover(t *testing.T) {
 func TestShare_Begin_CrashLeftover_Unchanged(t *testing.T) {
 	s := testShare(t)
 
-	// a crashed run leaves an untouched scratch; the Dir exists from an earlier settle
+	// a crashed run leaves an untouched scratch; the Dir exists from an earlier clean
 	crashRun(t)
 	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
 	require.NoError(t, ioutil.SafeWriteFile(filepath.Join(s.realDir(), "README.md"), []byte("dir's own")))

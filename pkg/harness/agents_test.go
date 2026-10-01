@@ -349,12 +349,12 @@ func TestAgentsMdShare_Begin_LatecomerBindsOwnDoc(t *testing.T) {
 	assert.Empty(t, scratchFile)
 	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
 
-	// the live run's share is untouched until its last out settles
+	// the live run's share is untouched until its last out cleans up
 	require.NoError(t, piggybackClean())
 	assert.FileExists(t, claudeScratch(userDir))
 	assert.FileExists(t, claudeBase(userDir))
 
-	// the last out settles nothing: the scratch was never edited, and the host's doc stands
+	// the last out promotes nothing: the scratch was never edited, and the host's doc stands
 	require.NoError(t, clean())
 	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
 	assertRegular(t, claudeCliFile(userDir))
@@ -393,7 +393,7 @@ func TestAgentsMdShare_VerifyShared(t *testing.T) {
 	require.NoError(t, s.verifyShared(), "the owned doc bound directly is the share")
 }
 
-func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {
+func TestAgentsMdShare_Begin_CleansLeftover_PromotesChanged(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeScratch(userDir), "edited") // leftover scratch: edited by the crashed run
 
@@ -407,7 +407,7 @@ func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {
 	assert.True(t, gone(t, claudeScratch(userDir)))
 }
 
-func TestAgentsMdShare_Begin_SettlesLeftover_ResharesUnchanged(t *testing.T) {
+func TestAgentsMdShare_Begin_CleansLeftover_ResharesUnchanged(t *testing.T) {
 	userDir := resetUserDir(t)
 
 	// leftover scratch: unchanged from its source doc
@@ -426,10 +426,10 @@ func TestAgentsMdShare_Begin_SettlesLeftover_ResharesUnchanged(t *testing.T) {
 	assert.True(t, gone(t, claudeBase(userDir)))         // baseline gone
 }
 
-// TestAgentsMdShare_Begin_SettlesLeftover_AfterPromote: a crash between the promote and the
+// TestAgentsMdShare_Begin_CleansLeftover_AfterPromote: a crash between the promote and the
 // cleanup's removals leaves the promoted doc, its scratch, and the baseline; the next run
-// finishes the settle and binds nothing
-func TestAgentsMdShare_Begin_SettlesLeftover_AfterPromote(t *testing.T) {
+// finishes the clean and binds nothing
+func TestAgentsMdShare_Begin_CleansLeftover_AfterPromote(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, userAgentsMd(userDir), "shared")
 	writeFile(t, claudeScratch(userDir), "edited")
@@ -465,7 +465,7 @@ func TestHelperCrashRun(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestAgentsMdShare_Cleanup settles the bound scratch into the realCliFile: a diff is promoted
+// TestAgentsMdShare_Cleanup cleans up the bound scratch: a diff is promoted
 // as-is, and the doc it was bound from is left untouched
 func TestAgentsMdShare_Cleanup(t *testing.T) {
 	for _, tc := range []struct {
@@ -557,7 +557,7 @@ func TestAgentsMdShare_Cleanup_DiffErrorDropsSymlink(t *testing.T) {
 
 	require.Error(t, claudeShare().clean())
 
-	assert.True(t, lstatGone(t, claudeCliFile(userDir)), "the symlink is dropped despite the failed settle")
+	assert.True(t, lstatGone(t, claudeCliFile(userDir)), "the symlink is dropped despite the failed clean")
 	assert.False(t, gone(t, claudeScratch(userDir)), "the scratch is kept for the next run")
 }
 
@@ -574,7 +574,7 @@ func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 	assert.Equal(t, adminMd, readFile(t, claudeBase(userDir)), "baseline kept with the scratch")
 }
 
-// TestAgentsMdShare_Cleanup_HostChangedDuringRun: the host's doc edits settle nothing; the
+// TestAgentsMdShare_Cleanup_HostChangedDuringRun: the host's doc edits promote nothing; the
 // container's scratch edits still promote
 func TestAgentsMdShare_Cleanup_HostChangedDuringRun(t *testing.T) {
 	for _, tc := range []struct {
@@ -669,7 +669,7 @@ func TestAgentsMdShare_Cleanup_HostChangedDuringRun(t *testing.T) {
 	}
 }
 
-// TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun: the leftover settle diffs against the
+// TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun: the leftover clean diffs against the
 // crashed run's baseline, so host edits made while down are not promoted
 func TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
 	userDir := resetUserDir(t)
@@ -680,7 +680,7 @@ func TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
 	// the host edits while it's down
 	writeFile(t, userAgentsMd(userDir), "host edit")
 
-	// the next run settles the leftovers: nothing promoted
+	// the next run cleans up the leftovers: nothing promoted
 	require.NoError(t, claudeShare().clean())
 	assert.True(t, lstatGone(t, claudeCliFile(userDir)))
 	assert.True(t, gone(t, claudeScratch(userDir)))

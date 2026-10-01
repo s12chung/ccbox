@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// fakeSharer records its lifecycle, settling without error
+// fakeSharer records its lifecycle, cleaning without error
 type fakeSharer struct {
 	dir     string
 	err     error // Begin's error
@@ -18,7 +18,7 @@ type fakeSharer struct {
 
 func (f *fakeSharer) Begin() (string, func() error, error) {
 	if f.err != nil {
-		return "", nil, f.err // a failed Begin leaves nothing to settle
+		return "", nil, f.err // a failed Begin leaves nothing to clean
 	}
 	f.begun = true
 	return f.dir, func() error { f.cleaned = true; return nil }, nil
@@ -36,7 +36,7 @@ func TestShare_Begin(t *testing.T) {
 	assert.Equal(t, "/b", secondDir)
 
 	require.NoError(t, clean())
-	assert.True(t, first.cleaned && second.cleaned, "clean settles every Sharer")
+	assert.True(t, first.cleaned && second.cleaned, "every Sharer is cleaned")
 }
 
 func TestShare_Begin_SharerError(t *testing.T) {
@@ -50,8 +50,8 @@ func TestShare_Begin_SharerError(t *testing.T) {
 	assert.Equal(t, "/a", firstDir, "a Sharer begun before the failure still sets its dir")
 
 	require.NoError(t, clean())
-	assert.True(t, first.cleaned, "the begun Sharer still settles")
-	assert.False(t, second.cleaned, "the failed Sharer leaves nothing to settle")
+	assert.True(t, first.cleaned, "the begun Sharer is still cleaned")
+	assert.False(t, second.cleaned, "the failed Sharer leaves nothing to clean")
 }
 
 func TestShare_Begin_SizeMismatch(t *testing.T) {
@@ -68,7 +68,7 @@ func TestShare_Begin_SizeMismatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			clean, err := Share{&fakeSharer{dir: "/a"}}.Begin(tt.dirs...)
 			require.ErrorContains(t, err, tt.want)
-			assert.Nil(t, clean, "nothing begun, nothing to settle")
+			assert.Nil(t, clean, "nothing begun, nothing to clean")
 		})
 	}
 }

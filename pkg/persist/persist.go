@@ -34,12 +34,12 @@ func Dir(projectDir string) string {
 }
 
 // Share persists the project's Dir across runs: the mount is bound via a scratch
-// copy, and the run's changes are settled into the Dir.
+// copy, and the run's changes are promoted into the Dir.
 type Share struct{ ProjectDir string }
 
 // Begin binds the persist mount: an existing Dir directly; a missing one, a seeded
-// scratch copy whose cleanup settles changes into the Dir. Concurrent runs share the
-// one scratch: the first run seeds it, latecomers bind it as-is, the last out settles it.
+// scratch copy whose cleanup promotes changes into the Dir. Concurrent runs share the
+// one scratch: the first run seeds it, latecomers bind it as-is, the last out cleans it up.
 func (s Share) Begin() (string, func() error, error) {
 	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
 	clean := klean.SwallowErr(klean.NewQueue(leave, s.clean).Run, flock.ErrNotLast)
@@ -75,7 +75,7 @@ func (s Share) initialShare() error {
 	return err
 }
 
-// clean settles the run's changes into the Dir, then drops the scratch
+// clean promotes the run's changes into the Dir, then drops the scratch
 func (s Share) clean() error {
 	scratch := s.scratch()
 	if ioutil.Missing(scratch) {
@@ -94,7 +94,7 @@ func (s Share) clean() error {
 	return os.RemoveAll(scratch)
 }
 
-// promote settles the scratch into the Dir, moving the Dir's differing copies
+// promote merges the scratch into the Dir, moving the Dir's differing copies
 // aside for the run's changes
 func (s Share) promote() error {
 	asides, err := fsync.Merge(s.scratch(), s.realDir(), "run-"+runid.New())

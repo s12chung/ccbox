@@ -18,7 +18,7 @@ func (s Share) Begin(dirs ...*string) (func() error, error) {
 	var joiner Joiner
 	for i, sharer := range s {
 		dir, clean, err := sharer.Begin()
-		joiner.Push("settle share", clean)
+		joiner.Push("clean share", clean)
 		if err != nil {
 			return joiner.Run, err
 		}

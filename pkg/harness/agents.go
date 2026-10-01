@@ -47,8 +47,8 @@ type AgentsMdShare struct {
 }
 
 // Begin shares the AGENTS doc with a CLI that has no realCliFile, returning the scratch
-// file to bind and a cleanup settling changes into the realCliFile. Concurrent runs share
-// the one scratch: the first run writes it, latecomers bind it as-is, the last out settles it.
+// file to bind and a cleanup promoting changes into the realCliFile. Concurrent runs share
+// the one scratch: the first run writes it, latecomers bind it as-is, the last out cleans it up.
 func (s AgentsMdShare) Begin() (string, func() error, error) {
 	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
 	clean := klean.SwallowErr(klean.NewQueue(leave, s.clean).Run, flock.ErrNotLast)
