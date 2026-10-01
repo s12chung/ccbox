@@ -20,7 +20,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK
   - `projectcfg/` — related to `ccbox` Config as described in the README
-  - `harness/` — individual harness/cli related code. Built-in CLIs are `go:embed` at `clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins.
+  - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins.
   - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
   - `util/` — std lib utility packages, notable: `must`, `fsync`, `slug`, `mergeempty`, `uslice`
     - `httputil/` — http utilities for requests

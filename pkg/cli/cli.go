@@ -1,39 +1,38 @@
-// Package harness abstracts the coding CLIs ccbox can install and launch
+// Package cli abstracts the coding CLIs ccbox can install and launch
 //
 // NOTE: Multiple timeframes and actions to separate in chronological order:
 //  1. on Load(), called from cmd.rootCmd.PersistentPreRunE() - CLI.yaml are loaded,
 //     which cannot have errors to configure `ccbox` itself. They are from:
 //     a. embed, where we panic() instead, due compile-time embed constant
-//     b. UserCLITemplatesDir(), where we log.Warn() and skip instead. Validations on the CLI.yaml and config/
+//     b. clitmpl.UserDir(), where we log.Warn() and skip instead. Validations on the CLI.yaml and config/
 //     dir are done, _effectively guaranteeing_ valid CLI structs and workable config/ dir onwards
 //  2. on cmd.rootCmd.PersistentPreRunE():
-//     a. UserCLITemplatesSeedFS() seeds the UserCLITemplatesDir()
+//     a. clitmpl.UserSeedFS() seeds the clitmpl.UserDir()
 //     b. projectcfg.Load() validates projectcfg.Config, which given 1b., _effectively guarantees_ any
 //     cliName passed down will match a CLI in All()
 //  3. MustFor() is also called in multiple places. 2b. should be the earliest guard for cliName passed down
-//  4. UserCLIConfigSeedFS() for seeding the config to configure the running containerized CLI
-package harness
+//  4. clitmpl.UserCLIConfigSeedFS() for seeding the config to configure the running containerized CLI
+package cli
 
 import (
-	"embed"
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"maps"
-	"path"
 	"path/filepath"
 	"slices"
 	"strings"
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
+	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
-	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
@@ -55,58 +54,43 @@ func All() []CLI {
 // Names lists every supported CLI's name, sorted by name.
 func Names() []string { return slices.Sorted(maps.Keys(all)) }
 
-// clis naming, on two axes:
-//   - source: "embed" (compile-time) or "user" (host, under userdir.Dir())
-//   - target: "CLI templates" — the clis tree: <root>/clis/<name>/CLI.yaml plus <root>/clis/<name>/config/
-//     "CLI config" — the CLI's live config: ~/.ccbox/<cli_name>
-//
-// Seeding seeds the CLI config with the template.
-const (
-	clisDir               = "clis"
-	cliYAML               = "CLI.yaml"
-	seedTemplateConfigDir = "config"
-)
-
-// userConfigDir is the user config dir: ~/.ccbox/config. Tests point it at a temp tree.
-var userConfigDir = userdir.ConfigDir()
-
-// UserCLIConfigDir is the CLI's user config dir: ~/.ccbox/<cli_name>. Tests point HOME at a temp tree.
-func UserCLIConfigDir(cliName string) string {
+// UserConfigDir is the CLI's user config dir: ~/.ccbox/<cli_name>. Tests point HOME at a temp tree.
+func UserConfigDir(cliName string) string {
 	return filepath.Join(userdir.Dir(), MustFor(cliName).Name)
-}
-
-// UserCLITemplatesDir is the host dir of user-defined CLI templates: ~/.ccbox/config/clis.
-func UserCLITemplatesDir() string { return filepath.Join(userConfigDir, clisDir) }
-
-// UserCLIConfigSeedFS returns the seed fs for the cli's config: the CLI's template config
-// tree, from embed or the user's UserCLITemplatesDir().
-func UserCLIConfigSeedFS(cliName string) fs.FS {
-	cli := MustFor(cliName)
-	fsTemplateConfigPath := path.Join(clisDir, cliName, seedTemplateConfigDir)
-	fsys := fs.FS(embedFS)
-	if cli.fromUserDir {
-		// mergedFS.MkdirAll ensures fsTemplateConfigPath exists for the caller, so the fs.Sub()
-		// below doesn't panic: loadFsYAML skips user clis whose clis/<cliName>/config is a file
-		mergedFS := mfs.MustNewFS(userFS())
-		must.Do(mergedFS.MkdirAll(fsTemplateConfigPath))
-		fsys = mergedFS
-	}
-	// any cliName passed down will match a CLI in All() - see package NOTE
-	return must.Get(fs.Sub(fsys, fsTemplateConfigPath))
 }
 
 // mustLoadAll parses the embedded clis, then merges user-defined ones over
 // them: a user cli takes priority over an embedded cli of the same name,
 // replacing it.
 func mustLoadAll() map[string]CLI {
-	embedClis := must.Get(wrapTreeLoad(embedTree().load())) // unreachable: the source is a compile-time embed constant
-	userClis := must.Get(wrapTreeLoad(userTree().load()))   // unreachable: userTree().load() should never return an error
+	// unreachable: the source is a compile-time embed constant
+	embedClis := must.Get(wrapTreeLoad(clitmpl.Load(clitmpl.EmbedTree(), parseCLI)))
+	// unreachable: UserTree() should never return an error
+	userClis := must.Get(wrapTreeLoad(clitmpl.Load(clitmpl.UserTree(), parseCLI)))
 
 	all := make(map[string]CLI, len(embedClis)+len(userClis))
 	for _, c := range slices.Concat(embedClis, userClis) {
 		all[c.Name] = c
 	}
 	return all
+}
+
+// parseCLI decodes one CLI.yaml body into its CLI, named name, with isUserDefined
+// set from its tree — firm-validated to fail at startup, not on first use.
+func parseCLI(name string, body []byte, isUserDefined bool) (CLI, error) {
+	var c CLI
+	dec := yaml.NewDecoder(bytes.NewReader(body))
+	dec.KnownFields(true)
+	if err := dec.Decode(&c); err != nil {
+		return CLI{}, fmt.Errorf("cli: parse %s: %w", name, err)
+	}
+
+	c.Name = name
+	c.isUserDefined = isUserDefined
+	if errMap := firm.ValidateAny(c); errMap != nil {
+		return CLI{}, fmt.Errorf("cli: parse %s: %w", name, errMap)
+	}
+	return c, nil
 }
 
 // wrapTreeLoad runs a clis tree load, printing its warnings
@@ -117,17 +101,19 @@ func wrapTreeLoad(clis []CLI, warns []error, err error) ([]CLI, error) {
 	return clis, err
 }
 
-// LoadUserCLITemplates loads just the user CLI templates tree, returning its load warnings
-func LoadUserCLITemplates() ([]CLI, []error, error) { return userTree().load() }
+// LoadUserClis loads just the user clis tree, returning its load warnings
+func LoadUserClis() ([]CLI, []error, error) {
+	return clitmpl.Load(clitmpl.UserTree(), parseCLI)
+}
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {
 	// PkgInfo is the CLI's install source: its name plus exactly one of Npm or VersionURL;
-	// Name is always overridden by defaulted() from the CLI's directory name
+	// Name is always overridden by parseCLI from the cli dir's name
 	pkginfo.PkgInfo `yaml:",inline"`
 
-	// fromUserDir is true if it's from the user dir
-	fromUserDir bool
+	// isUserDefined is true if the CLI is user-defined, not from the embedded tree
+	isUserDefined bool
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the
 	// mounted config is found with no override; ConfigDirEnvKey points the CLI's env var at it.
@@ -178,11 +164,14 @@ func init() {
 		}))
 }
 
+// IsUserDefined is true if the CLI is user-defined, not from the embedded tree
+func (c CLI) IsUserDefined() bool { return c.isUserDefined }
+
 // PkgInfoJSON renders c's install source as the CLI_PKGINFO JSON for the container env.
 func (c CLI) PkgInfoJSON() (string, error) {
 	body, err := json.Marshal(c.PkgInfo)
 	if err != nil {
-		return "", fmt.Errorf("harness: %w", err)
+		return "", fmt.Errorf("cli: %w", err)
 	}
 	return string(body), nil
 }
@@ -195,16 +184,10 @@ func For(name string) (CLI, bool) { return maputil.Get(all, name) }
 func MustFor(name string) CLI {
 	c, ok := For(name)
 	if !ok {
-		panic(fmt.Sprintf("harness: unknown cli %q", name))
+		panic(fmt.Sprintf("cli: unknown cli %q", name))
 	}
 	return c
 }
-
-//go:embed user-clis
-var userCLITemplatesSeed embed.FS
-
-// UserCLITemplatesSeedFS returns the embedded tree seeded onto a fresh UserCLITemplatesDir().
-func UserCLITemplatesSeedFS() fs.FS { return must.Get(fs.Sub(userCLITemplatesSeed, "user-clis")) }
 
 // SessionCmd maps the run flags to the CLI's session syntax: continue the last
 // session, resume one (bare for the picker, or named via args), or launch fresh.

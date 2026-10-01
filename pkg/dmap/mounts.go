@@ -8,9 +8,9 @@ import (
 	"slices"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -28,11 +28,11 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 
 // binds composes the run's binds and volumes in a deterministic order
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
-	cli := rm.cfg.CLI()
+	c := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
 	var scratchBind, persistBind klean.ShareBind
 	clean, err := klean.Share{
-		share.AgentsMd(cli.Name),
+		share.AgentsMd(c.Name),
 		share.PersistDir(projectDir),
 	}.Begin(&scratchBind, &persistBind)
 	if err != nil {
@@ -42,7 +42,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
-			docker.NewBind(harness.UserCLIConfigDir(cli.Name), path.Join(projectcfg.ContainerHome, cli.ConfigHomeMount)),
+			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(projectcfg.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
 		volumes(globalVolumesMap, true),
@@ -50,7 +50,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
-		cliDataBinds(rm.userDir, cli),
+		cliDataBinds(rm.userDir, c),
 		cliScratchBind(scratchBind.HostPath, scratchBind.ContainerPath),
 	), clean, nil
 }
@@ -106,10 +106,10 @@ func readOnlyBinds(binds map[string]string) []docker.Mount {
 
 // cliDataBinds renders cli's data binds as binds under the container home, sorted for a
 // deterministic spec.
-func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
-	binds := make(map[string]string, len(cli.DataBinds))
-	for key := range cli.DataBinds {
-		host := CLIDataBindPath(userDir, cli.Name, key)
+func cliDataBinds(userDir string, c cli.CLI) []docker.Mount {
+	binds := make(map[string]string, len(c.DataBinds))
+	for key := range c.DataBinds {
+		host := CLIDataBindPath(userDir, c.Name, key)
 		binds[host] = key
 	}
 

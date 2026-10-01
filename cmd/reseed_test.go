@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -35,7 +35,7 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			home := t.TempDir()
 			t.Setenv("HOME", home)
-			cli, requireOK := harness.For(tc.cli)
+			cli, requireOK := cli.For(tc.cli)
 			require.True(t, requireOK)
 			wantDir := filepath.Join(home, ".ccbox", cli.Name)
 
@@ -64,7 +64,7 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 
 func TestSafeSeedConfig_ExistingSkips(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
-	require.NoError(t, os.MkdirAll(harness.UserCLIConfigDir("claude"), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(cli.UserConfigDir("claude"), ioutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {

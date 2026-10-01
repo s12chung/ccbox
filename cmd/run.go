@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
@@ -82,9 +82,9 @@ func seedRunMounts(userDir string) error {
 }
 
 // safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>
-func safeSeedCLIDataBinds(userDir string, cli harness.CLI) error {
-	for key, content := range cli.DataBinds {
-		host := dmap.CLIDataBindPath(userDir, cli.Name, key)
+func safeSeedCLIDataBinds(userDir string, c cli.CLI) error {
+	for key, content := range c.DataBinds {
+		host := dmap.CLIDataBindPath(userDir, c.Name, key)
 		if content == nil {
 			if err := os.MkdirAll(host, ioutil.Dir); err != nil {
 				return err

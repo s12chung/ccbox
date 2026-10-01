@@ -14,7 +14,7 @@ import (
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 
-	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
@@ -61,7 +61,7 @@ func init() {
 	firm.MustRegisterType(firm.NewDefinition[Config]().
 		NotNil("CLIName").
 		Validates(firm.RuleMap{
-			"CLIName": {rule.OneOfFunc[string]{ValuesFunc: harness.Names}},
+			"CLIName": {rule.OneOfFunc[string]{ValuesFunc: cli.Names}},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal
 			"TmpfsMasks":    {firm.Elems[[]string](firmrule.MaskDir)},
@@ -84,9 +84,9 @@ func init() {
 // ProjectDir is the project dir the config was loaded from
 func (c *Config) ProjectDir() string { return c.projectDir }
 
-// CLI resolves the config's cli name to its harness.CLI; MustFor is
+// CLI resolves the config's cli name to its cli.CLI; MustFor is
 // infallible for a loaded config
-func (c *Config) CLI() harness.CLI { return harness.MustFor(*c.CLIName) }
+func (c *Config) CLI() cli.CLI { return cli.MustFor(*c.CLIName) }
 
 // merge layers other onto c — lists append, a set later scalar wins, maps merge per key
 func (c *Config) merge(other Config) {

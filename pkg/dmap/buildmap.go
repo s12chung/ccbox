@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 )
 
@@ -26,14 +26,14 @@ func NewBuildMap(tag string) *BuildMap { return &BuildMap{tag: tag} }
 func (bm *BuildMap) Options() docker.BuildOptions {
 	return docker.BuildOptions{
 		Tag:       bm.tag,
-		BuildArgs: map[string]string{dataBindDirsArgKey: dataBindDirs(harness.All())},
+		BuildArgs: map[string]string{dataBindDirsArgKey: dataBindDirs(cli.All())},
 	}
 }
 
 // dataBindDirs converts cli.DataBinds to dataBindDirsArgKey's value
 // a list of mount points to mkdir -p in the Dockerfile
 // so the directories are ccbox user owned for mounts (otherwise root owned)
-func dataBindDirs(clis []harness.CLI) string {
+func dataBindDirs(clis []cli.CLI) string {
 	dirs := map[string]struct{}{}
 	for _, cli := range clis {
 		for key := range cli.DataBinds {

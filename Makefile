@@ -10,8 +10,8 @@ build:
 
 lint:
 	hadolint Dockerfile
-	shellcheck pkg/harness/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
-	find pkg/harness/clis -name '*.json' -exec jq empty {} +
+	shellcheck pkg/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
+	find pkg/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null
 
 	go run ./toolsbuild -goarch $(GOARCH) -o dist/ccboxtools # needed to build for lint

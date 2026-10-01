@@ -7,7 +7,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
@@ -95,14 +95,14 @@ func readAgentsMd(path string) ([]byte, error) {
 	return append([]byte(adminMd), body...), nil
 }
 
-// realCliFile is the CLI's AGENTS doc: <UserCLIConfigDir>/AGENTS.md
+// realCliFile is the CLI's AGENTS doc: <UserConfigDir>/AGENTS.md
 func realCliFile(cliName string) string {
-	return filepath.Join(harness.UserCLIConfigDir(cliName), AgentsMdFileName)
+	return filepath.Join(cli.UserConfigDir(cliName), AgentsMdFileName)
 }
 
-// cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: <UserCLIConfigDir>/AGENTS.ccbox-admin.md
+// cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: <UserConfigDir>/AGENTS.ccbox-admin.md
 func cliAdminPath(cliName string) string {
-	return filepath.Join(harness.UserCLIConfigDir(cliName), agentsAdminMdFileName)
+	return filepath.Join(cli.UserConfigDir(cliName), agentsAdminMdFileName)
 }
 
 // userAgentsMdPath is the shared AGENTS doc's host path: ~/.ccbox/AGENTS.user.md

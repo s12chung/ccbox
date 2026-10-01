@@ -20,7 +20,7 @@ const EnvVar = "CLI_PKGINFO"
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or
 // VersionURL. It travels to the container as the CLI_PKGINFO env JSON, and is
-// inlined into harness.CLI's CLI.yaml.
+// inlined into cli.CLI's CLI.yaml.
 type PkgInfo struct {
 	Name       string      `json:"name"        yaml:"name"`
 	Npm        *Npm        `json:"npm"         yaml:"npm"`

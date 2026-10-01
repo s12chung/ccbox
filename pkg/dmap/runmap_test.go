@@ -10,9 +10,9 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
@@ -124,7 +124,7 @@ func TestRunMap_Env(t *testing.T) {
 	env, err := rm.Env()
 	require.NoError(t, err)
 
-	pkgInfo, err := harness.MustFor("claude").PkgInfoJSON()
+	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", // from CLI.yaml

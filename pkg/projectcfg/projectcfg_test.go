@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -86,7 +86,7 @@ func TestMain(m *testing.M) {
 	_, err = SeedUserConfig("claude")
 	must.Do(err)
 
-	harness.Load()
+	cli.Load()
 
 	code := m.Run()
 	_ = os.RemoveAll(dir)
@@ -219,7 +219,7 @@ func TestInit_RefusesExisting(t *testing.T) {
 
 func TestAllowDefaults_IncludeEveryCli(t *testing.T) {
 	// every loaded cli's domains count — embedded or user-defined, they all sit in All()
-	for _, c := range harness.All() {
+	for _, c := range cli.All() {
 		for _, d := range c.AllowDomains {
 			assert.Containsf(t, AllowDefaults(), d, "%s: %s", c.Name, d)
 		}

@@ -14,7 +14,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
-	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/toolsbuild"
 	"github.com/s12chung/ccbox/pkg/userdir"
 )
@@ -46,14 +47,14 @@ var doctorToolsCmd = &cobra.Command{
 var doctorClisCmd = &cobra.Command{
 	Use:   "clis",
 	Short: "Check the user-defined clis load",
-	RunE:  func(_ *cobra.Command, _ []string) error { return checkUserClis(harness.LoadUserCLITemplates()) },
+	RunE:  func(_ *cobra.Command, _ []string) error { return checkUserClis(cli.LoadUserClis()) },
 }
 
 func init() { doctorCmd.AddCommand(doctorToolsCmd, doctorClisCmd) }
 
 // checkUserClis reports the user clis tree's load warnings as errors — a bad
 // cli.yaml is skipped with a startup warning, so doctor is where they surface.
-func checkUserClis(_ []harness.CLI, warns []error, err error) error {
+func checkUserClis(_ []cli.CLI, warns []error, err error) error {
 	if err != nil {
 		return err
 	}
@@ -61,7 +62,7 @@ func checkUserClis(_ []harness.CLI, warns []error, err error) error {
 		log.Errorf("%s", warn)
 	}
 	if len(warns) > 0 {
-		return fmt.Errorf("%d user cli(s) failed to load in %s", len(warns), userdir.Tilde(harness.UserCLITemplatesDir()))
+		return fmt.Errorf("%d user cli(s) failed to load in %s", len(warns), userdir.Tilde(clitmpl.UserDir()))
 	}
 	return nil
 }

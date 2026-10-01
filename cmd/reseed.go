@@ -10,7 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
-	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 )
@@ -25,7 +26,9 @@ var reseedCmd = &cobra.Command{
 
 // safeSeedCLIConfig seeds cli's host config dir
 func safeSeedCLIConfig(cliName string, confirm bool) error {
-	return safeSeed(harness.UserCLIConfigSeedFS(cliName), harness.UserCLIConfigDir(cliName), confirm)
+	// any cliName passed down will match a CLI in All() - see the cli package NOTE
+	c := cli.MustFor(cliName)
+	return safeSeed(clitmpl.UserCLIConfigSeedFS(cliName, c.IsUserDefined()), cli.UserConfigDir(cliName), confirm)
 }
 
 // seedFn is fsync.Seed, indirected so tests can stub out the file-copying step.

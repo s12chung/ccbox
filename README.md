@@ -29,9 +29,9 @@ Protect your protect these configs:
 - `volume_masks` — cover directories with a persistent per-project volume: the container keeps its own copy across runs. For `node_modules`-like folders.
 - `read_only_globs` — block writes to glob paths (files or directories) with read-only re-mounts: the real files, never modified. For files that must never change (configs, secrets).
 
-`ccbox` built-in LLM harness configurations prevent reads, as external container configurations can't. You can [add your own harnesses](pkg/harness/user-clis/README.md) that do so too.
+`ccbox` built-in LLM harness configurations prevent reads, as external container configurations can't. You can [add your own harnesses](pkg/cli/clitmpl/user-clis/README.md) that do so too.
 
 ## Docs
 
-- **[`pkg/harness/admin.md`](pkg/harness/admin.md)** — start here: the container the CLI runs inside (user, network wall, what's installed), prepended to the agents docs' `ccbox-admin` variants.
+- **[`pkg/dmap/share/admin.md`](pkg/dmap/share/admin.md)** — start here: the container the CLI runs inside (user, network wall, what's installed), prepended to the agents docs' `ccbox-admin` variants.
 - **[`AGENTS.md`](AGENTS.md)** — the project layout: the `ccbox` CLI, the build inputs, and how to build/test.

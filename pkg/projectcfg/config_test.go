@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/s12chung/ccbox/pkg/harness"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -33,10 +33,10 @@ func TestConfig_CLI(t *testing.T) {
 
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
-	assert.Equal(t, harness.MustFor("claude"), c.CLI())
+	assert.Equal(t, cli.MustFor("claude"), c.CLI())
 
 	bare := Config{CLIName: new("emacs")}
-	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { bare.CLI() })
+	assert.PanicsWithValue(t, `cli: unknown cli "emacs"`, func() { bare.CLI() })
 }
 
 func TestConfig_mergeOverlays(t *testing.T) {

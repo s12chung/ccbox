@@ -11,9 +11,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
@@ -48,7 +49,7 @@ var rootCmd = &cobra.Command{
 	RunE:          run,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
-			harness.Load() // --cli completions read the cli names: no seeding, no config load
+			cli.Load() // --cli completions read the cli names: no seeding, no config load
 			return nil
 		}
 		for c := cmd; c != nil; c = c.Parent() {
@@ -59,8 +60,8 @@ var rootCmd = &cobra.Command{
 		if err := safeSeedHarness(); err != nil {
 			return err
 		}
-		// before safeSeedUserConfig's picker and projectcfg.Load, which read harness.Names()
-		harness.Load()
+		// before safeSeedUserConfig's picker and projectcfg.Load, which read cli.Names()
+		cli.Load()
 		if err := safeSeedUserConfig(); err != nil {
 			return err
 		}
@@ -89,8 +90,8 @@ func init() {
 	pf.Var(flagutils.StringPtr(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
 	// unreachable error: "cli" is registered above
 	must.Do(rootCmd.RegisterFlagCompletionFunc("cli", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
-		// a closure, so that harness.Load() runs first in PersistentPreRunE
-		return harness.Names(), cobra.ShellCompDirectiveNoFileComp
+		// a closure, so that cli.Load() runs first in PersistentPreRunE
+		return cli.Names(), cobra.ShellCompDirectiveNoFileComp
 	}))
 
 	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
@@ -98,7 +99,7 @@ func init() {
 
 // safeSeedHarness seeds the user-level harness state if missing
 func safeSeedHarness() error {
-	if err := safeSeed(harness.UserCLITemplatesSeedFS(), harness.UserCLITemplatesDir(), false); err != nil {
+	if err := safeSeed(clitmpl.UserSeedFS(), clitmpl.UserDir(), false); err != nil {
 		return err
 	}
 	return share.SafeSeedAgentsMd()
@@ -113,9 +114,9 @@ func safeSeedUserConfig() error {
 		"Select a harness CLI",
 		[]string{
 			fmt.Sprintf("(stored in %s)", userdir.Tilde(projectcfg.UserConfigFile())),
-			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(harness.UserCLITemplatesDir(), "README.md"))),
+			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md"))),
 		},
-		harness.Names())
+		cli.Names())
 	if err != nil {
 		return err
 	}

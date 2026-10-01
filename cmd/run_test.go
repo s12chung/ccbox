@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -45,9 +45,9 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 	t.Run("creates file at slugged host path", func(t *testing.T) {
 		userDir := t.TempDir()
 		content := "{}"
-		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
+		c := cli.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
 
-		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
+		require.NoError(t, safeSeedCLIDataBinds(userDir, c))
 
 		got, err := os.ReadFile(
 			dmap.CLIDataBindPath(userDir, "opencode", ".local/share/opencode/auth.json"),
@@ -58,9 +58,9 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 
 	t.Run("creates dir", func(t *testing.T) {
 		userDir := t.TempDir()
-		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli"}, DataBinds: map[string]*string{".local/share/mycli/store": nil}}
+		c := cli.CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli"}, DataBinds: map[string]*string{".local/share/mycli/store": nil}}
 
-		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
+		require.NoError(t, safeSeedCLIDataBinds(userDir, c))
 
 		info, err := os.Stat(dmap.CLIDataBindPath(userDir, "mycli", ".local/share/mycli/store"))
 		require.NoError(t, err)
@@ -70,13 +70,13 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 	t.Run("skips existing file", func(t *testing.T) {
 		userDir := t.TempDir()
 		content := "{}"
-		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
+		c := cli.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
 		host := dmap.CLIDataBindPath(userDir, "opencode", ".local/share/opencode/auth.json")
 
 		require.NoError(t, os.MkdirAll(filepath.Dir(host), ioutil.Dir))
 		require.NoError(t, os.WriteFile(host, []byte(`{"real":"creds"}`), ioutil.File))
 
-		require.NoError(t, safeSeedCLIDataBinds(userDir, cli))
+		require.NoError(t, safeSeedCLIDataBinds(userDir, c))
 
 		got, err := os.ReadFile(host) // #nosec G304 -- the test's own seeded path
 		require.NoError(t, err)

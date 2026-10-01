@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -113,7 +113,7 @@ func TestReadOnlyBinds(t *testing.T) {
 func TestCLIDataBinds(t *testing.T) {
 	t.Run("renders rw binds under the container home, sorted for a deterministic spec", func(t *testing.T) {
 		userDir := "/home/me/.ccbox"
-		cli := harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{
+		c := cli.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{
 			".local/share/opencode/auth.json":     new("{}"), // file with seed content
 			".local/share/opencode/sessions.json": nil,       // dir despite the extension
 			".config/opencode":                    nil,       // dir
@@ -129,11 +129,11 @@ func TestCLIDataBinds(t *testing.T) {
 				filepath.Join(userDir, "data", "opencode", ".local-share-opencode-sessions.json"),
 				path.Join(projectcfg.ContainerHome, ".local/share/opencode/sessions.json"),
 			),
-		}, cliDataBinds(userDir, cli))
+		}, cliDataBinds(userDir, c))
 	})
 
 	t.Run("no binds when the CLI has none", func(t *testing.T) {
-		assert.Empty(t, cliDataBinds("/home/me/.ccbox", harness.CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli"}}))
+		assert.Empty(t, cliDataBinds("/home/me/.ccbox", cli.CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli"}}))
 	})
 }
 
