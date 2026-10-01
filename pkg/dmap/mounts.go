@@ -30,11 +30,11 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	cli := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
-	var scratchDir, persistDir string
+	var scratchFile, persistDir string
 	clean, err := klean.Share{
-		harness.AgentsMdShare{CLI: cli, ScratchMountDir: cliTmpMount(cli)},
+		harness.AgentsMdShare{CLI: cli, ScratchMount: cliScratchMount(cli)},
 		persist.Share{ProjectDir: projectDir},
-	}.Begin(&scratchDir, &persistDir)
+	}.Begin(&scratchFile, &persistDir)
 	if err != nil {
 		return nil, clean, err
 	}
@@ -51,7 +51,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
 		cliDataBinds(rm.userDir, cli),
-		cliTmpBind(scratchDir, cliTmpMount(cli)),
+		cliScratchBind(scratchFile, cliScratchMount(cli)),
 	), clean, nil
 }
 
@@ -120,18 +120,19 @@ func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 	return dataBinds
 }
 
-// cliTmpMount is the CLI's tmp dir's container path: <ContainerHome>/.ccbox/tmp/<cli_name>
-func cliTmpMount(cli harness.CLI) string {
-	return path.Join(projectcfg.ContainerHome, ".ccbox", "tmp", cli.Name)
+// cliScratchMount is the CLI's shared doc scratch file's container path:
+// <ContainerHome>/.ccbox/tmp/<cli_name>/AGENTS.md
+func cliScratchMount(cli harness.CLI) string {
+	return path.Join(projectcfg.ContainerHome, ".ccbox", "tmp", cli.Name, harness.AgentsMdFileName)
 }
 
-// cliTmpBind binds the shared doc's scratch dir at cliTmpMount; the cliFile symlink
-// points into it. host "" = no bind.
-func cliTmpBind(scratchDir, mount string) []docker.Mount {
-	if scratchDir == "" {
+// cliScratchBind binds the shared doc's scratch file at cliScratchMount; the cliFile
+// symlink points at it. host "" = no bind.
+func cliScratchBind(scratchFile, mount string) []docker.Mount {
+	if scratchFile == "" {
 		return nil
 	}
-	return []docker.Mount{docker.NewBind(scratchDir, mount)}
+	return []docker.Mount{docker.NewBind(scratchFile, mount)}
 }
 
 // globalVolumesMap maps volume name → container directory for volumes shared by every project

@@ -136,19 +136,19 @@ func TestCLIDataBinds(t *testing.T) {
 	})
 }
 
-func TestCliTmpBind(t *testing.T) {
-	t.Run("binds the scratch dir at cliTmpMount", func(t *testing.T) {
+func TestCliScratchBind(t *testing.T) {
+	t.Run("binds the scratch file at cliScratchMount", func(t *testing.T) {
 		for _, cliName := range []string{"claude", "codex", "opencode"} {
 			cli := harness.MustFor(cliName)
-			scratchDir := "/host/.ccbox/tmp/" + cliName
+			scratchFile := "/host/.ccbox/tmp/" + cliName + "/AGENTS.md"
 			assert.Equal(t,
-				[]docker.Mount{docker.NewBind(scratchDir, cliTmpMount(cli))},
-				cliTmpBind(scratchDir, cliTmpMount(cli)), cliName)
+				[]docker.Mount{docker.NewBind(scratchFile, cliScratchMount(cli))},
+				cliScratchBind(scratchFile, cliScratchMount(cli)), cliName)
 		}
 	})
 
-	t.Run("no bind when scratchDir is empty (no scratch created)", func(t *testing.T) {
-		assert.Empty(t, cliTmpBind("", ""))
+	t.Run("no bind when scratchFile is empty (no scratch written)", func(t *testing.T) {
+		assert.Empty(t, cliScratchBind("", ""))
 	})
 }
 

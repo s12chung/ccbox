@@ -106,7 +106,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".config", "git"), projectcfg.GitConfigMount).ReadOnly(),
 		docker.NewBind(filepath.Join(home, "fonts"), "/home/ccbox/fonts").ReadOnly(),
-		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex"), cliTmpMount(harness.MustFor("codex"))),
+		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex", "AGENTS.md"), cliScratchMount(harness.MustFor("codex"))),
 	}, hostOptions.Mounts)
 
 	assert.Equal(t, workspace, hostOptions.WorkspaceMount)

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"path"
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
@@ -42,12 +41,13 @@ type AgentsMdShare struct {
 	// CLI is the run's CLI
 	CLI CLI
 
-	// ScratchMountDir is the scratch dir's container path; the realCliFile symlink points into it
-	ScratchMountDir string
+	// ScratchMount is the scratch file's container path: its bind's target and the
+	// realCliFile symlink's target
+	ScratchMount string
 }
 
 // Begin shares the AGENTS doc with a CLI that has no realCliFile, returning the scratch
-// dir to bind and a cleanup settling changes into the realCliFile. Concurrent runs share
+// file to bind and a cleanup settling changes into the realCliFile. Concurrent runs share
 // the one scratch: the first run writes it, latecomers bind it as-is, the last out settles it.
 func (s AgentsMdShare) Begin() (string, func() error, error) {
 	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
@@ -58,7 +58,7 @@ func (s AgentsMdShare) Begin() (string, func() error, error) {
 	if s.realCliFileExists() {
 		return "", clean, nil // "" indicates no mount, the file is already in the realCliFile()
 	}
-	return s.cliScratchDir(), clean, nil
+	return s.scratchFilePath(), clean, nil
 }
 
 // verifyShared verifies the share a live entry implies is present: the scratch file, or
@@ -184,9 +184,6 @@ func (s AgentsMdShare) promote(body []byte) error {
 	return nil
 }
 
-// cliScratchDir is the scratch file's dir: ~/.ccbox/tmp/<cli_name>
-func (s AgentsMdShare) cliScratchDir() string { return filepath.Join(userdir.Tmp(), s.CLI.Name) }
-
 // multiflock tracks the CLI's live runs: ~/.ccbox/tmp/runs/agents/<cli_name>
 func (s AgentsMdShare) multiflock() flock.MultiFlock {
 	return flock.MultiFlock{Dir: filepath.Join(userdir.Runs(), "agents", s.CLI.Name)}
@@ -194,13 +191,13 @@ func (s AgentsMdShare) multiflock() flock.MultiFlock {
 
 // scratchFilePath is the path of the shared doc: ~/.ccbox/tmp/<cli_name>/AGENTS.md
 func (s AgentsMdShare) scratchFilePath() string {
-	return filepath.Join(s.cliScratchDir(), agentsMdFileName)
+	return filepath.Join(userdir.Tmp(), s.CLI.Name, AgentsMdFileName)
 }
 
 // baseFilePath is the baseline copy the scratch is diffed against. It sits outside the bound
-// scratch dir, so the container can't touch it: ~/.ccbox/tmp/<cli_name>.AGENTS.md.orig
+// scratch, so the container can't touch it: ~/.ccbox/tmp/<cli_name>.AGENTS.md.orig
 func (s AgentsMdShare) baseFilePath() string {
-	return filepath.Join(userdir.Tmp(), s.CLI.Name+"."+agentsMdFileName+".orig")
+	return filepath.Join(userdir.Tmp(), s.CLI.Name+"."+AgentsMdFileName+".orig")
 }
 
 //go:embed admin.md
@@ -210,7 +207,9 @@ var adminMd string
 var agentsReadmeMd string
 
 const (
-	agentsMdFileName      = "AGENTS.md"
+	// AgentsMdFileName is the shared AGENTS doc's file name; dmap joins it into the
+	// scratch bind's container path
+	AgentsMdFileName      = "AGENTS.md"
 	agentsAdminMdFileName = "AGENTS.ccbox-admin.md"
 
 	userAgentsMdFileName       = "AGENTS.user.md"
@@ -220,11 +219,11 @@ const (
 
 // realCliFile is the CLI's AGENTS doc: ~/.ccbox/<cli_name>/AGENTS.md
 func (s AgentsMdShare) realCliFile() string {
-	return filepath.Join(userdir.Dir(), s.CLI.Name, agentsMdFileName)
+	return filepath.Join(userdir.Dir(), s.CLI.Name, AgentsMdFileName)
 }
 
-// cliFileTarget is the realCliFile symlink's target
-func (s AgentsMdShare) cliFileTarget() string { return path.Join(s.ScratchMountDir, agentsMdFileName) }
+// cliFileTarget is the realCliFile symlink's target: the bound scratch's container path
+func (s AgentsMdShare) cliFileTarget() string { return s.ScratchMount }
 
 // realCliFileExists reports whether the CLI's own doc exists at the realCliFile
 func (s AgentsMdShare) realCliFileExists() bool {

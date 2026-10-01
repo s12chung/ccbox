@@ -25,17 +25,17 @@ func resetUserDir(t *testing.T) string {
 
 // claudeShare is the share under test
 func claudeShare() AgentsMdShare {
-	return AgentsMdShare{CLI: MustFor("claude"), ScratchMountDir: "/home/ccbox/.ccbox/tmp/claude"}
+	return AgentsMdShare{CLI: MustFor("claude"), ScratchMount: "/home/ccbox/.ccbox/tmp/claude/AGENTS.md"}
 }
 
 // claudeShareBegin begins a bound share for claude, runs body with the bound scratch dir,
 // then cleans up
-func claudeShareBegin(t *testing.T, body func(scratchDir string)) {
+func claudeShareBegin(t *testing.T, body func(scratchFile string)) {
 	t.Helper()
-	scratchDir, cleanup, err := claudeShare().Begin()
+	scratchFile, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
 	if body != nil {
-		body(scratchDir)
+		body(scratchFile)
 	}
 	require.NoError(t, cleanup())
 }
@@ -43,7 +43,7 @@ func claudeShareBegin(t *testing.T, body func(scratchDir string)) {
 // claudeTarget is the realCliFile symlink's target
 func claudeTarget() string { return claudeShare().cliFileTarget() }
 
-func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", agentsMdFileName) }
+func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", AgentsMdFileName) }
 
 func claudeAdminMd(userDir string) string {
 	return filepath.Join(userDir, "claude", agentsAdminMdFileName)
@@ -57,14 +57,12 @@ func userAgentsReadmeMd(userDir string) string {
 	return filepath.Join(userDir, userAgentsReadmeMdFileName)
 }
 
-func claudeCliTmpPath(userDir string) string { return filepath.Join(userDir, "tmp", "claude") }
-
 func claudeScratch(userDir string) string {
-	return filepath.Join(claudeCliTmpPath(userDir), agentsMdFileName)
+	return filepath.Join(userDir, "tmp", "claude", AgentsMdFileName)
 }
 
 func claudeBase(userDir string) string {
-	return filepath.Join(userDir, "tmp", "claude."+agentsMdFileName+".orig")
+	return filepath.Join(userDir, "tmp", "claude."+AgentsMdFileName+".orig")
 }
 
 func writeFile(t *testing.T, path, body string) {
@@ -245,23 +243,23 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 			}
 
 			if tc.err {
-				scratchDir, cleanup, err := claudeShare().Begin()
+				scratchFile, cleanup, err := claudeShare().Begin()
 				require.Error(t, err)
-				assert.Empty(t, scratchDir)
+				assert.Empty(t, scratchFile)
 				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
 				assert.True(t, gone(t, claudeBase(userDir)), "no baseline written")
 				require.NoError(t, cleanup())
 				return
 			}
 
-			claudeShareBegin(t, func(scratchDir string) {
+			claudeShareBegin(t, func(scratchFile string) {
 				if !tc.binds {
-					assert.Empty(t, scratchDir)
+					assert.Empty(t, scratchFile)
 					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
 					assert.True(t, gone(t, claudeBase(userDir)), "no baseline written")
 					return
 				}
-				assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+				assert.Equal(t, claudeScratch(userDir), scratchFile)
 				assert.Equal(t, tc.body, readFile(t, claudeScratch(userDir)), "the bound scratch's body")
 				assert.Equal(t, tc.body, readFile(t, claudeBase(userDir)), "the written baseline's body")
 				assertSymlinked(t, claudeCliFile(userDir))
@@ -274,10 +272,10 @@ func TestAgentsMdShare_Begin_EmptyCliFileIsOwned(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeCliFile(userDir), "")
 
-	scratchDir, cleanup, err := claudeShare().Begin()
+	scratchFile, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
 
-	assert.Empty(t, scratchDir, "an empty realCliFile is the user's own doc")
+	assert.Empty(t, scratchFile, "an empty realCliFile is the user's own doc")
 	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
 
 	require.NoError(t, cleanup())
@@ -288,10 +286,10 @@ func TestAgentsMdShare_Begin_ForeignSymlinkIsOwned(t *testing.T) {
 	userDir := resetUserDir(t)
 	linkFile(t, claudeCliFile(userDir), "/elsewhere/AGENTS.md") // e.g. the user's dotfiles repo
 
-	scratchDir, cleanup, err := claudeShare().Begin()
+	scratchFile, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
 
-	assert.Empty(t, scratchDir, "a foreign symlink is the user's own doc")
+	assert.Empty(t, scratchFile, "a foreign symlink is the user's own doc")
 	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
 
 	require.NoError(t, cleanup())
@@ -309,16 +307,16 @@ func TestAgentsMdShare_Begin_Piggyback(t *testing.T) {
 	require.NoError(t, err)
 
 	// a second run piggybacks: the same scratch binds, the written share untouched
-	scratchDir, piggybackClean, err := claudeShare().Begin()
+	scratchFile, piggybackClean, err := claudeShare().Begin()
 	require.NoError(t, err)
-	assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+	assert.Equal(t, claudeScratch(userDir), scratchFile)
 	assert.Equal(t, "shared", readFile(t, claudeScratch(userDir)))
 	assert.Equal(t, "shared", readFile(t, claudeBase(userDir)))
 	assertSymlinked(t, claudeCliFile(userDir))
 
 	// the piggyback's cleanup leaves the share for the live run
 	require.NoError(t, piggybackClean())
-	assert.DirExists(t, claudeCliTmpPath(userDir))
+	assert.FileExists(t, claudeScratch(userDir))
 	assertSymlinked(t, claudeCliFile(userDir))
 
 	// the last run out promotes and removes the share
@@ -346,9 +344,9 @@ func TestAgentsMdShare_Begin_LatecomerBindsOwnDoc(t *testing.T) {
 	writeFile(t, claudeCliFile(userDir), "cli")
 
 	// the latecomer binds nothing
-	scratchDir, piggybackClean, err := claudeShare().Begin()
+	scratchFile, piggybackClean, err := claudeShare().Begin()
 	require.NoError(t, err)
-	assert.Empty(t, scratchDir)
+	assert.Empty(t, scratchFile)
 	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
 
 	// the live run's share is untouched until its last out settles
@@ -374,9 +372,9 @@ func TestAgentsMdShare_Begin_LatecomerJoinsOwnDoc(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, gone(t, claudeScratch(userDir)), "an owned doc binds directly, no scratch written")
 
-	scratchDir, piggybackClean, err := claudeShare().Begin()
+	scratchFile, piggybackClean, err := claudeShare().Begin()
 	require.NoError(t, err)
-	assert.Empty(t, scratchDir)
+	assert.Empty(t, scratchFile)
 	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
 
 	require.NoError(t, piggybackClean())
@@ -399,8 +397,8 @@ func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeScratch(userDir), "edited") // leftover scratch: edited by the crashed run
 
-	claudeShareBegin(t, func(scratchDir string) {
-		assert.Empty(t, scratchDir) // leftover promoted, do nothing
+	claudeShareBegin(t, func(scratchFile string) {
+		assert.Empty(t, scratchFile) // leftover promoted, do nothing
 	})
 
 	// check promotion
@@ -417,8 +415,8 @@ func TestAgentsMdShare_Begin_SettlesLeftover_ResharesUnchanged(t *testing.T) {
 	writeFile(t, claudeScratch(userDir), "shared")
 
 	// during session: re-bound as a fresh scratch
-	claudeShareBegin(t, func(scratchDir string) {
-		assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+	claudeShareBegin(t, func(scratchFile string) {
+		assert.Equal(t, claudeScratch(userDir), scratchFile)
 		assert.Equal(t, "shared", readFile(t, claudeScratch(userDir)))
 		assertSymlinked(t, claudeCliFile(userDir))
 	})
@@ -438,8 +436,8 @@ func TestAgentsMdShare_Begin_SettlesLeftover_AfterPromote(t *testing.T) {
 	writeFile(t, claudeBase(userDir), "shared")
 	writeFile(t, claudeCliFile(userDir), "edited") // the promoted edit
 
-	claudeShareBegin(t, func(scratchDir string) {
-		assert.Empty(t, scratchDir)
+	claudeShareBegin(t, func(scratchFile string) {
+		assert.Empty(t, scratchFile)
 	})
 
 	assert.Equal(t, "edited", readFile(t, claudeCliFile(userDir)))
@@ -689,8 +687,8 @@ func TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
 	assert.True(t, gone(t, claudeBase(userDir)))
 
 	// re-binds the host's fresh doc
-	claudeShareBegin(t, func(scratchDir string) {
-		assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
+	claudeShareBegin(t, func(scratchFile string) {
+		assert.Equal(t, claudeScratch(userDir), scratchFile)
 		assert.Equal(t, "host edit", readFile(t, claudeScratch(userDir)))
 		assert.Equal(t, "host edit", readFile(t, claudeBase(userDir)))
 	})
