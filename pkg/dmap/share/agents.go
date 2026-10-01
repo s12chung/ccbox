@@ -95,14 +95,14 @@ func readAgentsMd(path string) ([]byte, error) {
 	return append([]byte(adminMd), body...), nil
 }
 
-// realCliFile is the CLI's AGENTS doc: <CLIConfigDir>/AGENTS.md
+// realCliFile is the CLI's AGENTS doc: <UserCLIConfigDir>/AGENTS.md
 func realCliFile(cliName string) string {
-	return filepath.Join(harness.CLIConfigDir(userdir.Dir(), cliName), AgentsMdFileName)
+	return filepath.Join(harness.UserCLIConfigDir(cliName), AgentsMdFileName)
 }
 
-// cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: <CLIConfigDir>/AGENTS.ccbox-admin.md
+// cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: <UserCLIConfigDir>/AGENTS.ccbox-admin.md
 func cliAdminPath(cliName string) string {
-	return filepath.Join(harness.CLIConfigDir(userdir.Dir(), cliName), agentsAdminMdFileName)
+	return filepath.Join(harness.UserCLIConfigDir(cliName), agentsAdminMdFileName)
 }
 
 // userAgentsMdPath is the shared AGENTS doc's host path: ~/.ccbox/AGENTS.user.md

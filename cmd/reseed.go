@@ -12,7 +12,6 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
-	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 )
 
@@ -20,13 +19,13 @@ var reseedCmd = &cobra.Command{
 	Use:   "reseed",
 	Short: "Seed the host config dir for the configured CLI from the embedded seed, backing up overwrites",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return safeSeedCLIConfig(userdir.Dir(), *projectCfg.CLIName, true)
+		return safeSeedCLIConfig(*projectCfg.CLIName, true)
 	},
 }
 
-// safeSeedCLIConfig seeds cli's host config dir in userDir
-func safeSeedCLIConfig(userDir, cliName string, confirm bool) error {
-	return safeSeed(harness.SeedCLIFS(cliName), harness.CLIConfigDir(userDir, cliName), confirm)
+// safeSeedCLIConfig seeds cli's host config dir
+func safeSeedCLIConfig(cliName string, confirm bool) error {
+	return safeSeed(harness.UserCLIConfigSeedFS(cliName), harness.UserCLIConfigDir(cliName), confirm)
 }
 
 // seedFn is fsync.Seed, indirected so tests can stub out the file-copying step.

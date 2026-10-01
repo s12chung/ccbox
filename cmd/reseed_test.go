@@ -33,10 +33,11 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			userDir := t.TempDir()
+			home := t.TempDir()
+			t.Setenv("HOME", home)
 			cli, requireOK := harness.For(tc.cli)
 			require.True(t, requireOK)
-			wantDir := filepath.Join(userDir, cli.Name)
+			wantDir := filepath.Join(home, ".ccbox", cli.Name)
 
 			var gotDest string
 			var gotFS fs.FS
@@ -45,7 +46,7 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 				return nil, nil
 			})()
 
-			require.NoError(t, safeSeedCLIConfig(userDir, tc.cli, false))
+			require.NoError(t, safeSeedCLIConfig(tc.cli, false))
 			assert.Equal(t, wantDir, gotDest, "config dir seeded")
 
 			var paths []string
@@ -62,9 +63,8 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 }
 
 func TestSafeSeedConfig_ExistingSkips(t *testing.T) {
-	userDir := t.TempDir()
-	configDir := filepath.Join(userDir, "claude")
-	require.NoError(t, os.MkdirAll(configDir, ioutil.Dir))
+	t.Setenv("HOME", t.TempDir())
+	require.NoError(t, os.MkdirAll(harness.UserCLIConfigDir("claude"), ioutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
@@ -72,7 +72,7 @@ func TestSafeSeedConfig_ExistingSkips(t *testing.T) {
 		return nil, nil
 	})()
 
-	require.NoError(t, safeSeedCLIConfig(userDir, "claude", false))
+	require.NoError(t, safeSeedCLIConfig("claude", false))
 	assert.False(t, called, "seed fn called for existing dir without confirm")
 }
 
@@ -82,5 +82,6 @@ func TestSafeSeedConfig_PropagatesSeedError(t *testing.T) {
 		return nil, wantErr
 	})()
 
-	assert.ErrorIs(t, safeSeedCLIConfig(t.TempDir(), "claude", false), wantErr)
+	t.Setenv("HOME", t.TempDir())
+	assert.ErrorIs(t, safeSeedCLIConfig("claude", false), wantErr)
 }

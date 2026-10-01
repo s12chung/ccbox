@@ -98,7 +98,7 @@ func init() {
 
 // safeSeedHarness seeds the user-level harness state if missing
 func safeSeedHarness() error {
-	if err := safeSeed(harness.SeedUserClisFS(), harness.UserCLIsDir(), false); err != nil {
+	if err := safeSeed(harness.UserCLITemplatesSeedFS(), harness.UserCLITemplatesDir(), false); err != nil {
 		return err
 	}
 	return share.SafeSeedAgentsMd()
@@ -113,7 +113,7 @@ func safeSeedUserConfig() error {
 		"Select a harness CLI",
 		[]string{
 			fmt.Sprintf("(stored in %s)", userdir.Tilde(projectcfg.UserConfigFile())),
-			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(harness.UserCLIsDir(), "README.md"))),
+			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(harness.UserCLITemplatesDir(), "README.md"))),
 		},
 		harness.Names())
 	if err != nil {

@@ -71,7 +71,6 @@ func TestRunMap_HostOptions(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "fonts"), ioutil.Dir))
 
-	userDir := t.TempDir()
 	cfg, err := projectcfg.Load(projectDir, projectcfg.Config{
 		CLIName:       new("codex"),
 		TmpfsMasks:    []string{"dist"},
@@ -81,7 +80,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(userDir, cfg).HostOptions()
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions()
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -93,7 +92,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	// config's masks and per-CLI binds, then the shared agents doc's scratch bind
 	assert.Equal(t, []docker.Mount{
 		docker.NewBind(projectDir, workspace),
-		docker.NewBind(filepath.Join(userDir, "codex"), "/home/ccbox/.codex"),
+		docker.NewBind(filepath.Join(home, ".ccbox", "codex"), "/home/ccbox/.codex"),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "persist", s), "/home/ccbox/.ccbox/persist"),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),

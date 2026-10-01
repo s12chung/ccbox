@@ -75,7 +75,7 @@ func init() {
 
 // seedRunMounts seeds the run mounts in userDir
 func seedRunMounts(userDir string) error {
-	if err := safeSeedCLIConfig(userDir, *projectCfg.CLIName, false); err != nil {
+	if err := safeSeedCLIConfig(*projectCfg.CLIName, false); err != nil {
 		return err
 	}
 	return safeSeedCLIDataBinds(userDir, projectCfg.CLI())

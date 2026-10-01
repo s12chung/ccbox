@@ -4,14 +4,14 @@
 //  1. on Load(), called from cmd.rootCmd.PersistentPreRunE() - CLI.yaml are loaded,
 //     which cannot have errors to configure `ccbox` itself. They are from:
 //     a. embed, where we panic() instead, due compile-time embed constant
-//     b. UserCLIsDir(), where we log.Warn() and skip instead. Validations on the CLI.yaml and config/
+//     b. UserCLITemplatesDir(), where we log.Warn() and skip instead. Validations on the CLI.yaml and config/
 //     dir are done, _effectively guaranteeing_ valid CLI structs and workable config/ dir onwards
 //  2. on cmd.rootCmd.PersistentPreRunE():
-//     a. SeedUserClisFS() seeds the UserCLIsDir()
+//     a. UserCLITemplatesSeedFS() seeds the UserCLITemplatesDir()
 //     b. projectcfg.Load() validates projectcfg.Config, which given 1b., _effectively guarantees_ any
 //     cliName passed down will match a CLI in All()
 //  3. MustFor() is also called in multiple places. 2b. should be the earliest guard for cliName passed down
-//  4. SeedCLIFS() for seeding the config to configure the running containerized CLI
+//  4. UserCLIConfigSeedFS() for seeding the config to configure the running containerized CLI
 package harness
 
 import (
@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io/fs"
 	"maps"
-	"os"
 	"path"
 	"path/filepath"
 	"slices"
@@ -56,53 +55,44 @@ func All() []CLI {
 // Names lists every supported CLI's name, sorted by name.
 func Names() []string { return slices.Sorted(maps.Keys(all)) }
 
-// clis tree layout: <root>/clis/<name>/CLI.yaml plus <root>/clis/<name>/config/
+// clis naming, on two axes:
+//   - source: "embed" (compile-time) or "user" (host, under userdir.Dir())
+//   - target: "CLI templates" — the clis tree: <root>/clis/<name>/CLI.yaml plus <root>/clis/<name>/config/
+//     "CLI config" — the CLI's live config: ~/.ccbox/<cli_name>
+//
+// Seeding seeds the CLI config with the template.
 const (
-	clisDir       = "clis"
-	clisGlob      = "clis/*"
-	cliYAML       = "CLI.yaml"
-	seedConfigDir = "config"
+	clisDir               = "clis"
+	cliYAML               = "CLI.yaml"
+	seedTemplateConfigDir = "config"
 )
 
-// cliDir is a cli's dir in a clis tree: clis/<name>
-func cliDir(name string) string { return path.Join(clisDir, name) }
+// userConfigDir is the user config dir: ~/.ccbox/config. Tests point it at a temp tree.
+var userConfigDir = userdir.ConfigDir()
 
-// cliConfigPath is a cli's seed config tree in a clis tree: clis/<name>/config
-func cliConfigPath(name string) string { return path.Join(cliDir(name), seedConfigDir) }
-
-// UserCLIsDir is the host dir of user-defined clis: ~/.ccbox/config/clis.
-func UserCLIsDir() string { return filepath.Join(userConfigDir, clisDir) }
-
-// CLIConfigDir is the host dir of cli's config: userDir/<cli_name>.
-func CLIConfigDir(userDir, cliName string) string {
-	return filepath.Join(userDir, MustFor(cliName).Name)
+// UserCLIConfigDir is the CLI's user config dir: ~/.ccbox/<cli_name>. Tests point HOME at a temp tree.
+func UserCLIConfigDir(cliName string) string {
+	return filepath.Join(userdir.Dir(), MustFor(cliName).Name)
 }
 
-// userCLIsFS returns the user clis tree at userConfigDir
-// DOES NOT detect whether the directory exists, this should be detected on init()--see package NOTE
-func userCLIsFS() fs.FS { return os.DirFS(userConfigDir) }
+// UserCLITemplatesDir is the host dir of user-defined CLI templates: ~/.ccbox/config/clis.
+func UserCLITemplatesDir() string { return filepath.Join(userConfigDir, clisDir) }
 
-var (
-	//go:embed clis
-	embedCLIFS embed.FS
-	// userConfigDir is the user config dir: ~/.ccbox/config. Tests point it at a temp tree.
-	userConfigDir = userdir.ConfigDir()
-)
-
-// SeedCLIFS returns cli's seed fs: the CLI's own config tree, from embed or
-// user-clis from UserCLIsDir().
-func SeedCLIFS(cliName string) fs.FS {
+// UserCLIConfigSeedFS returns the seed fs for the cli's config: the CLI's template config
+// tree, from embed or the user's UserCLITemplatesDir().
+func UserCLIConfigSeedFS(cliName string) fs.FS {
 	cli := MustFor(cliName)
-	fsys := fs.FS(embedCLIFS)
+	fsTemplateConfigPath := path.Join(clisDir, cliName, seedTemplateConfigDir)
+	fsys := fs.FS(embedFS)
 	if cli.fromUserDir {
-		// mergedFS.MkdirAll ensures cliConfigPath exists for the caller, so the fs.Sub()
+		// mergedFS.MkdirAll ensures fsTemplateConfigPath exists for the caller, so the fs.Sub()
 		// below doesn't panic: loadFsYAML skips user clis whose clis/<cliName>/config is a file
-		mergedFS := mfs.MustNewFS(userCLIsFS())
-		must.Do(mergedFS.MkdirAll(cliConfigPath(cliName)))
+		mergedFS := mfs.MustNewFS(userFS())
+		must.Do(mergedFS.MkdirAll(fsTemplateConfigPath))
 		fsys = mergedFS
 	}
 	// any cliName passed down will match a CLI in All() - see package NOTE
-	return must.Get(fs.Sub(fsys, cliConfigPath(cliName)))
+	return must.Get(fs.Sub(fsys, fsTemplateConfigPath))
 }
 
 // mustLoadAll parses the embedded clis, then merges user-defined ones over
@@ -127,8 +117,8 @@ func wrapTreeLoad(clis []CLI, warns []error, err error) ([]CLI, error) {
 	return clis, err
 }
 
-// LoadUserCLIs loads just the user clis tree, returning its load warnings
-func LoadUserCLIs() ([]CLI, []error, error) { return userTree().load() }
+// LoadUserCLITemplates loads just the user CLI templates tree, returning its load warnings
+func LoadUserCLITemplates() ([]CLI, []error, error) { return userTree().load() }
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {
@@ -211,10 +201,10 @@ func MustFor(name string) CLI {
 }
 
 //go:embed user-clis
-var userCLIFSSeed embed.FS
+var userCLITemplatesSeed embed.FS
 
-// SeedUserClisFS returns the embedded tree seeded onto a fresh user clis dir.
-func SeedUserClisFS() fs.FS { return must.Get(fs.Sub(userCLIFSSeed, "user-clis")) }
+// UserCLITemplatesSeedFS returns the embedded tree seeded onto a fresh UserCLITemplatesDir().
+func UserCLITemplatesSeedFS() fs.FS { return must.Get(fs.Sub(userCLITemplatesSeed, "user-clis")) }
 
 // SessionCmd maps the run flags to the CLI's session syntax: continue the last
 // session, resume one (bare for the picker, or named via args), or launch fresh.

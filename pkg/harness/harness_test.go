@@ -26,36 +26,36 @@ func TestNames(t *testing.T) {
 	assert.Equal(t, []string{"claude", "codex", "grok", "opencode", "pi"}, Names())
 }
 
-func TestCLIConfigDir(t *testing.T) {
-	userDir := "/home/me/.ccbox"
-	assert.Equal(t, "/home/me/.ccbox/claude", CLIConfigDir(userDir, "claude"))
+func TestUserCLIConfigDir(t *testing.T) {
+	t.Setenv("HOME", "/home/me")
+	assert.Equal(t, "/home/me/.ccbox/claude", UserCLIConfigDir("claude"))
 }
 
-func TestSeedCLIFS(t *testing.T) {
+func TestUserCLIConfigSeedFS(t *testing.T) {
 	for _, c := range All() {
-		fsys := SeedCLIFS(c.Name)
+		fsys := UserCLIConfigSeedFS(c.Name)
 		assert.NotContainsf(t, seedPaths(t, fsys), "AGENTS.md",
 			"shared AGENTS doc is bind-mounted at runtime, never seeded: %s", c.Name)
 	}
 
-	claudeFS := SeedCLIFS("claude") // per-CLI tree rooted at its config dir
+	claudeFS := UserCLIConfigSeedFS("claude") // per-CLI tree rooted at its config dir
 	want := []string{"hooks/secret-tripwire.sh", "settings.json", "statusline.sh"}
 	assert.Equal(t, want, seedPaths(t, claudeFS))
 
-	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { SeedCLIFS("emacs") })
+	assert.PanicsWithValue(t, `harness: unknown cli "emacs"`, func() { UserCLIConfigSeedFS("emacs") })
 }
 
-func TestSeedCLIFS_UserTree(t *testing.T) {
+func TestUserCLIConfigSeedFS_UserTree(t *testing.T) {
 	dir := resetAll(t)
 	writeUserCli(t, dir, "mycli", userCliYAML, map[string]string{"config/settings.toml": "[x]\n"})
 	writeUserCli(t, dir, "bare", userCliYAML, nil)
 	all = mustLoadAll()
 
-	fsys := SeedCLIFS("mycli")
+	fsys := UserCLIConfigSeedFS("mycli")
 	assert.Equal(t, []string{"settings.toml"}, seedPaths(t, fsys), "user config tree only")
 
-	// no config tree seeded: SeedCLIFS mkdirs an empty one
-	bareFS := SeedCLIFS("bare")
+	// no config tree seeded: UserCLIConfigSeedFS mkdirs an empty one
+	bareFS := UserCLIConfigSeedFS("bare")
 	assert.Empty(t, seedPaths(t, bareFS))
 }
 

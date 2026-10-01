@@ -46,7 +46,7 @@ var doctorToolsCmd = &cobra.Command{
 var doctorClisCmd = &cobra.Command{
 	Use:   "clis",
 	Short: "Check the user-defined clis load",
-	RunE:  func(_ *cobra.Command, _ []string) error { return checkUserClis(harness.LoadUserCLIs()) },
+	RunE:  func(_ *cobra.Command, _ []string) error { return checkUserClis(harness.LoadUserCLITemplates()) },
 }
 
 func init() { doctorCmd.AddCommand(doctorToolsCmd, doctorClisCmd) }
@@ -61,7 +61,7 @@ func checkUserClis(_ []harness.CLI, warns []error, err error) error {
 		log.Errorf("%s", warn)
 	}
 	if len(warns) > 0 {
-		return fmt.Errorf("%d user cli(s) failed to load in %s", len(warns), userdir.Tilde(harness.UserCLIsDir()))
+		return fmt.Errorf("%d user cli(s) failed to load in %s", len(warns), userdir.Tilde(harness.UserCLITemplatesDir()))
 	}
 	return nil
 }

@@ -2,31 +2,42 @@ package harness
 
 import (
 	"bytes"
+	"embed"
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"path"
 
 	"github.com/s12chung/firm"
 	"gopkg.in/yaml.v3"
 )
 
-// clisTree is a clis tree — clis/<name>/CLI.yaml
-type clisTree struct {
+// Tree is a CLI templates tree — clis/<name>/CLI.yaml
+type Tree struct {
 	fsys        fs.FS
 	fromUserDir bool
 }
 
-// embedTree is the compile-time embedded clis tree.
-func embedTree() clisTree { return clisTree{fsys: embedCLIFS} }
+// embedFS is the compile-time embedded CLI templates tree: this package's clis/.
+//
+//go:embed clis
+var embedFS embed.FS
 
-// userTree is the host's user-defined clis tree at userConfigDir.
-func userTree() clisTree { return clisTree{fsys: userCLIsFS(), fromUserDir: true} }
+// userFS DOES NOT detect whether userConfigDir exists; this should be detected on init()--see package NOTE
+func userFS() fs.FS { return os.DirFS(userConfigDir) }
+
+// embedTree is the compile-time embedded CLI templates tree.
+func embedTree() Tree { return Tree{fsys: embedFS} }
+
+// userTree is the host's user-defined CLI templates tree at userConfigDir.
+func userTree() Tree { return Tree{fsys: userFS(), fromUserDir: true} }
 
 // load parses each clis/<cli> dir's CLI.yaml into a CLI named <cli>, ordered by name,
 // ignoring files dropped into clis/.
-func (t clisTree) load() ([]CLI, []error, error) {
-	paths, err := fs.Glob(t.fsys, clisGlob)
+func (t Tree) load() ([]CLI, []error, error) {
+	glob := path.Join(clisDir, "*")
+	paths, err := fs.Glob(t.fsys, glob)
 	if err != nil {
 		// unreachable: glob never changes
 		return nil, nil, err
@@ -56,13 +67,13 @@ func (t clisTree) load() ([]CLI, []error, error) {
 
 	// an embed tree is a compile-time constant: empty is a build bug; a user tree may be empty
 	if len(clis) == 0 && !t.fromUserDir {
-		return nil, nil, fmt.Errorf("harness: no %s found", clisGlob)
+		return nil, nil, fmt.Errorf("harness: no %s found", glob)
 	}
 	return clis, warns, nil
 }
 
 // loadCLI reads, parses, and validates the CLI.yaml in the cli dir p.
-func (t clisTree) loadCLI(p string) (CLI, error) {
+func (t Tree) loadCLI(p string) (CLI, error) {
 	yamlPath := path.Join(p, cliYAML)
 	body, err := fs.ReadFile(t.fsys, yamlPath)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -105,17 +116,17 @@ func defaulted(p string, c CLI) CLI {
 	return c
 }
 
-// validateConfigDir checks <cliDir>/config: for user trees it may be absent, but must not be a file;
+// validateConfigDir checks <cli dir>/config: for user trees it may be absent, but must not be a file;
 // embed trees also require existence — their contents are compile-time constants.
-func (t clisTree) validateConfigDir(dir string) error {
-	info, err := fs.Stat(t.fsys, path.Join(dir, seedConfigDir))
+func (t Tree) validateConfigDir(dir string) error {
+	info, err := fs.Stat(t.fsys, path.Join(dir, seedTemplateConfigDir))
 	switch {
 	case t.fromUserDir && errors.Is(err, fs.ErrNotExist):
-		return nil // seeded fresh by SeedCLIFS
+		return nil // seeded fresh by UserCLIConfigSeedFS
 	case err != nil:
 		return err
 	case !info.IsDir():
-		return fmt.Errorf("%s: not a directory", path.Join(dir, seedConfigDir))
+		return fmt.Errorf("%s: not a directory", path.Join(dir, seedTemplateConfigDir))
 	}
 	return nil
 }

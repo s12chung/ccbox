@@ -42,7 +42,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
-			docker.NewBind(harness.CLIConfigDir(rm.userDir, cli.Name), path.Join(projectcfg.ContainerHome, cli.ConfigHomeMount)),
+			docker.NewBind(harness.UserCLIConfigDir(cli.Name), path.Join(projectcfg.ContainerHome, cli.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
 		volumes(globalVolumesMap, true),
