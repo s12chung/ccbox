@@ -30,11 +30,11 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	cli := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
-	var scratchFile, persistDir string
+	var scratchBind, persistBind klean.ShareBind
 	clean, err := klean.Share{
-		share.AgentsMdShare{CLI: cli, ScratchMount: cliScratchMount(cli)},
-		share.Share{ProjectDir: projectDir},
-	}.Begin(&scratchFile, &persistDir)
+		share.AgentsMd(cli.Name),
+		share.PersistDir(projectDir),
+	}.Begin(&scratchBind, &persistBind)
 	if err != nil {
 		return nil, clean, err
 	}
@@ -42,8 +42,8 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
-			docker.NewBind(CLIConfigDir(rm.userDir, cli.Name), path.Join(projectcfg.ContainerHome, cli.ConfigHomeMount)),
-			docker.NewBind(persistDir, persistMount),
+			docker.NewBind(harness.CLIConfigDir(rm.userDir, cli.Name), path.Join(projectcfg.ContainerHome, cli.ConfigHomeMount)),
+			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
 		volumes(globalVolumesMap, true),
 		volumes(cacheVolumeNames(projectDir), false),
@@ -51,7 +51,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
 		cliDataBinds(rm.userDir, cli),
-		cliScratchBind(scratchFile, cliScratchMount(cli)),
+		cliScratchBind(scratchBind.HostPath, scratchBind.ContainerPath),
 	), clean, nil
 }
 
@@ -120,13 +120,7 @@ func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 	return dataBinds
 }
 
-// cliScratchMount is the CLI's shared doc scratch file's container path:
-// <ContainerHome>/.ccbox/tmp/<cli_name>/AGENTS.md
-func cliScratchMount(cli harness.CLI) string {
-	return path.Join(projectcfg.ContainerHome, ".ccbox", "tmp", cli.Name, share.AgentsMdFileName)
-}
-
-// cliScratchBind binds the shared doc's scratch file at cliScratchMount; the cliFile
+// cliScratchBind binds the shared doc's scratch file at its container mount; the cliFile
 // symlink points at it. host "" = no bind.
 func cliScratchBind(scratchFile, mount string) []docker.Mount {
 	if scratchFile == "" {

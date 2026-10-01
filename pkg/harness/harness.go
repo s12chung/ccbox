@@ -73,6 +73,11 @@ func cliConfigPath(name string) string { return path.Join(cliDir(name), seedConf
 // UserCLIsDir is the host dir of user-defined clis: ~/.ccbox/config/clis.
 func UserCLIsDir() string { return filepath.Join(userConfigDir, clisDir) }
 
+// CLIConfigDir is the host dir of cli's config: userDir/<cli_name>.
+func CLIConfigDir(userDir, cliName string) string {
+	return filepath.Join(userDir, MustFor(cliName).Name)
+}
+
 // userCLIsFS returns the user clis tree at userConfigDir
 // DOES NOT detect whether the directory exists, this should be detected on init()--see package NOTE
 func userCLIsFS() fs.FS { return os.DirFS(userConfigDir) }

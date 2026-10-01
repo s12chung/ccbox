@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -137,13 +138,12 @@ func TestCLIDataBinds(t *testing.T) {
 }
 
 func TestCliScratchBind(t *testing.T) {
-	t.Run("binds the scratch file at cliScratchMount", func(t *testing.T) {
+	t.Run("binds the scratch file at the agents scratch mount", func(t *testing.T) {
 		for _, cliName := range []string{"claude", "codex", "opencode"} {
-			cli := harness.MustFor(cliName)
-			scratchFile := "/host/.ccbox/tmp/" + cliName + "/AGENTS.md"
+			scratchFile := "/host/.ccbox/tmp/agents/" + cliName + "/AGENTS.md"
 			assert.Equal(t,
-				[]docker.Mount{docker.NewBind(scratchFile, cliScratchMount(cli))},
-				cliScratchBind(scratchFile, cliScratchMount(cli)), cliName)
+				[]docker.Mount{docker.NewBind(scratchFile, share.AgentsMdScratchMount(cliName))},
+				cliScratchBind(scratchFile, share.AgentsMdScratchMount(cliName)), cliName)
 		}
 	})
 

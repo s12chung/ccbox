@@ -1,16 +1,10 @@
 package dmap
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestCLIConfigDir(t *testing.T) {
-	userDir := "/home/me/.ccbox"
-	assert.Equal(t, filepath.Join(userDir, "claude"), CLIConfigDir(userDir, "claude"))
-}
 
 func TestCLIDataBindPath(t *testing.T) {
 	assert.Equal(t, "/home/me/.ccbox/data/opencode/.local-share-opencode-auth.json",

@@ -10,30 +10,31 @@ import (
 
 // fakeSharer records its lifecycle, cleaning without error
 type fakeSharer struct {
-	dir     string
+	bind    ShareBind
 	err     error // Begin's error
 	begun   bool
 	cleaned bool
 }
 
-func (f *fakeSharer) Begin() (string, func() error, error) {
+func (f *fakeSharer) Begin() (ShareBind, func() error, error) {
 	if f.err != nil {
-		return "", nil, f.err // a failed Begin leaves nothing to clean
+		return ShareBind{}, nil, f.err // a failed Begin leaves nothing to clean
 	}
 	f.begun = true
-	return f.dir, func() error { f.cleaned = true; return nil }, nil
+	return f.bind, func() error { f.cleaned = true; return nil }, nil
 }
 
 func TestShare_Begin(t *testing.T) {
-	first, second := &fakeSharer{dir: "/a"}, &fakeSharer{dir: "/b"}
+	first, second := &fakeSharer{bind: ShareBind{HostPath: "/a", ContainerPath: "/A"}},
+		&fakeSharer{bind: ShareBind{HostPath: "/b"}}
 
-	var firstDir, secondDir string
-	clean, err := Share{first, second}.Begin(&firstDir, &secondDir)
+	var firstBind, secondBind ShareBind
+	clean, err := Share{first, second}.Begin(&firstBind, &secondBind)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	assert.True(t, first.begun && second.begun, "each Sharer begun, in order")
-	assert.Equal(t, "/a", firstDir)
-	assert.Equal(t, "/b", secondDir)
+	assert.Equal(t, ShareBind{HostPath: "/a", ContainerPath: "/A"}, firstBind)
+	assert.Equal(t, ShareBind{HostPath: "/b"}, secondBind)
 
 	require.NoError(t, clean())
 	assert.True(t, first.cleaned && second.cleaned, "every Sharer is cleaned")
@@ -41,13 +42,14 @@ func TestShare_Begin(t *testing.T) {
 
 func TestShare_Begin_SharerError(t *testing.T) {
 	wantErr := errors.New("boom")
-	first, second := &fakeSharer{dir: "/a"}, &fakeSharer{err: wantErr}
+	first, second := &fakeSharer{bind: ShareBind{HostPath: "/a"}}, &fakeSharer{err: wantErr}
 
-	var firstDir, secondDir string
-	clean, err := Share{first, second}.Begin(&firstDir, &secondDir)
+	var firstBind, secondBind ShareBind
+	clean, err := Share{first, second}.Begin(&firstBind, &secondBind)
 	require.ErrorIs(t, err, wantErr)
 	require.NotNil(t, clean, "clean is returned on every path")
-	assert.Equal(t, "/a", firstDir, "a Sharer begun before the failure still sets its dir")
+	assert.Equal(t, ShareBind{HostPath: "/a"}, firstBind, "a Sharer begun before the failure still sets its bind")
+	assert.Empty(t, secondBind, "the failed Sharer sets nothing")
 
 	require.NoError(t, clean())
 	assert.True(t, first.cleaned, "the begun Sharer is still cleaned")
@@ -55,18 +57,18 @@ func TestShare_Begin_SharerError(t *testing.T) {
 }
 
 func TestShare_Begin_SizeMismatch(t *testing.T) {
-	var dir string
+	var bind ShareBind
 	tests := []struct {
-		name string
-		dirs []*string
-		want string
+		name  string
+		binds []*ShareBind
+		want  string
 	}{
-		{name: "missing pointers", dirs: nil, want: "dir pointer count (0) does not match Sharer count (1)"},
-		{name: "extra pointers", dirs: []*string{&dir, &dir}, want: "dir pointer count (2) does not match Sharer count (1)"},
+		{name: "missing pointers", binds: nil, want: "bind pointer count (0) does not match Sharer count (1)"},
+		{name: "extra pointers", binds: []*ShareBind{&bind, &bind}, want: "bind pointer count (2) does not match Sharer count (1)"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clean, err := Share{&fakeSharer{dir: "/a"}}.Begin(tt.dirs...)
+			clean, err := Share{&fakeSharer{bind: ShareBind{HostPath: "/a"}}}.Begin(tt.binds...)
 			require.ErrorContains(t, err, tt.want)
 			assert.Nil(t, clean, "nothing begun, nothing to clean")
 		})

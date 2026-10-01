@@ -3,18 +3,9 @@ package dmap
 import (
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
-
-// persistMount is the container path of the run's persistent per-project state.
-const persistMount = projectcfg.ContainerHome + "/.ccbox/persist"
-
-// CLIConfigDir is the host dir of cli's config: userDir/<cli_name>.
-func CLIConfigDir(userDir, cliName string) string {
-	return filepath.Join(userDir, harness.MustFor(cliName).Name)
-}
 
 // CLIDataBindPath is a data bind's shared host path: userDir/data/<cli_name>/<slug-of-key>
 func CLIDataBindPath(userDir, cliName, key string) string {

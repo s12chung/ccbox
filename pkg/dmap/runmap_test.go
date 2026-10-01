@@ -23,7 +23,7 @@ import (
 func TestRunMap_RunOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 		CLIName:   new("claude"),
@@ -61,7 +61,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_CONFIG_HOME", "")              // the gitconfig bind resolves $HOME's XDG dir
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	projectDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), ioutil.Dir))
@@ -107,7 +107,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".config", "git"), projectcfg.GitConfigMount).ReadOnly(),
 		docker.NewBind(filepath.Join(home, "fonts"), "/home/ccbox/fonts").ReadOnly(),
-		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "codex", "AGENTS.md"), cliScratchMount(harness.MustFor("codex"))),
+		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "agents", "codex", "AGENTS.md"), "/home/ccbox/.ccbox/tmp/agents/codex/AGENTS.md"),
 	}, hostOptions.Mounts)
 
 	assert.Equal(t, workspace, hostOptions.WorkspaceMount)

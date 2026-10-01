@@ -26,6 +26,11 @@ func TestNames(t *testing.T) {
 	assert.Equal(t, []string{"claude", "codex", "grok", "opencode", "pi"}, Names())
 }
 
+func TestCLIConfigDir(t *testing.T) {
+	userDir := "/home/me/.ccbox"
+	assert.Equal(t, "/home/me/.ccbox/claude", CLIConfigDir(userDir, "claude"))
+}
+
 func TestSeedCLIFS(t *testing.T) {
 	for _, c := range All() {
 		fsys := SeedCLIFS(c.Name)
