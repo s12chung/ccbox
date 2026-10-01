@@ -49,7 +49,7 @@ func TestSeedCLIFS_UserTree(t *testing.T) {
 	fsys := SeedCLIFS("mycli")
 	assert.Equal(t, []string{"settings.toml"}, seedPaths(t, fsys), "user config tree only")
 
-	// no config tree laid down: SeedCLIFS mkdirs an empty one
+	// no config tree seeded: SeedCLIFS mkdirs an empty one
 	bareFS := SeedCLIFS("bare")
 	assert.Empty(t, seedPaths(t, bareFS))
 }

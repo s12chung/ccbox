@@ -34,7 +34,7 @@ func SafeWriteFile(path string, body []byte) error {
 }
 
 // SafeSymlink symlinks path to target, creating its parent dir when missing. The target
-// may be missing: a symlink is never followed to lay it.
+// may be missing: a symlink is never followed to create it.
 func SafeSymlink(path, target string) error {
 	if err := os.MkdirAll(filepath.Dir(path), Dir); err != nil {
 		return err

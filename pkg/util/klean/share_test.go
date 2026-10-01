@@ -18,7 +18,7 @@ type fakeSharer struct {
 
 func (f *fakeSharer) Begin() (string, func() error, error) {
 	if f.err != nil {
-		return "", nil, f.err // a failed Begin lays nothing to settle
+		return "", nil, f.err // a failed Begin leaves nothing to settle
 	}
 	f.begun = true
 	return f.dir, func() error { f.cleaned = true; return nil }, nil
@@ -51,7 +51,7 @@ func TestShare_Begin_SharerError(t *testing.T) {
 
 	require.NoError(t, clean())
 	assert.True(t, first.cleaned, "the begun Sharer still settles")
-	assert.False(t, second.cleaned, "the failed Sharer laid nothing to settle")
+	assert.False(t, second.cleaned, "the failed Sharer leaves nothing to settle")
 }
 
 func TestShare_Begin_SizeMismatch(t *testing.T) {

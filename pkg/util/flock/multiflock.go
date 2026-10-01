@@ -29,7 +29,7 @@ var ErrNotLast = errors.New("flock: a live holder remains")
 type MultiFlock struct{ Dir string }
 
 // Join flocks the holder's entry in Dir and runs one callback under the dir lock: fn
-// lays the resource for its first holder, verifyExisting verifies it for
+// creates the resource for its first holder, verifyExisting verifies it for
 // latecomers. The callback precedes the registration, so a failed join leaves
 // nothing behind. It returns the holder's leave.
 func (m MultiFlock) Join(verifyExisting, fn func() error) (func() error, error) {

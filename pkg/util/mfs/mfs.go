@@ -67,7 +67,7 @@ func (f *FS) Merge(fsys fs.FS) error {
 	return f.mergeDir(&f.tree, fsys, len(f.fses)-1, "")
 }
 
-// mergeDir lays dir's entries under node, recursing into subdirectories via
+// mergeDir merges dir's entries under node, recursing into subdirectories via
 // fs.Sub so the call stack walks the tree; prefix is dir's path in fsys.
 func (f *FS) mergeDir(node *fsnode, dir fs.FS, index int, prefix string) error {
 	entries, err := fs.ReadDir(dir, ".")

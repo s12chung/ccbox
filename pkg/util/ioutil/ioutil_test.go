@@ -59,7 +59,7 @@ func TestIsSymlinkTo(t *testing.T) {
 func TestSafeSymlink(t *testing.T) {
 	tests := []struct {
 		name       string
-		setup      func(t *testing.T, dir string) string // lays the pre-state, returns the path to link
+		setup      func(t *testing.T, dir string) string // writes the pre-state, returns the path to link
 		target     string                                // the symlink's target
 		err        bool                                  // whether the link errs
 		createdDir string                                // non-empty: dir the link creates, asserted with Dir perms
@@ -103,7 +103,7 @@ func TestSafeSymlink(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			assert.True(t, IsSymlinkTo(path, tt.target), "the symlink is laid at the path")
+			assert.True(t, IsSymlinkTo(path, tt.target), "the symlink is created at the path")
 
 			if tt.createdDir != "" {
 				created, err := os.Stat(filepath.Join(dir, tt.createdDir))
@@ -117,7 +117,7 @@ func TestSafeSymlink(t *testing.T) {
 func TestSafeWriteFile(t *testing.T) {
 	tests := []struct {
 		name       string
-		setup      func(t *testing.T, dir string) string // lays the pre-state, returns the path to write
+		setup      func(t *testing.T, dir string) string // writes the pre-state, returns the path to write
 		body       string
 		err        bool   // whether the write errs
 		createdDir string // non-empty: dir the write creates, asserted with Dir perms

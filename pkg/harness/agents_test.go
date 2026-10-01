@@ -93,7 +93,7 @@ func lstatGone(t *testing.T, path string) bool {
 	return os.IsNotExist(err)
 }
 
-// linkFile lays ccbox's symlink at path, pointing at target
+// linkFile creates ccbox's symlink at path, pointing at target
 func linkFile(t *testing.T, path, target string) {
 	t.Helper()
 	require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
@@ -105,7 +105,7 @@ func assertSymlinked(t *testing.T, cliFile string) {
 	t.Helper()
 	info, err := os.Lstat(cliFile)
 	require.NoError(t, err)
-	require.NotEqual(t, 0, info.Mode()&os.ModeSymlink, "the realCliFile is laid as a symlink")
+	require.NotEqual(t, 0, info.Mode()&os.ModeSymlink, "a symlink, not a regular file")
 	target, err := os.Readlink(cliFile)
 	require.NoError(t, err)
 	assert.Equal(t, claudeTarget(), target)
@@ -122,7 +122,7 @@ func assertRegular(t *testing.T, path string) {
 func TestSafeSeedAgentsMd(t *testing.T) {
 	for _, tc := range []struct {
 		caseName string
-		setup    func(t *testing.T, userDir string) // laid before the seed
+		setup    func(t *testing.T, userDir string) // written before the seed
 		admin    *string                            // the admin variant's body after the seed; nil when gone
 		readme   *string                            // the explainer's body after the seed; nil when gone
 	}{
@@ -155,12 +155,12 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 			require.NoError(t, SafeSeedAgentsMd())
 
 			if tc.admin == nil {
-				assert.True(t, gone(t, userAgentsAdminMd(userDir)), "the admin variant is not laid")
+				assert.True(t, gone(t, userAgentsAdminMd(userDir)), "the admin variant is not seeded")
 			} else {
 				assert.Equal(t, *tc.admin, readFile(t, userAgentsAdminMd(userDir)))
 			}
 			if tc.readme == nil {
-				assert.True(t, gone(t, userAgentsReadmeMd(userDir)), "the explainer is not laid")
+				assert.True(t, gone(t, userAgentsReadmeMd(userDir)), "the explainer is not seeded")
 			} else {
 				assert.Equal(t, *tc.readme, readFile(t, userAgentsReadmeMd(userDir)))
 			}
@@ -174,7 +174,7 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 		caseName string
 		setup    func(t *testing.T, userDir string)
 		binds    bool   // whether the share binds a scratch
-		err      bool   // whether the share errors; no scratch is laid
+		err      bool   // whether the share errors; no scratch is written
 		body     string // the bound scratch's body; unset when !binds
 	}{
 		{
@@ -248,8 +248,8 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 				scratchDir, cleanup, err := claudeShare().Begin()
 				require.Error(t, err)
 				assert.Empty(t, scratchDir)
-				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
-				assert.True(t, gone(t, claudeBase(userDir)), "no baseline laid")
+				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
+				assert.True(t, gone(t, claudeBase(userDir)), "no baseline written")
 				require.NoError(t, cleanup())
 				return
 			}
@@ -257,13 +257,13 @@ func TestAgentsMdShare_Begin(t *testing.T) {
 			claudeShareBegin(t, func(scratchDir string) {
 				if !tc.binds {
 					assert.Empty(t, scratchDir)
-					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
-					assert.True(t, gone(t, claudeBase(userDir)), "no baseline laid")
+					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
+					assert.True(t, gone(t, claudeBase(userDir)), "no baseline written")
 					return
 				}
 				assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
 				assert.Equal(t, tc.body, readFile(t, claudeScratch(userDir)), "the bound scratch's body")
-				assert.Equal(t, tc.body, readFile(t, claudeBase(userDir)), "the laid baseline's body")
+				assert.Equal(t, tc.body, readFile(t, claudeBase(userDir)), "the written baseline's body")
 				assertSymlinked(t, claudeCliFile(userDir))
 			})
 		})
@@ -278,7 +278,7 @@ func TestAgentsMdShare_Begin_EmptyCliFileIsOwned(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, scratchDir, "an empty realCliFile is the user's own doc")
-	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
 
 	require.NoError(t, cleanup())
 	assert.Empty(t, readFile(t, claudeCliFile(userDir)), "the empty doc is untouched")
@@ -292,7 +292,7 @@ func TestAgentsMdShare_Begin_ForeignSymlinkIsOwned(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, scratchDir, "a foreign symlink is the user's own doc")
-	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch laid")
+	assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
 
 	require.NoError(t, cleanup())
 	target, err := os.Readlink(claudeCliFile(userDir))
@@ -304,11 +304,11 @@ func TestAgentsMdShare_Begin_Piggyback(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, userAgentsMd(userDir), "shared")
 
-	// a live run lays the share
+	// a live run binds the share
 	_, clean, err := claudeShare().Begin()
 	require.NoError(t, err)
 
-	// a second run piggybacks: the same scratch binds, the laid share untouched
+	// a second run piggybacks: the same scratch binds, the written share untouched
 	scratchDir, piggybackClean, err := claudeShare().Begin()
 	require.NoError(t, err)
 	assert.Equal(t, claudeCliTmpPath(userDir), scratchDir)
@@ -331,13 +331,13 @@ func TestAgentsMdShare_Begin_Piggyback(t *testing.T) {
 }
 
 // TestAgentsMdShare_Begin_LatecomerBindsOwnDoc: a latecomer joining a live scratch session
-// whose host has laid its own realCliFile mid-session binds nothing, and the live run's share
+// whose host has written its own realCliFile mid-session binds nothing, and the live run's share
 // is left alone
 func TestAgentsMdShare_Begin_LatecomerBindsOwnDoc(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, userAgentsMd(userDir), "shared")
 
-	// a live run lays the share
+	// a live run binds the share
 	_, clean, err := claudeShare().Begin()
 	require.NoError(t, err)
 
@@ -365,14 +365,14 @@ func TestAgentsMdShare_Begin_LatecomerBindsOwnDoc(t *testing.T) {
 }
 
 // TestAgentsMdShare_Begin_LatecomerJoinsOwnDoc: the first run binds the CLI's own doc,
-// no scratch laid; the latecomer joins the doc all the same
+// no scratch written; the latecomer joins the doc all the same
 func TestAgentsMdShare_Begin_LatecomerJoinsOwnDoc(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeCliFile(userDir), "cli")
 
 	_, clean, err := claudeShare().Begin()
 	require.NoError(t, err)
-	assert.True(t, gone(t, claudeScratch(userDir)), "an owned doc binds directly, no scratch laid")
+	assert.True(t, gone(t, claudeScratch(userDir)), "an owned doc binds directly, no scratch written")
 
 	scratchDir, piggybackClean, err := claudeShare().Begin()
 	require.NoError(t, err)
@@ -389,7 +389,7 @@ func TestAgentsMdShare_VerifyShared(t *testing.T) {
 	userDir := resetUserDir(t)
 	s := claudeShare()
 
-	require.Error(t, s.verifyShared(), "nothing laid: neither the scratch nor the doc")
+	require.Error(t, s.verifyShared(), "nothing present: neither the scratch nor the doc")
 
 	writeFile(t, claudeCliFile(userDir), "cli")
 	require.NoError(t, s.verifyShared(), "the owned doc bound directly is the share")
@@ -448,7 +448,7 @@ func TestAgentsMdShare_Begin_SettlesLeftover_AfterPromote(t *testing.T) {
 	assert.True(t, gone(t, claudeBase(userDir)))
 }
 
-// crashRun lays the claude share in a child process that exits without cleanup: the
+// crashRun binds the claude share in a child process that exits without cleanup: the
 // kernel releases the crashed run's registry entry, as a real crash does
 func crashRun(t *testing.T, userDir string) {
 	t.Helper()
@@ -530,7 +530,7 @@ func TestAgentsMdShare_Cleanup(t *testing.T) {
 			})
 
 			if tc.expectedClaudeFile == nil {
-				assert.True(t, lstatGone(t, claudeCliFile(userDir)), "nothing promoted; the laid symlink is dropped")
+				assert.True(t, lstatGone(t, claudeCliFile(userDir)), "nothing promoted; ccbox's symlink is dropped")
 			} else {
 				assert.Equal(t, *tc.expectedClaudeFile, readFile(t, claudeCliFile(userDir)))
 				assertRegular(t, claudeCliFile(userDir))
@@ -568,7 +568,7 @@ func TestAgentsMdShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 	_, cleanup, err := claudeShare().Begin()
 	require.NoError(t, err)
 	writeFile(t, claudeScratch(userDir), "memory")
-	require.NoError(t, os.Remove(claudeCliFile(userDir)))               // clear the laid symlink
+	require.NoError(t, os.Remove(claudeCliFile(userDir)))               // clear ccbox's symlink
 	require.NoError(t, os.MkdirAll(claudeCliFile(userDir), ioutil.Dir)) // a directory is unreadable: promotion fails
 
 	require.Error(t, cleanup(), "realCliFile is a directory")

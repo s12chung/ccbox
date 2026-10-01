@@ -1,4 +1,4 @@
-// Package fsync lays config content onto host paths: whole trees, backing up any
+// Package fsync seeds config content onto host paths: whole trees, backing up any
 // files it would overwrite, and single files that never touch existing ones.
 package fsync
 
@@ -68,10 +68,10 @@ func Merge(srcDir, dstDir, infix string) ([]string, error) {
 	return asides, err
 }
 
-// sync lays fsys's tree onto destDir (creating it), preserving the tree: a
+// sync writes fsys's tree onto destDir (creating it), preserving the tree: a
 // destination matching its source is left untouched; every other file is written
 // over, its differing copy moved aside to <base>.<infix><ext> first — a pre-existing
-// aside is never clobbered, it's a hard error. Empty dirs are laid as-is. The second
+// aside is never clobbered, it's a hard error. Empty dirs are created as-is. The second
 // return reports that any file was written.
 func sync(fsys fs.FS, destDir, infix string) ([]string, bool, error) {
 	var asides []string

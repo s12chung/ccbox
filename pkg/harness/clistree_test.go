@@ -25,7 +25,7 @@ func resetAll(t *testing.T) string {
 const userCliYAML = "npm:\n  package: mycli\n\nconfig_home_mount: \".mycli\"\n\n" +
 	"cmd: \"mycli\"\ncontinue_args: \"-c\"\nresume_args: \"--resume\"\n\nallow_domains:\n  - mycli.dev\n"
 
-// writeUserCli lays out a user cli at dir/clis/<name> like the embedded clis tree:
+// writeUserCli writes a user cli at dir/clis/<name> like the embedded clis tree:
 // CLI.yaml plus optional config files under config/.
 func writeUserCli(t *testing.T, dir, name, yamlBody string, configFiles map[string]string) {
 	t.Helper()

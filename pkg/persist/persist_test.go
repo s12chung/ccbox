@@ -41,7 +41,7 @@ func TestShare_Begin_Existing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, s.realDir(), dir)
 	require.NoError(t, clean())
-	assert.NoDirExists(t, s.scratch(), "an existing dir binds directly, no scratch laid")
+	assert.NoDirExists(t, s.scratch(), "an existing dir binds directly, no scratch seeded")
 }
 
 func TestShare_Begin_Scratch(t *testing.T) {
@@ -127,12 +127,12 @@ func TestShare_Begin_Piggyback(t *testing.T) {
 func TestShare_Begin_LatecomerBindsDir(t *testing.T) {
 	s := testShare(t)
 
-	// a live run lays the scratch; the Dir appears mid-session
+	// a live run seeds the scratch; the Dir appears mid-session
 	_, clean, err := s.Begin()
 	require.NoError(t, err)
 	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
 
-	// the latecomer binds the new Dir, not the laid scratch
+	// the latecomer binds the new Dir, not the seeded scratch
 	dir, piggybackClean, err := s.Begin()
 	require.NoError(t, err)
 	assert.Equal(t, s.realDir(), dir)
@@ -141,14 +141,14 @@ func TestShare_Begin_LatecomerBindsDir(t *testing.T) {
 }
 
 // TestShare_Begin_LatecomerJoinsExistingDir: the first run binds the existing Dir directly,
-// no scratch laid; the latecomer joins the Dir all the same
+// no scratch seeded; the latecomer joins the Dir all the same
 func TestShare_Begin_LatecomerJoinsExistingDir(t *testing.T) {
 	s := testShare(t)
 	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
 
 	_, clean, err := s.Begin()
 	require.NoError(t, err)
-	assert.NoDirExists(t, s.scratch(), "an existing dir binds directly, no scratch laid")
+	assert.NoDirExists(t, s.scratch(), "an existing dir binds directly, no scratch seeded")
 
 	dir, piggybackClean, err := s.Begin()
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestShare_Begin_LatecomerJoinsExistingDir(t *testing.T) {
 func TestShare_VerifyShared(t *testing.T) {
 	s := testShare(t)
 
-	require.Error(t, s.verifyShared(), "nothing laid: neither the scratch nor the Dir")
+	require.Error(t, s.verifyShared(), "nothing present: neither the scratch nor the Dir")
 
 	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
 	require.NoError(t, s.verifyShared(), "the Dir bound directly is the share")
@@ -301,7 +301,7 @@ func assertSeeded(t *testing.T, path string) {
 
 func assertFile(t *testing.T, path, want string) {
 	t.Helper()
-	got, err := os.ReadFile(path) // #nosec G304 -- reads the test's own laid path
+	got, err := os.ReadFile(path) // #nosec G304 -- reads the test's own path
 	require.NoErrorf(t, err, "read %s", path)
 	assert.Equal(t, want, string(got), path)
 }

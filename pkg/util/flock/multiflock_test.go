@@ -17,7 +17,7 @@ func newMultiFlock(t *testing.T) MultiFlock {
 	return MultiFlock{Dir: t.TempDir()}
 }
 
-// liveEntry lays a live holder's entry: a file flock-held by this process, as a
+// liveEntry creates a live holder's entry: a file flock-held by this process, as a
 // concurrent holder holds
 func liveEntry(t *testing.T, m MultiFlock) {
 	t.Helper()
@@ -28,7 +28,7 @@ func liveEntry(t *testing.T, m MultiFlock) {
 	t.Cleanup(func() { assert.NoError(t, l.Release()) })
 }
 
-// deadEntry lays a dead holder's entry: a file no one flocks, as a crashed holder
+// deadEntry creates a dead holder's entry: a file no one flocks, as a crashed holder
 // leaves behind
 func deadEntry(t *testing.T, m MultiFlock) string {
 	t.Helper()
@@ -60,7 +60,7 @@ func TestMultiFlock_Join_Solo(t *testing.T) {
 		func() error { fnRan = true; return nil },
 	)
 	require.NoError(t, err)
-	assert.True(t, fnRan, "the holder is the resource's first: it lays")
+	assert.True(t, fnRan, "the holder is the resource's first: it creates")
 	assert.False(t, validateRan)
 	require.Len(t, entryNames(t, m), 1, "the holder's own entry is registered")
 
@@ -78,7 +78,7 @@ func TestMultiFlock_Join_Existing(t *testing.T) {
 		func() error { fnRan = true; return nil },
 	)
 	require.NoError(t, err)
-	assert.True(t, validateRan, "the held entry counts as a live holder: verify, don't lay")
+	assert.True(t, validateRan, "the held entry counts as a live holder: verify, don't create")
 	assert.False(t, fnRan)
 
 	require.ErrorIs(t, leave(), ErrNotLast) // the live other keeps this holder from being last
@@ -98,7 +98,7 @@ func TestMultiFlock_Join_CallbackUnderLock(t *testing.T) {
 		return held
 	}
 
-	assert.True(t, check(newMultiFlock(t)), "fn lays under the dir lock")
+	assert.True(t, check(newMultiFlock(t)), "fn runs under the dir lock")
 
 	m := newMultiFlock(t)
 	liveEntry(t, m)
@@ -112,7 +112,7 @@ func TestMultiFlock_Join_SweepsDeadEntries(t *testing.T) {
 	fnRan := false
 	leave, err := m.Join(func() error { return nil }, func() error { fnRan = true; return nil })
 	require.NoError(t, err)
-	assert.True(t, fnRan, "the dead entry is not a live holder: the holder lays")
+	assert.True(t, fnRan, "the dead entry is not a live holder: the holder creates")
 	assert.NoFileExists(t, dead, "the dead entry is swept")
 	require.Len(t, entryNames(t, m), 1, "only the holder's own entry remains")
 
@@ -137,7 +137,7 @@ func TestMultiFlock_Join_CallbackError(t *testing.T) {
 		m := newMultiFlock(t)
 		_, err := m.Join(func() error { return nil }, func() error { return wantErr })
 		require.ErrorIs(t, err, wantErr)
-		assert.Empty(t, entryNames(t, m), "a failed lay registers no entry")
+		assert.Empty(t, entryNames(t, m), "a failed create registers no entry")
 	})
 
 	t.Run("ValidateExistingFn", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestMultiFlock_Join_Concurrent(t *testing.T) {
 		})
 	}
 	joins.Wait()
-	assert.Equal(t, int32(1), fns.Load(), "exactly one holder laid the resource")
+	assert.Equal(t, int32(1), fns.Load(), "exactly one holder created the resource")
 	assert.Equal(t, int32(holders-1), validates.Load(), "every other holder joined the live ones")
 
 	// every holder leaves: all but the last out find a live holder among the rest

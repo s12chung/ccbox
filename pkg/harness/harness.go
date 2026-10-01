@@ -208,7 +208,7 @@ func MustFor(name string) CLI {
 //go:embed user-clis
 var userCLIFSSeed embed.FS
 
-// SeedUserClisFS returns the embedded tree laid onto a fresh user clis dir.
+// SeedUserClisFS returns the embedded tree seeded onto a fresh user clis dir.
 func SeedUserClisFS() fs.FS { return must.Get(fs.Sub(userCLIFSSeed, "user-clis")) }
 
 // SessionCmd maps the run flags to the CLI's session syntax: continue the last

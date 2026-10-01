@@ -21,7 +21,7 @@ func srcFS() fstest.MapFS {
 	}
 }
 
-// writeFS lays fsys's tree onto dest
+// writeFS writes fsys's tree onto dest
 func writeFS(t *testing.T, fsys fs.FS, dest string) {
 	t.Helper()
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
