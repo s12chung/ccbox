@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/fsutil"
 )
 
 // fakePkger serves a canned latest version; Install simulates npm's bin layout.
@@ -27,10 +28,10 @@ func (f *fakePkger) Latest() (string, error) { return f.latest, f.latestErr }
 func (f *fakePkger) RelBin() string          { return "bin/" + f.name }
 func (f *fakePkger) Install(dir, version string) error {
 	f.installed = append(f.installed, version)
-	if err := os.MkdirAll(filepath.Join(dir, "bin"), dirMode); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "bin"), fsutil.DirMode); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(dir, "bin", f.name), nil, dirMode)
+	return os.WriteFile(filepath.Join(dir, "bin", f.name), nil, fsutil.DirMode)
 }
 
 func readLink(t *testing.T, path string) string {

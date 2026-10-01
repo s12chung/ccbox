@@ -5,19 +5,23 @@ package install
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/flock"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/fsutil"
 )
+
+// DefaultRoot is the clis root's container mount: the ccbox-clis global volume's,
+// which the PATH leads with its bin dir.
+const DefaultRoot = "/opt/ccbox/clis"
 
 // Run resolves pkgDir's latest version, installs it unless it is already current,
 // and prunes every other version of the CLI — all under the CLI's install lock.
 // A Run() failure keeps the installed version; with nothing installed, it fails.
 func Run(pkgDir pkger.PkgDir) error {
 	return flock.Do(pkgDir.LockPath(), func() error {
-		active := currentVersion(pkgDir)
+		active := fsutil.CurrentVersion(pkgDir.Current())
 		latest, err := pkgDir.Latest()
 		if err != nil {
 			if active == "" {
@@ -36,7 +40,7 @@ func Run(pkgDir pkger.PkgDir) error {
 			return err
 		}
 		log.Infof("installed %s %s", pkgDir.Name(), latest)
-		return prune(pkgDir.Dir(), latest)
+		return fsutil.Prune(pkgDir.Dir(), latest)
 	}, skipInstalled(pkgDir))
 }
 
@@ -47,7 +51,7 @@ func skipInstalled(pkgDir pkger.PkgDir) func() bool {
 		if os.Getenv(LockWaitEnv) != "" {
 			return false
 		}
-		active := currentVersion(pkgDir)
+		active := fsutil.CurrentVersion(pkgDir.Current())
 		if active == "" {
 			return false
 		}
@@ -60,13 +64,13 @@ func skipInstalled(pkgDir pkger.PkgDir) func() bool {
 // the current and bin symlinks.
 func install(pkgDir pkger.PkgDir, version string) error {
 	tmp := pkgDir.TmpDir(version)
-	if err := safeMkdir(tmp); err != nil {
+	if err := fsutil.SafeMkdir(tmp); err != nil {
 		return err
 	}
 	if err := pkgDir.Install(tmp, version); err != nil {
 		return fmt.Errorf("install %s %s: %w", pkgDir.Name(), version, err)
 	}
-	if err := safeMv(tmp, pkgDir.VersionDir(version)); err != nil {
+	if err := fsutil.SafeMv(tmp, pkgDir.VersionDir(version)); err != nil {
 		return err
 	}
 	return updateSymlinks(pkgDir, version)
@@ -74,17 +78,8 @@ func install(pkgDir pkger.PkgDir, version string) error {
 
 // updateSymlinks flips current and the PATH-exposed bin link to version.
 func updateSymlinks(pkgDir pkger.PkgDir, version string) error {
-	if err := replaceSymlink(version, pkgDir.Current()); err != nil {
+	if err := fsutil.ReplaceSymlink(version, pkgDir.Current()); err != nil {
 		return err
 	}
-	return replaceSymlink(pkgDir.BinLinkTarget(), pkgDir.BinLink())
-}
-
-// currentVersion reads the version dir the pkg's current link points at, "" when unset.
-func currentVersion(pkgDir pkger.PkgDir) string {
-	target, err := os.Readlink(pkgDir.Current())
-	if err != nil {
-		return ""
-	}
-	return filepath.Base(target)
+	return fsutil.ReplaceSymlink(pkgDir.BinLinkTarget(), pkgDir.BinLink())
 }
