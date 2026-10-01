@@ -52,10 +52,11 @@ func (s Share) Begin() (string, func() error, error) {
 	return s.scratch(), clean, nil
 }
 
-// verifyShared verifies the scratch a live entry implies was seeded
+// verifyShared verifies the share a live entry implies was laid: the scratch, or the
+// realDir when the first holder bound it directly
 func (s Share) verifyShared() error {
-	if ioutil.Missing(s.scratch()) {
-		return fmt.Errorf("persist: live run's scratch missing at %s", userdir.Tilde(s.scratch()))
+	if ioutil.Missing(s.scratch()) && ioutil.Missing(s.realDir()) {
+		return fmt.Errorf("persist: live run's share missing: neither %s nor %s", userdir.Tilde(s.scratch()), userdir.Tilde(s.realDir()))
 	}
 	return nil
 }
@@ -64,7 +65,7 @@ func (s Share) initialShare() error {
 	if err := s.clean(); err != nil { // clean a crashed run's leftover scratch
 		return err
 	}
-	if ioutil.Present(s.realDir()) { // a concurrent settle materialized it mid-Begin
+	if ioutil.Present(s.realDir()) { // the Dir is the share: bound directly, no scratch laid
 		return nil
 	}
 	_, err := fsync.Seed(SeedFS(), s.scratch())

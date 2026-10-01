@@ -61,10 +61,11 @@ func (s AgentsMdShare) Begin() (string, func() error, error) {
 	return s.cliScratchDir(), clean, nil
 }
 
-// verifyShared verifies the share a live entry implies was laid
+// verifyShared verifies the share a live entry implies was laid: the scratch file, or
+// the realCliFile when the first holder bound the CLI's own doc directly
 func (s AgentsMdShare) verifyShared() error {
-	if ioutil.Missing(s.scratchFilePath()) {
-		return fmt.Errorf("harness: live run's scratch missing at %s", userdir.Tilde(s.scratchFilePath()))
+	if ioutil.Missing(s.scratchFilePath()) && !s.realCliFileExists() {
+		return fmt.Errorf("harness: live run's share missing: neither %s nor %s", userdir.Tilde(s.scratchFilePath()), userdir.Tilde(s.realCliFile()))
 	}
 	return nil
 }
@@ -73,7 +74,7 @@ func (s AgentsMdShare) initialShare() error {
 	if err := s.clean(); err != nil { // clean a crashed run's leftover symlink and scratch
 		return err
 	}
-	if s.realCliFileExists() { // a concurrent settle materialized it mid-Begin
+	if s.realCliFileExists() { // the CLI's own doc is the share: bound directly, no scratch laid
 		return nil
 	}
 

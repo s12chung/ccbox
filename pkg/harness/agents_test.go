@@ -364,6 +364,37 @@ func TestAgentsMdShare_Begin_LatecomerBindsOwnDoc(t *testing.T) {
 	assert.True(t, gone(t, claudeBase(userDir)))
 }
 
+// TestAgentsMdShare_Begin_LatecomerJoinsOwnDoc: the first run binds the CLI's own doc,
+// no scratch laid; the latecomer joins the doc all the same
+func TestAgentsMdShare_Begin_LatecomerJoinsOwnDoc(t *testing.T) {
+	userDir := resetUserDir(t)
+	writeFile(t, claudeCliFile(userDir), "cli")
+
+	_, clean, err := claudeShare().Begin()
+	require.NoError(t, err)
+	assert.True(t, gone(t, claudeScratch(userDir)), "an owned doc binds directly, no scratch laid")
+
+	scratchDir, piggybackClean, err := claudeShare().Begin()
+	require.NoError(t, err)
+	assert.Empty(t, scratchDir)
+	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
+
+	require.NoError(t, piggybackClean())
+	require.NoError(t, clean())
+	assert.Equal(t, "cli", readFile(t, claudeCliFile(userDir)))
+	assert.True(t, gone(t, claudeScratch(userDir)))
+}
+
+func TestAgentsMdShare_VerifyShared(t *testing.T) {
+	userDir := resetUserDir(t)
+	s := claudeShare()
+
+	require.Error(t, s.verifyShared(), "nothing laid: neither the scratch nor the doc")
+
+	writeFile(t, claudeCliFile(userDir), "cli")
+	require.NoError(t, s.verifyShared(), "the owned doc bound directly is the share")
+}
+
 func TestAgentsMdShare_Begin_SettlesLeftover_PromotesChanged(t *testing.T) {
 	userDir := resetUserDir(t)
 	writeFile(t, claudeScratch(userDir), "edited") // leftover scratch: edited by the crashed run

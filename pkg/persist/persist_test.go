@@ -140,6 +140,34 @@ func TestShare_Begin_LatecomerBindsDir(t *testing.T) {
 	require.NoError(t, clean())
 }
 
+// TestShare_Begin_LatecomerJoinsExistingDir: the first run binds the existing Dir directly,
+// no scratch laid; the latecomer joins the Dir all the same
+func TestShare_Begin_LatecomerJoinsExistingDir(t *testing.T) {
+	s := testShare(t)
+	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
+
+	_, clean, err := s.Begin()
+	require.NoError(t, err)
+	assert.NoDirExists(t, s.scratch(), "an existing dir binds directly, no scratch laid")
+
+	dir, piggybackClean, err := s.Begin()
+	require.NoError(t, err)
+	assert.Equal(t, s.realDir(), dir)
+
+	require.NoError(t, piggybackClean())
+	require.NoError(t, clean())
+	assert.NoDirExists(t, s.scratch())
+}
+
+func TestShare_VerifyShared(t *testing.T) {
+	s := testShare(t)
+
+	require.Error(t, s.verifyShared(), "nothing laid: neither the scratch nor the Dir")
+
+	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
+	require.NoError(t, s.verifyShared(), "the Dir bound directly is the share")
+}
+
 func TestShare_Settle_IntoExistingDir(t *testing.T) {
 	s := testShare(t)
 
