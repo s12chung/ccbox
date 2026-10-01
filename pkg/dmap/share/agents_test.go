@@ -1,4 +1,4 @@
-package harness
+package share
 
 import (
 	"os"
@@ -9,9 +9,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
+
+func TestMain(m *testing.M) {
+	harness.Load()
+	os.Exit(m.Run())
+}
 
 // The tests pin AgentsMdShare on claude's paths under a temp userDir.
 
@@ -25,7 +31,7 @@ func resetUserDir(t *testing.T) string {
 
 // claudeShare is the share under test
 func claudeShare() AgentsMdShare {
-	return AgentsMdShare{CLI: MustFor("claude"), ScratchMount: "/home/ccbox/.ccbox/tmp/claude/AGENTS.md"}
+	return AgentsMdShare{CLI: harness.MustFor("claude"), ScratchMount: "/home/ccbox/.ccbox/tmp/claude/AGENTS.md"}
 }
 
 // claudeShareBegin begins a bound share for claude, runs body with the bound scratch dir,
@@ -446,18 +452,18 @@ func TestAgentsMdShare_Begin_CleansLeftover_AfterPromote(t *testing.T) {
 	assert.True(t, gone(t, claudeBase(userDir)))
 }
 
-// crashRun binds the claude share in a child process that exits without cleanup: the
+// crashAgentsRun binds the claude share in a child process that exits without cleanup: the
 // kernel releases the crashed run's registry entry, as a real crash does
-func crashRun(t *testing.T, userDir string) {
+func crashAgentsRun(t *testing.T, userDir string) {
 	t.Helper()
-	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestHelperCrashRun$") // #nosec G204,G702 -- re-execs the test binary itself
-	cmd.Env = append(os.Environ(), "HOME="+filepath.Dir(userDir), "CCBOX_CRASH_RUN=1")    // userDir is ~/.ccbox
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestHelperCrashAgentsRun$") // #nosec G204,G702 -- re-execs the test binary itself
+	cmd.Env = append(os.Environ(), "HOME="+filepath.Dir(userDir), "CCBOX_CRASH_RUN=1")          // userDir is ~/.ccbox
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "child output:\n%s", out)
 }
 
-// TestHelperCrashRun is crashRun's child process
-func TestHelperCrashRun(t *testing.T) {
+// TestHelperCrashAgentsRun is crashAgentsRun's child process
+func TestHelperCrashAgentsRun(t *testing.T) {
 	if os.Getenv("CCBOX_CRASH_RUN") != "1" {
 		t.Skip("helper: not under test")
 	}
@@ -675,7 +681,7 @@ func TestAgentsMdShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
 	userDir := resetUserDir(t)
 
 	// a crashed run leaves its scratch, baseline, and symlink
-	crashRun(t, userDir)
+	crashAgentsRun(t, userDir)
 
 	// the host edits while it's down
 	writeFile(t, userAgentsMd(userDir), "host edit")

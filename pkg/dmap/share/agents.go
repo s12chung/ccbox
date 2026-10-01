@@ -1,4 +1,4 @@
-package harness
+package share
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
@@ -39,7 +40,7 @@ func SafeSeedAgentsMd() error {
 // and changes are preserved into the realCliFile. The bound doc is the share's source (see source).
 type AgentsMdShare struct {
 	// CLI is the run's CLI
-	CLI CLI
+	CLI harness.CLI
 
 	// ScratchMount is the scratch file's container path: its bind's target and the
 	// realCliFile symlink's target
@@ -65,7 +66,7 @@ func (s AgentsMdShare) Begin() (string, func() error, error) {
 // the realCliFile when the first holder bound the CLI's own doc directly
 func (s AgentsMdShare) verifyShared() error {
 	if ioutil.Missing(s.scratchFilePath()) && !s.realCliFileExists() {
-		return fmt.Errorf("harness: live run's share missing: neither %s nor %s", userdir.Tilde(s.scratchFilePath()), userdir.Tilde(s.realCliFile()))
+		return fmt.Errorf("agents: live run's share missing: neither %s nor %s", userdir.Tilde(s.scratchFilePath()), userdir.Tilde(s.realCliFile()))
 	}
 	return nil
 }

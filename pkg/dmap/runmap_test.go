@@ -10,6 +10,7 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -22,7 +23,7 @@ import (
 func TestRunMap_RunOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
 
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 		CLIName:   new("claude"),
@@ -59,8 +60,8 @@ func TestRunMap_RunOptions(t *testing.T) {
 func TestRunMap_HostOptions(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "")                // the gitconfig bind resolves $HOME's XDG dir
-	require.NoError(t, harness.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
+	t.Setenv("XDG_CONFIG_HOME", "")              // the gitconfig bind resolves $HOME's XDG dir
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMdShare assumes the ccbox-admin doc is seeded
 
 	projectDir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), ioutil.Dir))

@@ -1,6 +1,7 @@
-// Package persist seeds the per-project state dir persisted across runs: mounted at
-// /home/ccbox/.ccbox/persist in the devbox, kept on the host per project.
-package persist
+// Package share binds host state into the devbox via scratch copies shared across
+// concurrent runs: the AGENTS doc shared across CLIs, and the per-project state dir,
+// mounted at /home/ccbox/.ccbox/persist, kept on the host per project.
+package share
 
 import (
 	"embed"

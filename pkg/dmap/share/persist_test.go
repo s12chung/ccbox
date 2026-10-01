@@ -1,4 +1,4 @@
-package persist
+package share
 
 import (
 	"io/fs"
@@ -206,7 +206,7 @@ func TestShare_Clean_CrashLeftover_IntoExistingDir(t *testing.T) {
 	s := testShare(t)
 
 	// a crashed run leaves a changed scratch; the Dir exists from an earlier clean
-	crashRun(t)
+	crashPersistRun(t)
 	writeScratch(t, s, "notes.txt", "written before the crash")
 	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
 	require.NoError(t, os.WriteFile(filepath.Join(s.realDir(), "README.md"), []byte("dir's own"), ioutil.File))
@@ -230,7 +230,7 @@ func TestShare_Clean_CrashLeftover(t *testing.T) {
 	s := testShare(t)
 
 	// a run seeded the scratch, changed it, then crashed before its cleanup ran
-	crashRun(t)
+	crashPersistRun(t)
 	writeScratch(t, s, "notes.txt", "written before the crash")
 
 	// the next Begin promotes the leftover scratch
@@ -248,7 +248,7 @@ func TestShare_Begin_CrashLeftover_Unchanged(t *testing.T) {
 	s := testShare(t)
 
 	// a crashed run leaves an untouched scratch; the Dir exists from an earlier clean
-	crashRun(t)
+	crashPersistRun(t)
 	require.NoError(t, os.MkdirAll(s.realDir(), ioutil.Dir))
 	require.NoError(t, ioutil.SafeWriteFile(filepath.Join(s.realDir(), "README.md"), []byte("dir's own")))
 
@@ -265,18 +265,18 @@ func TestShare_Begin_CrashLeftover_Unchanged(t *testing.T) {
 	assert.NoDirExists(t, s.scratch())
 }
 
-// crashRun runs a Share's Begin in a child process that exits without cleanup: the
+// crashPersistRun runs a Share's Begin in a child process that exits without cleanup: the
 // kernel releases the crashed run's registry entry, as a real crash does
-func crashRun(t *testing.T) {
+func crashPersistRun(t *testing.T) {
 	t.Helper()
-	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestHelperCrashRun$") // #nosec G204,G702 -- re-execs the test binary itself
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^TestHelperCrashPersistRun$") // #nosec G204,G702 -- re-execs the test binary itself
 	cmd.Env = append(os.Environ(), "CCBOX_CRASH_RUN=1")
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, "child output:\n%s", out)
 }
 
-// TestHelperCrashRun is crashRun's child process
-func TestHelperCrashRun(t *testing.T) {
+// TestHelperCrashPersistRun is crashPersistRun's child process
+func TestHelperCrashPersistRun(t *testing.T) {
 	if os.Getenv("CCBOX_CRASH_RUN") != "1" {
 		t.Skip("helper: not under test")
 	}

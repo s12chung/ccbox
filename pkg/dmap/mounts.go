@@ -8,9 +8,9 @@ import (
 	"slices"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
+	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
-	"github.com/s12chung/ccbox/pkg/persist"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -32,8 +32,8 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
 	var scratchFile, persistDir string
 	clean, err := klean.Share{
-		harness.AgentsMdShare{CLI: cli, ScratchMount: cliScratchMount(cli)},
-		persist.Share{ProjectDir: projectDir},
+		share.AgentsMdShare{CLI: cli, ScratchMount: cliScratchMount(cli)},
+		share.Share{ProjectDir: projectDir},
 	}.Begin(&scratchFile, &persistDir)
 	if err != nil {
 		return nil, clean, err
@@ -123,7 +123,7 @@ func cliDataBinds(userDir string, cli harness.CLI) []docker.Mount {
 // cliScratchMount is the CLI's shared doc scratch file's container path:
 // <ContainerHome>/.ccbox/tmp/<cli_name>/AGENTS.md
 func cliScratchMount(cli harness.CLI) string {
-	return path.Join(projectcfg.ContainerHome, ".ccbox", "tmp", cli.Name, harness.AgentsMdFileName)
+	return path.Join(projectcfg.ContainerHome, ".ccbox", "tmp", cli.Name, share.AgentsMdFileName)
 }
 
 // cliScratchBind binds the shared doc's scratch file at cliScratchMount; the cliFile

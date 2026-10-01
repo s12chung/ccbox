@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/harness"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
@@ -100,7 +101,7 @@ func safeSeedHarness() error {
 	if err := safeSeed(harness.SeedUserClisFS(), harness.UserCLIsDir(), false); err != nil {
 		return err
 	}
-	return harness.SafeSeedAgentsMd()
+	return share.SafeSeedAgentsMd()
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing
