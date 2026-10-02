@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
@@ -13,12 +14,16 @@ func TestFor(t *testing.T) {
 	assert.IsType(t, Npm{}, npm)
 	assert.Equal(t, "claude", npm.Name())
 
-	vu := For(pkginfo.PkgInfo{
+	pkger := For(pkginfo.PkgInfo{
 		Name:       "grok",
 		VersionURL: &pkginfo.VersionURL{URL: "https://x", LinuxX64URL: "https://x", LinuxArm64URL: "https://x"},
 	})
-	assert.IsType(t, VersionURL{}, vu)
-	assert.Equal(t, "grok", vu.Name())
+	assert.IsType(t, FilePkger{}, pkger)
+	assert.Equal(t, "grok", pkger.Name())
+	filePkger, ok := pkger.(FilePkger)
+	require.True(t, ok)
+	assert.IsType(t, VersionURL{}, filePkger.Downloader)
+	assert.IsType(t, RawBin{}, filePkger.Installer)
 }
 
 func TestPkgDir(t *testing.T) {

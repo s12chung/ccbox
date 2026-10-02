@@ -2,12 +2,9 @@ package pkger
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -41,50 +38,30 @@ func versionAt(url string) (string, error) {
 	return v, nil
 }
 
-// execFileMode is the mode installed executables carry (mirrors the host's ioutil.ExecFile).
-const execFileMode os.FileMode = 0o755
-
 // VersionURL downloads a raw executable whose version is resolved from a URL.
-type VersionURL struct {
-	pkginfo.VersionURL
-
-	name string
-}
-
-// Name is the CLI's name.
-func (u VersionURL) Name() string { return u.name }
+type VersionURL struct{ pkginfo.VersionURL }
 
 // Latest returns the bare version the endpoint serves.
 func (u VersionURL) Latest() (string, error) {
 	return versionAt(u.URL)
 }
 
-// Install downloads the version's binary for the running arch into dir.
-func (u VersionURL) Install(dir, version string) error {
+// Download fetches the version's binary for the running arch; the caller closes it.
+func (u VersionURL) Download(version string) (io.ReadCloser, error) {
 	tpl, err := u.template()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resp, err := httpGet(context.Background(), strings.Replace(tpl, "$version", version, 1))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer resp.Body.Close() //nolint:errcheck // failing is ok
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("%s: %s", resp.Request.URL, resp.Status)
+		defer resp.Body.Close() //nolint:errcheck // failing is ok
+		return nil, fmt.Errorf("%s: %s", resp.Request.URL, resp.Status)
 	}
-
-	path := filepath.Join(dir, u.name)
-	//nolint:gosec // path is the clis root + the firm-validated CLI name
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, execFileMode)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(file, resp.Body); err != nil {
-		return errors.Join(err, file.Close())
-	}
-	return errors.Join(file.Chmod(execFileMode), file.Close())
+	return resp.Body, nil
 }
 
 // template picks the download URL template for the running arch.
@@ -98,6 +75,3 @@ func (u VersionURL) template() (string, error) {
 		return "", fmt.Errorf("pkger: no download url for %s", runtime.GOARCH)
 	}
 }
-
-// RelBin is the raw binary dropped at the install dir's root.
-func (u VersionURL) RelBin() string { return u.name }

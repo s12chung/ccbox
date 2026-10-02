@@ -1,10 +1,9 @@
 package pkger
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"runtime"
 	"testing"
 
@@ -37,9 +36,19 @@ func TestVersion_At(t *testing.T) {
 			assert.Error(t, err)
 		})
 	}
+
+	t.Run("http error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusBadGateway)
+		}))
+		defer srv.Close()
+
+		_, err := versionAt(srv.URL)
+		assert.ErrorContains(t, err, "502 Bad Gateway")
+	})
 }
 
-func TestVersionURL_Install(t *testing.T) {
+func TestVersionURL_Download(t *testing.T) {
 	var hits []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits = append(hits, r.URL.Path)
@@ -47,26 +56,19 @@ func TestVersionURL_Install(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	u := VersionURL{
-		VersionURL: pkginfo.VersionURL{
-			URL:           srv.URL + "/stable",
-			LinuxX64URL:   srv.URL + "/grok-$version-x64",
-			LinuxArm64URL: srv.URL + "/grok-$version-arm64",
-		},
-		name: "grok",
-	}
+	u := VersionURL{VersionURL: pkginfo.VersionURL{
+		URL:           srv.URL + "/stable",
+		LinuxX64URL:   srv.URL + "/grok-$version-x64",
+		LinuxArm64URL: srv.URL + "/grok-$version-arm64",
+	}}
 
-	dir := t.TempDir()
-	require.NoError(t, u.Install(dir, "1.0.5"))
+	exe, err := u.Download("1.0.5")
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, exe.Close()) }()
 
-	// the raw binary lands at the dir root, executable
-	//nolint:gosec // test fixture path
-	body, err := os.ReadFile(filepath.Join(dir, "grok"))
+	body, err := io.ReadAll(exe)
 	require.NoError(t, err)
 	assert.Equal(t, "#!/bin/sh\n", string(body))
-	info, err := os.Stat(filepath.Join(dir, "grok"))
-	require.NoError(t, err)
-	assert.Equal(t, execFileMode, info.Mode().Perm())
 
 	// the running arch's template was hit with the version substituted
 	want := "/grok-1.0.5-x64"
@@ -75,5 +77,23 @@ func TestVersionURL_Install(t *testing.T) {
 	}
 	assert.Equal(t, []string{want}, hits)
 
-	assert.Equal(t, "grok", u.RelBin())
+	t.Run("non-200", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		}))
+		defer srv.Close()
+
+		u := VersionURL{VersionURL: pkginfo.VersionURL{URL: srv.URL, LinuxX64URL: srv.URL, LinuxArm64URL: srv.URL}}
+		_, err := u.Download("1.0.5")
+		assert.ErrorContains(t, err, "404 Not Found")
+	})
+
+	t.Run("transport error", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
+		u := VersionURL{VersionURL: pkginfo.VersionURL{URL: srv.URL, LinuxX64URL: srv.URL, LinuxArm64URL: srv.URL}}
+		srv.Close()
+
+		_, err := u.Download("1.0.5")
+		assert.Error(t, err)
+	})
 }

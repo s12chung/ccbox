@@ -26,7 +26,7 @@ func For(info pkginfo.PkgInfo) Pkger {
 	case info.Npm != nil:
 		return Npm{Npm: *info.Npm, name: info.Name}
 	default: // info is validated: exactly one of Npm/VersionURL is set
-		return VersionURL{VersionURL: *info.VersionURL, name: info.Name}
+		return FilePkger{name: info.Name, Downloader: VersionURL{VersionURL: *info.VersionURL}, Installer: RawBin{name: info.Name}}
 	}
 }
 
