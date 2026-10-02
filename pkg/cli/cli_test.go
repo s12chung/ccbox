@@ -162,12 +162,16 @@ func TestParseCLI_Rejects(t *testing.T) {
 			[]string{"Npm.Package.Match"},
 		},
 		{
-			"partial version_url urls", "version_url:\n  url: https://x\n",
-			[]string{"LinuxX64URL.Match", "LinuxArm64URL.Match"},
+			"no download_template", "version_url:\n  url: https://x\n",
+			[]string{"VersionURL.DownloadTemplate.Nil", "DownloadTemplate is nil"},
 		},
 		{
-			"non-https version_url url", "version_url:\n  url: \"ftp://x\"\n  linux_x64_url: https://x\n  linux_arm64_url: https://x\n",
+			"non-https version_url url", "version_url:\n  url: \"ftp://x\"\n  download_template:\n    x64_url: https://x\n    arm64_url: https://x\n",
 			[]string{"URL.Match"},
+		},
+		{
+			"non-https download_template", "version_url:\n  url: https://x\n  download_template:\n    x64_url: \"ftp://x\"\n    arm64_url: https://x\n",
+			[]string{"X64URL.Match"},
 		},
 		{
 			"missing session args", "npm:\n  package: mycli\ncmd: \"mycli\"\nconfig_home_mount: \".mycli\"\n",
@@ -249,8 +253,8 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 	body, err = MustFor("grok").PkgInfoJSON()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"grok","npm":null,"version_url":{"url":"https://x.ai/cli/stable",`+
-		`"linux_x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",`+
-		`"linux_arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"}}`, body)
+		`"download_template":{"x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",`+
+		`"arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"}}}`, body)
 }
 
 func TestCLI_SessionCmd(t *testing.T) {

@@ -32,5 +32,9 @@ func RunFromEnv() error {
 	if root == "" {
 		root = DefaultRoot
 	}
-	return Run(pkger.PkgDir{Pkger: pkger.For(info), Root: root})
+	p, err := pkger.ForPkgInfo(info)
+	if err != nil {
+		return err
+	}
+	return Run(pkger.PkgDir{Pkger: p, Root: root})
 }

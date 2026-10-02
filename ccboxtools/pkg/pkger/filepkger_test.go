@@ -18,19 +18,20 @@ func TestFilePkger_Install(t *testing.T) {
 	var hits []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		hits = append(hits, r.URL.Path)
+		if r.URL.Path == "/stable" {
+			_, _ = w.Write([]byte("1.0.5"))
+			return
+		}
 		_, _ = w.Write([]byte("#!/bin/sh\n"))
 	}))
 	defer srv.Close()
 
-	p := FilePkger{
-		Downloader: VersionURL{VersionURL: pkginfo.VersionURL{
-			URL:           srv.URL + "/stable",
-			LinuxX64URL:   srv.URL + "/grok-$version-x64",
-			LinuxArm64URL: srv.URL + "/grok-$version-arm64",
-		}},
-		Installer: RawBin{name: "grok"},
-		name:      "grok",
-	}
+	d, err := pkgerize(pkginfo.VersionURL{
+		URL:              srv.URL + "/stable",
+		DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL + "/grok-$version-x64", Arm64URL: srv.URL + "/grok-$version-arm64"},
+	})
+	require.NoError(t, err)
+	p := FilePkger{Downloader: d, Installer: RawBin{name: "grok"}, name: "grok"}
 
 	dir := t.TempDir()
 	require.NoError(t, p.Install(dir, "1.0.5"))
@@ -45,11 +46,11 @@ func TestFilePkger_Install(t *testing.T) {
 	assert.Equal(t, execFileMode, info.Mode().Perm())
 
 	// the arch template was hit with the version substituted
-	want := "/grok-1.0.5-x64"
+	want := []string{"/grok-1.0.5-x64"}
 	if runtime.GOARCH == "arm64" {
-		want = "/grok-1.0.5-arm64"
+		want = []string{"/grok-1.0.5-arm64"}
 	}
-	assert.Equal(t, []string{want}, hits)
+	assert.Equal(t, want, hits)
 
 	assert.Equal(t, "grok", p.RelBin())
 }
@@ -60,11 +61,12 @@ func TestFilePkger_Latest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	p := FilePkger{
-		Downloader: VersionURL{VersionURL: pkginfo.VersionURL{URL: srv.URL}},
-		Installer:  RawBin{name: "grok"},
-		name:       "grok",
-	}
+	d, err := pkgerize(pkginfo.VersionURL{
+		URL:              srv.URL,
+		DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
+	})
+	require.NoError(t, err)
+	p := FilePkger{Downloader: d, Installer: RawBin{name: "grok"}, name: "grok"}
 	v, err := p.Latest()
 	require.NoError(t, err)
 	assert.Equal(t, "1.2.3", v)

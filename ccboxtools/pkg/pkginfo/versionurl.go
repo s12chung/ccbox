@@ -7,21 +7,32 @@ import (
 	"github.com/s12chung/firm/rule"
 )
 
-// VersionURL installs from a URL whose body is a bare version — xAI's channel
-// endpoints, e.g. https://x.ai/cli/stable -> 1.0.5. The download URL templates
-// carry a literal $version, substituted at install.
+// VersionURL installs from a URL whose body is a bare version. The per-arch
+// download URL templates (DownloadTemplate) carry a literal $version,
+// substituted at download.
 type VersionURL struct {
-	URL           string `json:"url"             yaml:"url"`
-	LinuxX64URL   string `json:"linux_x64_url"   yaml:"linux_x64_url"`
-	LinuxArm64URL string `json:"linux_arm64_url" yaml:"linux_arm64_url"`
+	URL              string            `json:"url"               yaml:"url"`
+	DownloadTemplate *DownloadTemplate `json:"download_template" yaml:"download_template"`
+}
+
+// DownloadTemplate carries the per-arch download URL templates; a literal $version
+// is substituted at download.
+type DownloadTemplate struct {
+	X64URL   string `json:"x64_url"   yaml:"x64_url"`
+	Arm64URL string `json:"arm64_url" yaml:"arm64_url"`
 }
 
 func init() {
 	// https endpoints; download templates may carry a literal $version
 	https := rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
-	firm.MustRegisterType(firm.NewDefinition[VersionURL]().Validates(firm.RuleMap{
-		"URL":           {https},
-		"LinuxX64URL":   {https},
-		"LinuxArm64URL": {https},
+	firm.MustRegisterType(firm.NewDefinition[VersionURL]().
+		NotNil("DownloadTemplate").
+		Validates(firm.RuleMap{
+			"URL":              {https},
+			"DownloadTemplate": {firm.Backed()},
+		}))
+	firm.MustRegisterType(firm.NewDefinition[DownloadTemplate]().Validates(firm.RuleMap{
+		"X64URL":   {https},
+		"Arm64URL": {https},
 	}))
 }

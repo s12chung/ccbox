@@ -20,13 +20,17 @@ type Pkger interface {
 	RelBin() string
 }
 
-// For returns info's install source as a Pkger.
-func For(info pkginfo.PkgInfo) Pkger {
+// ForPkgInfo returns info's install source as a Pkger.
+func ForPkgInfo(info pkginfo.PkgInfo) (Pkger, error) {
 	switch {
 	case info.Npm != nil:
-		return Npm{Npm: *info.Npm, name: info.Name}
+		return Npm{Npm: *info.Npm, name: info.Name}, nil
 	default: // info is validated: exactly one of Npm/VersionURL is set
-		return FilePkger{name: info.Name, Downloader: VersionURL{VersionURL: *info.VersionURL}, Installer: RawBin{name: info.Name}}
+		d, err := pkgerize(*info.VersionURL)
+		if err != nil {
+			return nil, err
+		}
+		return FilePkger{name: info.Name, Downloader: d, Installer: RawBin{name: info.Name}}, nil
 	}
 }
 

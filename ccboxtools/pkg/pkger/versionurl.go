@@ -1,10 +1,9 @@
 package pkger
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"regexp"
 	"runtime"
 	"strings"
@@ -12,66 +11,70 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
 
-// versionRe guards the resolved version: a version endpoint serves a bare semver,
-// so anything else (an error page, HTML) must not become the installed version.
+// versionRe guards the resolved version: a bare semver from the endpoint's
+// body — anything else (an error page, HTML)
+// must not become the installed version.
 var versionRe = regexp.MustCompile(`^\d+(\.\d+)*([-+].+)?$`)
 
-// versionAt returns the bare version the endpoint serves.
-func versionAt(url string) (string, error) {
-	resp, err := httpGet(context.Background(), url)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close() //nolint:errcheck // failing is ok
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("%s: %s", url, resp.Status)
+// VersionURL downloads a raw executable whose version is resolved from a URL's
+// body by a Versioner.
+type VersionURL struct {
+	pkginfo.VersionURL
+
+	versioner Versioner
+}
+
+// pkgerize returns the VersionURL for the pkginfo.VersionURL
+func pkgerize(vu pkginfo.VersionURL) (VersionURL, error) {
+	if vu.DownloadTemplate == nil { // unrepresentable via firm-validated config; Go-constructed configs hit it
+		return VersionURL{}, errors.New("pkger: no download_template")
 	}
 
-	body, err := io.ReadAll(resp.Body)
+	return VersionURL{VersionURL: vu, versioner: TextVersioner{}}, nil
+}
+
+// Latest fetches the url's body and returns the versioner's version,
+// versionRe-guarded.
+func (u VersionURL) Latest() (string, error) {
+	body, err := httpBody(u.URL)
 	if err != nil {
 		return "", err
 	}
-	v := strings.TrimSpace(string(body))
+
+	v, err := u.versioner.Latest(body)
+	if err != nil {
+		return "", err
+	}
 	if !versionRe.MatchString(v) {
-		return "", fmt.Errorf("%s: %q is not a version", url, v)
+		return "", fmt.Errorf("%s: %q is not a version", u.URL, v)
 	}
 	return v, nil
 }
 
-// VersionURL downloads a raw executable whose version is resolved from a URL.
-type VersionURL struct{ pkginfo.VersionURL }
-
-// Latest returns the bare version the endpoint serves.
-func (u VersionURL) Latest() (string, error) {
-	return versionAt(u.URL)
-}
-
 // Download fetches the version's binary for the running arch; the caller closes it.
 func (u VersionURL) Download(version string) (io.ReadCloser, error) {
-	tpl, err := u.template()
+	url, err := u.downloadURL(version)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := httpGet(context.Background(), strings.Replace(tpl, "$version", version, 1))
+	resp, err := httpGetOK(url)
 	if err != nil {
 		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		defer resp.Body.Close() //nolint:errcheck // failing is ok
-		return nil, fmt.Errorf("%s: %s", resp.Request.URL, resp.Status)
 	}
 	return resp.Body, nil
 }
 
-// template picks the download URL template for the running arch.
-func (u VersionURL) template() (string, error) {
+func (u VersionURL) downloadURL(version string) (string, error) {
+	tmpl := ""
 	switch runtime.GOARCH {
 	case "amd64":
-		return u.LinuxX64URL, nil
+		tmpl = u.DownloadTemplate.X64URL
 	case "arm64":
-		return u.LinuxArm64URL, nil
-	default:
-		return "", fmt.Errorf("pkger: no download url for %s", runtime.GOARCH)
+		tmpl = u.DownloadTemplate.Arm64URL
 	}
+	if tmpl == "" {
+		return tmpl, fmt.Errorf("pkger: no download url for %s", runtime.GOARCH)
+	}
+	return strings.ReplaceAll(tmpl, "$version", version), nil
 }

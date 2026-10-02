@@ -15,27 +15,36 @@ func TestVersionURL_Validate(t *testing.T) {
 		want []string
 	}{
 		{
-			"ok",
+			"ok template",
 			VersionURL{
-				URL:           "https://x.ai/cli/stable",
-				LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
-				LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
+				URL: "https://x.ai/cli/stable",
+				DownloadTemplate: &DownloadTemplate{
+					X64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
+					Arm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
+				},
 			},
 			nil,
 		},
 		{
-			"all empty",
-			VersionURL{},
-			[]string{"URL.Match", "LinuxX64URL.Match", "LinuxArm64URL.Match"},
+			"no download_template",
+			VersionURL{URL: "https://x.ai/cli/stable"},
+			[]string{"DownloadTemplate.Nil"},
 		},
 		{
-			"non-https",
+			"non-https url",
 			VersionURL{
-				URL:           "http://x.ai/cli/stable",
-				LinuxX64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
-				LinuxArm64URL: "https://x.ai/cli/grok-$version-linux-aarch64",
+				URL:              "http://x.ai/cli/stable",
+				DownloadTemplate: &DownloadTemplate{X64URL: "https://x", Arm64URL: "https://x"},
 			},
 			[]string{"URL.Match"},
+		},
+		{
+			"non-https template",
+			VersionURL{
+				URL:              "https://x.ai/cli/stable",
+				DownloadTemplate: &DownloadTemplate{X64URL: "ftp://x", Arm64URL: "https://x"},
+			},
+			[]string{"X64URL.Match"},
 		},
 	}
 	for _, tt := range tests {

@@ -1,8 +1,9 @@
 # Grok Build (xAI).
 version_url:
   url: "https://x.ai/cli/stable"
-  linux_x64_url: "https://x.ai/cli/grok-$version-linux-x86_64"
-  linux_arm64_url: "https://x.ai/cli/grok-$version-linux-aarch64"
+  download_template:
+    x64_url: "https://x.ai/cli/grok-$version-linux-x86_64"
+    arm64_url: "https://x.ai/cli/grok-$version-linux-aarch64"
 
 config_home_mount: ".grok"
 
