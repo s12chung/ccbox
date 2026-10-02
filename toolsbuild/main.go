@@ -11,7 +11,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/toolsbuild"
 )
 

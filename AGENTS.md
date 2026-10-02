@@ -14,7 +14,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/*`) plus the prebuilt `dist/ccboxtools` binary into the binary, then hands off to `cmd`.
 - **`toolsbuild/`** — `go run` command that builds `dist/ccboxtools`
 - **`ccboxtools/`** — the container's entrypoint — it verifies the container security and installs and maintains the harness CLI
-  - `pkg/log` — log helpers and abstraction, never use `fmt.Print*`
+  - `pkg/util/log` — log helpers and abstraction, never use `fmt.Print*`
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
@@ -52,4 +52,4 @@ For tests:
 
 ### Linting
 
-`golangci-lint` is very strict. When encountering `bodyclose`, use this pattern `defer func() { log.WarnErr("intent", resp.Body.Close()) }()`, where `log` is `ccboxtools/pkg/log`.
+`golangci-lint` is very strict. When encountering `bodyclose`, use this pattern `defer func() { log.WarnErr("intent", resp.Body.Close()) }()`, where `log` is `ccboxtools/pkg/util/log`.

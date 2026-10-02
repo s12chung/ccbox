@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/entrypoint"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 )
 
 var entrypointCmd = &cobra.Command{

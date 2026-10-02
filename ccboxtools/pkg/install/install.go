@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/flock"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/flock"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 )
 
 // DefaultRoot is the clis root's container mount: the ccbox-clis global volume's,

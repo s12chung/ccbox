@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/log"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 )
 
 // Wall probe URLs: api.github.com returns 200 unauthenticated and matches the
