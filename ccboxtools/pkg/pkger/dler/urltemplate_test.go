@@ -20,15 +20,32 @@ func TestURLTemplate_Latest(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		u, err := New(pkginfo.ReleaseURL{
-			URL:              srv.URL,
-			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
-		})
-		require.NoError(t, err)
+		u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 
 		v, err := u.Latest()
 		require.NoError(t, err)
 		assert.Equal(t, "1.0.5", v)
+	})
+
+	t.Run("arch template", func(t *testing.T) {
+		var hits []string
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			hits = append(hits, r.URL.Path)
+			_, _ = w.Write([]byte("1.0.5"))
+		}))
+		defer srv.Close()
+
+		u := NewURLTemplate(srv.URL+"/linux-$arch/manifest", pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
+
+		v, err := u.Latest()
+		require.NoError(t, err)
+		assert.Equal(t, "1.0.5", v)
+
+		want := "/linux-x64/manifest"
+		if runtime.GOARCH == "arm64" {
+			want = "/linux-arm64/manifest"
+		}
+		assert.Equal(t, []string{want}, hits)
 	})
 
 	for _, body := range []string{"", "not found", "<html>502</html>", "1.0.5\n1.0.6"} {
@@ -38,13 +55,9 @@ func TestURLTemplate_Latest(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			u, err := New(pkginfo.ReleaseURL{
-				URL:              srv.URL,
-				DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
-			})
-			require.NoError(t, err)
+			u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 
-			_, err = u.Latest()
+			_, err := u.Latest()
 			assert.ErrorContains(t, err, "is not a version")
 		})
 	}
@@ -55,13 +68,9 @@ func TestURLTemplate_Latest(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		u, err := New(pkginfo.ReleaseURL{
-			URL:              srv.URL,
-			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
-		})
-		require.NoError(t, err)
+		u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 
-		_, err = u.Latest()
+		_, err := u.Latest()
 		assert.ErrorContains(t, err, "502 Bad Gateway")
 	})
 }
@@ -79,11 +88,10 @@ func TestURLTemplate_Download(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		u, err := New(pkginfo.ReleaseURL{
-			URL:              srv.URL + "/stable",
-			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL + "/grok-$version-x64", Arm64URL: srv.URL + "/grok-$version-arm64"},
+		u := NewURLTemplate(srv.URL+"/stable", pkginfo.DownloadTemplate{
+			X64URL:   srv.URL + "/grok-$version-x64",
+			Arm64URL: srv.URL + "/grok-$version-arm64",
 		})
-		require.NoError(t, err)
 
 		exe, err := u.Download("1.0.5")
 		require.NoError(t, err)
@@ -93,7 +101,7 @@ func TestURLTemplate_Download(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "#!/bin/sh\n", string(body))
 
-		// the arch template was hit with the version substituted
+		// the arch template was hit with the version substituted, no hash lookup
 		want := []string{"/grok-1.0.5-x64"}
 		if runtime.GOARCH == "arm64" {
 			want = []string{"/grok-1.0.5-arm64"}
@@ -111,45 +119,18 @@ func TestURLTemplate_Download(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		u, err := New(pkginfo.ReleaseURL{
-			URL:              srv.URL + "/stable",
-			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL + "/exe", Arm64URL: srv.URL + "/exe"},
-		})
-		require.NoError(t, err)
+		u := NewURLTemplate(srv.URL+"/stable", pkginfo.DownloadTemplate{X64URL: srv.URL + "/exe", Arm64URL: srv.URL + "/exe"})
 
-		_, err = u.Download("1.0.5")
+		_, err := u.Download("1.0.5")
 		assert.ErrorContains(t, err, "404 Not Found")
 	})
 
 	t.Run("transport error", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
-		u, err := New(pkginfo.ReleaseURL{
-			URL:              srv.URL,
-			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
-		})
-		require.NoError(t, err)
+		u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 		srv.Close()
 
-		_, err = u.Download("1.0.5")
+		_, err := u.Download("1.0.5")
 		assert.Error(t, err)
 	})
-}
-
-func TestNew_ConfigError(t *testing.T) {
-	for _, tt := range []struct {
-		name    string
-		vu      pkginfo.ReleaseURL
-		wantErr string
-	}{
-		{
-			"no download_template",
-			pkginfo.ReleaseURL{URL: "https://x"},
-			"no download_template",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := New(tt.vu)
-			assert.ErrorContains(t, err, tt.wantErr)
-		})
-	}
 }

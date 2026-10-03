@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/artifact"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/dler"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
 
@@ -28,7 +27,7 @@ func TestFilePkger_Install(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d, err := dler.New(pkginfo.ReleaseURL{
+	d, err := pkgerize(pkginfo.ReleaseURL{
 		URL:              srv.URL + "/stable",
 		DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL + "/grok-$version-x64", Arm64URL: srv.URL + "/grok-$version-arm64"},
 	})
@@ -45,7 +44,7 @@ func TestFilePkger_Install(t *testing.T) {
 	assert.Equal(t, "#!/bin/sh\n", string(body))
 	info, err := os.Stat(filepath.Join(dir, "grok"))
 	require.NoError(t, err)
-	assert.Equal(t, artifact.ExecFileMode, info.Mode().Perm())
+	assert.Equal(t, os.FileMode(0o755), info.Mode().Perm())
 
 	// the arch template was hit with the version substituted
 	want := []string{"/grok-1.0.5-x64"}
@@ -63,7 +62,7 @@ func TestFilePkger_Latest(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	d, err := dler.New(pkginfo.ReleaseURL{
+	d, err := pkgerize(pkginfo.ReleaseURL{
 		URL:              srv.URL,
 		DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
 	})

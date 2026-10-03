@@ -59,7 +59,7 @@ func (n Npm) Latest() (string, error) {
 }
 
 // Install runs npm's global install with dir as the prefix, so the package tree
-// and its bin land inside it. The package's bin name is assumed to be the CLI's.
+// lands inside dir, ready to rename into place.
 func (n Npm) Install(dir, version string) error {
 	args := []string{
 		"install", "-g", "--prefix", dir,

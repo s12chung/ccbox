@@ -15,17 +15,17 @@ import (
 )
 
 func TestForPkgInfo(t *testing.T) {
-	n, err := ForPkgInfo(pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "a"}})
+	p, err := ForPkgInfo(pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "a"}})
 	require.NoError(t, err)
-	assert.IsType(t, npm.Npm{}, n)
-	assert.Equal(t, "claude", n.Name())
+	assert.IsType(t, npm.Npm{}, p)
+	assert.Equal(t, "claude", p.Name())
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("1.0.5"))
 	}))
 	defer srv.Close()
 
-	t.Run("template", func(t *testing.T) {
+	t.Run("version url", func(t *testing.T) {
 		p, err := ForPkgInfo(pkginfo.PkgInfo{Name: "grok", ReleaseURL: &pkginfo.ReleaseURL{
 			URL:              srv.URL,
 			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
@@ -35,9 +35,9 @@ func TestForPkgInfo(t *testing.T) {
 
 		filePkger, ok := p.(FilePkger)
 		require.True(t, ok)
-		_, ok = filePkger.Downloader.(dler.URLTemplate)
-		assert.True(t, ok)
+		assert.IsType(t, dler.URLTemplate{}, filePkger.Downloader)
 		assert.IsType(t, artifact.RawBin{}, filePkger.Installer)
+		assert.Equal(t, "grok", filePkger.RelBin())
 	})
 
 	t.Run("no download_template", func(t *testing.T) {
@@ -48,10 +48,29 @@ func TestForPkgInfo(t *testing.T) {
 	})
 }
 
+func TestPkgerize_ConfigError(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		rel     pkginfo.ReleaseURL
+		wantErr string
+	}{
+		{
+			"no download_template",
+			pkginfo.ReleaseURL{URL: "https://x"},
+			"no download_template",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := pkgerize(tt.rel)
+			assert.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
 func TestPkgDir(t *testing.T) {
-	npm, err := ForPkgInfo(pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "a"}})
+	p, err := ForPkgInfo(pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "a"}})
 	require.NoError(t, err)
-	d := PkgDir{Pkger: npm, Root: "/opt/ccbox/clis"}
+	d := PkgDir{Pkger: p, Root: "/opt/ccbox/clis"}
 
 	assert.Equal(t, "/opt/ccbox/clis/claude", d.Dir())
 	assert.Equal(t, "/opt/ccbox/clis/claude/1.2.3", d.VersionDir("1.2.3"))

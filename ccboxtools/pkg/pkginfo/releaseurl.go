@@ -7,8 +7,8 @@ import (
 	"github.com/s12chung/firm/rule"
 )
 
-// ReleaseURL installs from a URL whose body is a bare version. The per-arch
-// download URL templates (DownloadTemplate) carry a literal $version,
+// ReleaseURL installs from a URL whose body resolves the version: a bare-version
+// endpoint. DownloadTemplate names the file per arch with a literal $version,
 // substituted at download.
 type ReleaseURL struct {
 	URL              string            `json:"url"               yaml:"url"`
@@ -23,7 +23,6 @@ type DownloadTemplate struct {
 }
 
 func init() {
-	// https endpoints; download templates may carry a literal $version
 	https := rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
 	firm.MustRegisterType(firm.NewDefinition[ReleaseURL]().
 		NotNil("DownloadTemplate").

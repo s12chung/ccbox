@@ -1,10 +1,9 @@
 package dler
 
 import (
-	"errors"
 	"fmt"
 	"io"
-	"regexp"
+	"net/http"
 	"runtime"
 	"strings"
 
@@ -12,54 +11,44 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/httputil"
 )
 
-// versionRe guards the resolved version: a bare semver from the endpoint's
-// body — anything else (an error page, HTML)
-// must not become the installed version.
-var versionRe = regexp.MustCompile(`^\d+(\.\d+)*([-+].+)?$`)
+// arm64Arch is the arm64 name the vendor urls and goarch share.
+const arm64Arch = "arm64"
 
-// URLTemplate downloads a raw executable whose version is resolved from a URL's
-// body by a Versioner.
+// URLTemplate downloads the version's file by substituting it into the config's
+// per-arch url templates: the template mode of the download source. The url's
+// body is the bare version, and the file is served as-is, unverified.
 type URLTemplate struct {
-	pkginfo.ReleaseURL
+	pkginfo.DownloadTemplate
 
-	versioner Versioner
+	url string
+	// client fetches through instead of the default client — nil; the test TLS
+	// server injects its own
+	client *http.Client
 }
 
-// New returns the URLTemplate for the pkginfo.ReleaseURL
-func New(vu pkginfo.ReleaseURL) (URLTemplate, error) {
-	if vu.DownloadTemplate == nil { // unrepresentable via firm-validated config; Go-constructed configs hit it
-		return URLTemplate{}, errors.New("dler: no download_template")
-	}
-
-	return URLTemplate{ReleaseURL: vu, versioner: TextVersioner{}}, nil
+// NewURLTemplate builds the template mode's downloader.
+func NewURLTemplate(url string, tpl pkginfo.DownloadTemplate) URLTemplate {
+	return URLTemplate{url: url, DownloadTemplate: tpl}
 }
 
-// Latest fetches the url's body and returns the versioner's version,
-// versionRe-guarded.
+// Latest fetches the url's body — its bare version — versionRe-guarded.
 func (u URLTemplate) Latest() (string, error) {
-	body, err := httputil.Body(nil, u.URL)
+	body, err := fetchBody(u.client, u.url)
 	if err != nil {
 		return "", err
 	}
-
-	v, err := u.versioner.Latest(body)
-	if err != nil {
-		return "", err
-	}
-	if !versionRe.MatchString(v) {
-		return "", fmt.Errorf("%s: %q is not a version", u.URL, v)
-	}
-	return v, nil
+	return guardVersion(u.url, strings.TrimSpace(string(body)))
 }
 
-// Download fetches the version's binary for the running arch; the caller closes it.
+// Download fetches the version's file for the running arch; the caller closes it.
 func (u URLTemplate) Download(version string) (io.ReadCloser, error) {
 	url, err := u.downloadURL(version)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := httputil.GetOK(nil, url)
+	//nolint:bodyclose // the caller closes: the FilePkger.Install's defer drops it
+	resp, err := httputil.GetOK(u.client, url)
 	if err != nil {
 		return nil, err
 	}
@@ -70,12 +59,22 @@ func (u URLTemplate) downloadURL(version string) (string, error) {
 	tmpl := ""
 	switch runtime.GOARCH {
 	case "amd64":
-		tmpl = u.DownloadTemplate.X64URL
-	case "arm64":
-		tmpl = u.DownloadTemplate.Arm64URL
+		tmpl = u.X64URL
+	case arm64Arch:
+		tmpl = u.Arm64URL
 	}
 	if tmpl == "" {
-		return tmpl, fmt.Errorf("pkger: no download url for %s", runtime.GOARCH)
+		return tmpl, fmt.Errorf("dler: no download url for %s", runtime.GOARCH)
 	}
 	return strings.ReplaceAll(tmpl, "$version", version), nil
+}
+
+// subArch substitutes $arch in url with goarch's vendor name (x64/arm64); a url
+// without $arch passes through.
+func subArch(url, goarch string) string {
+	arch, ok := map[string]string{"amd64": "x64", arm64Arch: arm64Arch}[goarch]
+	if !ok {
+		return url
+	}
+	return strings.ReplaceAll(url, "$arch", arch)
 }

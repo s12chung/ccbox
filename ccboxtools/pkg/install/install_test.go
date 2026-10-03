@@ -113,6 +113,19 @@ func TestRun_UpToDate(t *testing.T) {
 	assert.Equal(t, []string{"1.2.3"}, p.installed) // no re-install on the second run
 }
 
+func TestRun_BrokenCurrent_Reinstalls(t *testing.T) {
+	p := &fakePkger{name: "claude", latest: "1.2.3"}
+	root := t.TempDir()
+	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+
+	// the current symlink outlives its target's executable (a pruned or wiped dir)
+	require.NoError(t, os.Remove(filepath.Join(root, "claude", "1.2.3", "bin", "claude")))
+	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+
+	assert.Equal(t, []string{"1.2.3", "1.2.3"}, p.installed)
+	assert.Equal(t, "1.2.3", readLink(t, filepath.Join(root, "claude", "current")))
+}
+
 func TestRun_ChannelFails_FallsBackToStale(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "1.2.3"}
 	root := t.TempDir()

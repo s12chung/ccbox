@@ -5,6 +5,7 @@ package install
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/flock"
@@ -30,7 +31,7 @@ func Run(pkgDir pkger.PkgDir) error {
 			log.Warnf("resolving %s latest cli failed (%v); using installed %s", pkgDir.Name(), err, active)
 			return nil
 		}
-		if latest == active {
+		if latest == active && installed(pkgDir, latest) {
 			log.Infof("%s %s is up to date", pkgDir.Name(), latest)
 			return nil
 		}
@@ -58,6 +59,14 @@ func skipInstalled(pkgDir pkger.PkgDir) func() bool {
 		log.Infof("%s update in flight; using installed %s", pkgDir.Name(), active)
 		return true
 	}
+}
+
+// installed reports whether version's dir actually carries the executable: the
+// current symlink can outlive its target on the shared volume (a pruned or
+// wiped dir, or an install predating the layout), and only the stat catches it.
+func installed(pkgDir pkger.PkgDir, version string) bool {
+	_, err := os.Stat(filepath.Join(pkgDir.VersionDir(version), pkgDir.RelBin()))
+	return err == nil
 }
 
 // install puts version in place: download to a temp dir, rename in, then flip

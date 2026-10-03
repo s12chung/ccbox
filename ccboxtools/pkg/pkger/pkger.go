@@ -3,6 +3,7 @@
 package pkger
 
 import (
+	"errors"
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/artifact"
@@ -29,12 +30,21 @@ func ForPkgInfo(info pkginfo.PkgInfo) (Pkger, error) {
 	case info.Npm != nil:
 		return npm.New(info.Name, *info.Npm), nil
 	default: // info is validated: exactly one of Npm/ReleaseURL is set
-		d, err := dler.New(*info.ReleaseURL)
+		d, err := pkgerize(*info.ReleaseURL)
 		if err != nil {
 			return nil, err
 		}
 		return FilePkger{name: info.Name, Downloader: d, Installer: artifact.NewRawBin(info.Name)}, nil
 	}
+}
+
+// pkgerize returns the download source for the pkginfo.ReleaseURL
+func pkgerize(rel pkginfo.ReleaseURL) (Downloader, error) {
+	if rel.DownloadTemplate == nil { // unrepresentable via firm-validated config; Go-constructed configs hit it
+		return nil, errors.New("pkger: no download_template")
+	}
+
+	return dler.NewURLTemplate(rel.URL, *rel.DownloadTemplate), nil
 }
 
 // PkgDir is a Pkger bound to a clis root: the volume paths the CLI installs to.
