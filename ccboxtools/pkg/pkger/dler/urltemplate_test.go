@@ -1,4 +1,4 @@
-package pkger
+package dler
 
 import (
 	"io"
@@ -13,14 +13,14 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
 
-func TestVersionURL_Latest(t *testing.T) {
+func TestURLTemplate_Latest(t *testing.T) {
 	t.Run("text", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte("  1.0.5\n"))
 		}))
 		defer srv.Close()
 
-		u, err := pkgerize(pkginfo.VersionURL{
+		u, err := New(pkginfo.ReleaseURL{
 			URL:              srv.URL,
 			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
 		})
@@ -38,7 +38,7 @@ func TestVersionURL_Latest(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			u, err := pkgerize(pkginfo.VersionURL{
+			u, err := New(pkginfo.ReleaseURL{
 				URL:              srv.URL,
 				DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
 			})
@@ -55,7 +55,7 @@ func TestVersionURL_Latest(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		u, err := pkgerize(pkginfo.VersionURL{
+		u, err := New(pkginfo.ReleaseURL{
 			URL:              srv.URL,
 			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
 		})
@@ -66,7 +66,7 @@ func TestVersionURL_Latest(t *testing.T) {
 	})
 }
 
-func TestVersionURL_Download(t *testing.T) {
+func TestURLTemplate_Download(t *testing.T) {
 	t.Run("text", func(t *testing.T) {
 		var hits []string
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -79,7 +79,7 @@ func TestVersionURL_Download(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		u, err := pkgerize(pkginfo.VersionURL{
+		u, err := New(pkginfo.ReleaseURL{
 			URL:              srv.URL + "/stable",
 			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL + "/grok-$version-x64", Arm64URL: srv.URL + "/grok-$version-arm64"},
 		})
@@ -111,7 +111,7 @@ func TestVersionURL_Download(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		u, err := pkgerize(pkginfo.VersionURL{
+		u, err := New(pkginfo.ReleaseURL{
 			URL:              srv.URL + "/stable",
 			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL + "/exe", Arm64URL: srv.URL + "/exe"},
 		})
@@ -123,7 +123,7 @@ func TestVersionURL_Download(t *testing.T) {
 
 	t.Run("transport error", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
-		u, err := pkgerize(pkginfo.VersionURL{
+		u, err := New(pkginfo.ReleaseURL{
 			URL:              srv.URL,
 			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
 		})
@@ -135,20 +135,20 @@ func TestVersionURL_Download(t *testing.T) {
 	})
 }
 
-func TestPkgerize_ConfigError(t *testing.T) {
+func TestNew_ConfigError(t *testing.T) {
 	for _, tt := range []struct {
 		name    string
-		vu      pkginfo.VersionURL
+		vu      pkginfo.ReleaseURL
 		wantErr string
 	}{
 		{
 			"no download_template",
-			pkginfo.VersionURL{URL: "https://x"},
+			pkginfo.ReleaseURL{URL: "https://x"},
 			"no download_template",
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := pkgerize(tt.vu)
+			_, err := New(tt.vu)
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
 	}

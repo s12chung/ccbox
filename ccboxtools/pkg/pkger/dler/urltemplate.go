@@ -1,4 +1,4 @@
-package pkger
+package dler
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/httputil"
 )
 
 // versionRe guards the resolved version: a bare semver from the endpoint's
@@ -16,27 +17,27 @@ import (
 // must not become the installed version.
 var versionRe = regexp.MustCompile(`^\d+(\.\d+)*([-+].+)?$`)
 
-// VersionURL downloads a raw executable whose version is resolved from a URL's
+// URLTemplate downloads a raw executable whose version is resolved from a URL's
 // body by a Versioner.
-type VersionURL struct {
-	pkginfo.VersionURL
+type URLTemplate struct {
+	pkginfo.ReleaseURL
 
 	versioner Versioner
 }
 
-// pkgerize returns the VersionURL for the pkginfo.VersionURL
-func pkgerize(vu pkginfo.VersionURL) (VersionURL, error) {
+// New returns the URLTemplate for the pkginfo.ReleaseURL
+func New(vu pkginfo.ReleaseURL) (URLTemplate, error) {
 	if vu.DownloadTemplate == nil { // unrepresentable via firm-validated config; Go-constructed configs hit it
-		return VersionURL{}, errors.New("pkger: no download_template")
+		return URLTemplate{}, errors.New("dler: no download_template")
 	}
 
-	return VersionURL{VersionURL: vu, versioner: TextVersioner{}}, nil
+	return URLTemplate{ReleaseURL: vu, versioner: TextVersioner{}}, nil
 }
 
 // Latest fetches the url's body and returns the versioner's version,
 // versionRe-guarded.
-func (u VersionURL) Latest() (string, error) {
-	body, err := httpBody(u.URL)
+func (u URLTemplate) Latest() (string, error) {
+	body, err := httputil.Body(nil, u.URL)
 	if err != nil {
 		return "", err
 	}
@@ -52,20 +53,20 @@ func (u VersionURL) Latest() (string, error) {
 }
 
 // Download fetches the version's binary for the running arch; the caller closes it.
-func (u VersionURL) Download(version string) (io.ReadCloser, error) {
+func (u URLTemplate) Download(version string) (io.ReadCloser, error) {
 	url, err := u.downloadURL(version)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := httpGetOK(url)
+	resp, err := httputil.GetOK(nil, url)
 	if err != nil {
 		return nil, err
 	}
 	return resp.Body, nil
 }
 
-func (u VersionURL) downloadURL(version string) (string, error) {
+func (u URLTemplate) downloadURL(version string) (string, error) {
 	tmpl := ""
 	switch runtime.GOARCH {
 	case "amd64":

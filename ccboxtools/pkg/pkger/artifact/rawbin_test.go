@@ -1,4 +1,4 @@
-package pkger
+package artifact
 
 import (
 	"os"
@@ -23,7 +23,7 @@ func TestRawBin_Install(t *testing.T) {
 	assert.Equal(t, "#!/bin/sh\n", string(body))
 	info, err := os.Stat(filepath.Join(dir, "grok"))
 	require.NoError(t, err)
-	assert.Equal(t, execFileMode, info.Mode().Perm())
+	assert.Equal(t, ExecFileMode, info.Mode().Perm())
 
 	assert.Equal(t, "grok", b.RelBin())
 

@@ -5,6 +5,9 @@ package pkger
 import (
 	"path/filepath"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/artifact"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/dler"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/npm"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
 
@@ -24,13 +27,13 @@ type Pkger interface {
 func ForPkgInfo(info pkginfo.PkgInfo) (Pkger, error) {
 	switch {
 	case info.Npm != nil:
-		return Npm{Npm: *info.Npm, name: info.Name}, nil
-	default: // info is validated: exactly one of Npm/VersionURL is set
-		d, err := pkgerize(*info.VersionURL)
+		return npm.New(info.Name, *info.Npm), nil
+	default: // info is validated: exactly one of Npm/ReleaseURL is set
+		d, err := dler.New(*info.ReleaseURL)
 		if err != nil {
 			return nil, err
 		}
-		return FilePkger{name: info.Name, Downloader: d, Installer: RawBin{name: info.Name}}, nil
+		return FilePkger{name: info.Name, Downloader: d, Installer: artifact.NewRawBin(info.Name)}, nil
 	}
 }
 

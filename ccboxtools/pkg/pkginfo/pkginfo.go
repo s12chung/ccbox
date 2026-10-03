@@ -19,21 +19,21 @@ var cliName = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)}
 const EnvVar = "CLI_PKGINFO"
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or
-// VersionURL. It travels to the container as the CLI_PKGINFO env JSON, and is
+// ReleaseURL. It travels to the container as the CLI_PKGINFO env JSON, and is
 // inlined into cli.CLI's CLI.yaml.
 type PkgInfo struct {
 	Name       string      `json:"name"        yaml:"name"`
 	Npm        *Npm        `json:"npm"         yaml:"npm"`
-	VersionURL *VersionURL `json:"version_url" yaml:"version_url"`
+	ReleaseURL *ReleaseURL `json:"version_url" yaml:"version_url"`
 }
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[PkgInfo]().
-		ValidatesSelf(rule.OneNotNil{Fields: []string{"Npm", "VersionURL"}}).
+		ValidatesSelf(rule.OneNotNil{Fields: []string{"Npm", "ReleaseURL"}}).
 		Validates(firm.RuleMap{
 			"Name":       {cliName},
 			"Npm":        {firm.Backed()},
-			"VersionURL": {firm.Backed()},
+			"ReleaseURL": {firm.Backed()},
 		}))
 }
 

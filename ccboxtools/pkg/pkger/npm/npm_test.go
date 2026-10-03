@@ -1,4 +1,4 @@
-package pkger
+package npm
 
 import (
 	"net/http"
@@ -46,7 +46,7 @@ func TestNpm_Install(t *testing.T) {
 	runCmd = func(_ string, args ...string) error { got = args; return nil }
 	defer func() { runCmd = orig }()
 
-	p := Npm{Npm: pkginfo.Npm{Package: "@scope/pkg"}, name: "pkg"}
+	p := New("pkg", pkginfo.Npm{Package: "@scope/pkg"})
 	dir := t.TempDir()
 	require.NoError(t, p.Install(dir, "1.2.3"))
 

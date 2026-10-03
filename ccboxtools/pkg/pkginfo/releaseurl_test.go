@@ -8,15 +8,15 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestVersionURL_Validate(t *testing.T) {
+func TestReleaseURL_Validate(t *testing.T) {
 	tests := []struct {
 		name string
-		urls VersionURL
+		urls ReleaseURL
 		want []string
 	}{
 		{
 			"ok template",
-			VersionURL{
+			ReleaseURL{
 				URL: "https://x.ai/cli/stable",
 				DownloadTemplate: &DownloadTemplate{
 					X64URL:   "https://x.ai/cli/grok-$version-linux-x86_64",
@@ -27,12 +27,12 @@ func TestVersionURL_Validate(t *testing.T) {
 		},
 		{
 			"no download_template",
-			VersionURL{URL: "https://x.ai/cli/stable"},
+			ReleaseURL{URL: "https://x.ai/cli/stable"},
 			[]string{"DownloadTemplate.Nil"},
 		},
 		{
 			"non-https url",
-			VersionURL{
+			ReleaseURL{
 				URL:              "http://x.ai/cli/stable",
 				DownloadTemplate: &DownloadTemplate{X64URL: "https://x", Arm64URL: "https://x"},
 			},
@@ -40,7 +40,7 @@ func TestVersionURL_Validate(t *testing.T) {
 		},
 		{
 			"non-https template",
-			VersionURL{
+			ReleaseURL{
 				URL:              "https://x.ai/cli/stable",
 				DownloadTemplate: &DownloadTemplate{X64URL: "ftp://x", Arm64URL: "https://x"},
 			},

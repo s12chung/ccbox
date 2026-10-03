@@ -20,7 +20,7 @@ func TestPkgInfo_Validate(t *testing.T) {
 			PkgInfo{
 				Name:       "claude",
 				Npm:        &Npm{Package: "a"},
-				VersionURL: &VersionURL{URL: "https://x", DownloadTemplate: &DownloadTemplate{X64URL: "https://x", Arm64URL: "https://x"}},
+				ReleaseURL: &ReleaseURL{URL: "https://x", DownloadTemplate: &DownloadTemplate{X64URL: "https://x", Arm64URL: "https://x"}},
 			},
 			[]string{"OneNotNil"},
 		},

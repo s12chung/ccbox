@@ -108,7 +108,7 @@ func LoadUserClis() ([]CLI, []error, error) {
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {
-	// PkgInfo is the CLI's install source: its name plus exactly one of Npm or VersionURL;
+	// PkgInfo is the CLI's install source: its name plus exactly one of Npm or ReleaseURL;
 	// Name is always overridden by parseCLI from the cli dir's name
 	pkginfo.PkgInfo `yaml:",inline"`
 

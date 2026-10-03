@@ -1,14 +1,15 @@
-package pkger
+// Package npm installs a package from the npm registry with the image's system
+// npm: a complete Pkger of its own, not a download-and-place composite.
+package npm
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"os/exec"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/httputil"
 )
 
 // npmRegistry is the registry npm sources packages and dist-tags from.
@@ -23,14 +24,11 @@ type manifest struct {
 // the registry serves that tag's manifest at /<pkg>/latest; we read its version.
 func latestAt(registry, pkg string) (string, error) {
 	url := fmt.Sprintf("%s/%s/latest", registry, pkg)
-	resp, err := httpGet(context.Background(), url)
+	resp, err := httputil.GetOK(nil, url)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close() //nolint:errcheck // failing is ok
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("npm registry %s: %s", url, resp.Status)
-	}
 
 	var m manifest
 	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
@@ -48,6 +46,9 @@ type Npm struct {
 
 	name string
 }
+
+// New returns the npm install for the CLI's name and package.
+func New(name string, pkg pkginfo.Npm) Npm { return Npm{Npm: pkg, name: name} }
 
 // Name is the CLI's name.
 func (n Npm) Name() string { return n.name }

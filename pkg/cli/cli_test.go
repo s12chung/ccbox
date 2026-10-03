@@ -147,11 +147,11 @@ func TestParseCLI_Rejects(t *testing.T) {
 	}{
 		{
 			"no install source", "cmd: mycli\n",
-			[]string{"CLI.PkgInfo.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got []"},
+			[]string{"CLI.PkgInfo.OneNotNil", "must have exactly one of [Npm ReleaseURL] non-nil, got []"},
 		},
 		{
 			"both install sources", "npm:\n  package: mycli\nversion_url:\n  url: https://x\n",
-			[]string{"CLI.PkgInfo.OneNotNil", "must have exactly one of [Npm VersionURL] non-nil, got [Npm VersionURL]"},
+			[]string{"CLI.PkgInfo.OneNotNil", "must have exactly one of [Npm ReleaseURL] non-nil, got [Npm ReleaseURL]"},
 		},
 		{
 			"empty npm package", "npm:\n  package: \"\"\n",
@@ -163,7 +163,7 @@ func TestParseCLI_Rejects(t *testing.T) {
 		},
 		{
 			"no download_template", "version_url:\n  url: https://x\n",
-			[]string{"VersionURL.DownloadTemplate.Nil", "DownloadTemplate is nil"},
+			[]string{"ReleaseURL.DownloadTemplate.Nil", "DownloadTemplate is nil"},
 		},
 		{
 			"non-https version_url url", "version_url:\n  url: \"ftp://x\"\n  download_template:\n    x64_url: https://x\n    arm64_url: https://x\n",

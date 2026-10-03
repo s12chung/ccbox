@@ -8,47 +8,40 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/artifact"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/dler"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/npm"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
 
 func TestForPkgInfo(t *testing.T) {
-	npm, err := ForPkgInfo(pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "a"}})
+	n, err := ForPkgInfo(pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "a"}})
 	require.NoError(t, err)
-	assert.IsType(t, Npm{}, npm)
-	assert.Equal(t, "claude", npm.Name())
+	assert.IsType(t, npm.Npm{}, n)
+	assert.Equal(t, "claude", n.Name())
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("1.0.5"))
 	}))
 	defer srv.Close()
 
-	for _, tt := range []struct {
-		name          string
-		vu            pkginfo.VersionURL
-		wantVersioner Versioner
-	}{
-		{
-			"template",
-			pkginfo.VersionURL{URL: srv.URL, DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL}},
-			TextVersioner{},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			p, err := ForPkgInfo(pkginfo.PkgInfo{Name: "grok", VersionURL: &tt.vu})
-			require.NoError(t, err)
-			assert.Equal(t, "grok", p.Name())
+	t.Run("template", func(t *testing.T) {
+		p, err := ForPkgInfo(pkginfo.PkgInfo{Name: "grok", ReleaseURL: &pkginfo.ReleaseURL{
+			URL:              srv.URL,
+			DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
+		}})
+		require.NoError(t, err)
+		assert.Equal(t, "grok", p.Name())
 
-			filePkger, ok := p.(FilePkger)
-			require.True(t, ok)
-			u, ok := filePkger.Downloader.(VersionURL)
-			require.True(t, ok)
-			assert.IsType(t, tt.wantVersioner, u.versioner)
-			assert.IsType(t, RawBin{}, filePkger.Installer)
-		})
-	}
+		filePkger, ok := p.(FilePkger)
+		require.True(t, ok)
+		_, ok = filePkger.Downloader.(dler.URLTemplate)
+		assert.True(t, ok)
+		assert.IsType(t, artifact.RawBin{}, filePkger.Installer)
+	})
 
 	t.Run("no download_template", func(t *testing.T) {
-		_, err := ForPkgInfo(pkginfo.PkgInfo{Name: "grok", VersionURL: &pkginfo.VersionURL{
+		_, err := ForPkgInfo(pkginfo.PkgInfo{Name: "grok", ReleaseURL: &pkginfo.ReleaseURL{
 			URL: "https://x",
 		}})
 		assert.ErrorContains(t, err, "no download_template")

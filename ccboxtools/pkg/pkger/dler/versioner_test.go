@@ -1,4 +1,4 @@
-package pkger
+package dler
 
 import (
 	"testing"
