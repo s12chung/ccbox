@@ -9,19 +9,19 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
 
-func TestRunFromEnv_MissingPkginfo(t *testing.T) {
+func TestFromEnv_MissingPkginfo(t *testing.T) {
 	t.Setenv(pkginfo.EnvVar, "")
 
-	err := RunFromEnv()
+	err := FromEnv()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "CLI_PKGINFO is not set")
 }
 
-func TestRunFromEnv_BadJSON(t *testing.T) {
+func TestFromEnv_BadJSON(t *testing.T) {
 	t.Setenv(pkginfo.EnvVar, `{"name":`)
 
-	err := RunFromEnv()
+	err := FromEnv()
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pkginfo: parse")

@@ -17,9 +17,9 @@ import (
 
 const proxyPort = "8888"
 
-// desktopVNCPort is the port an image's desktop serves native VNC on. Published
-// on the host loopback, so a VNC client connects at localhost:5900 when the
-// image ships a desktop; nothing listens behind the port when it doesn't. 5900
+// desktopVNCPort is the port a run's desktop serves native VNC on. Published
+// on the host loopback, so a VNC client connects at localhost:5900 when the run
+// serves a desktop (--vnc); nothing listens behind the port when it doesn't. 5900
 // is the stock RFB port, and macOS Screen Sharing only takes it without the
 // display number.
 const desktopVNCPort = "5900"

@@ -10,7 +10,7 @@ build:
 
 lint:
 	hadolint Dockerfile
-	shellcheck docker/desktop.sh docker/web-browser docker/vncsize pkg/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
+	shellcheck docker/desktop.sh docker/web-browser pkg/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null
 

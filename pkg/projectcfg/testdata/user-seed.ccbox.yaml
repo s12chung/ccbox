@@ -3,6 +3,13 @@
 # cli: which coding CLI the image installs and launches
 cli: claude
 
+# vnc: the desktop's session, merging down scoped fields. Experimental. (macOS Screen Sharing has no clipboard sync for non-Macs)
+vnc:
+  # gui_app: zcode # the GUI app's name; empty means none
+  config:
+    # resolution: the box's WxH, for VNC clients that cannot ask for a resize themselves (e.g. macOS Screen Sharing); defaults to 1280x1024
+    resolution: 1280x1024
+
 # tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
 # Use for editor junk (.vscode) or throwaway build output. Directories that do not exist in the project are safely ignored.
 tmpfs_masks:

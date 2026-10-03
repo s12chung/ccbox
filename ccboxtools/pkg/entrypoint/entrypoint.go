@@ -8,11 +8,14 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/guiapp"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/vnc"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/vnc/vncdeps"
 )
 
 // The unprivileged container identity, matching the image's useradd.
@@ -22,7 +25,7 @@ const (
 )
 
 // Run execs argv, replacing this process so the container's command keeps PID 1.
-func Run(argv []string) error {
+func Run(argv []string, vncInfo *pkginfo.VNCInfo) error {
 	if err := checkIdentity(os.Getuid(), currentUserName(), exec.LookPath); err != nil {
 		return err
 	}
@@ -32,14 +35,33 @@ func Run(argv []string) error {
 		}
 	}
 	if os.Getenv(pkginfo.EnvVar) != "" {
-		if err := install.RunFromEnv(); err != nil {
+		if err := install.FromEnv(); err != nil {
 			return err
 		}
 	}
-	if startDesktop(exec.LookPath) {
-		guiapp.Install()
+	if vncInfo != nil {
+		if err := serveDesktop(vncInfo); err != nil {
+			return err
+		}
 	}
 	return execArgv(argv)
+}
+
+// serveDesktop starts the image's desktop for the session and installs its GUI
+// app — a VNC run without one serves the desktop alone.
+func serveDesktop(vncInfo *pkginfo.VNCInfo) error {
+	if err := vncdeps.CheckPlaywright(os.Getenv, filepath.Glob); err != nil {
+		return err
+	}
+	if err := vnc.StartDesktop(vncInfo.Config.Resolution); err != nil {
+		return err
+	}
+	if vncInfo.GUIApp != nil {
+		if err := guiapp.Install(*vncInfo.GUIApp); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // execArgv execs argv with the shell `exec`'s semantics — the process is replaced

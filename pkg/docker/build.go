@@ -22,6 +22,7 @@ import (
 // BuildOptions configures an image build.
 type BuildOptions struct {
 	Tag       string
+	Target    string // the Dockerfile stage to build
 	BuildArgs map[string]string
 }
 
@@ -63,6 +64,7 @@ func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
 		// Context tar on stdin (ContextPath "-"); the Dockerfile rides at its root.
 		Inputs:    build.Inputs{ContextPath: "-", InStream: build.NewSyncMultiReader(contextTar)},
 		Tags:      []string{o.Tag},
+		Target:    o.Target,
 		BuildArgs: o.BuildArgs,
 		// ExporterDocker loads the built image into the daemon store (the --load equivalent).
 		// Attrs must be non-nil: buildx writes the tag into it ("name") without nil-checking.

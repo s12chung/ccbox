@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -107,6 +108,7 @@ func TestSeedUserConfig(t *testing.T) {
 	// the seed is the defaults' carrier
 	want := Config{
 		CLIName:       new("claude"),
+		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}},
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
 		ReadOnlyGlobs: []string{DefaultsToken},
@@ -227,9 +229,11 @@ func TestAllowDefaults_IncludeEveryCli(t *testing.T) {
 	}
 }
 
-func TestAllowDefaults_IncludeGuiApp(t *testing.T) {
-	for _, d := range guiapp.AllowDomains {
-		assert.Containsf(t, AllowDefaults(), d, "guiapp: %s", d)
+func TestAllowDefaults_ExcludeGuiApp(t *testing.T) {
+	// the GUI app's domains ride a vnc run's allowlist alone (RunMap wires them) —
+	// a headless run never downloads the app
+	for _, d := range guiapp.App.AllowDomains {
+		assert.NotContainsf(t, AllowDefaults(), d, "guiapp: %s", d)
 	}
 }
 
@@ -274,10 +278,10 @@ func TestLoad_LayersFiles(t *testing.T) {
 	bodies := map[string]string{             // one entry per configFiles term
 		"user": "cli: grok\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
-			"env:\n  FOO: user\n  BAR: user\nallowlist:\n  - user.example.dev\n",
+			"env:\n  FOO: user\n  BAR: user\nvnc:\n  gui_app: zcode\n  config:\n    resolution: 1280x1024\nallowlist:\n  - user.example.dev\n",
 		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
-			"env:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\n",
+			"env:\n  FOO: project\n  BAZ: project\nvnc:\n  config:\n    resolution: 1600x900\nallowlist:\n  - ccbox-defaults\n",
 		"local": "cli: codex\ntmpfs_masks:\n  - cache\n" +
 			"read_only_binds:\n  ~/certs: /mnt/certs\n" +
 			"env:\n  FOO: local\nallowlist:\n  - example.com\n",
@@ -289,6 +293,11 @@ func TestLoad_LayersFiles(t *testing.T) {
 	c, err := Load(dir, Config{})
 	require.NoError(t, err)
 	assert.Equal(t, "codex", *c.CLIName) // later layer wins
+
+	// per-field merge: the project's resolution wins, its unset gui_app keeps the user's;
+	// the local layer's unset section leaves both standing
+	require.NotNil(t, c.VNC)
+	assert.Equal(t, &VNC{GUIAppName: "zcode", Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}, c.VNC)
 
 	// lists append raw, lowest layer first, the seed's tokens carried as-is
 	assert.Equal(t, []string{DefaultsToken, "dist", "build", "cache"}, c.TmpfsMasks)
@@ -324,6 +333,37 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 	}
 }
 
+func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
+	// per-field merge: the project's config-only vnc overlays the seed's — gui_app unset on both sides
+	dir := t.TempDir()
+	writeConfig(t, dir, projectConfigFileName, "vnc:\n  config:\n    resolution: 1600x900\n")
+
+	c, err := Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}, c.VNC)
+}
+
+func TestLoad_VNCWithoutConfig(t *testing.T) {
+	// the unset config keeps the seed's — the desktop script's own resolution fallback
+	dir := t.TempDir()
+	writeConfig(t, dir, projectConfigFileName, "vnc:\n  gui_app: zcode\n")
+
+	c, err := Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, &VNC{GUIAppName: "zcode", Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}}, c.VNC)
+}
+
+func TestLoad_EmptyResolutionInherits(t *testing.T) {
+	// an explicit empty resolution is indistinguishable from an unset one — it inherits,
+	// like every config field a later layer can't unset, only override
+	dir := t.TempDir()
+	writeConfig(t, dir, projectConfigFileName, "vnc:\n  config:\n    resolution:\n")
+
+	c, err := Load(dir, Config{})
+	require.NoError(t, err)
+	assert.Equal(t, &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}}, c.VNC)
+}
+
 func TestLoad_InvalidErrors(t *testing.T) {
 	for _, cf := range configFiles { // malformed yaml in any file errors
 		t.Run(cf.term, func(t *testing.T) {
@@ -352,6 +392,9 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"read_only_globs bad glob char", "read_only_globs:\n  - \"dist/{a,b}\"\n", []string{"ReadOnlyGlobs", "Match"}},
 		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
+		{"bad vnc resolution format", "vnc:\n  config:\n    resolution: 1600 by 900\n", []string{"VNC", "must be WxH"}},
+		{"vnc resolution out of range", "vnc:\n  config:\n    resolution: 16385x900\n", []string{"VNC", "within 32..16384"}},
+		{"unknown gui_app", "vnc:\n  gui_app: emacs\n  config:\n    resolution: 1600x900\n", []string{"GUIAppName", "is not one of [zcode]"}},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},
 		{"bad bind key", "read_only_binds:\n  fonts: /mnt\n", []string{"ReadOnlyBinds.[fonts]", "must be gitconfig or a host path"}},
 		{"bind key traversal", "read_only_binds:\n  ../escape: /mnt\n", []string{"ReadOnlyBinds.[../escape]", "must be gitconfig or a host path"}},

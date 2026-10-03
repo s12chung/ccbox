@@ -10,9 +10,16 @@ import (
 )
 
 func TestBuildMap_Options(t *testing.T) {
-	options := NewBuildMap("tag").Options()
+	options := NewBuildMap("tag", false).Options()
 	assert.Equal(t, "tag", options.Tag)
+	assert.Equal(t, baseTarget, options.Target)
 	assert.Equal(t, map[string]string{dataBindDirsArgKey: dataBindDirs(cli.All())}, options.BuildArgs)
+}
+
+func TestBuildMap_Options_VNC(t *testing.T) {
+	options := NewBuildMap("tag", true).Options()
+	assert.Equal(t, "tag-vnc", options.Tag)
+	assert.Equal(t, vncTarget, options.Target)
 }
 
 func TestDataBindDirs(t *testing.T) {

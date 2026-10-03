@@ -14,6 +14,11 @@ func Of[T any](v T) T {
 	return out
 }
 
+// Value deep-copies v like Of, for a value known only at runtime.
+func Value(v reflect.Value) reflect.Value {
+	return copyValue(v)
+}
+
 func copyValue(v reflect.Value) reflect.Value {
 	switch v.Kind() {
 	case reflect.Slice:

@@ -40,34 +40,36 @@ type RunModes struct {
 	Continue bool // -c: continue the last session
 	Resume   bool // -r: resume a session
 	NoProxy  bool // skip the egress wall: direct network access
+	VNC      bool // serve the config's desktop over VNC; implies NoProxy
 }
 
 // RunOptions renders the run's full docker.RunOptions
 func (rm *RunMap) RunOptions(flags RunFlags) (docker.RunOptions, func() error, error) {
-	hostOptions, clean, err := rm.HostOptions()
+	hostOptions, clean, err := rm.HostOptions(flags.Modes.VNC)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
-	env, err := rm.Env()
+	env, err := rm.Env(flags.Modes.VNC)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
 
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,
-		Tag:            flags.Tag,
+		Tag:            variantTag(flags.Tag, flags.Modes.VNC),
 		Env:            env,
 		Cmd:            rm.Cmd(flags),
-		Proxy:          NewProxyMap(rm.cfg).Options(),
+		Proxy:          NewProxyMap(rm.cfg).Options(rm.guiAppAllow(flags.Modes.VNC)),
 		ProxyLogPath:   ProxyLogPath(rm.userDir),
-		NoProxy:        flags.Modes.NoProxy,
+		NoProxy:        flags.Modes.NoProxy || flags.Modes.VNC,
 	}, clean, nil
 }
 
-// HostOptions renders the run's host options for docker.Run.
-func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
+// HostOptions renders the run's host options for docker.Run; vnc mounts the
+// GUI app's install volume, which seeds from the desktop variant's image.
+func (rm *RunMap) HostOptions(vnc bool) (docker.RunHostOptions, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
-	binds, clean, err := rm.binds()
+	binds, clean, err := rm.binds(vnc)
 	if err != nil {
 		return docker.RunHostOptions{}, clean, err
 	}
@@ -80,25 +82,46 @@ func (rm *RunMap) HostOptions() (docker.RunHostOptions, func() error, error) {
 	}, clean, nil
 }
 
-// Env renders the container's env in one map: the CLI's fixed env and the host's terminal
-// passthrough under the config's overrides, plus the CLI's and the GUI app's pkginfo
-// and the host's GitHub token.
-func (rm *RunMap) Env() (map[string]string, error) {
+// vncCfg returns the config's vnc section — an empty one when the config carries none
+func (rm *RunMap) vncCfg() *projectcfg.VNC {
+	if rm.cfg.VNC == nil {
+		return &projectcfg.VNC{}
+	}
+	return rm.cfg.VNC
+}
+
+// guiAppAllow returns the GUI app's download domains for the wall — only a
+// desktop run downloads the app, so only its gui_app carries domains
+func (rm *RunMap) guiAppAllow(vnc bool) []string {
+	if !vnc {
+		return nil
+	}
+	return guiapp.AllowDomains(rm.vncCfg().GUIAppName)
+}
+
+// Env renders the container's env in one map.
+func (rm *RunMap) Env(vnc bool) (map[string]string, error) {
 	cli := rm.cfg.CLI()
 	pkgInfo, err := cli.PkgInfoJSON()
 	if err != nil {
 		return nil, err
 	}
-	guiAppPkgInfo, err := guiapp.JSON()
-	if err != nil {
-		return nil, err
-	}
 	env := mergeempty.Map(cli.Env, hostTerminalEnv())
-	return mergeempty.Map(mergeempty.Map(env, rm.cfg.Env), map[string]string{
-		pkginfo.EnvVar:       pkgInfo,
-		pkginfo.GUIAppEnvVar: guiAppPkgInfo,
-		envGHToken:           os.Getenv(envGHToken),
-	}), nil
+	env = mergeempty.Map(mergeempty.Map(env, rm.cfg.Env), map[string]string{
+		pkginfo.EnvVar: pkgInfo,
+		envGHToken:     os.Getenv(envGHToken),
+	})
+	if vnc {
+		body, err := rm.vncCfg().InfoJSON()
+		if err != nil {
+			return nil, err
+		}
+		// pkginfo.VNCConfigEnvVar's presence — even `{}` from a config without a vnc section — is the
+		// container's cue to serve the desktop; a headless run sends none, its config's
+		// vnc section left unused, unwarned.
+		env[pkginfo.VNCConfigEnvVar] = body
+	}
+	return env, nil
 }
 
 // hostTerminalEnv reads envTerminalVars, skipping unset ones so docker's TERM default stands —

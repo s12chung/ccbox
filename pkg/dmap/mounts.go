@@ -27,7 +27,7 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 }
 
 // binds composes the run's binds and volumes in a deterministic order
-func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
+func (rm *RunMap) binds(vnc bool) ([]docker.Mount, func() error, error) {
 	c := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
 	var scratchBind, persistBind klean.ShareBind
@@ -45,7 +45,7 @@ func (rm *RunMap) binds() ([]docker.Mount, func() error, error) {
 			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(projectcfg.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
-		volumes(globalVolumesMap, true),
+		volumes(globalVolumes(vnc), true),
 		volumes(cacheVolumeNames(projectDir), false),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
@@ -132,7 +132,17 @@ func cliScratchBind(scratchFile, mount string) []docker.Mount {
 // globalVolumesMap maps volume name → container directory for volumes shared by every project
 var globalVolumesMap = map[string]string{
 	"ccbox-clis": install.DefaultRoot, // ccboxtools installs the coding CLI here at start
-	"ccbox-apps": install.AppsRoot,    // ccboxtools installs the GUI app here at start
+}
+
+// globalVolumes returns the run's global volumes: the GUI app's install root
+// rides only a VNC run — its volume seeds from the desktop variant's image
+func globalVolumes(vnc bool) map[string]string {
+	if !vnc {
+		return globalVolumesMap
+	}
+	globals := maps.Clone(globalVolumesMap)
+	globals["ccbox-apps"] = install.AppsRoot // ccboxtools installs the GUI app here at start
+	return globals
 }
 
 // cacheVolumeSuffix is the suffix for cacheVolumesMap in case of collisions

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/fsutil"
 )
 
@@ -74,11 +75,30 @@ func holdLock(t *testing.T, lockPath string) func() {
 	}
 }
 
+func TestFromPkgInfo_UnknownArtifact(t *testing.T) {
+	// unrepresentable via the validated config, so Go-constructed only
+	info := pkginfo.PkgInfo{
+		Name: "claude",
+		ReleaseURL: &pkginfo.ReleaseURL{
+			URL:      "https://example.dev",
+			JQSchema: &pkginfo.JQSchema{Format: "yaml", Version: ".version", DownloadURL: ".url"},
+			Artifact: &pkginfo.Artifact{Type: "rpm", RelBin: "bin/claude"},
+		},
+	}
+	root := t.TempDir()
+
+	err := FromPkgInfo(info, root)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown artifact type "rpm"`)
+	assert.NoDirExists(t, filepath.Join(root, "claude")) // nothing installed
+}
+
 func TestRun_Installs(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "1.2.3"}
 	root := t.TempDir()
 
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	// version dir in place, current flipped, bin exposed
 	require.DirExists(t, filepath.Join(root, "claude", "1.2.3"))
@@ -94,10 +114,10 @@ func TestRun_Installs(t *testing.T) {
 func TestRun_UpgradesAndPrunes(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "1.2.3"}
 	root := t.TempDir()
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	p.latest = "2.0.0"
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	assert.Equal(t, []string{"1.2.3", "2.0.0"}, p.installed)
 	assert.Equal(t, "2.0.0", readLink(t, filepath.Join(root, "claude", "current")))
@@ -107,8 +127,8 @@ func TestRun_UpgradesAndPrunes(t *testing.T) {
 func TestRun_UpToDate(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "1.2.3"}
 	root := t.TempDir()
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	assert.Equal(t, []string{"1.2.3"}, p.installed) // no re-install on the second run
 }
@@ -116,11 +136,11 @@ func TestRun_UpToDate(t *testing.T) {
 func TestRun_BrokenCurrent_Reinstalls(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "1.2.3"}
 	root := t.TempDir()
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	// the current symlink outlives its target's executable (a pruned or wiped dir)
 	require.NoError(t, os.Remove(filepath.Join(root, "claude", "1.2.3", "bin", "claude")))
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	assert.Equal(t, []string{"1.2.3", "1.2.3"}, p.installed)
 	assert.Equal(t, "1.2.3", readLink(t, filepath.Join(root, "claude", "current")))
@@ -129,10 +149,10 @@ func TestRun_BrokenCurrent_Reinstalls(t *testing.T) {
 func TestRun_ChannelFails_FallsBackToStale(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "1.2.3"}
 	root := t.TempDir()
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	p.latest, p.latestErr = "", errors.New("channel down")
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root})) // the installed 1.2.3 stands in
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root})) // the installed 1.2.3 stands in
 
 	assert.Equal(t, []string{"1.2.3"}, p.installed)
 	assert.Equal(t, "1.2.3", readLink(t, filepath.Join(root, "claude", "current")))
@@ -141,7 +161,7 @@ func TestRun_ChannelFails_FallsBackToStale(t *testing.T) {
 func TestRun_ChannelFails_StalePredatesLayout(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "1.2.3"}
 	root := t.TempDir()
-	require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+	require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 
 	// the installed 1.2.3 predates the layout: the executable sits at the version
 	// dir's top, not under bin/ — it can't stand in, so the resolve failure surfaces
@@ -150,7 +170,7 @@ func TestRun_ChannelFails_StalePredatesLayout(t *testing.T) {
 		filepath.Join(root, "claude", "1.2.3", "claude")))
 	p.latest, p.latestErr = "", errors.New("channel down")
 
-	err := Run(pkger.PkgDir{Pkger: p, Root: root})
+	err := FromPkgDir(pkger.PkgDir{Pkger: p, Root: root})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "channel down")
@@ -160,7 +180,7 @@ func TestRun_ChannelFails_StalePredatesLayout(t *testing.T) {
 func TestRun_ChannelFails_NothingInstalled(t *testing.T) {
 	p := &fakePkger{name: "claude", latest: "", latestErr: errors.New("channel down")}
 
-	err := Run(pkger.PkgDir{Pkger: p, Root: t.TempDir()})
+	err := FromPkgDir(pkger.PkgDir{Pkger: p, Root: t.TempDir()})
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "channel down")
@@ -187,17 +207,17 @@ func TestRun_LockHeld(t *testing.T) {
 			p := &fakePkger{name: "claude", latest: tc.preInstalled}
 			root := t.TempDir()
 			if tc.preInstalled != "" {
-				require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+				require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 			}
 
 			p.latest = tc.latest
 			release := holdLock(t, filepath.Join(root, "claude.lock"))
 			if tc.runHeld {
-				require.NoError(t, Run(pkger.PkgDir{Pkger: p, Root: root}))
+				require.NoError(t, FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}))
 				release()
 			} else {
 				done := make(chan error, 1)
-				go func() { done <- Run(pkger.PkgDir{Pkger: p, Root: root}) }()
+				go func() { done <- FromPkgDir(pkger.PkgDir{Pkger: p, Root: root}) }()
 				release()
 				require.NoError(t, <-done)
 			}

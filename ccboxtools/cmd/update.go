@@ -10,6 +10,6 @@ var updateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Install the CLI's latest version into the clis volume, pruning stale versions",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return install.RunFromEnv()
+		return install.FromEnv()
 	},
 }

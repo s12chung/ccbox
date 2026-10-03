@@ -27,24 +27,57 @@ var debInfo = pkginfo.GUIPkgInfo{
 	DesktopName: "App",
 }
 
-// mustJSON renders g as the GUIAppEnvVar JSON.
-func mustJSON(t *testing.T, g pkginfo.GUIPkgInfo) string {
+// mustVNCJSON renders g as the run's VNCConfigEnvVar JSON.
+func mustVNCJSON(t *testing.T, g pkginfo.GUIPkgInfo) string {
 	t.Helper()
-	body, err := json.Marshal(g)
+	body, err := json.Marshal(pkginfo.VNCInfo{GUIApp: &g, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}})
 	require.NoError(t, err)
 	return string(body)
 }
 
-func TestInstallGUIApp(t *testing.T) {
-	t.Run("no env, skips", func(t *testing.T) {
-		t.Setenv(pkginfo.GUIAppEnvVar, "")
-		Install()
+// load sets body as the run's VNC_CONFIG and returns the parsed session info
+func load(t *testing.T, body string) *pkginfo.VNCInfo {
+	t.Helper()
+	t.Setenv(pkginfo.VNCConfigEnvVar, body)
+	return Load()
+}
+
+func TestLoad(t *testing.T) {
+	t.Run("unset env reads as no vnc", func(t *testing.T) {
+		assert.Nil(t, load(t, ""))
 	})
 
-	t.Run("bad json warns, not fails", func(t *testing.T) {
-		t.Setenv(pkginfo.GUIAppEnvVar, "{")
-		Install()
+	t.Run("parses the body", func(t *testing.T) {
+		info := load(t, mustVNCJSON(t, debInfo))
+
+		require.NotNil(t, info)
+		require.NotNil(t, info.GUIApp)
+		assert.Equal(t, debInfo, *info.GUIApp)
+		assert.Equal(t, "1600x900", info.Config.Resolution)
 	})
+
+	t.Run("a bad body warns and reads as no vnc", func(t *testing.T) {
+		assert.Nil(t, load(t, "{"))
+	})
+}
+
+func TestBinFor(t *testing.T) {
+	bin, err := binFor(debInfo)
+
+	require.NoError(t, err)
+	assert.Equal(t, "/opt/ccbox/apps/app/current/opt/App/app", bin)
+}
+
+func TestInstall_Errors(t *testing.T) {
+	// a HOME that can't hold the menu entry fails the install, erroring the boot
+	home := filepath.Join(t.TempDir(), "home")
+	require.NoError(t, os.WriteFile(home, nil, fileMode)) // a file, not a dir
+	t.Setenv("HOME", home)
+
+	err := Install(debInfo)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "write app menu entry")
 }
 
 func TestWriteDesktopEntry(t *testing.T) {
@@ -88,32 +121,8 @@ func TestWriteDesktopEntry(t *testing.T) {
 	})
 }
 
-func TestResolve(t *testing.T) {
-	t.Run("unset env", func(t *testing.T) {
-		t.Setenv(pkginfo.GUIAppEnvVar, "")
-
-		_, _, err := resolve()
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "GUIAPP_PKGINFO is not set")
-	})
-
-	t.Run("joins apps root path", func(t *testing.T) {
-		body := mustJSON(t, debInfo)
-		t.Setenv(pkginfo.GUIAppEnvVar, body)
-
-		info, bin, err := resolve()
-
-		require.NoError(t, err)
-		assert.Equal(t, debInfo, info)
-		assert.Equal(t, "/opt/ccbox/apps/app/current/opt/App/app", bin)
-	})
-}
-
 func TestExec_NotInstalled(t *testing.T) {
-	t.Setenv(pkginfo.GUIAppEnvVar, mustJSON(t, debInfo))
-
-	err := Exec(nil)
+	err := Exec(debInfo, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not installed at /opt/ccbox/apps/app/current/opt/App/app")

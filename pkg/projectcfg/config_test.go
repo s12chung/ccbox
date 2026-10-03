@@ -10,7 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -42,6 +44,7 @@ func TestConfig_CLI(t *testing.T) {
 func TestConfig_mergeOverlays(t *testing.T) {
 	c := Config{
 		CLIName:       new("claude"),
+		VNC:           &VNC{GUIAppName: "zcode", Config: &pkginfo.VNCConfig{Resolution: "1280x1024"}},
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
@@ -51,6 +54,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	}
 	other := Config{
 		CLIName:       new("codex"),
+		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
 		TmpfsMasks:    []string{"build"},
 		VolumeMasks:   []string{"cache"},
 		ReadOnlyGlobs: []string{".envrc"},
@@ -63,7 +67,11 @@ func TestConfig_mergeOverlays(t *testing.T) {
 
 	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
 	assert.Equal(t, Config{
-		CLIName:       new("codex"), // a set later layer wins
+		CLIName: new("codex"), // a set later layer wins
+		VNC: &VNC{ // per-field: the later layer's set fields win, its unset gui_app keeps the earlier's
+			GUIAppName: "zcode",
+			Config:     &pkginfo.VNCConfig{Resolution: "1600x900"},
+		},
 		TmpfsMasks:    []string{"dist", "build"},
 		VolumeMasks:   []string{"target", "cache"},
 		ReadOnlyGlobs: []string{".env", ".envrc"},
@@ -450,6 +458,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	mkDirs(t, home, ".config/git")
 	c := &Config{
 		CLIName:       new("claude"),
+		VNC:           &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
 		TmpfsMasks:    []string{DefaultsToken, "dist", "build"},
 		VolumeMasks:   []string{DefaultsToken, "target", "cache"},
 		ReadOnlyGlobs: []string{DefaultsToken, ".env"},
@@ -469,6 +478,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	want := Config{
 		CLIName:       new("claude"),
+		VNC:           &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
 		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
 		VolumeMasks:   []string{"node_modules", "target"},
 		ReadOnlyGlobs: []string{"secrets"},
@@ -479,6 +489,43 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 		Allowlist: append(append([]string{"user.example.dev"}, AllowDefaults()...), "example.com"),
 	}
 	assert.Equal(t, want, got)
+}
+
+func TestVNC_InfoJSON(t *testing.T) {
+	t.Run("with gui app", func(t *testing.T) {
+		v := &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}
+
+		body, err := v.InfoJSON()
+		require.NoError(t, err)
+
+		// the container parses it back through firm validation — the host-built
+		// config must stay valid there
+		info, err := pkginfo.VNCInfoFromJSON(body)
+		require.NoError(t, err)
+		require.NotNil(t, info.GUIApp)
+		assert.Equal(t, guiapp.App.GUIPkgInfo, *info.GUIApp)
+		assert.Equal(t, "1600x900", info.Config.Resolution)
+	})
+
+	t.Run("empty gui app", func(t *testing.T) {
+		v := &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}
+
+		body, err := v.InfoJSON()
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"config":{"resolution":"1600x900"}}`, body)
+	})
+
+	t.Run("no config defaults the resolution", func(t *testing.T) {
+		v := &VNC{GUIAppName: guiapp.App.Name}
+
+		body, err := v.InfoJSON()
+		require.NoError(t, err)
+
+		info, err := pkginfo.VNCInfoFromJSON(body)
+		require.NoError(t, err)
+		require.NotNil(t, info.GUIApp)
+		assert.Equal(t, pkginfo.DefaultResolution, info.Config.Resolution)
+	})
 }
 
 // TestConfig_renderTmpl pins the render output to the committed testdata fixtures,

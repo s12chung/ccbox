@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 )
 
@@ -15,10 +14,10 @@ const ClisDirEnv = "CCBOX_CLIS_DIR"
 // skipping to the installed version.
 const LockWaitEnv = "CCBOX_LOCK_WAIT"
 
-// RunFromEnv updates the CLI the container env describes: pkginfo.EnvVar's JSON picks
+// FromEnv updates the CLI the container env describes: pkginfo.EnvVar's JSON picks
 // the CLI, ClisDirEnv overrides the clis root. The env-driven entry both the entrypoint
 // and `ccboxtools update` go through.
-func RunFromEnv() error {
+func FromEnv() error {
 	pkginfoJSON := os.Getenv(pkginfo.EnvVar)
 	if pkginfoJSON == "" {
 		return fmt.Errorf("%s is not set", pkginfo.EnvVar)
@@ -31,14 +30,5 @@ func RunFromEnv() error {
 	if root == "" {
 		root = DefaultRoot
 	}
-	return RunPkgInfo(info, root)
-}
-
-// RunPkgInfo installs info's CLI or GUI app at root.
-func RunPkgInfo(info pkginfo.PkgInfo, root string) error {
-	p, err := pkger.ForPkgInfo(info)
-	if err != nil {
-		return err
-	}
-	return Run(pkger.PkgDir{Pkger: p, Root: root})
+	return FromPkgInfo(info, root)
 }
