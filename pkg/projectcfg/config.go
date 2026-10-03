@@ -3,6 +3,7 @@ package projectcfg
 import (
 	"bytes"
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"maps"
 	"os"
@@ -14,7 +15,9 @@ import (
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
@@ -40,6 +43,7 @@ const (
 // Config is the parsed .ccbox.yaml.
 type Config struct {
 	CLIName       *string           `yaml:"cli"`             // coding CLI to install + launch
+	VNC           *VNC              `yaml:"vnc"`             // the desktop's session: its GUI app plus VNC config
 	TmpfsMasks    []string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
 	VolumeMasks   []string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyGlobs []string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
@@ -57,11 +61,30 @@ type Config struct {
 	expandedAllowlist     []string
 }
 
+// VNC is the desktop's session: the GUI app it installs and launches plus its
+// VNC config.
+type VNC struct {
+	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
+	GUIAppName string `yaml:"gui_app,omitempty"`
+	// Config is the desktop's VNC session config: the box's WxH, for clients that
+	// cannot resize themselves (e.g. macOS Screen Sharing); nil inherits the
+	// desktop script's own resolution fallback
+	Config *pkginfo.VNCConfig `yaml:"config"`
+}
+
 func init() {
+	firm.MustRegisterType(firm.NewDefinition[VNC]().
+		Validates(firm.RuleMap{
+			"GUIAppName": {firmrule.OneOfEmpty[string]{OneOf: rule.OneOf[string]{
+				Values: append(guiapp.Names(), ""), // the empty names no GUI app
+			}}},
+			"Config": {firm.Backed()},
+		}))
 	firm.MustRegisterType(firm.NewDefinition[Config]().
 		NotNil("CLIName").
 		Validates(firm.RuleMap{
 			"CLIName": {rule.OneOfFunc[string]{ValuesFunc: cli.Names}},
+			"VNC":     {firm.Backed()},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal
 			"TmpfsMasks":    {firm.Elems[[]string](firmrule.MaskDir)},
@@ -88,17 +111,17 @@ func (c *Config) ProjectDir() string { return c.projectDir }
 // infallible for a loaded config
 func (c *Config) CLI() cli.CLI { return cli.MustFor(*c.CLIName) }
 
-// merge layers other onto c — lists append, a set later scalar wins, maps merge per key
+// merge layers other onto c:
+// lists append, a set later scalar wins, maps merge per key, structs per field
 func (c *Config) merge(other Config) {
+	c.CLIName = mergeempty.Ptr(c.CLIName, other.CLIName)
+	c.VNC = mergeempty.Struct(c.VNC, other.VNC)
 	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)
 	c.VolumeMasks = mergeempty.Slice(c.VolumeMasks, other.VolumeMasks)
 	c.ReadOnlyGlobs = mergeempty.Slice(c.ReadOnlyGlobs, other.ReadOnlyGlobs)
 	c.ReadOnlyBinds = mergeempty.Map(c.ReadOnlyBinds, other.ReadOnlyBinds)
 	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
 	c.Env = mergeempty.Map(c.Env, other.Env)
-	if other.CLIName != nil {
-		c.CLIName = other.CLIName
-	}
 	c.expandedTmpfsMasks = nil
 	c.expandedVolumeMasks = nil
 	c.expandedReadOnlyGlobs = nil
@@ -220,6 +243,7 @@ func (c *Config) MarshalYAML() (any, error) {
 	type resolved Config // same yaml tags, no MarshalYAML method
 	return resolved{
 		CLIName:       c.CLIName,
+		VNC:           c.VNC,
 		TmpfsMasks:    c.TmpfsMasksPresent(),
 		VolumeMasks:   c.VolumeMasksPresent(),
 		ReadOnlyGlobs: c.ReadOnlyPathsPresent(),
@@ -227,6 +251,24 @@ func (c *Config) MarshalYAML() (any, error) {
 		Env:           c.Env,
 		Allowlist:     c.AllowlistExpanded(),
 	}, nil
+}
+
+// InfoJSON renders the section as the VNCConfigEnvVar JSON: the GUI app the run
+// installs and launches plus its VNC config
+func (v *VNC) InfoJSON() (string, error) {
+	info := pkginfo.VNCInfo{Config: v.Config}
+	if v.GUIAppName != "" {
+		app, err := guiapp.For(v.GUIAppName)
+		if err != nil {
+			return "", err
+		}
+		info.GUIApp = &app.GUIPkgInfo
+	}
+	body, err := json.Marshal(info)
+	if err != nil {
+		return "", fmt.Errorf("vnc config: %w", err)
+	}
+	return string(body), nil
 }
 
 // expandList replaces each DefaultsToken with defaults, preserving entry order and
@@ -259,7 +301,8 @@ var (
 	//go:embed ccbox.yaml.tmpl
 	configTmplSrc string
 	configTmpl    = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
-		"yaml": yamlutil.Value,
+		"yaml":              yamlutil.Value,
+		"defaultResolution": func() string { return pkginfo.DefaultResolution },
 	}).Parse(configTmplSrc))
 )
 

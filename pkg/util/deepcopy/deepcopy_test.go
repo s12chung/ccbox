@@ -1,9 +1,11 @@
 package deepcopy
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type sample struct {
@@ -33,4 +35,17 @@ func TestOfPreservesNil(t *testing.T) {
 	assert.Nil(t, cp.List)
 	assert.Nil(t, cp.M)
 	assert.Nil(t, cp.P)
+}
+
+func TestValueIsIndependent(t *testing.T) {
+	n := 1
+	src := sample{List: []string{"a"}, M: map[string]int{"k": 1}, P: &n}
+	cp, ok := reflect.TypeAssert[sample](Value(reflect.ValueOf(src)))
+	require.True(t, ok)
+
+	cp.List[0] = "b"
+	*cp.P = 9
+
+	assert.Equal(t, []string{"a"}, src.List)
+	assert.Equal(t, 1, n)
 }

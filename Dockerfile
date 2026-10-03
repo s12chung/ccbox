@@ -1,6 +1,6 @@
 FROM ghcr.io/jdx/mise:2026.6.9 AS mise
 
-FROM debian:trixie-slim
+FROM debian:trixie-slim AS base
 
 # Each row is a section:
 # - build toolchain
@@ -23,9 +23,9 @@ COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
 # _temp_ so at runtime ccbox's `mise use` -> ~/.local.
 COPY docker/mise-system.toml /etc/mise/config.toml
 ENV PATH=/usr/local/share/mise/shims:$PATH
-# Shared browser binaries for playwright (tests) and the desktop
-# web-browser wrapper; outside the masked home caches, so every container
-# from this image reuses one copy.
+# Shared browser binaries for playwright (tests) and the desktop variant's
+# web-browser wrapper (the vnc stage below); outside the masked home caches,
+# so every container from this image reuses one copy.
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 
 # Ruby build headers: install, compile Ruby, then purge (runtime libs kept above)
@@ -68,49 +68,14 @@ RUN echo 'export PATH="'"$PATH"'"' > /etc/profile.d/ccbox-path.sh; \
       'TAB: menu-complete' \
       '"\e[Z": menu-complete-backward' >> /etc/inputrc
 
-# Each row is a section — only the dep-graph's tips; everything else lands
-# via Depends or playwright's install-deps (mise postinstall above):
-# - libxss1, the one Electron/Chromium runtime lib for the deb-extracted
-#   GUI app that playwright's dep list misses (libgbm1 etc. from the VNC
-#   server below; libgtk-3-0t64 + libxtst6 land via the XFCE row, dejavu
-#   fonts via fontconfig-config)
-# - VNC server + passwd tool (Recommends of the server, which
-#   --no-install-recommends skips), dbus-x11 for the session bus, xdg-utils
-#   (slim lacks it — the OAuth chain needs it)
-# - targeted XFCE: wm, session, desktop
-# - the X session's base fonts (xfonts-base)
-# TigerVNC serves an XFCE desktop over native VNC; docker/desktop.sh starts
-# it in the foreground.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libxss1 \
-        tigervnc-standalone-server tigervnc-tools dbus-x11 xdg-utils \
-        xfwm4 xfce4-panel xfce4-session xfdesktop4 \
-        xfonts-base \
-    && rm -rf /var/lib/apt/lists/*
-
-# The VNC session supervisor — its presence is the entrypoint's hook
-# to start a GUI.
-COPY --chmod=755 docker/desktop.sh /usr/local/bin/desktop
-# The desktop's XDG pieces, baked: .desktop entries go to system dirs — .local
-# is a per-project volume at runtime (pkg/dmap/mounts.go), which would hide
-# home-baked copies — while .config is mount-free and ephemeral, so it bakes
-# into the home directly.
-COPY --chown=ccbox:ccbox docker/desktop/home/ /home/ccbox/
-COPY docker/desktop/share/ /usr/local/share/
-# The session's default browser — the baked mimeapps + xfce helpers reference
-# it by absolute path; root-owned
-COPY --chmod=755 docker/web-browser /usr/local/bin/web-browser
-# Terminal helper: resizes the VNC box on demand, since clients without
-# SetDesktopSize support (macOS Screen Sharing) can't move it themselves
-COPY --chmod=755 docker/vncsize /usr/local/bin/vncsize
-
 COPY --chmod=755 dist/ccboxtools /usr/local/bin/ccboxtools
 
 # Build-time cleanup + groundwork for the volume mounts:
 # - clean /root's build caches (mise, npm); /tmp restarts standard 1777
-# - /opt/ is root owned, so change ownership
+# - /opt/ccbox hosts the volume mountpoints (the clis root below; the desktop
+#   variant's apps root in the vnc stage)
 RUN rm -rf /root/.cache /root/.npm /tmp; mkdir -m 1777 /tmp; \
-    mkdir -p /opt/ccbox/apps && chown -R ccbox:ccbox /opt/ccbox
+    mkdir -p /opt/ccbox && chown ccbox:ccbox /opt/ccbox
 
 USER ccbox
 
@@ -132,3 +97,50 @@ RUN [ -z "$data_bind_dirs" ] || mkdir -p $data_bind_dirs
 
 ENTRYPOINT ["/usr/local/bin/ccboxtools", "entrypoint"]
 CMD ["bash"]
+
+# The desktop variant: the headless base plus the VNC stack — TigerVNC serving
+# XFCE (docker/desktop.sh starts it in the foreground), the session's browser
+# wrapper, and the Electron/OAuth bits the desktop's GUI app needs.
+FROM base AS vnc
+# The stage inherits the base's ccbox USER; the apt row below needs root.
+# hadolint ignore=DL3002
+USER root
+
+# Each row is a section — only the dep-graph's tips; everything else lands
+# via Depends or the base's playwright browser install:
+# - libxss1, the one Electron runtime lib for the deb-extracted GUI app that
+#   the base's browser install misses (libgbm1 etc. from the VNC server in
+#   this row; libgtk-3-0t64 + libxtst6 land via the XFCE row, dejavu fonts
+#   via fontconfig-config)
+# - VNC server + passwd tool (Recommends of the server, which
+#   --no-install-recommends skips), dbus-x11 for the session bus, xdg-utils
+#   (slim lacks it — the OAuth chain needs it)
+# - targeted XFCE: wm, session, desktop
+# - the X session's base fonts (xfonts-base)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libxss1 \
+        tigervnc-standalone-server tigervnc-tools dbus-x11 xdg-utils \
+        xfwm4 xfce4-panel xfce4-session xfdesktop4 \
+        xfonts-base \
+    && rm -rf /var/lib/apt/lists/*
+
+# The VNC session supervisor — its presence is the entrypoint's hook
+# to start a GUI.
+COPY --chmod=755 docker/desktop.sh /usr/local/bin/desktop
+# The desktop's XDG pieces, baked: .desktop entries go to system dirs — .local
+# is a per-project volume at runtime (pkg/dmap/mounts.go), which would hide
+# home-baked copies — while .config is mount-free and ephemeral, so it bakes
+# into the home directly.
+COPY --chown=ccbox:ccbox docker/desktop/home/ /home/ccbox/
+COPY docker/desktop/share/ /usr/local/share/
+# The session's default browser — the baked mimeapps + xfce helpers reference
+# it by absolute path; root-owned. Execs the base's shared playwright chromium.
+COPY --chmod=755 docker/web-browser /usr/local/bin/web-browser
+
+# The GUI app's volume mountpoint, ccbox-owned so the named volume seeds uid 1000
+RUN mkdir -p /opt/ccbox/apps && chown ccbox:ccbox /opt/ccbox/apps
+
+USER ccbox
+
+# The default target — a bare `docker build .` builds the headless base.
+FROM base

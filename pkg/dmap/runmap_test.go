@@ -3,6 +3,7 @@ package dmap
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -35,10 +36,10 @@ func TestRunMap_RunOptions(t *testing.T) {
 	rm := NewRunMap(userDir, cfg)
 
 	// the pieces RunOptions composes
-	hostOptions, hostClean, err := rm.HostOptions()
+	hostOptions, hostClean, err := rm.HostOptions(false)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
-	env, err := rm.Env()
+	env, err := rm.Env(false)
 	require.NoError(t, err)
 
 	options, clean, err := rm.RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{NoProxy: true}})
@@ -56,6 +57,33 @@ func TestRunMap_RunOptions(t *testing.T) {
 	}, options.Proxy)
 	assert.Equal(t, filepath.Join(userDir, "proxy.log"), options.ProxyLogPath)
 	assert.True(t, options.NoProxy)
+}
+
+func TestRunMap_RunOptions_VNC(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+
+	// the base layer carries the gui_app, as a project's config would
+	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+		CLIName: new("claude"),
+		VNC:     &projectcfg.VNC{GUIAppName: guiapp.App.Name},
+	})
+	require.NoError(t, err)
+
+	options, clean, err := NewRunMap(t.TempDir(), cfg).RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{VNC: true}})
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+
+	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image")
+	assert.True(t, options.NoProxy)
+	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
+	assert.Equal(t, docker.ProxyOptions{
+		Config: tinyproxy.Config,
+		// the GUI app's download domains ride the wall only this run — a headless
+		// run's allowlist carries none
+		Overrides: docker.AllowOverride(slices.Concat(cfg.AllowlistExpanded(), guiapp.App.AllowDomains)),
+	}, options.Proxy)
 }
 
 func TestRunMap_HostOptions(t *testing.T) {
@@ -81,7 +109,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions()
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -95,7 +123,6 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(home, ".ccbox", "codex"), "/home/ccbox/.codex"),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "persist", s), "/home/ccbox/.ccbox/persist"),
-		docker.NewVolume("ccbox-apps", install.AppsRoot).Global(),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),
 		docker.NewVolume("ccbox"+s+"-gem-cache-default", "/home/ccbox/.gem"),
@@ -115,20 +142,39 @@ func TestRunMap_HostOptions(t *testing.T) {
 	assert.Equal(t, []string{workspace + "/dist"}, hostOptions.TmpfsPaths)
 }
 
+func TestRunMap_HostOptions_VNC(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+
+	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("claude")})
+	require.NoError(t, err)
+
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(true)
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+
+	assert.Contains(t, hostOptions.Mounts, docker.NewVolume("ccbox-apps", install.AppsRoot).Global(),
+		"the GUI app's install volume rides only a VNC run")
+}
+
 func TestRunMap_Env(t *testing.T) {
 	t.Setenv("GH_TOKEN", "tok")
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
+	vnc := &projectcfg.VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}
 	rm := testRunMap(t, projectcfg.Config{
 		CLIName: new("claude"),
 		Env:     map[string]string{"DISABLE_AUTOUPDATER": "0"},
+		VNC:     vnc,
 	})
-	env, err := rm.Env()
+	env, err := rm.Env(true)
 	require.NoError(t, err)
 
 	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
 	require.NoError(t, err)
-	guiAppPkgInfo, err := guiapp.JSON()
+	vncInfo, err := vnc.InfoJSON()
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", // from CLI.yaml
@@ -136,7 +182,7 @@ func TestRunMap_Env(t *testing.T) {
 		"TERM":                                     "xterm-256color",
 		"COLORTERM":                                "truecolor",
 		pkginfo.EnvVar:                             pkgInfo,
-		pkginfo.GUIAppEnvVar:                       guiAppPkgInfo,
+		pkginfo.VNCConfigEnvVar:                    vncInfo,
 		"GH_TOKEN":                                 "tok",
 	}, env)
 }
@@ -146,10 +192,26 @@ func TestRunMap_Env_SkipsUnsetTerminalVars(t *testing.T) {
 	t.Setenv("COLORTERM", "")
 	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
 
-	env, err := rm.Env()
+	env, err := rm.Env(false)
 	require.NoError(t, err)
 	assert.NotContains(t, env, "TERM")
 	assert.NotContains(t, env, "COLORTERM")
+}
+
+func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
+	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
+
+	env, err := rm.Env(false)
+	require.NoError(t, err)
+	assert.NotContains(t, env, pkginfo.VNCConfigEnvVar)
+}
+
+func TestRunMap_Env_DefaultsVNC(t *testing.T) {
+	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
+
+	env, err := rm.Env(true)
+	require.NoError(t, err)
+	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "no vnc section takes the desktop's own defaults")
 }
 
 func TestRunMap_Cmd(t *testing.T) {

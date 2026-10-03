@@ -1,4 +1,4 @@
-// Package guiapp wires the GUI app the run's env names (pkginfo.GUIAppEnvVar):
+// Package guiapp wires the GUI app the run's env names (pkginfo.VNCConfigEnvVar):
 // the boot installs it into the apps volume and writes its session menu entry,
 // while the exec entry points launch the installed app.
 package guiapp
@@ -34,29 +34,33 @@ Type=Application
 Categories=Development;
 `
 
+// Load parses the run's VNCConfigEnvVar — nil means no vnc. A bad body warns
+// and reads as none, keeping the boot going.
+func Load() *pkginfo.VNCInfo {
+	body := os.Getenv(pkginfo.VNCConfigEnvVar)
+	if body == "" {
+		return nil
+	}
+	info, err := pkginfo.VNCInfoFromJSON(body)
+	if err != nil {
+		log.WarnErr("load vnc info", err)
+		return nil
+	}
+	return &info
+}
+
 const fileMode os.FileMode = 0o644
 
-// Install installs the GUI app the run's env names and writes its session menu
-// entry — best-effort like the desktop: the session works without the app, so
-// failures warn instead of failing the boot. The session's XDG autostart waits
-// out the download rather than racing it.
-func Install() {
-	body := os.Getenv(pkginfo.GUIAppEnvVar)
-	if body == "" {
-		log.Warnf("%s is not set; skipping the GUI app", pkginfo.GUIAppEnvVar)
-		return
+// Install installs the session's GUI app and writes its menu entry. The
+// session's XDG autostart waits out the download rather than racing it.
+func Install(guiApp pkginfo.GUIPkgInfo) error {
+	if err := writeDesktopEntry(guiApp); err != nil {
+		return fmt.Errorf("guiapp: write %s menu entry: %w", guiApp.Name, err)
 	}
-	info, err := pkginfo.GUIFromJSON(body)
-	if err != nil {
-		log.WarnErr("install gui app", err)
-		return
+	if err := install.FromPkgInfo(guiApp.PkgInfo, install.AppsRoot); err != nil {
+		return fmt.Errorf("guiapp: %w", err)
 	}
-	if err := writeDesktopEntry(info); err != nil {
-		log.WarnErr("write gui app menu entry", err)
-	}
-	if err := install.RunPkgInfo(info.PkgInfo, install.AppsRoot); err != nil {
-		log.WarnErr("install gui app", err)
-	}
+	return nil
 }
 
 // writeDesktopEntry writes the app's menu entry under the home's applications
@@ -80,49 +84,40 @@ func writeDesktopEntry(info pkginfo.GUIPkgInfo) error {
 
 // Exec execs the GUI app with args appended after its own Args, erroring when
 // it is not installed yet.
-func Exec(args []string) error {
-	return launch(false, args)
+func Exec(guiApp pkginfo.GUIPkgInfo, args []string) error {
+	return launch(guiApp, false, args)
 }
 
 // Autostart execs the GUI app, waiting out the boot's install first — the
 // session's XDG autostart lands here before the entrypoint's download finishes.
-func Autostart() error {
-	return launch(true, nil)
+func Autostart(guiApp pkginfo.GUIPkgInfo) error {
+	return launch(guiApp, true, nil)
 }
 
-func launch(wait bool, args []string) error {
-	info, bin, err := resolve()
+func launch(guiApp pkginfo.GUIPkgInfo, wait bool, args []string) error {
+	bin, err := binFor(guiApp)
 	if err != nil {
 		return err
 	}
 	if wait {
 		waitInstalled(bin, func() { time.Sleep(pollInterval) })
-		logLaunch(info.Name)
+		logLaunch(guiApp.Name)
 	} else if !installed(bin) {
-		return fmt.Errorf("guiapp: %s is not installed at %s", info.Name, bin)
+		return fmt.Errorf("guiapp: %s is not installed at %s", guiApp.Name, bin)
 	}
-	argv := append([]string{bin}, append(append([]string{}, info.Args...), args...)...)
+	argv := append([]string{bin}, append(append([]string{}, guiApp.Args...), args...)...)
 	//nolint:gosec // the launcher's job: exec the app the run's env names
 	return syscall.Exec(bin, argv, os.Environ())
 }
 
-// resolve returns the env's GUI app plus its executable's path under the apps
-// volume: <AppsRoot>/<name>/current/<RelBin>.
-func resolve() (pkginfo.GUIPkgInfo, string, error) {
-	body := os.Getenv(pkginfo.GUIAppEnvVar)
-	if body == "" {
-		return pkginfo.GUIPkgInfo{}, "", fmt.Errorf("guiapp: %s is not set", pkginfo.GUIAppEnvVar)
-	}
-	info, err := pkginfo.GUIFromJSON(body)
+// binFor resolves the app's executable path under the apps volume:
+// <AppsRoot>/<name>/current/<RelBin>.
+func binFor(guiApp pkginfo.GUIPkgInfo) (string, error) {
+	p, err := pkger.ForPkgInfo(guiApp.PkgInfo)
 	if err != nil {
-		return pkginfo.GUIPkgInfo{}, "", fmt.Errorf("guiapp: %w", err)
+		return "", fmt.Errorf("guiapp: %w", err)
 	}
-	p, err := pkger.ForPkgInfo(info.PkgInfo)
-	if err != nil {
-		return pkginfo.GUIPkgInfo{}, "", fmt.Errorf("guiapp: %w", err)
-	}
-	bin := filepath.Join(install.AppsRoot, info.Name, "current", p.RelBin())
-	return info, bin, nil
+	return filepath.Join(install.AppsRoot, guiApp.Name, "current", p.RelBin()), nil
 }
 
 // installed reports whether bin exists with an exec bit — the symlink chain can

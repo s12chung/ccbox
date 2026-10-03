@@ -32,6 +32,10 @@ func (f *debFixture) write(rel string, mode os.FileMode, body string) {
 
 func (f *debFixture) pack() {
 	f.t.Helper()
+	// dpkg-deb packs the fixture and extracts it under test — macOS ships none
+	if _, err := exec.LookPath("dpkg-deb"); err != nil {
+		f.t.Skipf("helper: no dpkg-deb: %v", err)
+	}
 	f.debPath = filepath.Join(f.t.TempDir(), "fixture.deb")
 	//nolint:gosec // fixed argv on the test's own fixture tree
 	out, err := exec.CommandContext(context.Background(), "dpkg-deb", "--root-owner-group", "-b", f.root, f.debPath).CombinedOutput()

@@ -32,7 +32,7 @@ func resumeArgs(_ *cobra.Command, args []string) error {
 // run builds the image then runs the devbox container interactively behind the
 // egress wall. It is the root command's action — `ccbox` with no subcommand.
 func run(cmd *cobra.Command, args []string) error {
-	if err := build(cmd.Context()); err != nil {
+	if err := build(cmd.Context(), runModes.VNC); err != nil {
 		return err
 	}
 	defer printPresentGuardMounts()
@@ -70,6 +70,7 @@ func init() {
 	f.BoolVarP(&runModes.Resume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
 	f.BoolVar(&runModes.Shell, "shell", false, "drop into a shell instead of launching the harness CLI")
 	f.BoolVar(&runModes.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
+	f.BoolVar(&runModes.VNC, "vnc", false, "serve the desktop over VNC at localhost:5900, without the egress wall (experimental)")
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume", "shell")
 }
 

@@ -14,6 +14,7 @@ import (
 	"github.com/s12chung/firm"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
@@ -67,6 +68,7 @@ func Init(projectDir string) (string, error) {
 func userSeedConfig(cli string) *Config {
 	return &Config{
 		CLIName:       new(cli),
+		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}},
 		TmpfsMasks:    []string{DefaultsToken},
 		VolumeMasks:   []string{DefaultsToken},
 		ReadOnlyGlobs: []string{DefaultsToken},

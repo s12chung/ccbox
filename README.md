@@ -2,7 +2,7 @@
 
 > A protected Docker devbox for running a harness CLI — Claude Code, Codex, etc.
 
-Run `ccbox` from a repo root to run the harness CLI in a Docker container. `ccbox --shell` will open a shell instead.
+Run `ccbox` from a repo root to run the harness CLI in a Docker container. `ccbox --shell` will open a shell instead. `ccbox --vnc` runs the desktop image variant (see `ccbox build --vnc`) and serves the config's desktop over VNC at `localhost:5900` — without the egress wall, for direct network access.
 
 - Limits harness access — unprivileged user, no root, no Docker daemon, a disposable container
 - Configurable [protective host-mounts](#protective-mounts) to the container

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/flock"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
@@ -18,13 +19,13 @@ import (
 const DefaultRoot = "/opt/ccbox/clis"
 
 // AppsRoot is the apps root's container mount: the ccbox-apps global volume's,
-// where the GUI app (pkginfo.GUIAppEnvVar) installs at start.
+// where the GUI app (the VNC_CONFIG env's gui_app) installs at start.
 const AppsRoot = "/opt/ccbox/apps"
 
-// Run resolves pkgDir's latest version, installs it unless it is already current,
-// and prunes every other version of the CLI — all under the CLI's install lock.
-// A Run() failure keeps the installed version; with nothing usable installed, it fails.
-func Run(pkgDir pkger.PkgDir) error {
+// FromPkgDir resolves pkgDir's latest version, installs it unless it is already
+// current, and prunes every other version of the CLI — all under the CLI's install
+// lock. A failure keeps the installed version; with nothing usable installed, it fails.
+func FromPkgDir(pkgDir pkger.PkgDir) error {
 	return flock.Do(pkgDir.LockPath(), func() error {
 		active := fsutil.CurrentVersion(pkgDir.Current())
 		latest, err := pkgDir.Latest()
@@ -52,6 +53,15 @@ func Run(pkgDir pkger.PkgDir) error {
 		log.Infof("installed %s %s", pkgDir.Name(), latest)
 		return fsutil.Prune(pkgDir.Dir(), latest)
 	}, skipInstalled(pkgDir))
+}
+
+// FromPkgInfo installs info's CLI or GUI app at root.
+func FromPkgInfo(info pkginfo.PkgInfo, root string) error {
+	p, err := pkger.ForPkgInfo(info)
+	if err != nil {
+		return err
+	}
+	return FromPkgDir(pkger.PkgDir{Pkger: p, Root: root})
 }
 
 // skipInstalled reports whether an installed version can stand in while another

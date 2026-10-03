@@ -37,3 +37,8 @@ func TestCheckIdentity(t *testing.T) {
 		})
 	}
 }
+
+func TestCurrentUserName_MatchesOs(t *testing.T) {
+	// the test runs as some real user; currentUserName must resolve it, not fail closed
+	assert.NotEmpty(t, currentUserName())
+}

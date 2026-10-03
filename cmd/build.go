@@ -13,11 +13,18 @@ var buildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Build the devbox image",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return build(cmd.Context())
+		return build(cmd.Context(), buildVNC)
 	},
 }
 
-// build builds the CLI-agnostic devbox image; `run` calls it too, mirroring the old `run: build`.
-func build(ctx context.Context) error {
-	return docker.Build(ctx, buildContext, dmap.NewBuildMap(flagTag).Options())
+// buildVNC builds the image's desktop variant (`build --vnc`)
+var buildVNC bool
+
+func init() {
+	buildCmd.Flags().BoolVar(&buildVNC, "vnc", false, "build the desktop variant: the headless base plus the VNC stack (experimental)")
+}
+
+// build builds the image variant the mode asks for; `run` calls it too, mirroring the old `run: build`.
+func build(ctx context.Context, vnc bool) error {
+	return docker.Build(ctx, buildContext, dmap.NewBuildMap(flagTag, vnc).Options())
 }
