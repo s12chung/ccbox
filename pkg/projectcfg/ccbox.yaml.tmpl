@@ -3,16 +3,16 @@
 # cli: which coding CLI the image installs and launches
 cli:{{yaml .CLIName}}
 
-# vnc: the desktop's session, merging down scoped fields. Experimental. (macOS Screen Sharing has no clipboard sync for non-Macs)
+# vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   # gui_app: zcode # the GUI app's name; empty means none
 {{- if and .VNC .VNC.Config}}
   config:
-    # resolution: the box's WxH, for VNC clients that cannot ask for a resize themselves (e.g. macOS Screen Sharing); defaults to {{defaultResolution}}
+    # resolution: the box's WxH for clients that can't auto-resize. defaults to {{defaultResolution}}
     resolution: {{.VNC.Config.Resolution}}
 {{- else}}
   # config:
-  #   resolution: the box's WxH, for VNC clients that cannot ask for a resize themselves (e.g. macOS Screen Sharing); defaults to {{defaultResolution}}
+  #   resolution: the box's WxH for clients that can't auto-resize. defaults to {{defaultResolution}}
 {{- end}}
 
 # tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.

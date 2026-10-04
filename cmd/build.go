@@ -21,7 +21,7 @@ var buildCmd = &cobra.Command{
 var buildVNC bool
 
 func init() {
-	buildCmd.Flags().BoolVar(&buildVNC, "vnc", false, "build the desktop variant: the headless base plus the VNC stack (experimental)")
+	buildCmd.Flags().BoolVar(&buildVNC, "vnc", false, "build VNC variant (experimental)")
 }
 
 // build builds the image variant the mode asks for; `run` calls it too, mirroring the old `run: build`.

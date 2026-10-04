@@ -70,7 +70,7 @@ func init() {
 	f.BoolVarP(&runModes.Resume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
 	f.BoolVar(&runModes.Shell, "shell", false, "drop into a shell instead of launching the harness CLI")
 	f.BoolVar(&runModes.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
-	f.BoolVar(&runModes.VNC, "vnc", false, "serve the desktop over VNC at localhost:5900, without the egress wall (experimental)")
+	f.BoolVar(&runModes.VNC, "vnc", false, "serve VNC at localhost:5900 (experimental)")
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume", "shell")
 }
 
