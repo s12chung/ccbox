@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/s12chung/firm"
-	"github.com/s12chung/firm/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -61,17 +60,6 @@ func TestMatchRules(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestOneOfEmpty(t *testing.T) {
-	v := firm.Value[string](OneOfEmpty[string]{OneOf: rule.OneOf[string]{Values: []string{"zcode", ""}}})
-
-	assert.Nil(t, v.Validate("").ToNil()) // the listed empty is allowed
-	assert.Nil(t, v.Validate("zcode").ToNil())
-
-	errMap := v.Validate("emacs")
-	require.NotEmpty(t, errMap)
-	assert.Contains(t, errMap.Error(), "is not one of [zcode] or empty string")
 }
 
 func TestBind(t *testing.T) {

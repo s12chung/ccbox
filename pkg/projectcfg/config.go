@@ -75,9 +75,9 @@ type VNC struct {
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[VNC]().
 		Validates(firm.RuleMap{
-			"GUIAppName": {firmrule.OneOfEmpty[string]{OneOf: rule.OneOf[string]{
+			"GUIAppName": {rule.OneOf[string]{
 				Values: append(guiapp.Names(), ""), // the empty names no GUI app
-			}}},
+			}},
 			"Config": {firm.Backed()},
 		}))
 	firm.MustRegisterType(firm.NewDefinition[Config]().

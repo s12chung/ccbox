@@ -2,7 +2,6 @@
 package firmrule
 
 import (
-	"fmt"
 	"reflect"
 	"regexp"
 	"slices"
@@ -39,7 +38,6 @@ const (
 	// EnabledValue is read_only_binds' special value: a Specials key's entry mounts at its default
 	EnabledValue = "enabled"
 	bindName     = "Bind"
-	oneOfName    = "OneOf"
 )
 
 // Bind validates a read_only_binds key-value pair for rule.KeyValues
@@ -65,36 +63,6 @@ func (b Bind) ValidateValue(value reflect.Value) firm.ErrorMap {
 		}
 	}
 	return nil
-}
-
-// OneOfEmpty is a rule.OneOf that also allows the empty string: the call site lists
-// it among the Values, and the error words it instead of rendering it blank
-type OneOfEmpty[T comparable] struct{ rule.OneOf[T] }
-
-// ValidateValue routes the check to this receiver, so the ErrorMap override fires —
-// the promoted OneOf methods would run on the embedded OneOf and miss it
-func (o OneOfEmpty[T]) ValidateValue(value reflect.Value) firm.ErrorMap {
-	data, ok := reflect.TypeAssert[T](value)
-	if !ok {
-		panic("OneOfEmpty ValidateValue type not matching type--called before TypeCheck?")
-	}
-	if slices.Contains(o.Values, data) {
-		return nil
-	}
-	return o.ErrorMap()
-}
-
-// ErrorMap overrides the embedded OneOf's: the listed empty renders as words,
-// keeping the values the real choices alone
-func (o OneOfEmpty[T]) ErrorMap() firm.ErrorMap {
-	choices := slices.DeleteFunc(slices.Clone(o.Values), func(v T) bool {
-		var zero T
-		return v == zero
-	})
-	return firm.ErrorMap{oneOfName: firm.TemplateError{
-		TemplateFields: map[string]string{"Values": fmt.Sprintf("%v", choices)},
-		Template:       "is not one of {{.Values}} or empty string",
-	}}
 }
 
 // bindEntryError describes the pair's first problem, or "" for a good pair

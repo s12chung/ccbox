@@ -383,7 +383,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		body string
 		want []string
 	}{
-		{"unknown cli", "cli: emacs\n", []string{"CLIName", "is not one of [claude codex grok opencode pi]"}},
+		{"unknown cli", "cli: emacs\n", []string{"CLIName", "is not one of [\"claude\" \"codex\" \"grok\" \"opencode\" \"pi\"]"}},
 		{"absolute tmpfs_masks", "tmpfs_masks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
 		{"tmpfs_masks traversal", "tmpfs_masks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
 		{"absolute volume_masks", "volume_masks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
@@ -394,7 +394,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
 		{"bad vnc resolution format", "vnc:\n  config:\n    resolution: 1600 by 900\n", []string{"VNC", "must be WxH"}},
 		{"vnc resolution out of range", "vnc:\n  config:\n    resolution: 16385x900\n", []string{"VNC", "within 32..16384"}},
-		{"unknown gui_app", "vnc:\n  gui_app: emacs\n  config:\n    resolution: 1600x900\n", []string{"GUIAppName", "is not one of [zcode]"}},
+		{"unknown gui_app", "vnc:\n  gui_app: emacs\n  config:\n    resolution: 1600x900\n", []string{"GUIAppName", "is not one of [\"zcode\" \"\"]"}},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},
 		{"bad bind key", "read_only_binds:\n  fonts: /mnt\n", []string{"ReadOnlyBinds.[fonts]", "must be gitconfig or a host path"}},
 		{"bind key traversal", "read_only_binds:\n  ../escape: /mnt\n", []string{"ReadOnlyBinds.[../escape]", "must be gitconfig or a host path"}},
