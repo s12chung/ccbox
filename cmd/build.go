@@ -25,6 +25,6 @@ func init() {
 }
 
 // build builds the image variant the mode asks for; `run` calls it too, mirroring the old `run: build`.
-func build(ctx context.Context, vnc bool) error {
-	return docker.Build(ctx, buildContext, dmap.NewBuildMap(flagTag, vnc).Options())
+func build(ctx context.Context, serveVNC bool) error {
+	return docker.Build(ctx, buildContext, dmap.NewBuildMap(flagTag, serveVNC).Options())
 }

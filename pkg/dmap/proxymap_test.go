@@ -13,21 +13,10 @@ import (
 func TestProxyMap_Options(t *testing.T) {
 	cfg := &projectcfg.Config{
 		CLIName:   new("claude"),
-		Allowlist: []string{"user.example.dev", projectcfg.DefaultsToken, "example.com"},
+		Allowlist: []string{"user.example.dev", projectcfg.DefaultsAlias, "example.com"},
 	}
 
-	proxyOptions := NewProxyMap(cfg).Options(nil)
+	proxyOptions := NewProxyMap(cfg).Options()
 	assert.Equal(t, tinyproxy.Config, proxyOptions.Config)
 	assert.Equal(t, docker.AllowOverride(cfg.AllowlistExpanded()), proxyOptions.Overrides)
-}
-
-func TestProxyMap_Options_ExtraAllow(t *testing.T) {
-	cfg := &projectcfg.Config{
-		CLIName:   new("claude"),
-		Allowlist: []string{"user.example.dev"},
-	}
-
-	proxyOptions := NewProxyMap(cfg).Options([]string{"zcode.z.ai", "user.example.dev"})
-
-	assert.Equal(t, docker.AllowOverride([]string{"user.example.dev", "zcode.z.ai"}), proxyOptions.Overrides)
 }

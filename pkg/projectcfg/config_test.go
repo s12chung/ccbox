@@ -3,6 +3,7 @@ package projectcfg
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -23,7 +25,7 @@ func TestConfig_ProjectDir(t *testing.T) {
 	useHome(t) // no user file
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.Equal(t, dir, c.ProjectDir())
 }
@@ -33,7 +35,7 @@ func TestConfig_CLI(t *testing.T) {
 	useHome(t) // no user file
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.Equal(t, cli.MustFor("claude"), c.CLI())
 
@@ -103,19 +105,19 @@ func TestConfig_ListsExpanded(t *testing.T) {
 			nil, nil, nil, nil,
 		},
 		{
-			"the token expands in place, literals kept, repeats collapse", t.TempDir(),
+			"the alias expands in place, literals kept, repeats collapse", t.TempDir(),
 			"cli: claude\n" +
 				"tmpfs_masks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
 				"read_only_globs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
 			Config{
 				CLIName:       new("claude"),
-				TmpfsMasks:    []string{DefaultsToken, "dist", DefaultsToken},
-				ReadOnlyGlobs: []string{DefaultsToken, ".env", DefaultsToken},
+				TmpfsMasks:    []string{DefaultsAlias, "dist", DefaultsAlias},
+				ReadOnlyGlobs: []string{DefaultsAlias, ".env", DefaultsAlias},
 			},
 			append(append([]string{}, tmpfsDefaults...), "dist"),
 			nil,
 			readOnlyDefaults,        // the literal ".env" collapses into the defaults' own entry
-			[]string{".ccbox.yaml"}, // the token expands: the project's own config matches; .env is absent here
+			[]string{".ccbox.yaml"}, // the alias expands: the project's own config matches; .env is absent here
 		},
 		{
 			"an explicit empty list stays empty like an unset one", t.TempDir(),
@@ -130,7 +132,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 			writeConfig(t, tt.projectDir, projectConfigFileName, tt.body)
 			tt.want.projectDir = tt.projectDir
 
-			c, err := Load(tt.projectDir, Config{})
+			c, err := Load(tt.projectDir, Config{}, false)
 			require.NoError(t, err)
 			assert.Equal(t, &tt.want, c)
 			assert.Equal(t, tt.wantTmpfsExpanded, c.TmpfsMasksExpanded())
@@ -143,11 +145,11 @@ func TestConfig_ListsExpanded(t *testing.T) {
 
 func TestConfig_AccessorsCache(t *testing.T) {
 	dir := t.TempDir()
-	useHome(t) // no user file: no defaults token
+	useHome(t) // no user file: no defaults alias
 	mkDirs(t, dir, "dist")
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\ntmpfs_masks:\n  - dist\n")
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 
 	expanded := c.TmpfsMasksExpanded()
@@ -162,7 +164,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 // loadBindsConfig loads a config whose read_only_binds are the given raw map
 func loadBindsConfig(t *testing.T, binds map[string]string) *Config {
 	t.Helper()
-	c, err := Load(t.TempDir(), Config{CLIName: new("claude"), ReadOnlyBinds: binds})
+	c, err := Load(t.TempDir(), Config{CLIName: new("claude"), ReadOnlyBinds: binds}, false)
 	require.NoError(t, err)
 	return c
 }
@@ -265,7 +267,7 @@ func TestConfig_MasksPresent(t *testing.T) {
 			mkDirs(t, dir, tt.dirs...)
 			writeConfig(t, dir, projectConfigFileName, tt.body)
 
-			c, err := Load(dir, Config{})
+			c, err := Load(dir, Config{}, false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksPresent())
 			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksPresent())
@@ -288,7 +290,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 		wantVolumeMasks []string
 	}{
 		{
-			"the seed's token rejects the project's absent defaults", present,
+			"the seed's alias rejects the project's absent defaults", present,
 			"",
 			nil,
 			[]string{".venv"},
@@ -300,7 +302,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 			[]string{".venv", "target"},
 		},
 		{
-			"all absent rejects every entry, token and own alike", absent,
+			"all absent rejects every entry, alias and own alike", absent,
 			"tmpfs_masks:\n  - dist\n",
 			append(append([]string{}, tmpfsDefaults...), "dist"),
 			volumeDefaults,
@@ -311,7 +313,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 			if tt.projectBody != "" {
 				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectConfigFileName), []byte(tt.projectBody), ioutil.File))
 			}
-			c, err := Load(tt.projectDir, Config{})
+			c, err := Load(tt.projectDir, Config{}, false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksAbsent())
 			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksAbsent())
@@ -330,7 +332,7 @@ func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 	body += bodySb18.String()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), ioutil.File))
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	return c
 }
@@ -404,7 +406,7 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), ioutil.File))
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 
 	// the expansion keeps the masked entries — the absent node_modules too — but their
@@ -441,12 +443,60 @@ func TestConfig_ReadOnlyPathsPresent_Fresh(t *testing.T) {
 func TestConfig_ReadOnlyGlobsExpanded(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, ioutil.File))
-	c := readOnlyGlobsConfig(t, dir, DefaultsToken, "typo-glob")
+	c := readOnlyGlobsConfig(t, dir, DefaultsAlias, "typo-glob")
 
-	// the token expands in place. The project's own .ccbox.yaml matches the defaults' first
+	// the alias expands in place. The project's own .ccbox.yaml matches the defaults' first
 	// entry, .env its third; the rest match nothing.
 	assert.Equal(t, append(append([]string{}, readOnlyDefaults...), "typo-glob"), c.ReadOnlyGlobsExpanded())
 	assert.Equal(t, []string{".ccbox.yaml", ".env"}, c.ReadOnlyPathsPresent())
+}
+
+func TestConfig_AllowlistExpanded(t *testing.T) {
+	useHome(t) // no user seed: the allowlists under test stand alone
+	dir := t.TempDir()
+
+	// claude's own domains, its provider alias expanded; headless, so no GUI app domains
+	harnessDomains := []string{"api.anthropic.com", "platform.claude.com", "mcp-proxy.anthropic.com", "statsig.anthropic.com", "sentry.io"}
+
+	t.Run("aliases expand in place, literals kept, repeats collapse", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+
+			"allowlist:\n"+
+			"  - ccbox-anthropic-provider\n"+
+			"  - example.com\n"+
+			"  - ccbox-defaults\n"+
+			"  - ccbox-anthropic-provider\n"+
+			"  - ccbox-set-harness\n")
+
+		c, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		// the harness alias's api.anthropic.com collapses into the provider alias's —
+		// one expansion, in place
+		want := slices.Concat([]string{"api.anthropic.com", "example.com"}, AllowlistDefaults(),
+			[]string{"platform.claude.com", "mcp-proxy.anthropic.com", "statsig.anthropic.com", "sentry.io"})
+		assert.Equal(t, want, c.AllowlistExpanded())
+	})
+
+	t.Run("ccbox-all-providers resolves every provider's domains", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nallowlist:\n  - ccbox-all-providers\n")
+
+		allProviders, ok := provider.DomainsFor(provider.AllProvidersAlias)
+		require.True(t, ok)
+		c, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		assert.Equal(t, allProviders, c.AllowlistExpanded())
+	})
+
+	t.Run("the GUI app's domains ride the harness alias on a vnc load alone", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nallowlist:\n  - ccbox-set-harness\n")
+
+		headlessConfig, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		assert.Equal(t, harnessDomains, headlessConfig.AllowlistExpanded())
+
+		vncConfig, err := Load(dir, Config{}, true)
+		require.NoError(t, err)
+		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.AllowDomains), vncConfig.AllowlistExpanded())
+	})
 }
 
 func TestConfig_MarshalYAMLResolves(t *testing.T) {
@@ -459,19 +509,19 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	c := &Config{
 		CLIName:       new("claude"),
 		VNC:           &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
-		TmpfsMasks:    []string{DefaultsToken, "dist", "build"},
-		VolumeMasks:   []string{DefaultsToken, "target", "cache"},
-		ReadOnlyGlobs: []string{DefaultsToken, ".env"},
+		TmpfsMasks:    []string{DefaultsAlias, "dist", "build"},
+		VolumeMasks:   []string{DefaultsAlias, "target", "cache"},
+		ReadOnlyGlobs: []string{DefaultsAlias, ".env"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
 		Env:           map[string]string{"FOO": "bar"},
-		Allowlist:     []string{"user.example.dev", DefaultsToken, "example.com"},
+		Allowlist:     []string{"user.example.dev", DefaultsAlias, "example.com"},
 		projectDir:    dir,
 	}
 
 	out, err := yaml.Marshal(c)
 	require.NoError(t, err)
 
-	// round-trip the marshal back: masks resolved (token expanded in place, present
+	// round-trip the marshal back: masks resolved (alias expanded in place, present
 	// filtered), globs resolved to their matches, binds resolved to the host's present
 	// dirs, allowlist resolved, the rest passed through
 	var got Config
@@ -486,7 +536,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 			filepath.Join(home, ".config", "git"): GitConfigMount,
 		},
 		Env:       map[string]string{"FOO": "bar"},
-		Allowlist: append(append([]string{"user.example.dev"}, AllowDefaults()...), "example.com"),
+		Allowlist: append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),
 	}
 	assert.Equal(t, want, got)
 }
@@ -533,7 +583,7 @@ func TestVNC_InfoJSON(t *testing.T) {
 // `UPDATE_FIXTURES=1 go test ./pkg/projectcfg/ -run TestConfig_renderTmpl`
 func TestConfig_renderTmpl(t *testing.T) {
 	for _, tt := range []struct {
-		name string // fixture name: testdata/<name>.ccbox.yaml
+		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml
 		c    Config
 	}{
 		{"init", Config{}},                       // `ccbox config init`'s fill-in scaffold
@@ -543,7 +593,7 @@ func TestConfig_renderTmpl(t *testing.T) {
 			got, err := tt.c.renderTmpl()
 			require.NoError(t, err)
 
-			path := filepath.Join("testdata", tt.name+".ccbox.yaml")
+			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
 			if os.Getenv("UPDATE_FIXTURES") != "" {
 				require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
 				require.NoError(t, os.WriteFile(path, []byte(got), ioutil.File))

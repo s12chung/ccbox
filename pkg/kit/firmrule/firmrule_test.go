@@ -1,7 +1,10 @@
 package firmrule
 
 import (
+	"fmt"
 	"reflect"
+	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/s12chung/firm"
@@ -60,6 +63,32 @@ func TestMatchRules(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDomainOrAlias(t *testing.T) {
+	aliases := []string{"ccbox-anthropic-provider", "ccbox-all-providers", "ccbox-defaults"}
+	v := firm.Value[string](DomainOrAlias(aliases))
+	quoted := make([]string, len(aliases))
+	for i, a := range aliases {
+		quoted[i] = strconv.Quote(a)
+	}
+
+	t.Run("domains and aliases are valid", func(t *testing.T) {
+		for _, s := range slices.Concat([]string{"x.ai", "api.anthropic.com"}, aliases) {
+			assert.Nilf(t, v.Validate(s).ToNil(), "want %q valid", s)
+		}
+	})
+	t.Run("other values fail with the allowed list", func(t *testing.T) {
+		for _, s := range []string{"", "https://x.dev", "X.AI", "ccbox-bogus-provider", "ccbox-set-harness"} {
+			errMap := v.Validate(s)
+			require.NotEmptyf(t, errMap, "want %q invalid", s)
+			assert.Containsf(t, errMap.Error(), "DomainOrAlias: value is not a domain or one of "+fmt.Sprintf("%v", quoted), s)
+		}
+	})
+	t.Run("type checks to a string", func(t *testing.T) {
+		assert.Nil(t, DomainOrAlias(aliases).TypeCheck(reflect.TypeFor[string]()))
+		assert.NotNil(t, DomainOrAlias(aliases).TypeCheck(reflect.TypeFor[int]()))
+	})
 }
 
 func TestBind(t *testing.T) {

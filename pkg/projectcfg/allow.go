@@ -1,15 +1,15 @@
 package projectcfg
 
-import "github.com/s12chung/ccbox/pkg/cli"
+import (
+	"slices"
+)
 
-// AllowDefaults are the egress domains DefaultsToken expands to, computed per
-// call from the loaded cli set.
-func AllowDefaults() []string {
-	return append(append([]string{}, sharedAllowDefaults...), cliAllowDomains()...)
-}
+// AllowlistDefaults are the egress domains DefaultsAlias expands to: the CLI-independent
+// tooling domains.
+func AllowlistDefaults() []string { return slices.Clone(sharedAllowlistDefaults) }
 
-// sharedAllowDefaults are the CLI-independent egress domains.
-var sharedAllowDefaults = []string{
+// sharedAllowlistDefaults are the CLI-independent egress domains.
+var sharedAllowlistDefaults = []string{
 	// mise (tool version manager): version lists + release metadata
 	"mise.en.dev",
 	"mise-versions.jdx.dev",
@@ -50,13 +50,4 @@ var sharedAllowDefaults = []string{
 	"man.cx",
 	"linux.die.net",
 	"manpages.ubuntu.com",
-}
-
-// cliAllowDomains concatenates every supported CLI's own egress domains, in All's order.
-func cliAllowDomains() []string {
-	var domains []string
-	for _, c := range cli.All() {
-		domains = append(domains, c.AllowDomains...)
-	}
-	return domains
 }

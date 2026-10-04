@@ -5,7 +5,6 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
@@ -59,7 +58,7 @@ func (rm *RunMap) RunOptions(flags RunFlags) (docker.RunOptions, func() error, e
 		Tag:            variantTag(flags.Tag, flags.Modes.VNC),
 		Env:            env,
 		Cmd:            rm.Cmd(flags),
-		Proxy:          NewProxyMap(rm.cfg).Options(rm.guiAppAllow(flags.Modes.VNC)),
+		Proxy:          NewProxyMap(rm.cfg).Options(),
 		ProxyLogPath:   ProxyLogPath(rm.userDir),
 		NoProxy:        flags.Modes.NoProxy || flags.Modes.VNC,
 	}, clean, nil
@@ -67,9 +66,9 @@ func (rm *RunMap) RunOptions(flags RunFlags) (docker.RunOptions, func() error, e
 
 // HostOptions renders the run's host options for docker.Run; vnc mounts the
 // GUI app's install volume, which seeds from the desktop variant's image.
-func (rm *RunMap) HostOptions(vnc bool) (docker.RunHostOptions, func() error, error) {
+func (rm *RunMap) HostOptions(serveVNC bool) (docker.RunHostOptions, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
-	binds, clean, err := rm.binds(vnc)
+	binds, clean, err := rm.binds(serveVNC)
 	if err != nil {
 		return docker.RunHostOptions{}, clean, err
 	}
@@ -90,17 +89,8 @@ func (rm *RunMap) vncCfg() *projectcfg.VNC {
 	return rm.cfg.VNC
 }
 
-// guiAppAllow returns the GUI app's download domains for the wall — only a
-// desktop run downloads the app, so only its gui_app carries domains
-func (rm *RunMap) guiAppAllow(vnc bool) []string {
-	if !vnc {
-		return nil
-	}
-	return guiapp.AllowDomains(rm.vncCfg().GUIAppName)
-}
-
 // Env renders the container's env in one map.
-func (rm *RunMap) Env(vnc bool) (map[string]string, error) {
+func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	cli := rm.cfg.CLI()
 	pkgInfo, err := cli.PkgInfoJSON()
 	if err != nil {
@@ -111,7 +101,7 @@ func (rm *RunMap) Env(vnc bool) (map[string]string, error) {
 		pkginfo.EnvVar: pkgInfo,
 		envGHToken:     os.Getenv(envGHToken),
 	})
-	if vnc {
+	if serveVNC {
 		body, err := rm.vncCfg().InfoJSON()
 		if err != nil {
 			return nil, err

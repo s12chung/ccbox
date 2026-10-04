@@ -31,6 +31,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -156,7 +157,7 @@ func init() {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
 			},
-			"AllowDomains": {firm.Elems[[]string](firmrule.Domain)},
+			"AllowDomains": {firm.Elems[[]string](firmrule.DomainOrAlias(provider.Aliases()))},
 
 			// MaskDir over HomePath: keys are $HOME-relative paths, and MaskDir's
 			// no-leading-".." also bars path.Join escapes out of the home dir

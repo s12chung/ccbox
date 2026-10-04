@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,6 +21,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
+	"github.com/s12chung/ccbox/pkg/projectcfg/expand"
+	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
@@ -53,7 +54,9 @@ type Config struct {
 
 	// projectDir anchors the masks' present-filters
 	projectDir string
-	// cache the DefaultsToken expansions of raw lists and the read_only_binds' path resolutions
+	// serveVNC is the loaded run mode: the GUI app's domains ride SetHarnessAlias's expansion only on it
+	serveVNC bool
+	// cache the DefaultsAlias expansions of raw lists and the read_only_binds' path resolutions
 	expandedTmpfsMasks    []string
 	expandedVolumeMasks   []string
 	expandedReadOnlyGlobs []string
@@ -73,13 +76,6 @@ type VNC struct {
 }
 
 func init() {
-	firm.MustRegisterType(firm.NewDefinition[VNC]().
-		Validates(firm.RuleMap{
-			"GUIAppName": {rule.OneOf[string]{
-				Values: append(guiapp.Names(), ""), // the empty names no GUI app
-			}},
-			"Config": {firm.Backed()},
-		}))
 	firm.MustRegisterType(firm.NewDefinition[Config]().
 		NotNil("CLIName").
 		Validates(firm.RuleMap{
@@ -100,7 +96,14 @@ func init() {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
 			},
-			"Allowlist": {firm.Elems[[]string](firmrule.Domain)},
+			"Allowlist": {firm.Elems[[]string](firmrule.DomainOrAlias(allowlistAliases()))},
+		}))
+	firm.MustRegisterType(firm.NewDefinition[VNC]().
+		Validates(firm.RuleMap{
+			"GUIAppName": {rule.OneOf[string]{
+				Values: append(guiapp.Names(), ""), // empty name means no GUI app to run
+			}},
+			"Config": {firm.Backed()},
 		}))
 }
 
@@ -129,10 +132,10 @@ func (c *Config) merge(other Config) {
 	c.expandedAllowlist = nil
 }
 
-// TmpfsMasksExpanded expands the DefaultsToken tokens in TmpfsMasks to defaults
+// TmpfsMasksExpanded expands the DefaultsAlias alias in TmpfsMasks to defaults
 func (c *Config) TmpfsMasksExpanded() []string {
 	if c.expandedTmpfsMasks == nil {
-		c.expandedTmpfsMasks = expandList(c.TmpfsMasks, tmpfsDefaults)
+		c.expandedTmpfsMasks = expandDefaultAlias(c.TmpfsMasks, tmpfsDefaults)
 	}
 	return c.expandedTmpfsMasks
 }
@@ -147,10 +150,10 @@ func (c *Config) TmpfsMasksAbsent() []string {
 	return absentDirs(c.projectDir, c.TmpfsMasksExpanded())
 }
 
-// VolumeMasksExpanded expands the DefaultsToken tokens in VolumeMasks to defaults
+// VolumeMasksExpanded expands the DefaultsAlias alias in VolumeMasks to defaults
 func (c *Config) VolumeMasksExpanded() []string {
 	if c.expandedVolumeMasks == nil {
-		c.expandedVolumeMasks = expandList(c.VolumeMasks, volumeDefaults)
+		c.expandedVolumeMasks = expandDefaultAlias(c.VolumeMasks, volumeDefaults)
 	}
 	return c.expandedVolumeMasks
 }
@@ -165,10 +168,10 @@ func (c *Config) VolumeMasksAbsent() []string {
 	return absentDirs(c.projectDir, c.VolumeMasksExpanded())
 }
 
-// ReadOnlyGlobsExpanded expands the DefaultsToken tokens in ReadOnlyGlobs to defaults
+// ReadOnlyGlobsExpanded expands the DefaultsAlias alias in ReadOnlyGlobs to defaults
 func (c *Config) ReadOnlyGlobsExpanded() []string {
 	if c.expandedReadOnlyGlobs == nil {
-		c.expandedReadOnlyGlobs = expandList(c.ReadOnlyGlobs, readOnlyDefaults)
+		c.expandedReadOnlyGlobs = expandDefaultAlias(c.ReadOnlyGlobs, readOnlyDefaults)
 	}
 	return c.expandedReadOnlyGlobs
 }
@@ -210,10 +213,18 @@ func (c *Config) ReadOnlyPathsPresent() []string {
 // home.
 func (c *Config) ReadOnlyBindsExpanded() map[string]string {
 	if c.expandedReadOnlyBinds == nil {
-		specials := []expansion{
-			{GitConfigKey, git.XDGConfigDir(), GitConfigMount}, // the host's XDG git dir at its default mount
-		}
-		c.expandedReadOnlyBinds = expandKeyValueHome(expandSpecials(c.ReadOnlyBinds, specials...))
+		c.expandedReadOnlyBinds = expand.Map(c.ReadOnlyBinds,
+			map[string]expand.Expansion{
+				// gitconfig: the host's XDG git dir at its default mount
+				GitConfigKey: {
+					Key:   git.XDGConfigDir(),
+					Value: func(string) string { return GitConfigMount },
+				},
+			},
+			func(key, mount string) (string, string) { // ~/ resolves to their own side's home
+				return ioutil.ExpandHome(key, userdir.MustHome()), ioutil.ExpandHome(mount, ContainerHome)
+			},
+		)
 	}
 	return c.expandedReadOnlyBinds
 }
@@ -228,17 +239,64 @@ func (c *Config) ReadOnlyBindsAbsent() map[string]string {
 	return absentKeys(c.ReadOnlyBindsExpanded(), c.ReadOnlyBindsPresent())
 }
 
-// AllowlistExpanded expands the DefaultsToken tokens in Allowlist to AllowDefaults
+// AllowlistExpanded expands Allowlist's aliases in place
 func (c *Config) AllowlistExpanded() []string {
 	if c.expandedAllowlist == nil {
-		c.expandedAllowlist = expandList(c.Allowlist, AllowDefaults())
+		c.expandedAllowlist = c.expandAllowlist()
 	}
 	return c.expandedAllowlist
 }
 
+// SetHarnessDomains is what SetHarnessAlias expands to on the config: the selected
+// CLI's egress domains, its provider aliases expanded, plus the GUI app's download
+// domains on a vnc load — only a desktop run downloads the app.
+func (c *Config) SetHarnessDomains() []string {
+	var domains []string
+	for _, d := range c.CLI().AllowDomains {
+		domains = append(domains, expandDomain(d)...)
+	}
+	if c.serveVNC && c.VNC != nil {
+		domains = append(domains, guiapp.AllowDomains(c.VNC.GUIAppName)...)
+	}
+	return domains
+}
+
+// expandAllowlist runs the alias→domains expansion over the raw entries, keeping order
+// and dropping repeats. Cycle-free: validation bars DefaultsAlias/SetHarnessAlias from
+// a CLI.yaml, so SetHarnessDomains never re-enters the aliases.
+func (c *Config) expandAllowlist() []string {
+	expansions := map[string][]string{
+		DefaultsAlias:   AllowlistDefaults(),
+		SetHarnessAlias: c.SetHarnessDomains(),
+	}
+	for _, alias := range provider.Aliases() {
+		expansions[alias] = expandDomain(alias)
+	}
+	return expand.Slice(c.Allowlist, expansions)
+}
+
+// allowlistAliases lists every allowlist alias: the providers' plus the expansion aliases
+func allowlistAliases() []string {
+	return slices.Concat(provider.Aliases(), []string{DefaultsAlias, SetHarnessAlias})
+}
+
+// expandDefaultAlias replaces each DefaultsAlias with defaults, preserving entry order and
+// dropping repeat entries.
+func expandDefaultAlias(list, defaults []string) []string {
+	return expand.Slice(list, map[string][]string{DefaultsAlias: defaults})
+}
+
+// expandDomain resolves one entry: a provider alias to its table domains, else the raw domain
+func expandDomain(entry string) []string {
+	if domains, ok := provider.DomainsFor(entry); ok {
+		return domains
+	}
+	return []string{entry}
+}
+
 // MarshalYAML renders the effective config: masks resolved to the project's present
 // dirs, read_only_globs to their matched paths, read_only_binds to the host's present dirs,
-// list tokens expanded — what `ccbox config` prints.
+// list aliases expanded — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
 	type resolved Config // same yaml tags, no MarshalYAML method
 	return resolved{
@@ -271,44 +329,43 @@ func (v *VNC) InfoJSON() (string, error) {
 	return string(body), nil
 }
 
-// expandList replaces each DefaultsToken with defaults, preserving entry order and
-// dropping repeat entries.
-func expandList(list, defaults []string) []string {
-	var out []string
-	seen := map[string]bool{}
-	add := func(entries ...string) {
-		for _, e := range entries {
-			if seen[e] {
-				continue
-			}
-			seen[e] = true
-			out = append(out, e)
-		}
-	}
-	for _, d := range list {
-		if d == DefaultsToken {
-			add(defaults...)
-		} else {
-			add(d)
-		}
-	}
-	return out
-}
-
 var (
 	// configTmplSrc is the ccbox.yaml template
 	//
 	//go:embed ccbox.yaml.tmpl
 	configTmplSrc string
-	configTmpl    = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
+	tmpl          = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
 		"yaml":              yamlutil.Value,
 		"defaultResolution": func() string { return pkginfo.DefaultResolution },
 	}).Parse(configTmplSrc))
 )
 
+// configTmpl wraps Config with per-entry comments for the fields that have them; the template
+// passes nil for the rest, whose yaml calls render bare
+type configTmpl struct {
+	Config
+
+	TmpfsMasksComments    []string
+	VolumeMasksComments   []string
+	ReadOnlyGlobsComments []string
+	AllowlistComments     []string
+}
+
+const defaultsExpansionComment = "`ccbox config defaults` for expansions"
+
 func (c *Config) renderTmpl() (string, error) {
 	var b bytes.Buffer
-	if err := configTmpl.Execute(&b, c); err != nil {
+	data := configTmpl{
+		Config:                *c,
+		TmpfsMasksComments:    yamlutil.CommentFirstEntry(c.TmpfsMasks, defaultsExpansionComment),
+		VolumeMasksComments:   yamlutil.CommentFirstEntry(c.VolumeMasks, defaultsExpansionComment),
+		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(c.ReadOnlyGlobs, defaultsExpansionComment),
+		AllowlistComments: yamlutil.EntryToComments(c.Allowlist, map[string]string{
+			DefaultsAlias:   "shared tooling domains",
+			SetHarnessAlias: "the selected CLI's — and on --vnc, the GUI app's",
+		}),
+	}
+	if err := tmpl.Execute(&b, data); err != nil {
 		return "", fmt.Errorf("render Config template: %w", err)
 	}
 	return b.String(), nil
@@ -323,16 +380,6 @@ func absentDirs(projectDir string, dirs []string) []string {
 		}
 	}
 	return out
-}
-
-// expandKeyValueHome resolves each bind's ~/ key and mount to their own side's home
-func expandKeyValueHome(binds map[string]string) map[string]string {
-	home := userdir.MustHome()
-	expanded := make(map[string]string, len(binds))
-	for key, mount := range binds {
-		expanded[ioutil.ExpandHome(key, home)] = ioutil.ExpandHome(mount, ContainerHome)
-	}
-	return maputil.NilIfEmpty(expanded)
 }
 
 // presentKeys filters binds to the keys present as dirs on disk
@@ -355,24 +402,4 @@ func absentKeys(binds, present map[string]string) map[string]string {
 		}
 	}
 	return maputil.NilIfEmpty(absent)
-}
-
-// expansion renames a raw bind entry to its resolved key/value pair
-type expansion struct {
-	srcKey    string
-	destKey   string
-	destValue string
-}
-
-// expandSpecials converts each special entry to its resolved key/value pair, keeping the
-// other entries as-is
-func expandSpecials(binds map[string]string, specials ...expansion) map[string]string {
-	converted := maps.Clone(binds) // fresh: the raw binds are never touched
-	for _, special := range specials {
-		if _, ok := converted[special.srcKey]; ok {
-			delete(converted, special.srcKey)
-			converted[special.destKey] = special.destValue
-		}
-	}
-	return converted
 }

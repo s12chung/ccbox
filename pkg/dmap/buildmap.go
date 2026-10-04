@@ -27,33 +27,35 @@ const vncTagSuffix = "-vnc"
 
 // BuildMap maps the build command's inputs to the docker pkg build options
 type BuildMap struct {
-	tag string
-	vnc bool
+	tag      string
+	serveVNC bool
 }
 
-// NewBuildMap returns a new BuildMap; vnc builds the image's desktop variant
-func NewBuildMap(tag string, vnc bool) *BuildMap { return &BuildMap{tag: tag, vnc: vnc} }
+// NewBuildMap returns a new BuildMap; serveVNC builds the image's desktop variant
+func NewBuildMap(tag string, serveVNC bool) *BuildMap {
+	return &BuildMap{tag: tag, serveVNC: serveVNC}
+}
 
 // Options renders the image build's docker.BuildOptions
 func (bm *BuildMap) Options() docker.BuildOptions {
 	return docker.BuildOptions{
-		Tag:       variantTag(bm.tag, bm.vnc),
-		Target:    buildTarget(bm.vnc),
+		Tag:       variantTag(bm.tag, bm.serveVNC),
+		Target:    buildTarget(bm.serveVNC),
 		BuildArgs: map[string]string{dataBindDirsArgKey: dataBindDirs(cli.All())},
 	}
 }
 
 // variantTag returns the image tag for the vnc mode: the tag, suffixed for the desktop variant
-func variantTag(tag string, vnc bool) string {
-	if vnc {
+func variantTag(tag string, serveVNC bool) string {
+	if serveVNC {
 		return tag + vncTagSuffix
 	}
 	return tag
 }
 
 // buildTarget returns the Dockerfile stage to build for the vnc mode
-func buildTarget(vnc bool) string {
-	if vnc {
+func buildTarget(serveVNC bool) string {
+	if serveVNC {
 		return vncTarget
 	}
 	return baseTarget

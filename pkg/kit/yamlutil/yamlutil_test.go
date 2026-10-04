@@ -7,30 +7,104 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type entry struct {
+	Name string
+	Val  string
+}
+
+// TestValue_MultilineEntries pins a large multi-entry block — struct fields, nested maps
+// and sequences — with its comments beside the entry lines, as a readable literal
+func TestValue_MultilineEntries(t *testing.T) {
+	type server struct {
+		Name  string
+		Image string
+		Env   map[string]string
+		Cmds  []string
+	}
+
+	v := []server{
+		{Name: "web", Image: "nginx", Env: map[string]string{"PORT": "8080", "USER": "app"}, Cmds: []string{"migrate", "serve"}},
+		{Name: "db", Image: "postgres", Env: map[string]string{"PGDATA": "/var/lib/postgres"}, Cmds: []string{"initdb", "start"}},
+	}
+	got, err := Value(v, []string{"serves the app", "the database"})
+	require.NoError(t, err)
+	assert.Equal(t, `
+  - name: web # serves the app
+    image: nginx
+    env:
+      PORT: "8080"
+      USER: app
+    cmds:
+      - migrate
+      - serve
+  - name: db # the database
+    image: postgres
+    env:
+      PGDATA: /var/lib/postgres
+    cmds:
+      - initdb
+      - start`, got)
+}
+
+func TestCommentFirstEntry(t *testing.T) {
+	assert.Nil(t, CommentFirstEntry(nil, "why"))
+	assert.Equal(t, []string{"why", "", ""}, CommentFirstEntry([]string{"a", "b", "c"}, "why"))
+}
+
+func TestEntryToComments(t *testing.T) {
+	assert.Nil(t, EntryToComments(nil, nil))
+	m := map[string]string{"a": "a's", "c": "c's"}
+	assert.Equal(t, []string{"a's", "", "c's"}, EntryToComments([]string{"a", "b", "c"}, m))
+}
+
 func TestValue(t *testing.T) {
 	foo := "foo"
 	tests := []struct {
-		name string
-		v    any
-		want string
+		name     string
+		v        any
+		comments []string
+		want     string
+		wantErr  string
 	}{
-		{"nil interface", nil, ""},
-		{"nil pointer", (*string)(nil), ""},
-		{"nil slice", []string(nil), ""},
-		{"nil map", map[string]string(nil), ""},
-		{"pointer value", &foo, " foo"},
-		{"string", "claude", " claude"},
-		{"bool", true, " true"},
-		{"quoted string", "yes", " \"yes\""}, // yaml quotes bool-like strings
+		{"nil interface", nil, nil, "", ""},
+		{"nil pointer", (*string)(nil), nil, "", ""},
+		{"nil slice", []string(nil), nil, "", ""},
+		{"nil map", map[string]string(nil), nil, "", ""},
+		{"pointer value", &foo, nil, " foo", ""},
+		{"string", "claude", nil, " claude", ""},
+		{"bool", true, nil, " true", ""},
+		{"quoted string", "yes", nil, " \"yes\"", ""}, // yaml quotes bool-like strings
 
-		{"empty slice", []string{}, " []"},
-		{"empty map", map[string]string{}, " {}"},
-		{"slice", []string{"a", "b"}, "\n  - a\n  - b"},
-		{"map sorts keys", map[string]string{"b": "1", "a": "2"}, "\n  a: \"2\"\n  b: \"1\""},
+		{"empty slice", []string{}, nil, " []", ""},
+		{"empty map", map[string]string{}, nil, " {}", ""},
+		{"slice", []string{"a", "b"}, nil, "\n  - a\n  - b", ""},
+		{"map sorts keys", map[string]string{"b": "1", "a": "2"}, nil, "\n  a: \"2\"\n  b: \"1\"", ""},
+
+		{"comment beside plain value", "claude", []string{"the cli"}, " claude # the cli", ""},
+		{"comment beside pointer value", &foo, []string{"why"}, " foo # why", ""},
+		{"empty comment beside plain value", "claude", []string{""}, " claude", ""},
+		{"comment beside unset", nil, []string{"why"}, " # why", ""},
+		{"comment beside empty slice", []string{}, []string{"why"}, "", "comments: got 1, want 0 or none"},
+		{"too many comments beside plain value", "claude", []string{"a", "b"}, "", "comments: got 2, want none or one"},
+		{"slice comments", []string{"a", "b"}, []string{"first", "second"}, "\n  - a # first\n  - b # second", ""},
+		{"slice empty comment", []string{"a", "b"}, []string{"", "second"}, "\n  - a\n  - b # second", ""},
+		{"slice comment count mismatch", []string{"a", "b"}, []string{"only"}, "", "comments: got 1, want 2 or none"},
+		{"map comments", map[string]string{"b": "1", "a": "2"}, []string{"a's", "b's"}, "\n  a: \"2\" # a's\n  b: \"1\" # b's", ""},
+		{"pointer map comments", &map[string]string{"a": "1"}, []string{"why"}, "\n  a: \"1\" # why", ""},
+		{
+			"struct entry comments",
+			[]entry{{"a", "1"}, {"b", "2"}},
+			[]string{"first", "second"},
+			"\n  - name: a # first\n    val: \"1\"\n  - name: b # second\n    val: \"2\"", "",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Value(tt.v)
+			got, err := Value(tt.v, tt.comments)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
 		})

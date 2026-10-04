@@ -19,7 +19,7 @@ The `ccbox` config scope hierarchy is:
 - Project Local - `project_dir/.ccbox.local.yaml` (for git ignore)
 - `ccbox` flags
 
-`ccbox config` prints the effective config with `ccbox-defaults` expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays and maps are merged.
+`ccbox config` prints the effective config with its aliases expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays and maps are merged.
 
 ## Protective Mounts
 

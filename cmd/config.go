@@ -10,14 +10,17 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/printutil"
+	"github.com/s12chung/ccbox/pkg/util/uslice"
 )
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Print the effective .ccbox.yaml with " + projectcfg.DefaultsToken + " tokens expanded",
+	Short: "Print the effective .ccbox.yaml with its aliases expanded",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		log.Info("# Run `ccbox config defaults` for " + projectcfg.DefaultsToken + " expansions")
+		log.Info("# Run `ccbox config defaults` for the alias expansions")
 		printLoadedPaths()
 		out, err := yaml.Marshal(projectCfg)
 		if err != nil {
@@ -81,28 +84,46 @@ var configInitCmd = &cobra.Command{
 
 var configDefaultsCmd = &cobra.Command{
 	Use:   "defaults",
-	Short: "Print what the " + projectcfg.DefaultsToken + " tokens expand to",
+	Short: "Print what the ccbox- aliases expand to",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		groups := []struct {
-			field    string
-			defaults []string
-		}{
-			{"tmpfs_masks", projectcfg.TmpfsDefaults()},
-			{"volume_masks", projectcfg.VolumeDefaults()},
-			{"read_only_globs", projectcfg.ReadOnlyDefaults()},
-			{"allowlist", projectcfg.AllowDefaults()},
-		}
-		for i, g := range groups {
-			if i > 0 {
-				log.Info("")
-			}
-			log.Infof("# %s:", g.field)
-			for _, d := range g.defaults {
-				log.Infof("#   - %s", d)
-			}
-		}
+		printutil.PrintSections(aliasSections())
+		log.Info("")
+		log.Infof("# %s: the providers above, combined", provider.AllProvidersAlias)
 		return nil
 	},
+}
+
+// aliasField is one config field DefaultsAlias can appear in, with its expansion
+type aliasField struct {
+	fieldName string
+	defaults  []string
+}
+
+// struct array keeps the order
+var aliasFields = []aliasField{
+	{"tmpfs_masks", projectcfg.TmpfsDefaults()},
+	{"volume_masks", projectcfg.VolumeDefaults()},
+	{"read_only_globs", projectcfg.ReadOnlyDefaults()},
+	{"allowlist", projectcfg.AllowlistDefaults()},
+}
+
+// aliasSections are `ccbox config defaults`' sections: every ccbox- alias's
+// expansion, in print order
+func aliasSections() []printutil.Section {
+	return slices.Concat(
+		[]printutil.Section{{Header: projectcfg.DefaultsAlias + ":"}},
+		uslice.Map(aliasFields, func(f aliasField) printutil.Section {
+			return printutil.Section{Header: f.fieldName + ":", Items: f.defaults, Depth: 1}
+		}),
+		[]printutil.Section{{
+			Header: projectcfg.SetHarnessAlias + " (cli " + *projectCfg.CLIName +
+				"; a --vnc load adds the desktop's GUI app):",
+			Items: projectCfg.SetHarnessDomains(),
+		}},
+		uslice.Map(provider.All(), func(p provider.Provider) printutil.Section {
+			return printutil.Section{Header: p.Alias() + ":", Items: p.Domains}
+		}),
+	)
 }
 
 var configUserCmd = &cobra.Command{

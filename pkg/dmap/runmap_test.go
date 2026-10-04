@@ -3,7 +3,6 @@ package dmap
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,8 +28,8 @@ func TestRunMap_RunOptions(t *testing.T) {
 
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 		CLIName:   new("claude"),
-		Allowlist: []string{projectcfg.DefaultsToken, "example.com"},
-	})
+		Allowlist: []string{projectcfg.DefaultsAlias, "example.com"},
+	}, false)
 	require.NoError(t, err)
 	userDir := t.TempDir()
 	rm := NewRunMap(userDir, cfg)
@@ -65,9 +64,10 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 
 	// the base layer carries the gui_app, as a project's config would
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
-		CLIName: new("claude"),
-		VNC:     &projectcfg.VNC{GUIAppName: guiapp.App.Name},
-	})
+		CLIName:   new("claude"),
+		VNC:       &projectcfg.VNC{GUIAppName: guiapp.App.Name},
+		Allowlist: []string{projectcfg.DefaultsAlias, projectcfg.SetHarnessAlias},
+	}, true)
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(t.TempDir(), cfg).RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{VNC: true}})
@@ -78,11 +78,13 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image")
 	assert.True(t, options.NoProxy)
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
+	expanded := cfg.AllowlistExpanded()
+	for _, d := range guiapp.App.AllowDomains {
+		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the wall via the harness alias")
+	}
 	assert.Equal(t, docker.ProxyOptions{
-		Config: tinyproxy.Config,
-		// the GUI app's download domains ride the wall only this run — a headless
-		// run's allowlist carries none
-		Overrides: docker.AllowOverride(slices.Concat(cfg.AllowlistExpanded(), guiapp.App.AllowDomains)),
+		Config:    tinyproxy.Config,
+		Overrides: docker.AllowOverride(expanded),
 	}, options.Proxy)
 }
 
@@ -106,7 +108,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		VolumeMasks:   []string{"node_modules"},
 		ReadOnlyGlobs: []string{".env"},
 		ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
-	})
+	}, false)
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(false)
@@ -147,7 +149,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	t.Setenv("HOME", home)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("claude")})
+	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("claude")}, false)
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(true)

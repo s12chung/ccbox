@@ -1,14 +1,17 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
+	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -232,7 +235,11 @@ func TestParseCLI_Rejects(t *testing.T) {
 		},
 		{
 			"bad allow domain", validCliYAML + "allow_domains:\n  - \"https://x.dev\"\n",
-			[]string{"AllowDomains", "Match"},
+			[]string{"AllowDomains", "DomainOrAlias"},
+		},
+		{
+			"expansion alias in allow_domains", validCliYAML + "allow_domains:\n  - ccbox-defaults\n",
+			[]string{"AllowDomains", "DomainOrAlias", "is not a domain or one of " + fmt.Sprintf("%v", quoted(provider.Aliases()))},
 		},
 		{
 			"absolute data bind key", validCliYAML + "data_binds:\n  \"/etc/auth.json\": \"{}\"\n",
@@ -259,6 +266,25 @@ func TestParseCLI_Rejects(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestParseCLI_AllowDomainsAliases parses a CLI.yaml whose allow_domains carry the
+// provider aliases: they validate like domains, expanding later at the config layer.
+func TestParseCLI_AllowDomainsAliases(t *testing.T) {
+	body := validCliYAML + "allow_domains:\n  - mycli.dev\n  - ccbox-anthropic-provider\n  - ccbox-all-providers\n"
+
+	c, err := parseCLI("mycli", []byte(body), false)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"mycli.dev", "ccbox-anthropic-provider", "ccbox-all-providers"}, c.AllowDomains)
+}
+
+// quoted renders each string like firm's OneOf error does
+func quoted(strs []string) []string {
+	out := make([]string, 0, len(strs))
+	for _, s := range strs {
+		out = append(out, strconv.Quote(s))
+	}
+	return out
 }
 
 func TestFor(t *testing.T) {

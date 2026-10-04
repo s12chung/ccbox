@@ -15,7 +15,7 @@ env:
   GROK_DISABLE_AUTOUPDATER: "1"
 
 allow_domains:
-  - x.ai
+  - ccbox-xai-provider # x.ai also serves the CLI's own downloads
   - cli-chat-proxy.grok.com
   - code.grok.com
   - assets.grok.com

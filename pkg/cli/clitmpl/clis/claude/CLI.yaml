@@ -24,8 +24,8 @@ resume_args: "--resume"
 
 # Egress wall allowlist — every domain the CLI hits, incl. login and telemetry.
 allow_domains:
+  - ccbox-anthropic-provider
   - platform.claude.com
-  - api.anthropic.com
   - mcp-proxy.anthropic.com
   - statsig.anthropic.com
   - sentry.io

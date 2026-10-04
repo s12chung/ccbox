@@ -27,7 +27,7 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 }
 
 // binds composes the run's binds and volumes in a deterministic order
-func (rm *RunMap) binds(vnc bool) ([]docker.Mount, func() error, error) {
+func (rm *RunMap) binds(serveVNC bool) ([]docker.Mount, func() error, error) {
 	c := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
 	var scratchBind, persistBind klean.ShareBind
@@ -45,7 +45,7 @@ func (rm *RunMap) binds(vnc bool) ([]docker.Mount, func() error, error) {
 			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(projectcfg.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
-		volumes(globalVolumes(vnc), true),
+		volumes(globalVolumes(serveVNC), true),
 		volumes(cacheVolumeNames(projectDir), false),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
@@ -136,8 +136,8 @@ var globalVolumesMap = map[string]string{
 
 // globalVolumes returns the run's global volumes: the GUI app's install root
 // rides only a VNC run — its volume seeds from the desktop variant's image
-func globalVolumes(vnc bool) map[string]string {
-	if !vnc {
+func globalVolumes(serveVNC bool) map[string]string {
+	if !serveVNC {
 		return globalVolumesMap
 	}
 	globals := maps.Clone(globalVolumesMap)

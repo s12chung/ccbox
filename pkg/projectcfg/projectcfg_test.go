@@ -1,8 +1,10 @@
 package projectcfg
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +15,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -52,7 +55,7 @@ func writeConfig(t *testing.T, dir string, name string, body string) string {
 
 func loadProjectConfigYAML(t *testing.T, projectDir string) string {
 	t.Helper()
-	c, err := Load(projectDir, Config{})
+	c, err := Load(projectDir, Config{}, false)
 	require.NoError(t, err)
 	out, err := yaml.Marshal(c)
 	require.NoError(t, err)
@@ -109,17 +112,17 @@ func TestSeedUserConfig(t *testing.T) {
 	want := Config{
 		CLIName:       new("claude"),
 		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}},
-		TmpfsMasks:    []string{DefaultsToken},
-		VolumeMasks:   []string{DefaultsToken},
-		ReadOnlyGlobs: []string{DefaultsToken},
+		TmpfsMasks:    []string{DefaultsAlias},
+		VolumeMasks:   []string{DefaultsAlias},
+		ReadOnlyGlobs: []string{DefaultsAlias},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		Allowlist:     []string{DefaultsToken},
+		Allowlist:     []string{DefaultsAlias, SetHarnessAlias},
 
 		projectDir: dir,
 	}
 
 	t.Run("seed alone loads the default config", func(t *testing.T) {
-		c, err := Load(dir, Config{})
+		c, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
 		assert.Equal(t, &want, c)
 	})
@@ -127,7 +130,7 @@ func TestSeedUserConfig(t *testing.T) {
 	t.Run("an empty project file is unset like a missing one", func(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, ioutil.File))
 
-		c, err := Load(dir, Config{})
+		c, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
 		assert.Equal(t, &want, c)
 	})
@@ -220,20 +223,21 @@ func TestInit_RefusesExisting(t *testing.T) {
 	assert.ErrorIs(t, err, fsync.ErrExists)
 }
 
-func TestAllowDefaults_IncludeEveryCli(t *testing.T) {
-	// every loaded cli's domains count — embedded or user-defined, they all sit in All()
-	for _, c := range cli.All() {
-		for _, d := range c.AllowDomains {
-			assert.Containsf(t, AllowDefaults(), d, "%s: %s", c.Name, d)
-		}
+func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
+	// the defaults are tooling only: providers ride their own aliases —
+	// ccbox-all-providers resolves every one of them
+	providerDomains, ok := provider.DomainsFor(provider.AllProvidersAlias)
+	require.True(t, ok)
+	for _, d := range providerDomains {
+		assert.NotContainsf(t, AllowlistDefaults(), d, "provider domain %s", d)
 	}
 }
 
-func TestAllowDefaults_ExcludeGuiApp(t *testing.T) {
-	// the GUI app's domains ride a vnc run's allowlist alone (RunMap wires them) —
+func TestAllowlistDefaults_ExcludeGuiApp(t *testing.T) {
+	// the GUI app's domains ride a vnc load's ccbox-set-harness expansion alone —
 	// a headless run never downloads the app
 	for _, d := range guiapp.App.AllowDomains {
-		assert.NotContainsf(t, AllowDefaults(), d, "guiapp: %s", d)
+		assert.NotContainsf(t, AllowlistDefaults(), d, "guiapp: %s", d)
 	}
 }
 
@@ -241,7 +245,7 @@ func TestLoad_UnsetRequiredErrors(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
 
-	_, err := Load(dir, Config{})
+	_, err := Load(dir, Config{}, false)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "CLIName.Nil: CLIName is nil")
 }
@@ -255,7 +259,7 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nread_only_binds:\n  fonts: enabled\n")
 
-			_, err := Load(dir, Config{})
+			_, err := Load(dir, Config{}, false)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "ReadOnlyBinds.[fonts]") // the error names the entry
 		})
@@ -266,9 +270,9 @@ func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("allowlist: []\n"), ioutil.File))
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
-	assert.Equal(t, []string{DefaultsToken}, c.Allowlist) // lists append: [] adds nothing, the seed's token stays
+	assert.Equal(t, []string{DefaultsAlias, SetHarnessAlias}, c.Allowlist) // lists append: [] adds nothing, the seed's aliases stay
 }
 
 func TestLoad_LayersFiles(t *testing.T) {
@@ -290,7 +294,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
 	}
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.Equal(t, "codex", *c.CLIName) // later layer wins
 
@@ -299,8 +303,8 @@ func TestLoad_LayersFiles(t *testing.T) {
 	require.NotNil(t, c.VNC)
 	assert.Equal(t, &VNC{GUIAppName: "zcode", Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}, c.VNC)
 
-	// lists append raw, lowest layer first, the seed's tokens carried as-is
-	assert.Equal(t, []string{DefaultsToken, "dist", "build", "cache"}, c.TmpfsMasks)
+	// lists append raw, lowest layer first, the seed's aliases carried as-is
+	assert.Equal(t, []string{DefaultsAlias, "dist", "build", "cache"}, c.TmpfsMasks)
 
 	// env overlays, later wins
 	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)
@@ -312,7 +316,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 		"~/certs":   "/mnt/certs",
 	}, c.ReadOnlyBinds)
 
-	assert.Equal(t, []string{"user.example.dev", DefaultsToken, "example.com"}, c.Allowlist)
+	assert.Equal(t, []string{"user.example.dev", DefaultsAlias, "example.com"}, c.Allowlist)
 }
 
 func TestLoad_SingleFileOnly(t *testing.T) {
@@ -321,13 +325,13 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 			dir := t.TempDir()
 			writeConfig(t, dir, cf.name, "cli: grok\nallowlist:\n  - example.com\n")
 
-			c, err := Load(dir, Config{})
+			c, err := Load(dir, Config{}, false)
 			require.NoError(t, err)
 			assert.Equal(t, "grok", *c.CLIName)
 			if cf.term == "user" { // the user file replaces the seed wholesale
-				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no token → no defaults pulled in
-			} else { // the user seed's token still underlies the project/local file
-				assert.Equal(t, []string{DefaultsToken, "example.com"}, c.Allowlist)
+				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no alias → no defaults pulled in
+			} else { // the user seed's aliases still underlie the project/local file
+				assert.Equal(t, []string{DefaultsAlias, SetHarnessAlias, "example.com"}, c.Allowlist)
 			}
 		})
 	}
@@ -338,7 +342,7 @@ func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, projectConfigFileName, "vnc:\n  config:\n    resolution: 1600x900\n")
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.Equal(t, &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}, c.VNC)
 }
@@ -348,7 +352,7 @@ func TestLoad_VNCWithoutConfig(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, projectConfigFileName, "vnc:\n  gui_app: zcode\n")
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.Equal(t, &VNC{GUIAppName: "zcode", Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}}, c.VNC)
 }
@@ -359,7 +363,7 @@ func TestLoad_EmptyResolutionInherits(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, projectConfigFileName, "vnc:\n  config:\n    resolution:\n")
 
-	c, err := Load(dir, Config{})
+	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.Equal(t, &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}}, c.VNC)
 }
@@ -370,11 +374,20 @@ func TestLoad_InvalidErrors(t *testing.T) {
 			dir := t.TempDir()
 			path := writeConfig(t, dir, cf.name, "tmpfs_masks: [")
 
-			_, err := Load(dir, Config{})
+			_, err := Load(dir, Config{}, false)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, path) // the error names the offending file
 		})
 	}
+}
+
+// quotedAllowlistAliases renders allowlistAliases() like firm's OneOf error does: quoted
+func quotedAllowlistAliases() []string {
+	quoted := make([]string, 0, len(allowlistAliases()))
+	for _, a := range allowlistAliases() {
+		quoted = append(quoted, strconv.Quote(a))
+	}
+	return quoted
 }
 
 func TestLoad_RejectsInvalidValues(t *testing.T) {
@@ -394,8 +407,15 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
 		{"bad vnc resolution format", "vnc:\n  config:\n    resolution: 1600 by 900\n", []string{"VNC", "must be WxH"}},
 		{"vnc resolution out of range", "vnc:\n  config:\n    resolution: 16385x900\n", []string{"VNC", "within 32..16384"}},
-		{"unknown gui_app", "vnc:\n  gui_app: emacs\n  config:\n    resolution: 1600x900\n", []string{"GUIAppName", "is not one of [\"zcode\" \"\"]"}},
-		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "Match"}},
+		{
+			"unknown gui_app", "vnc:\n  gui_app: emacs\n  config:\n    resolution: 1600x900\n",
+			[]string{"GUIAppName", `is not one of ["zcode" ""]`},
+		},
+		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "DomainOrAlias"}},
+		{
+			"unknown allowlist alias", "allowlist:\n  - ccbox-bogus-alias\n",
+			[]string{"Allowlist", "DomainOrAlias", "is not a domain or one of " + fmt.Sprintf("%v", quotedAllowlistAliases())},
+		},
 		{"bad bind key", "read_only_binds:\n  fonts: /mnt\n", []string{"ReadOnlyBinds.[fonts]", "must be gitconfig or a host path"}},
 		{"bind key traversal", "read_only_binds:\n  ../escape: /mnt\n", []string{"ReadOnlyBinds.[../escape]", "must be gitconfig or a host path"}},
 		{
@@ -420,7 +440,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(tt.body), ioutil.File))
 
-			_, err := Load(dir, Config{})
+			_, err := Load(dir, Config{}, false)
 			require.Error(t, err)
 			for _, want := range tt.want {
 				assert.ErrorContains(t, err, want)
@@ -438,7 +458,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nbogus: true\n")
 
-			_, err := Load(dir, Config{})
+			_, err := Load(dir, Config{}, false)
 			require.ErrorContains(t, err, "field bogus not found")
 			assert.ErrorContains(t, err, cf.name) // the error names the offending file
 		})
@@ -450,14 +470,14 @@ func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), ioutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, localConfigFileName), []byte("cli: codex\n"), ioutil.File))
 
-	c, err := Load(dir, Config{CLIName: new("grok")})
+	c, err := Load(dir, Config{CLIName: new("grok")}, false)
 	require.NoError(t, err)
 	assert.Equal(t, "grok", *c.CLIName) // a set flag wins over both files
 
-	c, err = Load(dir, Config{})
+	c, err = Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.Equal(t, "codex", *c.CLIName) // an unset flag keeps the files' layering
 
-	_, err = Load(dir, Config{CLIName: new("emacs")})
+	_, err = Load(dir, Config{CLIName: new("emacs")}, false)
 	assert.ErrorContains(t, err, "is not one of") // the flag value validates like a file's
 }

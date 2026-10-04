@@ -2,9 +2,11 @@
 package firmrule
 
 import (
+	"fmt"
 	"reflect"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/s12chung/firm"
@@ -14,8 +16,7 @@ import (
 // Each pattern requires at least one char and rejects empty values -- no rule.Present needed.
 var (
 	// Domain is a lowercased hostname or its suffix, e.g. x.ai, githubusercontent.com
-	Domain = rule.Match{Regexp: regexp.MustCompile(`^([a-z0-9-]+\.)*[a-z0-9-]+$`)}
-	// EnvVar is a POSIX-ish env var name
+	Domain = rule.Match{Regexp: regexp.MustCompile(`^([a-z0-9-]+\.)*[a-z0-9-]+$`)} // EnvVar is a POSIX-ish env var name
 	EnvVar = rule.Match{Regexp: regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)}
 	// MaskDir is a project-relative dir to mask: no leading slash or "~", and no ".",
 	// "..", or empty segment (".idea" and "vendor/bundle" are fine)
@@ -32,12 +33,19 @@ var (
 	// home-relative (~/…), segmented like MaskDir to bar ".." traversal
 	bindPath = rule.Match{Regexp: regexp.MustCompile(
 		`^(~/|/)([^/~]*[^./~][^/~]*)(/[^/~]*[^./~][^/~]*)*$`)}
+
+	// aliasPrefixRule matches the reserved aliasPrefix, for DomainOrAlias's Not
+	aliasPrefixRule = rule.Match{Regexp: regexp.MustCompile("^" + aliasPrefix)}
 )
 
 const (
 	// EnabledValue is read_only_binds' special value: a Specials key's entry mounts at its default
 	EnabledValue = "enabled"
-	bindName     = "Bind"
+	// aliasPrefix is the allowlist aliases' reserved namespace, enforced by DomainOrAlias
+	aliasPrefix = "ccbox-"
+
+	bindName          = "Bind"
+	domainOrAliasName = "DomainOrAlias"
 )
 
 // Bind validates a read_only_binds key-value pair for rule.KeyValues
@@ -63,6 +71,43 @@ func (b Bind) ValidateValue(value reflect.Value) firm.ErrorMap {
 		}
 	}
 	return nil
+}
+
+// DomainOrAlias validates for domains or aliases
+func DomainOrAlias(aliases []string) firm.RuleBasic {
+	return rule.ErrCustomized{
+		Rule: rule.Or{
+			Rules: []firm.RuleBasic{
+				rule.OneOf[string]{Values: aliases},
+				rule.And{
+					Rules: []firm.RuleBasic{
+						rule.Not{Rule: aliasPrefixRule}, // alias syntax fits with domains
+						Domain,
+					},
+				},
+			},
+		},
+		CustomErr: func(firm.ErrorMap) firm.ErrorMap {
+			return firm.ErrorMap{domainOrAliasName: firm.TemplateError{
+				TemplateFields: map[string]string{"Aliases": quotedValues(aliases)},
+				Template:       "is not a domain or one of {{.Aliases}}",
+			}}
+		},
+	}
+}
+
+// quotedValues renders values for an error message, quoted like firm's OneOf: an
+// empty string must show. It mirrors firm's unexported valuesStr.
+func quotedValues[T comparable](values []T) string {
+	strs := make([]string, len(values))
+	for i, v := range values {
+		if s, ok := any(v).(string); ok {
+			strs[i] = strconv.Quote(s)
+		} else {
+			strs[i] = fmt.Sprintf("%v", v)
+		}
+	}
+	return fmt.Sprintf("%v", strs)
 }
 
 // bindEntryError describes the pair's first problem, or "" for a good pair

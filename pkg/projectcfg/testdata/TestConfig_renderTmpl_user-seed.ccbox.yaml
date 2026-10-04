@@ -40,7 +40,11 @@ read_only_binds:
 env:
   # FOO: bar
 
-# allowlist: domains the egress wall lets through. Each entry also matches all its subdomains
+# allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
+# Run `ccbox config defaults` to see aliases and their expansions.
 allowlist:
-  - ccbox-defaults # `ccbox config defaults` for expansions
+  - ccbox-defaults # shared tooling domains
+  - ccbox-set-harness # the selected CLI's — and on --vnc, the GUI app's
+  # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
+  # - ccbox-all-providers # every provider's domains
   # - example.com

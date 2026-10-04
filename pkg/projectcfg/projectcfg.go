@@ -28,8 +28,11 @@ const (
 	projectConfigFileName = ".ccbox.yaml"
 	// localConfigFileName is the project-local, git-ignored override
 	localConfigFileName = ".ccbox.local.yaml"
-	// DefaultsToken listed in allowlist, expands in place to allowDefaults
-	DefaultsToken = "ccbox-defaults" // #nosec G101 -- config expansion keyword, not a credential
+	// DefaultsAlias listed in allowlist, expands in place to the shared tooling defaults
+	DefaultsAlias = "ccbox-defaults"
+	// SetHarnessAlias listed in allowlist, expands in place to the selected CLI's egress
+	// domains — plus the GUI app's on a vnc load
+	SetHarnessAlias = "ccbox-set-harness"
 )
 
 // UserConfigFile is the user-level config's path
@@ -69,11 +72,11 @@ func userSeedConfig(cli string) *Config {
 	return &Config{
 		CLIName:       new(cli),
 		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}},
-		TmpfsMasks:    []string{DefaultsToken},
-		VolumeMasks:   []string{DefaultsToken},
-		ReadOnlyGlobs: []string{DefaultsToken},
+		TmpfsMasks:    []string{DefaultsAlias},
+		VolumeMasks:   []string{DefaultsAlias},
+		ReadOnlyGlobs: []string{DefaultsAlias},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		Allowlist:     []string{DefaultsToken},
+		Allowlist:     []string{DefaultsAlias, SetHarnessAlias},
 	}
 }
 
@@ -98,7 +101,7 @@ func SeedUserConfig(cli string) (string, error) {
 }
 
 // Load reads the layerPaths, then CLI flags, and validates
-func Load(projectDir string, flags Config) (*Config, error) {
+func Load(projectDir string, flags Config, serveVNC bool) (*Config, error) {
 	var c Config
 	for _, path := range layerPaths(projectDir) {
 		layer, err := read(path)
@@ -112,6 +115,7 @@ func Load(projectDir string, flags Config) (*Config, error) {
 		return nil, errMap
 	}
 	c.projectDir = projectDir
+	c.serveVNC = serveVNC
 	return &c, nil
 }
 

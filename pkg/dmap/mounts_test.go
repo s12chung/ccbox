@@ -30,7 +30,7 @@ func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 	if flags.CLIName == nil {
 		flags.CLIName = new("codex")
 	}
-	cfg, err := projectcfg.Load(t.TempDir(), flags)
+	cfg, err := projectcfg.Load(t.TempDir(), flags, false)
 	require.NoError(t, err)
 	return NewRunMap(t.TempDir(), cfg)
 }
@@ -88,7 +88,7 @@ func TestReadOnlyBinds(t *testing.T) {
 		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 			CLIName:       new("codex"),
 			ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue},
-		})
+		}, false)
 		require.NoError(t, err)
 
 		assert.Equal(t, []docker.Mount{
@@ -103,7 +103,7 @@ func TestReadOnlyBinds(t *testing.T) {
 		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 			CLIName:       new("codex"),
 			ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue},
-		})
+		}, false)
 		require.NoError(t, err)
 
 		assert.Empty(t, readOnlyBinds(cfg.ReadOnlyBindsPresent()))

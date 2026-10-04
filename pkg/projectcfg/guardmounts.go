@@ -5,11 +5,11 @@ import (
 )
 
 var (
-	// tmpfsDefaults subbed in for DefaultsToken
+	// tmpfsDefaults subbed in for DefaultsAlias
 	tmpfsDefaults = []string{".idea", ".vscode"}
-	// volumeDefaults subbed in for DefaultsToken
+	// volumeDefaults subbed in for DefaultsAlias
 	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
-	// readOnlyDefaults subbed in for DefaultsToken
+	// readOnlyDefaults subbed in for DefaultsAlias
 	readOnlyDefaults = []string{
 		".ccbox.yaml", ".ccbox.local.yaml",
 		".env", ".env.*", ".envrc",
@@ -18,11 +18,11 @@ var (
 	}
 )
 
-// TmpfsDefaults is what DefaultsToken in tmpfs_masks expands to
+// TmpfsDefaults is what DefaultsAlias in tmpfs_masks expands to
 func TmpfsDefaults() []string { return slices.Clone(tmpfsDefaults) }
 
-// VolumeDefaults is what DefaultsToken in volume_masks expands to
+// VolumeDefaults is what DefaultsAlias in volume_masks expands to
 func VolumeDefaults() []string { return slices.Clone(volumeDefaults) }
 
-// ReadOnlyDefaults is what DefaultsToken in read_only_globs expands to
+// ReadOnlyDefaults is what DefaultsAlias in read_only_globs expands to
 func ReadOnlyDefaults() []string { return slices.Clone(readOnlyDefaults) }

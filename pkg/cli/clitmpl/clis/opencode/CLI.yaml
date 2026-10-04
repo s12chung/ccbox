@@ -15,7 +15,6 @@ env:
   OPENCODE_DISABLE_AUTOUPDATE: "1"
 
 allow_domains:
+  - ccbox-all-providers
   - opencode.ai
   - models.dev
-  - openrouter.ai
-  - api.z.ai

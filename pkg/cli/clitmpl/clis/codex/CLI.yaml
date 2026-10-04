@@ -11,6 +11,5 @@ continue_args: "resume --last"
 resume_args: "resume"
 
 allow_domains:
-  - api.openai.com
-  - auth.openai.com
+  - ccbox-openai-provider
   - chatgpt.com
