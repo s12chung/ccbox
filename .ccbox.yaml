@@ -1,8 +1,5 @@
 # Run `ccbox config` to see effective config. Arrays and maps merge down scoped configs.
 
-# cli: which coding CLI the image installs and launches
-cli:
-
 # tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
 # Use for editor junk (.vscode) or throwaway build output. Directories that do not exist in the project are safely ignored.
 tmpfs_masks:
@@ -21,7 +18,6 @@ read_only_globs:
 # read_only_binds: bind host dirs into the container read-only. Use for config shared across
 # projects (AWS creds, CAs, dotfiles). Dirs missing on the host are safely ignored.
 read_only_binds:
-  gitconfig: enabled
   # ~/.aws: ~/.aws
   # /srv/ca: /home/ccbox/.local/share/ca
 

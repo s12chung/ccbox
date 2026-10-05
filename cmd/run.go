@@ -37,8 +37,8 @@ func run(cmd *cobra.Command, args []string) error {
 	}
 	defer printPresentGuardMounts()
 
-	presentMasksSnapshot := append(projectCfg.TmpfsMasksPresent(), projectCfg.VolumeMasksPresent()...)
-	presentPathsSnapshot := projectCfg.ReadOnlyPathsPresent()
+	presentMasksSnapshot := append(projectConfig.TmpfsMasksPresent(), projectConfig.VolumeMasksPresent()...)
+	presentPathsSnapshot := projectConfig.ReadOnlyPathsPresent()
 	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
 	userDir := userdir.Dir()
@@ -46,7 +46,7 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	options, clean, err := dmap.NewRunMap(userDir, projectCfg).RunOptions(dmap.RunFlags{
+	options, clean, err := dmap.NewRunMap(userDir, projectConfig).RunOptions(dmap.RunFlags{
 		Tag:   flagTag,
 		Args:  args,
 		Modes: runModes,
@@ -76,10 +76,10 @@ func init() {
 
 // seedRunMounts seeds the run mounts in userDir
 func seedRunMounts(userDir string) error {
-	if err := safeSeedCLIConfig(*projectCfg.CLIName, false); err != nil {
+	if err := safeSeedCLIConfig(*projectConfig.CLIName, false); err != nil {
 		return err
 	}
-	return safeSeedCLIDataBinds(userDir, projectCfg.CLI())
+	return safeSeedCLIDataBinds(userDir, projectConfig.CLI())
 }
 
 // safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>

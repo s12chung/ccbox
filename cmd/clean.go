@@ -15,7 +15,7 @@ var cleanCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctxD := dock.MustNewCtxD(cmd.Context())
 		return errors.Join(
-			docker.VolumeClean(ctxD, projectCfg.ProjectDir()),
+			docker.VolumeClean(ctxD, projectConfig.ProjectDir()),
 			docker.ProxyClean(ctxD),
 		)
 	},

@@ -11,8 +11,8 @@ import (
 
 func TestAliasSections(t *testing.T) {
 	cliName := "pi"
-	projectCfg = &projectcfg.Config{CLIName: &cliName}
-	t.Cleanup(func() { projectCfg = nil })
+	projectConfig = &projectcfg.Config{CLIName: &cliName}
+	t.Cleanup(func() { projectConfig = nil })
 
 	assert.Equal(t, []string{
 		"# ccbox-defaults:",

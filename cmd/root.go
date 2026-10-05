@@ -36,9 +36,9 @@ var (
 // exitCode lets `run` propagate the container's exit status out through Execute.
 var exitCode int
 
-// projectCfg is the layered config (user < project < local < flags), loaded once
+// projectConfig is the layered config (user < project < local < flags), loaded once
 // before any command runs.
-var projectCfg *projectcfg.Config
+var projectConfig *projectcfg.Config
 
 var rootCmd = &cobra.Command{
 	Use:           "ccbox",
@@ -49,30 +49,23 @@ var rootCmd = &cobra.Command{
 	Args:          resumeArgs,
 	RunE:          run,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
-			cli.Load() // --cli completions read the cli names: no seeding, no config load
-			return nil
-		}
 		for c := cmd; c != nil; c = c.Parent() {
 			if c.Name() == doctorCmd.Name() {
 				return nil // doctor loads its own way (doctor clis): no seeding, no config load
 			}
 		}
-		if err := safeSeedHarness(); err != nil {
+
+		provider.Load() // before cli.Load: AllowDomains's firm rule and expansion depends on loaded providers
+		cli.Load()      // before rootSeed's picker and projectcfg.Load, which read cli.Names()
+		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
+			return nil
+		}
+
+		if err := rootSeed(); err != nil {
 			return err
 		}
-		// before cli.Load: a user cli's allow_domains may alias user providers
-		provider.Load()
-		// before safeSeedUserConfig's picker and projectcfg.Load, which read cli.Names()
-		cli.Load()
-		if err := safeSeedUserConfig(); err != nil {
-			return err
-		}
-		projectDir, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		projectCfg, err = projectcfg.Load(projectDir, projectcfg.Config{CLIName: flagCLI}, runModes.VNC)
+		var err error
+		projectConfig, err = projectcfg.Load(mustGetwd(), projectcfg.Config{CLIName: flagCLI}, runModes.VNC)
 		return err
 	},
 }
@@ -100,15 +93,18 @@ func init() {
 	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
 }
 
-// safeSeedHarness seeds the user-level harness state if missing
-func safeSeedHarness() error {
+// rootSeed seeds the user-level harness state if missing
+func rootSeed() error {
 	if err := safeSeed(clitmpl.UserSeedFS(), clitmpl.UserDir(), false); err != nil {
 		return err
 	}
 	if err := safeSeed(provider.UserSeedFS(), provider.UserDir(), false); err != nil {
 		return err
 	}
-	return share.SafeSeedAgentsMd()
+	if err := share.SafeSeedAgentsMd(); err != nil {
+		return err
+	}
+	return safeSeedUserConfig()
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing
@@ -135,4 +131,12 @@ func safeSeedUserConfig() error {
 	}
 	log.Infof("seeded %s", seeded)
 	return nil
+}
+
+func mustGetwd() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	return wd
 }

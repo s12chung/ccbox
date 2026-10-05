@@ -23,7 +23,7 @@ var configCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, _ []string) error {
 		log.Info("# Run `ccbox config defaults` for the alias expansions")
 		printLoadedPaths()
-		out, err := yaml.Marshal(projectCfg)
+		out, err := yaml.Marshal(projectConfig)
 		if err != nil {
 			return err
 		}
@@ -35,7 +35,7 @@ var configCmd = &cobra.Command{
 
 // printLoadedPaths lists the config files loaded, in load order
 func printLoadedPaths() {
-	loaded := projectcfg.LoadedPaths(projectCfg.ProjectDir())
+	loaded := projectcfg.LoadedPaths(projectConfig.ProjectDir())
 	if len(loaded) == 0 {
 		return
 	}
@@ -49,10 +49,10 @@ func printLoadedPaths() {
 // printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs and bind
 // hosts are present-checked like any dir; globs can't be — their expansion shows what's armed instead.
 func printGuardMountWarnings() {
-	tmpfsMasks := projectCfg.TmpfsMasksAbsent()
-	volumeMasks := projectCfg.VolumeMasksAbsent()
-	globs := projectCfg.ReadOnlyGlobsExpanded()
-	binds := projectCfg.ReadOnlyBindsAbsent()
+	tmpfsMasks := projectConfig.TmpfsMasksAbsent()
+	volumeMasks := projectConfig.VolumeMasksAbsent()
+	globs := projectConfig.ReadOnlyGlobsExpanded()
+	binds := projectConfig.ReadOnlyBindsAbsent()
 	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 || len(globs) > 0 || len(binds) > 0 {
 		log.Info("")
 	}
@@ -74,7 +74,7 @@ var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Write a starter .ccbox.yaml template to fill in",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		path, err := projectcfg.Init(projectCfg.ProjectDir())
+		path, err := projectcfg.Init(projectConfig.ProjectDir())
 		if err != nil {
 			return err
 		}
@@ -118,9 +118,9 @@ func aliasSections() []printutil.Section {
 			return printutil.Section{Header: f.fieldName + ":", Items: f.defaults, Depth: 1}
 		}),
 		[]printutil.Section{{
-			Header: projectcfg.SetHarnessAlias + " (cli " + *projectCfg.CLIName +
+			Header: projectcfg.SetHarnessAlias + " (cli " + *projectConfig.CLIName +
 				"; a --vnc load adds the desktop's GUI app):",
-			Items: projectCfg.SetHarnessDomains(),
+			Items: projectConfig.SetHarnessDomains(),
 		}},
 		uslice.Map(provider.All(), func(p provider.Provider) printutil.Section {
 			return printutil.Section{Header: p.Alias() + ":", Items: p.Domains}
