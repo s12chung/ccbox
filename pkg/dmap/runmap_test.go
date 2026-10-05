@@ -35,7 +35,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	rm := NewRunMap(userDir, cfg)
 
 	// the pieces RunOptions composes
-	hostOptions, hostClean, err := rm.HostOptions(false)
+	hostOptions, hostClean, err := rm.HostOptions(false, true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
 	env, err := rm.Env(false)
@@ -111,7 +111,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(false)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(false, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -152,7 +152,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("claude")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(true)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(true, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()

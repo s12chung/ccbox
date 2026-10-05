@@ -44,7 +44,8 @@ type RunModes struct {
 
 // RunOptions renders the run's full docker.RunOptions
 func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error, error) {
-	hostOptions, clean, err := rm.HostOptions(runFlags.Modes.VNC)
+	noProxy := rm.cfg.NoProxyFor(runFlags.Modes.VNC, runFlags.Modes.NoProxy)
+	hostOptions, clean, err := rm.HostOptions(runFlags.Modes.VNC, noProxy)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
@@ -66,9 +67,9 @@ func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error
 
 // HostOptions renders the run's host options for docker.Run; vnc mounts the
 // GUI app's install volume, which seeds from the desktop variant's image.
-func (rm *RunMap) HostOptions(serveVNC bool) (docker.RunHostOptions, func() error, error) {
+func (rm *RunMap) HostOptions(serveVNC, noProxy bool) (docker.RunHostOptions, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
-	binds, clean, err := rm.binds(serveVNC)
+	binds, clean, err := rm.binds(serveVNC, noProxy)
 	if err != nil {
 		return docker.RunHostOptions{}, clean, err
 	}

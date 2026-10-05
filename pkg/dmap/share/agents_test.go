@@ -28,7 +28,7 @@ func resetUserDir(t *testing.T) string {
 const claudeMount = "/home/ccbox/.ccbox/tmp/agents/claude/AGENTS.md"
 
 func claudeShare() sharer.ShareBinder {
-	return AgentsMd("claude")
+	return AgentsMd("claude", false)
 }
 
 // claudeTarget is the CLI doc symlink's target
@@ -160,10 +160,38 @@ func TestAgentsMd_PromotesPrefixed(t *testing.T) {
 			writeFile(t, tc.doc(userDir), tc.body)
 
 			claudeShareBegin(t, func(string) {
-				writeFile(t, claudeScratch(userDir), adminMd+tc.body+", edited")
+				writeFile(t, claudeScratch(userDir), adminMd(false)+tc.body+", edited")
 			})
 
-			assert.Equal(t, adminMd+tc.body+", edited", readFile(t, claudeCliFile(userDir)))
+			assert.Equal(t, adminMd(false)+tc.body+", edited", readFile(t, claudeCliFile(userDir)))
+		})
+	}
+}
+
+// TestAdminMd pins the rendered admin doc to the committed testdata fixtures — the
+// walled render must stay byte-identical to the old admin.md. Regenerate with:
+// `UPDATE_FIXTURES=1 go test ./pkg/dmap/share/ -run TestAdminMd`
+func TestAdminMd(t *testing.T) {
+	for _, tt := range []struct {
+		name      string // fixture name: testdata/TestAdminMd_<name>.md
+		isNoProxy bool
+	}{
+		{"walled", false},  // the walled-network section rides
+		{"no-proxy", true}, // the walled-network section is dropped
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := adminMd(tt.isNoProxy)
+
+			path := filepath.Join("testdata", "TestAdminMd_"+tt.name+".md")
+			if os.Getenv("UPDATE_FIXTURES") != "" {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
+				require.NoError(t, os.WriteFile(path, []byte(got), ioutil.File))
+			}
+
+			// #nosec G304 -- the package's own fixture path
+			want, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, string(want), got)
 		})
 	}
 }
@@ -190,12 +218,12 @@ func TestAgentsMd_Begin(t *testing.T) {
 				writeFile(t, userAgentsAdminMd(userDir), "admin rules")
 			},
 			binds: true,
-			body:  adminMd + "admin rules",
+			body:  adminMd(false) + "admin rules",
 		},
 		{
 			caseName: "SeededDefault",
 			binds:    true,
-			body:     adminMd,
+			body:     adminMd(false),
 		},
 		{
 			caseName: "EmptyUserDocOverridesAdmin",
@@ -212,7 +240,7 @@ func TestAgentsMd_Begin(t *testing.T) {
 				writeFile(t, claudeAdminMd(userDir), "cli rules")
 			},
 			binds: true,
-			body:  adminMd + "cli rules",
+			body:  adminMd(false) + "cli rules",
 		},
 		{
 			caseName: "SkipsWhenCliFileExists",

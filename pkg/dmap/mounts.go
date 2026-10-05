@@ -27,12 +27,12 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 }
 
 // binds composes the run's binds and volumes in a deterministic order
-func (rm *RunMap) binds(serveVNC bool) ([]docker.Mount, func() error, error) {
+func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, error) {
 	c := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
 	var scratchBind, persistBind klean.ShareBind
 	clean, err := klean.Share{
-		share.AgentsMd(c.Name),
+		share.AgentsMd(c.Name, noProxy),
 		share.PersistDir(projectDir),
 	}.Begin(&scratchBind, &persistBind)
 	if err != nil {
