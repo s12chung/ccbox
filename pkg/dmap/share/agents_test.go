@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/sharer"
@@ -19,7 +20,7 @@ import (
 // resetUserDir points userdir at a fresh temp tree with the shared AGENTS docs seeded
 func resetUserDir(t *testing.T) string {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	require.NoError(t, SafeSeedAgentsMd())
 	return userdir.Dir()
 }
@@ -123,7 +124,7 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			userDir := userdir.Dir()
 			if tc.setup != nil {
 				tc.setup(t, userDir)

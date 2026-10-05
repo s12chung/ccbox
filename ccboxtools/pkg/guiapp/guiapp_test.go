@@ -11,6 +11,7 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 )
 
 // debInfo is a minimal valid deb-sourced GUI app, like the image's real one.
@@ -82,8 +83,7 @@ func TestInstall_Errors(t *testing.T) {
 
 func TestWriteDesktopEntry(t *testing.T) {
 	t.Run("writes branded entry", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
+		home := testutil.Home(t)
 
 		require.NoError(t, writeDesktopEntry(debInfo))
 
@@ -95,8 +95,7 @@ func TestWriteDesktopEntry(t *testing.T) {
 	})
 
 	t.Run("overwrites stale entry", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
+		home := testutil.Home(t)
 		path := filepath.Join(home, ".local", "share", "applications", "app.desktop")
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), fsutil.DirMode))
 		require.NoError(t, os.WriteFile(path, []byte("stale"), fileMode))
@@ -109,8 +108,7 @@ func TestWriteDesktopEntry(t *testing.T) {
 	})
 
 	t.Run("no desktop name, skips", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
+		home := testutil.Home(t)
 		info := debInfo
 		info.DesktopName = ""
 

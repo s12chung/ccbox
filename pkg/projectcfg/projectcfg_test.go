@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -32,12 +33,11 @@ func mkDirs(t *testing.T, dir string, dirs ...string) {
 	}
 }
 
-// useHome points home at a fresh temp tree, restoring it after the test, and creates
-// the user config's dir. Returns the user config's path.
+// useHome creates the user config's dir in a fresh temp home (testutil.Home).
+// Returns the user config's path.
 func useHome(t *testing.T) string {
 	t.Helper()
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	home := testutil.Home(t)
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".ccbox", "config"), ioutil.Dir))
 	return UserConfigFile()
 }

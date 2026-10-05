@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -33,8 +34,7 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			home := t.TempDir()
-			t.Setenv("HOME", home)
+			home := testutil.Home(t)
 			cli, requireOK := cli.For(tc.cli)
 			require.True(t, requireOK)
 			wantDir := filepath.Join(home, ".ccbox", cli.Name)
@@ -63,7 +63,7 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 }
 
 func TestSafeSeedConfig_ExistingSkips(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	require.NoError(t, os.MkdirAll(cli.UserConfigDir("claude"), ioutil.Dir))
 
 	called := false
@@ -82,6 +82,6 @@ func TestSafeSeedConfig_PropagatesSeedError(t *testing.T) {
 		return nil, wantErr
 	})()
 
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	assert.ErrorIs(t, safeSeedCLIConfig("claude", false), wantErr)
 }

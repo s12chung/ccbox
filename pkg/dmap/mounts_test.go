@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
@@ -24,9 +25,10 @@ func TestTmpfsMasks(t *testing.T) {
 		tmpfsMasks("/Users/me/proj", []string{".idea", "dist"}))
 }
 
-// testRunMap builds a RunMap over a fresh temp project's config.
+// testRunMap builds a RunMap over a fresh temp home and a fresh temp project's config.
 func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 	t.Helper()
+	testutil.Home(t)
 	if flags.CLIName == nil {
 		flags.CLIName = new("codex")
 	}
@@ -80,9 +82,7 @@ func TestReadOnlyBinds(t *testing.T) {
 	})
 
 	t.Run("binds the enabled gitconfig at the container's default XDG path", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", "")
+		home := testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
 
 		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
@@ -97,8 +97,7 @@ func TestReadOnlyBinds(t *testing.T) {
 	})
 
 	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
-		t.Setenv("HOME", t.TempDir())
-		t.Setenv("XDG_CONFIG_HOME", "")
+		testutil.Home(t)
 
 		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 			CLIName:       new("codex"),

@@ -10,6 +10,7 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
@@ -22,8 +23,7 @@ import (
 )
 
 func TestRunMap_RunOptions(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
@@ -59,7 +59,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 }
 
 func TestRunMap_RunOptions_VNC(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	// the base layer carries the gui_app, as a project's config would
@@ -89,9 +89,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 }
 
 func TestRunMap_HostOptions(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
-	t.Setenv("XDG_CONFIG_HOME", "")              // the gitconfig bind resolves $HOME's XDG dir
+	home := testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	projectDir := t.TempDir()
@@ -145,8 +143,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 }
 
 func TestRunMap_HostOptions_VNC(t *testing.T) {
-	home := t.TempDir()
-	t.Setenv("HOME", home)
+	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("claude")}, false)

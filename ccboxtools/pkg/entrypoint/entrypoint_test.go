@@ -12,8 +12,13 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkger/artifact"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/vnc/vncdeps"
 )
+
+func TestMain(m *testing.M) {
+	os.Exit(testutil.MainHome(m, nil))
+}
 
 func TestExecArgv(t *testing.T) {
 	tests := []struct {
@@ -104,7 +109,7 @@ func TestServeDesktop_ErrorsWithoutDesktop(t *testing.T) {
 func TestServeDesktop_ErrorsWhenInstallFails(t *testing.T) {
 	writeChrome(t)
 	writeDesktopScript(t)
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 
 	err := serveDesktop(vncInfo(&rpmInfo))
 

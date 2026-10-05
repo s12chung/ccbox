@@ -12,6 +12,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -198,9 +199,7 @@ func loadBindsConfig(t *testing.T, binds map[string]string) *Config {
 
 func TestConfig_ReadOnlyBinds(t *testing.T) {
 	t.Run("expands the special entry and ~/ keys, keeps absolute keys", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", "")
+		home := testutil.Home(t)
 
 		c := loadBindsConfig(t, map[string]string{
 			GitConfigKey:     firmrule.EnabledValue,
@@ -225,8 +224,7 @@ func TestConfig_ReadOnlyBinds(t *testing.T) {
 	})
 
 	t.Run("an unresolvable home panics like userdir", func(t *testing.T) {
-		t.Setenv("HOME", "")
-		t.Setenv("XDG_CONFIG_HOME", "")
+		testutil.NoHome(t)
 
 		c := &Config{ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue}}
 
@@ -234,9 +232,7 @@ func TestConfig_ReadOnlyBinds(t *testing.T) {
 	})
 
 	t.Run("present keeps the host dirs on disk, absent takes the rest", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", "")
+		home := testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
 
 		c := loadBindsConfig(t, map[string]string{
@@ -253,9 +249,7 @@ func TestConfig_ReadOnlyBinds(t *testing.T) {
 	})
 
 	t.Run("the expansion caches, the present-filter re-stats", func(t *testing.T) {
-		home := t.TempDir()
-		t.Setenv("HOME", home)
-		t.Setenv("XDG_CONFIG_HOME", "")
+		home := testutil.Home(t)
 
 		c := loadBindsConfig(t, map[string]string{GitConfigKey: firmrule.EnabledValue})
 		expanded := c.ReadOnlyBindsExpanded()

@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -239,7 +240,7 @@ func assertFile(t *testing.T, path, want string) {
 }
 
 func TestDirect_ScratchPath(t *testing.T) {
-	t.Setenv("HOME", "/home/me")
+	testutil.FakeHome(t, "/home/me")
 	// Real's rel path re-rooted under userdir.Tmp()
 	assert.Equal(t, "/home/me/.ccbox/tmp/persist/-Users-me-proj",
 		DirectScratch{}.ScratchPath("/home/me/.ccbox/persist/-Users-me-proj"))
@@ -273,7 +274,7 @@ func TestSymlink_Exists(t *testing.T) {
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			l := SymlinkScratch{Mount: testMount}
 
 			tc.setup(t)
@@ -287,7 +288,7 @@ func TestSymlink_Exists(t *testing.T) {
 func TestShare_VerifyShared(t *testing.T) {
 	for _, w := range wirings {
 		t.Run(w.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			s := w.newShare()
 
 			require.Error(t, s.verifyShared(), "nothing present: neither the bind nor Real")
@@ -301,7 +302,7 @@ func TestShare_VerifyShared(t *testing.T) {
 func TestShare_Begin_Piggyback(t *testing.T) {
 	for _, w := range wirings {
 		t.Run(w.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			s := w.newShare()
 
 			// a live run binds the share and edits it
@@ -333,7 +334,7 @@ func TestShare_Begin_Piggyback(t *testing.T) {
 func TestShare_Begin_LatecomerBindsReal(t *testing.T) {
 	for _, w := range wirings {
 		t.Run(w.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			s := w.newShare()
 
 			// a live run binds the share
@@ -365,7 +366,7 @@ func TestShare_Begin_LatecomerBindsReal(t *testing.T) {
 func TestShare_Begin_JoinsOccupiedReal(t *testing.T) {
 	for _, w := range wirings {
 		t.Run(w.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			s := w.newShare()
 			w.occupy(t, "own doc")
 
@@ -428,7 +429,7 @@ func TestShare_Begin_CleansLeftover(t *testing.T) {
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			s := fileShare(sharedSource)
 			tc.setup(t)
 
@@ -499,7 +500,7 @@ func TestShare_Begin_CleansLeftover_IntoExistingReal(t *testing.T) {
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			tc.leftover(t)
 
 			// Real exists from an earlier clean, holding its own copy
@@ -523,7 +524,7 @@ func TestShare_Begin_CleansLeftover_IntoExistingReal(t *testing.T) {
 func TestShare_Begin_AfterCrashedRun(t *testing.T) {
 	for _, w := range wirings {
 		t.Run(w.name, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			crashRun(t, w)
 			assert.True(t, present(t, w.bind()), "the crashed run's seeded scratch")
 
@@ -563,7 +564,7 @@ func TestShare_Cleanup(t *testing.T) {
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			if tc.setup != nil {
 				tc.setup(t)
 			}
@@ -590,7 +591,7 @@ func TestShare_Cleanup(t *testing.T) {
 }
 
 func TestShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	s := fileShare(sharedSource)
 
 	_, cleanup, err := s.Begin()
@@ -605,7 +606,7 @@ func TestShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 }
 
 func TestShare_Cleanup_LoneSymlink(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	s := Share{Name: "test", RealPath: realFile(), Sync: SymlinkScratch{Mount: testMount}}
 
 	linkFile(t, realFile(), testMount) // leftover symlink: its scratch is already gone
@@ -616,7 +617,7 @@ func TestShare_Cleanup_LoneSymlink(t *testing.T) {
 }
 
 func TestShare_Cleanup_DiffErrorDropsSymlink(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	linkFile(t, realFile(), testMount)
 	writeFile(t, bindFile(), "leftover")
 	s := fileShare(func() ([]byte, error) { return nil, errors.New("no source doc") })
@@ -628,7 +629,7 @@ func TestShare_Cleanup_DiffErrorDropsSymlink(t *testing.T) {
 }
 
 func TestShare_Cleanup_LoneBaseline(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	s := Share{Name: "test", RealPath: realFile(), Sync: SymlinkScratch{Mount: testMount}}
 
 	// a crash left its baseline; the scratch is gone
@@ -660,7 +661,7 @@ func TestShare_Cleanup_HostChangedDuringRun(t *testing.T) {
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			body := "shared"
 			s := fileShare(func() ([]byte, error) { return []byte(body), nil })
 
@@ -691,7 +692,7 @@ func TestShare_Cleanup_HostChangedDuringRun(t *testing.T) {
 // TestShare_Cleanup_HostChangedDuringCrashedRun: the leftover clean diffs against the
 // crashed run's baseline, so host edits made while down are not promoted
 func TestShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	body := "shared"
 	s := fileShare(func() ([]byte, error) { return []byte(body), nil })
 
@@ -718,7 +719,7 @@ func TestShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
 
 // TestShare_Clean_Unchanged: an untouched dir scratch leaves nothing behind
 func TestShare_Clean_Unchanged(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	s := dirShare()
 
 	_, clean, err := s.Begin()
@@ -747,7 +748,7 @@ func TestShare_Clean_Changed(t *testing.T) {
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
-			t.Setenv("HOME", t.TempDir())
+			testutil.Home(t)
 			s := dirShare()
 
 			_, clean, err := s.Begin()
@@ -776,7 +777,7 @@ func TestShare_Clean_Changed(t *testing.T) {
 // TestShare_Clean_IntoExistingReal: the run's tree promotes into an existing Real,
 // whose differing copies move aside as variants
 func TestShare_Clean_IntoExistingReal(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	s := dirShare()
 
 	_, clean, err := s.Begin()

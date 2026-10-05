@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
@@ -32,7 +33,7 @@ func TestNames(t *testing.T) {
 }
 
 func TestUserConfigDir(t *testing.T) {
-	t.Setenv("HOME", "/home/me")
+	testutil.FakeHome(t, "/home/me")
 	assert.Equal(t, "/home/me/.ccbox/claude", UserConfigDir("claude"))
 }
 

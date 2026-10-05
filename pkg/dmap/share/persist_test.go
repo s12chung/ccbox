@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/sharer"
@@ -29,7 +30,7 @@ func TestSeedFS(t *testing.T) {
 // testPersistDir builds a PersistDir over a fresh temp home
 func testPersistDir(t *testing.T) sharer.ShareBinder {
 	t.Helper()
-	t.Setenv("HOME", t.TempDir())
+	testutil.Home(t)
 	return PersistDir(testProjectDir)
 }
 
@@ -41,7 +42,7 @@ func scratch() string { return filepath.Join(userdir.Tmp(), "persist", slug.Path
 
 // TestPersistDir_RealPath pins Real's path: the project dir's slug under the persist root
 func TestPersistDir_RealPath(t *testing.T) {
-	t.Setenv("HOME", "/home/me")
+	testutil.FakeHome(t, "/home/me")
 	assert.Equal(t, "/home/me/.ccbox/persist/-Users-me-proj", PersistDir(testProjectDir).RealPath)
 }
 

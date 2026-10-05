@@ -7,6 +7,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 )
 
 func TestMustHome(t *testing.T) {
@@ -14,12 +16,12 @@ func TestMustHome(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, home, MustHome())
 
-	t.Setenv("HOME", "")
+	testutil.NoHome(t)
 	assert.Panics(t, func() { MustHome() })
 }
 
 func TestRuns(t *testing.T) {
-	t.Setenv("HOME", "/home/me")
+	testutil.FakeHome(t, "/home/me")
 	assert.Equal(t, "/home/me/.ccbox/tmp/runs", Runs())
 }
 
