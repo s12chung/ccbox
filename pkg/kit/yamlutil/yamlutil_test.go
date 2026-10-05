@@ -1,8 +1,11 @@
 package yamlutil
 
 import (
+	"regexp"
 	"testing"
 
+	"github.com/s12chung/firm"
+	"github.com/s12chung/firm/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -101,6 +104,54 @@ func TestValue(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := Value(tt.v, tt.comments)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+type decoded struct {
+	Name string
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[decoded]().
+		Validates(firm.RuleMap{
+			"Name": {rule.Match{Regexp: regexp.MustCompile(`^[a-z]+$`)}},
+		}))
+}
+
+func TestValidatedDecode(t *testing.T) {
+	preset := decoded{Name: "preset"}
+	tests := []struct {
+		name       string
+		body       string
+		setDefault func(decoded) decoded
+		want       decoded
+		wantErr    string
+	}{
+		{"decodes and validates", "name: web\n", nil, decoded{Name: "web"}, ""},
+		{
+			"setDefault runs before validation",
+			"name: BAD\n",
+			func(d decoded) decoded {
+				d.Name = "web"
+				return d
+			},
+			decoded{Name: "web"},
+			"",
+		},
+		{"unknown field errors", "name: web\nnope: 1\n", nil, preset, "field nope not found"},
+		{"invalid value errors", "name: BAD\n", nil, preset, "does not match"},
+		{"invalid yaml errors", "name: [unclosed\n", nil, preset, "did not find expected"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ValidatedDecode[decoded]([]byte(tt.body), tt.setDefault)
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
 				return

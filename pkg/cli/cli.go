@@ -15,7 +15,6 @@
 package cli
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"maps"
@@ -25,12 +24,12 @@ import (
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
-	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
@@ -79,17 +78,13 @@ func mustLoadAll() map[string]CLI {
 // parseCLI decodes one CLI.yaml body into its CLI, named name, with isUserDefined
 // set from its tree — firm-validated to fail at startup, not on first use.
 func parseCLI(name string, body []byte, isUserDefined bool) (CLI, error) {
-	var c CLI
-	dec := yaml.NewDecoder(bytes.NewReader(body))
-	dec.KnownFields(true)
-	if err := dec.Decode(&c); err != nil {
+	c, err := yamlutil.ValidatedDecode(body, func(newCLI CLI) CLI {
+		newCLI.Name = name
+		newCLI.isUserDefined = isUserDefined
+		return newCLI
+	})
+	if err != nil {
 		return CLI{}, fmt.Errorf("cli: parse %s: %w", name, err)
-	}
-
-	c.Name = name
-	c.isUserDefined = isUserDefined
-	if errMap := firm.ValidateAny(c); errMap != nil {
-		return CLI{}, fmt.Errorf("cli: parse %s: %w", name, errMap)
 	}
 	return c, nil
 }
@@ -157,7 +152,7 @@ func init() {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
 			},
-			"AllowDomains": {firm.Elems[[]string](firmrule.DomainOrAlias(provider.Aliases()))},
+			"AllowDomains": {firm.Elems[[]string](firmrule.DomainOrAlias(provider.Aliases))},
 
 			// MaskDir over HomePath: keys are $HOME-relative paths, and MaskDir's
 			// no-leading-".." also bars path.Join escapes out of the home dir

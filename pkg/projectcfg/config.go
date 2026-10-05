@@ -97,7 +97,7 @@ func init() {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
 			},
-			"Allowlist": {firm.Elems[[]string](firmrule.DomainOrAlias(allowlistAliases()))},
+			"Allowlist": {firm.Elems[[]string](firmrule.DomainOrAlias(allowlistAliases))},
 		}))
 	firm.MustRegisterType(firm.NewDefinition[VNC]().
 		Validates(firm.RuleMap{

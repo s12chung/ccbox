@@ -1,11 +1,14 @@
-// Package yamlutil renders Go values as YAML values for line-oriented templating.
+// Package yamlutil renders Go values as YAML values for line-oriented templating and
+// decodes yaml bodies into firm-validated values.
 package yamlutil
 
 import (
+	"bytes"
 	"fmt"
 	"reflect"
 	"strings"
 
+	"github.com/s12chung/firm"
 	"gopkg.in/yaml.v3"
 )
 
@@ -49,6 +52,25 @@ func Value(v any, comments []string) (string, error) {
 	default:
 		return beside(" "+bodyStr, comments)
 	}
+}
+
+// ValidatedDecode decodes one yaml body into T, rejecting unknown fields — a typo'd
+// key errors, not silently no-ops — and firm-validates the result; setDefaults, when
+// set, mutates the decoded value first, so the rules see the final value.
+func ValidatedDecode[T any](body []byte, setDefaults func(T) T) (T, error) {
+	var t T
+	dec := yaml.NewDecoder(bytes.NewReader(body))
+	dec.KnownFields(true)
+	if err := dec.Decode(&t); err != nil {
+		return t, err
+	}
+	if setDefaults != nil {
+		t = setDefaults(t)
+	}
+	if errMap := firm.ValidateAny(t); errMap != nil {
+		return t, errMap
+	}
+	return t, nil
 }
 
 // beside joins at most one comment beside a rendered line

@@ -17,6 +17,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
@@ -60,6 +61,8 @@ var rootCmd = &cobra.Command{
 		if err := safeSeedHarness(); err != nil {
 			return err
 		}
+		// before cli.Load: a user cli's allow_domains may alias user providers
+		provider.Load()
 		// before safeSeedUserConfig's picker and projectcfg.Load, which read cli.Names()
 		cli.Load()
 		if err := safeSeedUserConfig(); err != nil {
@@ -100,6 +103,9 @@ func init() {
 // safeSeedHarness seeds the user-level harness state if missing
 func safeSeedHarness() error {
 	if err := safeSeed(clitmpl.UserSeedFS(), clitmpl.UserDir(), false); err != nil {
+		return err
+	}
+	if err := safeSeed(provider.UserSeedFS(), provider.UserDir(), false); err != nil {
 		return err
 	}
 	return share.SafeSeedAgentsMd()

@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
@@ -63,42 +64,34 @@ func UserDir() string { return filepath.Join(userConfigDir, clisDir) }
 // dropped into clis/. Embed-tree errors are fatal; user-tree errors are warnings.
 func Load[T any](t Tree, parse func(name string, body []byte, isUserDefined bool) (T, error)) ([]T, []error, error) {
 	glob := path.Join(clisDir, "*")
-	paths, err := fs.Glob(t.fsys, glob)
+	clis, warns, err := fsutil.LoadGlob(t.fsys, glob, func(dir string, info fsutil.EntryInfo) (T, error) {
+		var zero T
+		if !info.IsDir() {
+			return zero, fsutil.Skip // a stray file dropped into clis/
+		}
+
+		name, body, err := t.loadCLI(dir)
+		if err != nil {
+			return zero, fmt.Errorf("%s: %w", name, err)
+		}
+		c, err := parse(name, body, t.isUserDefined)
+		if err != nil {
+			return zero, fmt.Errorf("%s: %w", name, err)
+		}
+		return c, nil
+	})
 	if err != nil {
-		// unreachable: glob never changes
 		return nil, nil, err
 	}
-
-	clis := make([]T, 0, len(paths))
-	var warns []error
-	for _, p := range paths {
-		info, err := fs.Stat(t.fsys, p)
-		if err != nil {
-			return nil, nil, err
+	if !t.isUserDefined {
+		// an embed tree is a compile-time constant: an entry error or an empty tree
+		// is a build bug
+		switch {
+		case len(warns) > 0:
+			return nil, nil, warns[0]
+		case len(clis) == 0:
+			return nil, nil, fmt.Errorf("clitmpl: no %s found", glob)
 		}
-		if !info.IsDir() {
-			continue
-		}
-
-		name, body, cliErr := t.loadCLI(p)
-		var c T
-		if cliErr == nil {
-			c, cliErr = parse(name, body, t.isUserDefined)
-		}
-		if cliErr != nil {
-			cliErr = fmt.Errorf("%s: %w", name, cliErr)
-			if !t.isUserDefined {
-				return nil, nil, cliErr
-			}
-			warns = append(warns, cliErr)
-			continue
-		}
-		clis = append(clis, c)
-	}
-
-	// an embed tree is a compile-time constant: empty is a build bug; a user tree may be empty
-	if len(clis) == 0 && !t.isUserDefined {
-		return nil, nil, fmt.Errorf("clitmpl: no %s found", glob)
 	}
 	return clis, warns, nil
 }

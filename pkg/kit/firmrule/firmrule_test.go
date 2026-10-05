@@ -67,7 +67,7 @@ func TestMatchRules(t *testing.T) {
 
 func TestDomainOrAlias(t *testing.T) {
 	aliases := []string{"ccbox-anthropic-provider", "ccbox-all-providers", "ccbox-defaults"}
-	v := firm.Value[string](DomainOrAlias(aliases))
+	v := firm.Value[string](DomainOrAlias(func() []string { return aliases }))
 	quoted := make([]string, len(aliases))
 	for i, a := range aliases {
 		quoted[i] = strconv.Quote(a)
@@ -86,8 +86,15 @@ func TestDomainOrAlias(t *testing.T) {
 		}
 	})
 	t.Run("type checks to a string", func(t *testing.T) {
-		assert.Nil(t, DomainOrAlias(aliases).TypeCheck(reflect.TypeFor[string]()))
-		assert.NotNil(t, DomainOrAlias(aliases).TypeCheck(reflect.TypeFor[int]()))
+		assert.Nil(t, DomainOrAlias(func() []string { return aliases }).TypeCheck(reflect.TypeFor[string]()))
+		assert.NotNil(t, DomainOrAlias(func() []string { return aliases }).TypeCheck(reflect.TypeFor[int]()))
+	})
+	t.Run("resolves the alias list at validation time", func(t *testing.T) {
+		loaded := slices.Clone(aliases)
+		v := firm.Value[string](DomainOrAlias(func() []string { return loaded }))
+		assert.NotEmpty(t, v.Validate("ccbox-user-provider"))
+		loaded = append(loaded, "ccbox-user-provider")
+		assert.Nil(t, v.Validate("ccbox-user-provider").ToNil())
 	})
 }
 

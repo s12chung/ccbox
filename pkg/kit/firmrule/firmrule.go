@@ -73,12 +73,13 @@ func (b Bind) ValidateValue(value reflect.Value) firm.ErrorMap {
 	return nil
 }
 
-// DomainOrAlias validates for domains or aliases
-func DomainOrAlias(aliases []string) firm.RuleBasic {
+// DomainOrAlias validates for domains or aliases, resolving the alias list at
+// validation time — aliases load at startup (user-defined ones included)
+func DomainOrAlias(aliasesFunc func() []string) firm.RuleBasic {
 	return rule.ErrCustomized{
 		Rule: rule.Or{
 			Rules: []firm.RuleBasic{
-				rule.OneOf[string]{Values: aliases},
+				rule.OneOfFunc[string]{ValuesFunc: aliasesFunc},
 				rule.And{
 					Rules: []firm.RuleBasic{
 						rule.Not{Rule: aliasPrefixRule}, // alias syntax fits with domains
@@ -89,7 +90,7 @@ func DomainOrAlias(aliases []string) firm.RuleBasic {
 		},
 		CustomErr: func(firm.ErrorMap) firm.ErrorMap {
 			return firm.ErrorMap{domainOrAliasName: firm.TemplateError{
-				TemplateFields: map[string]string{"Aliases": quotedValues(aliases)},
+				TemplateFields: map[string]string{"Aliases": quotedValues(aliasesFunc())},
 				Template:       "is not a domain or one of {{.Aliases}}",
 			}}
 		},

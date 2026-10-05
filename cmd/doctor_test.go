@@ -8,9 +8,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/cli"
 )
 
-func TestCheckUserClis(t *testing.T) {
+func TestCheckUserTree(t *testing.T) {
 	tests := []struct {
 		name    string
 		warns   []error
@@ -23,7 +25,9 @@ func TestCheckUserClis(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := checkUserClis(nil, tt.warns, tt.loadErr)
+			err := checkUserTree("clis/dir", "cli", func() ([]cli.CLI, []error, error) {
+				return nil, tt.warns, tt.loadErr
+			})
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)

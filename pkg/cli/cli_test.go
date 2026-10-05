@@ -103,6 +103,30 @@ func TestLoadUser(t *testing.T) {
 			t.Run(tt.name, func(t *testing.T) { testLoadUserSkips(t, tt.name, tt.body, tt.configs) })
 		}
 	})
+
+	// provider.Load() precedes cli.Load() (cmd.root): a user cli may alias user providers
+	t.Run("user provider aliases validate in allow_domains", func(t *testing.T) {
+		dir := resetAll(t)
+		writeUserCli(t, dir, "mycli", userCliYAML+"  - ccbox-myprovider-provider\n", nil)
+		resetUserProviders(t, dir)
+
+		all = mustLoadAll()
+		assert.Equal(t, []string{"mycli.dev", "ccbox-myprovider-provider"}, MustFor("mycli").AllowDomains)
+	})
+}
+
+// resetUserProviders points the user providers at dir/providers, writes a myprovider
+// there and loads it — restoring the bare built-ins afterwards, so no state leaks.
+func resetUserProviders(t *testing.T, dir string) {
+	t.Helper()
+	t.Cleanup(func() {
+		provider.SetUserConfigDir(t.TempDir())
+		provider.Load()
+	})
+	provider.SetUserConfigDir(dir)
+	require.NoError(t, os.MkdirAll(provider.UserDir(), ioutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(provider.UserDir(), "myprovider.yaml"), []byte("domains: [api.myprovider.dev]\n"), ioutil.File))
+	provider.Load()
 }
 
 func TestLoadUser_OverridesEmbedded(t *testing.T) {
