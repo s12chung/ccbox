@@ -115,17 +115,9 @@ func (c *Config) ProjectDir() string { return c.projectDir }
 // infallible for a loaded config
 func (c *Config) CLI() cli.CLI { return cli.MustFor(*c.CLIName) }
 
-// merge layers other onto c:
-// lists append, a set later scalar wins, maps merge per key, structs per field
+// merge layers other onto c, resetting the expanded caches
 func (c *Config) merge(other Config) {
-	c.CLIName = mergeempty.Ptr(c.CLIName, other.CLIName)
-	c.VNC = mergeempty.Struct(c.VNC, other.VNC)
-	c.TmpfsMasks = mergeempty.Slice(c.TmpfsMasks, other.TmpfsMasks)
-	c.VolumeMasks = mergeempty.Slice(c.VolumeMasks, other.VolumeMasks)
-	c.ReadOnlyGlobs = mergeempty.Slice(c.ReadOnlyGlobs, other.ReadOnlyGlobs)
-	c.ReadOnlyBinds = mergeempty.Map(c.ReadOnlyBinds, other.ReadOnlyBinds)
-	c.Allowlist = mergeempty.Slice(c.Allowlist, other.Allowlist)
-	c.Env = mergeempty.Map(c.Env, other.Env)
+	mergeempty.Merge(c, other) // unexported fiels are not merged
 	c.expandedTmpfsMasks = nil
 	c.expandedVolumeMasks = nil
 	c.expandedReadOnlyGlobs = nil

@@ -59,6 +59,7 @@ func TestStruct(t *testing.T) {
 		P *string
 		N *nested
 		L []string
+		M map[string]int
 	}
 
 	assert.Nil(t, Struct[section](nil, nil)) // both nil → nil
@@ -99,14 +100,23 @@ func TestStruct(t *testing.T) {
 	*out.P = "x"
 	assert.Equal(t, "b", bv)
 
-	// a slice set on both sides is deep-copied too — not aliased
+	// lists set on both sides append, deep-copied — not aliased
 	al, bl := []string{"a"}, []string{"b"}
 	out = Struct(&section{L: al}, &section{L: bl})
 	require.NotNil(t, out.L)
-	assert.Equal(t, "b", out.L[0])
+	assert.Equal(t, []string{"a", "b"}, out.L)
 	out.L[0] = "x"
+	out.L[1] = "y"
 	assert.Equal(t, []string{"a"}, al)
 	assert.Equal(t, []string{"b"}, bl)
+
+	// maps set on both sides merge per key, b winning — deep-copied too
+	am := map[string]int{"k": 1}
+	out = Struct(&section{M: am}, &section{M: map[string]int{"k": 2, "j": 3}})
+	require.NotNil(t, out.M)
+	assert.Equal(t, map[string]int{"k": 2, "j": 3}, out.M)
+	out.M["k"] = 9
+	assert.Equal(t, map[string]int{"k": 1}, am)
 }
 
 func TestStruct_UnexportedFieldsZeroed(t *testing.T) {
@@ -120,4 +130,105 @@ func TestStruct_UnexportedFieldsZeroed(t *testing.T) {
 	require.NotNil(t, out)
 	assert.Equal(t, "b", out.S)
 	assert.Empty(t, out.hides, "unexported fields carry from neither side")
+}
+
+func TestMerge(t *testing.T) {
+	type nested struct{ V string }
+	type section struct {
+		S string
+		K string
+		P *string
+		Q *string
+		N *nested
+		L []string
+		M map[string]int
+	}
+
+	keep, win := "keep", "win"
+	dst := &section{
+		S: keep,
+		K: keep,
+		P: &keep,
+		Q: &keep,
+		N: &nested{V: keep},
+		L: []string{"a"},
+		M: map[string]int{"k": 1},
+	}
+	src := section{
+		S: win,
+		P: &win,
+		N: &nested{}, // the nested struct's zero field keeps dst's
+		L: []string{"b"},
+		M: map[string]int{"j": 2, "k": 3},
+	}
+
+	Merge(dst, src)
+
+	assert.Equal(t, &section{
+		S: win,                            // a set src scalar wins
+		K: keep,                           // a field unset in src inherits
+		P: &win,                           // a set src pointer wins
+		Q: &keep,                          // a pointer unset in src keeps dst's
+		N: &nested{V: keep},               // struct pointers set on both sides merge per field
+		L: []string{"a", "b"},             // lists append
+		M: map[string]int{"j": 2, "k": 3}, // maps merge per key, src winning
+	}, dst)
+}
+
+func TestMerge_DoesNotAliasSrc(t *testing.T) {
+	type nested struct{ V string }
+	type section struct {
+		P *string
+		N *nested
+		L []string
+		M map[string]int
+	}
+
+	v := "v"
+	src := &section{P: &v, N: &nested{V: "v"}, L: []string{"a"}, M: map[string]int{"k": 1}}
+	dst := &section{}
+
+	Merge(dst, *src)
+
+	*dst.P = "x"
+	dst.N.V = "x"
+	dst.L[0] = "x"
+	dst.M["k"] = 2
+
+	assert.Equal(t, "v", *src.P) // every write deep-copies src
+	assert.Equal(t, &nested{V: "v"}, src.N)
+	assert.Equal(t, []string{"a"}, src.L)
+	assert.Equal(t, map[string]int{"k": 1}, src.M)
+}
+
+func TestMerge_KeepsDstUnexported(t *testing.T) {
+	type section struct {
+		S     string
+		hides string
+	}
+
+	dst := &section{S: "a", hides: "dst"}
+	src := section{S: "b", hides: "src"}
+
+	Merge(dst, src)
+
+	assert.Equal(t, "b", dst.S)
+	assert.Equal(t, "dst", dst.hides, "dst's unexported fields stay its own — reflection can't write them")
+}
+
+func TestMerge_PreservesNonNilEmpty(t *testing.T) {
+	type section struct {
+		L []string
+		M map[string]int
+	}
+
+	dst := &section{L: []string{}, M: map[string]int{}}
+	Merge(dst, section{})
+	assert.NotNil(t, dst.L) // a non-nil empty survives an unset src, not collapsed
+	assert.NotNil(t, dst.M)
+
+	dst = &section{}
+	Merge(dst, section{L: []string{}})
+	assert.NotNil(t, dst.L) // src's non-nil empty lands even on a nil dst
+	assert.Nil(t, dst.M)
 }
