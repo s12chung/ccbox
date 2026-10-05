@@ -16,6 +16,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/provider"
+	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -484,6 +485,16 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 		c, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
 		assert.Equal(t, allProviders, c.AllowlistExpanded())
+	})
+
+	t.Run("ccbox-all-runtimes resolves every runtime's domains", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nallowlist:\n  - ccbox-all-runtimes\n")
+
+		allRuntimes, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
+		require.True(t, ok)
+		c, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		assert.Equal(t, allRuntimes, c.AllowlistExpanded())
 	})
 
 	t.Run("the GUI app's domains ride the harness alias on a vnc load alone", func(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/provider"
+	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -116,7 +117,7 @@ func TestSeedUserConfig(t *testing.T) {
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		Allowlist:     []string{DefaultsAlias, SetHarnessAlias},
+		Allowlist:     []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
 
 		projectDir: dir,
 	}
@@ -233,6 +234,16 @@ func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
 	}
 }
 
+func TestAllowlistDefaults_ExcludeRuntimes(t *testing.T) {
+	// the defaults are tooling only: the runtimes ride their own aliases —
+	// ccbox-all-runtimes resolves every one of them
+	runtimeDomains, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
+	require.True(t, ok)
+	for _, d := range runtimeDomains {
+		assert.NotContainsf(t, AllowlistDefaults(), d, "runtime domain %s", d)
+	}
+}
+
 func TestAllowlistDefaults_ExcludeGuiApp(t *testing.T) {
 	// the GUI app's domains ride a vnc load's ccbox-set-harness expansion alone —
 	// a headless run never downloads the app
@@ -272,7 +283,8 @@ func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
-	assert.Equal(t, []string{DefaultsAlias, SetHarnessAlias}, c.Allowlist) // lists append: [] adds nothing, the seed's aliases stay
+	// lists append: [] adds nothing, the seed's aliases stay
+	assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias}, c.Allowlist)
 }
 
 func TestLoad_LayersFiles(t *testing.T) {
@@ -331,7 +343,7 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 			if cf.term == "user" { // the user file replaces the seed wholesale
 				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no alias → no defaults pulled in
 			} else { // the user seed's aliases still underlie the project/local file
-				assert.Equal(t, []string{DefaultsAlias, SetHarnessAlias, "example.com"}, c.Allowlist)
+				assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias, "example.com"}, c.Allowlist)
 			}
 		})
 	}

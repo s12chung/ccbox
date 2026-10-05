@@ -11,6 +11,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/provider"
+	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
 	"github.com/s12chung/ccbox/pkg/util/uslice"
@@ -89,6 +90,7 @@ var configDefaultsCmd = &cobra.Command{
 		printutil.PrintSections(aliasSections())
 		log.Info("")
 		log.Infof("# %s: the providers above, combined", provider.AllProvidersAlias)
+		log.Infof("# %s: the runtimes above, combined", runtime.AllRuntimesAlias)
 		return nil
 	},
 }
@@ -122,6 +124,9 @@ func aliasSections() []printutil.Section {
 		}},
 		uslice.Map(provider.All(), func(p provider.Provider) printutil.Section {
 			return printutil.Section{Header: p.Alias() + ":", Items: p.Domains}
+		}),
+		uslice.Map(runtime.All(), func(r runtime.Runtime) printutil.Section {
+			return printutil.Section{Header: r.Alias() + ":", Items: r.Domains}
 		}),
 	)
 }

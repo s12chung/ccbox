@@ -44,6 +44,7 @@ env:
 # Run `ccbox config defaults` to see aliases and their expansions.
 allowlist:
   - ccbox-defaults # shared tooling domains
+  - ccbox-all-runtimes # every runtime's domains (node, python, ruby, go)
   - ccbox-set-harness # the selected CLI's — and on --vnc, the GUI app's
   # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
   # - ccbox-all-providers # every provider's domains

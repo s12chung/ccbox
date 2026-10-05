@@ -23,6 +23,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/projectcfg/expand"
 	"github.com/s12chung/ccbox/pkg/provider"
+	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
@@ -269,15 +270,16 @@ func (c *Config) expandAllowlist() []string {
 		DefaultsAlias:   AllowlistDefaults(),
 		SetHarnessAlias: c.SetHarnessDomains(),
 	}
-	for _, alias := range provider.Aliases() {
+	for _, alias := range slices.Concat(provider.Aliases(), runtime.Aliases()) {
 		expansions[alias] = expandDomain(alias)
 	}
 	return expand.Slice(c.Allowlist, expansions)
 }
 
-// allowlistAliases lists every allowlist alias: the providers' plus the expansion aliases
+// allowlistAliases lists every allowlist alias: the providers' and runtimes' plus the
+// expansion aliases
 func allowlistAliases() []string {
-	return slices.Concat(provider.Aliases(), []string{DefaultsAlias, SetHarnessAlias})
+	return slices.Concat(provider.Aliases(), runtime.Aliases(), []string{DefaultsAlias, SetHarnessAlias})
 }
 
 // expandDefaultAlias replaces each DefaultsAlias with defaults, preserving entry order and
@@ -286,10 +288,13 @@ func expandDefaultAlias(list, defaults []string) []string {
 	return expand.Slice(list, map[string][]string{DefaultsAlias: defaults})
 }
 
-// expandDomain resolves one entry: a provider alias to its table domains, else the raw domain
+// expandDomain resolves one entry: a provider or runtime alias to its table domains,
+// else the raw domain
 func expandDomain(entry string) []string {
-	if domains, ok := provider.DomainsFor(entry); ok {
-		return domains
+	for _, resolve := range []func(string) ([]string, bool){provider.DomainsFor, runtime.DomainsFor} {
+		if domains, ok := resolve(entry); ok {
+			return domains
+		}
 	}
 	return []string{entry}
 }
@@ -361,8 +366,9 @@ func (c *Config) renderTmpl() (string, error) {
 		VolumeMasksComments:   yamlutil.CommentFirstEntry(c.VolumeMasks, defaultsExpansionComment),
 		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(c.ReadOnlyGlobs, defaultsExpansionComment),
 		AllowlistComments: yamlutil.EntryToComments(c.Allowlist, map[string]string{
-			DefaultsAlias:   "shared tooling domains",
-			SetHarnessAlias: "the selected CLI's — and on --vnc, the GUI app's",
+			DefaultsAlias:            "shared tooling domains",
+			runtime.AllRuntimesAlias: "every runtime's domains (node, python, ruby, go)",
+			SetHarnessAlias:          "the selected CLI's — and on --vnc, the GUI app's",
 		}),
 	}
 	if err := tmpl.Execute(&b, data); err != nil {
