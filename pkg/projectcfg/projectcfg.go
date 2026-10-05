@@ -3,19 +3,13 @@
 package projectcfg
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 
-	"github.com/s12chung/firm"
-	"gopkg.in/yaml.v3"
-
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
@@ -101,43 +95,17 @@ func SeedUserConfig(cli string) (string, error) {
 	return UserConfigFile(), nil
 }
 
-// Load reads the layerPaths, then CLI flags, and validates
+// Load reads the layerPaths, then overlays the CLI flags as the top layer, and validates
 func Load(projectDir string, flags Config, serveVNC bool) (*Config, error) {
-	var c Config
-	for _, path := range layerPaths(projectDir) {
-		layer, err := read(path)
-		if err != nil {
-			return nil, err
-		}
-		c.merge(layer)
+	layers, err := yamlutil.ReadLayers[Config](layerPaths(projectDir))
+	if err != nil {
+		return nil, err
 	}
-	c.merge(flags)
-	if errMap := firm.ValidateAny(c); errMap != nil {
-		return nil, errMap
+	c, err := yamlutil.ValidatedMerge(append(layers, flags), (*Config).merge)
+	if err != nil {
+		return nil, err
 	}
 	c.projectDir = projectDir
 	c.serveVNC = serveVNC
 	return &c, nil
-}
-
-// read parses one layer's config file: user, project, or local. A missing file yields
-// the zero Config
-func read(path string) (Config, error) {
-	body, err := os.ReadFile(path) // #nosec G304 -- path is the user's or project's own ccbox.yaml
-	if errors.Is(err, fs.ErrNotExist) {
-		return Config{}, nil
-	}
-	if err != nil {
-		return Config{}, err
-	}
-	var c Config
-	dec := yaml.NewDecoder(bytes.NewReader(body))
-	dec.KnownFields(true) // a typo'd key must error, not silently no-op
-	switch err := dec.Decode(&c); {
-	case errors.Is(err, io.EOF): // an empty file is "unset" like a missing one
-		return Config{}, nil
-	case err != nil:
-		return Config{}, fmt.Errorf("projectcfg: parse %s: %w", path, err)
-	}
-	return c, nil
 }

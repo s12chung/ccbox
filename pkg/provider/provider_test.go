@@ -206,7 +206,7 @@ func TestParseProvider_Rejects(t *testing.T) {
 	}{
 		{
 			"empty body", "",
-			[]string{"EOF"},
+			[]string{"Len", "minimum length"}, // the zero Provider fails validation
 		},
 		{
 			"no domains", "bogus: true\n",

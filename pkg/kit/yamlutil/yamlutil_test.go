@@ -1,6 +1,8 @@
 package yamlutil
 
 import (
+	"os"
+	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -8,6 +10,8 @@ import (
 	"github.com/s12chung/firm/rule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 type entry struct {
@@ -148,6 +152,7 @@ func TestValidatedDecode(t *testing.T) {
 		{"unknown field errors", "name: web\nnope: 1\n", nil, preset, "field nope not found"},
 		{"invalid value errors", "name: BAD\n", nil, preset, "does not match"},
 		{"invalid yaml errors", "name: [unclosed\n", nil, preset, "did not find expected"},
+		{"empty body decodes to the zero value", "", func(d decoded) decoded { d.Name = "web"; return d }, decoded{Name: "web"}, ""},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -158,6 +163,62 @@ func TestValidatedDecode(t *testing.T) {
 			}
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestValidatedMerge(t *testing.T) {
+	tests := []struct {
+		name    string
+		layers  []decoded
+		want    decoded
+		wantErr string
+	}{
+		{"folds layers in order", []decoded{{Name: "web"}, {}, {Name: "db"}}, decoded{Name: "db"}, ""},
+		{"invalid layer errors", []decoded{{Name: "BAD"}}, decoded{}, "does not match"},
+		{"invalid layer after folding", []decoded{{Name: "web"}, {Name: "BAD"}}, decoded{}, "does not match"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ValidatedMerge(tt.layers, func(dst *decoded, src decoded) {
+				if src.Name != "" {
+					dst.Name = src.Name
+				}
+			})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReadLayers(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		path := filepath.Join(dir, name)
+		require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+		return path
+	}
+	present := write("present.yaml", "name: web\n")
+	empty := write("empty.yaml", "")
+	commentOnly := write("comments.yaml", "# nothing\n")
+	missing := filepath.Join(dir, "missing.yaml")
+
+	layers, err := ReadLayers[decoded]([]string{missing, present, empty, commentOnly})
+	require.NoError(t, err)
+	assert.Equal(t, []decoded{{}, {Name: "web"}, {}, {}}, layers)
+
+	for name, body := range map[string]string{
+		"unknown field": "name: web\nnope: 1\n",
+		"invalid yaml":  "name: [unclosed\n",
+	} {
+		t.Run(name+" errors", func(t *testing.T) {
+			bad := write("bad.yaml", body)
+			_, err := ReadLayers[decoded]([]string{bad})
+			require.ErrorContains(t, err, "parse "+bad+":")
 		})
 	}
 }

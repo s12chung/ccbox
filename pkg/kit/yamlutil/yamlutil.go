@@ -1,10 +1,13 @@
-// Package yamlutil renders Go values as YAML values for line-oriented templating and
-// decodes yaml bodies into firm-validated values.
+// Package yamlutil contains YAML helpers for reading writing YAML
 package yamlutil
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"os"
 	"reflect"
 	"strings"
 
@@ -55,13 +58,10 @@ func Value(v any, comments []string) (string, error) {
 }
 
 // ValidatedDecode decodes one yaml body into T, rejecting unknown fields — a typo'd
-// key errors, not silently no-ops — and firm-validates the result; setDefaults, when
-// set, mutates the decoded value first, so the rules see the final value.
+// key errors out — and firm-validates the result; setDefaults is called before validations.
 func ValidatedDecode[T any](body []byte, setDefaults func(T) T) (T, error) {
-	var t T
-	dec := yaml.NewDecoder(bytes.NewReader(body))
-	dec.KnownFields(true)
-	if err := dec.Decode(&t); err != nil {
+	t, err := decode[T](body)
+	if err != nil {
 		return t, err
 	}
 	if setDefaults != nil {
@@ -69,6 +69,58 @@ func ValidatedDecode[T any](body []byte, setDefaults func(T) T) (T, error) {
 	}
 	if errMap := firm.ValidateAny(t); errMap != nil {
 		return t, errMap
+	}
+	return t, nil
+}
+
+// ReadLayers decodes each path's yaml file as one layer of T, in order — a missing or
+// empty file is the zero T, an unset layer. Unknown fields error: a typo'd key errors,
+// not silently no-ops.
+func ReadLayers[T any](paths []string) ([]T, error) {
+	var layers []T
+	for _, path := range paths {
+		body, err := os.ReadFile(path) // #nosec G304 -- the caller's own layer paths
+		if errors.Is(err, fs.ErrNotExist) {
+			layers = append(layers, *new(T))
+			continue
+		}
+		if err != nil {
+			return layers, err
+		}
+		layer, err := decode[T](body)
+		if err != nil {
+			return layers, fmt.Errorf("parse %s: %w", path, err)
+		}
+		layers = append(layers, layer)
+	}
+	return layers, nil
+}
+
+// ValidatedMerge overlays layers onto a zero T in order — merge folds src into dst, the
+// later layer winning — then firm-validates the result: the many-layers counterpart of
+// ValidatedDecode.
+func ValidatedMerge[T any](layers []T, merge func(dst *T, src T)) (T, error) {
+	var acc T
+	for _, layer := range layers {
+		merge(&acc, layer)
+	}
+	if errMap := firm.ValidateAny(acc); errMap != nil {
+		return acc, errMap
+	}
+	return acc, nil
+}
+
+// decode decodes one yaml body into T, rejecting unknown fields
+func decode[T any](body []byte) (T, error) {
+	var t T
+	dec := yaml.NewDecoder(bytes.NewReader(body))
+	dec.KnownFields(true)
+	switch err := dec.Decode(&t); {
+	case errors.Is(err, io.EOF):
+		// when empty (or comment-only) file return zero, will fail on validation
+		return t, nil
+	case err != nil:
+		return t, err
 	}
 	return t, nil
 }
