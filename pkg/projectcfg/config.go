@@ -80,7 +80,7 @@ func init() {
 	firm.MustRegisterType(firm.NewDefinition[Config]().
 		NotNil("CLIName").
 		Validates(firm.RuleMap{
-			"CLIName": {rule.OneOfFunc[string]{ValuesFunc: cli.Names}},
+			"CLIName": {rule.OneOf[string]{ValuesFunc: cli.Names}},
 			"VNC":     {firm.Backed()},
 
 			// mask dirs are project-relative: no absolute paths, no ".." traversal

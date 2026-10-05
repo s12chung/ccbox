@@ -79,7 +79,7 @@ func DomainOrAlias(aliasesFunc func() []string) firm.RuleBasic {
 	return rule.ErrCustomized{
 		Rule: rule.Or{
 			Rules: []firm.RuleBasic{
-				rule.OneOfFunc[string]{ValuesFunc: aliasesFunc},
+				rule.OneOf[string]{ValuesFunc: aliasesFunc},
 				rule.And{
 					Rules: []firm.RuleBasic{
 						rule.Not{Rule: aliasPrefixRule}, // alias syntax fits with domains
