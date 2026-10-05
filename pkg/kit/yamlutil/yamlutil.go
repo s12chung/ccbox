@@ -15,48 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Value renders v as a YAML value for a template line. Unset (nil) renders bare, keeping
-// bare key = null = unset — which the yaml library cannot express (it marshals "null"/"[]");
-// an empty non-nil slice/map keeps its explicit emptiness (" []"/" {}"); a plain value
-// renders inline; a list or map renders as a 2-space indented block. Values marshal
-// through yaml, so quoting and map-key order match what a yaml parser reads back.
-//
-// comments sit beside the rendered lines after " # ": each slice/map entry gets its own,
-// so len(comments) must match the entry count or be empty; a plain value — including the
-// unset bare key — takes at most one.
-func Value(v any, comments []string) (string, error) {
-	rv := reflect.ValueOf(v)
-	if !rv.IsValid() || (rv.Kind() == reflect.Pointer && rv.IsNil()) {
-		return beside("", comments) // unset: the bare key stands
-	}
-	if rv.Kind() == reflect.Pointer {
-		rv = rv.Elem()
-	}
-
-	body, err := yaml.Marshal(rv.Interface())
-	if err != nil {
-		return "", err
-	}
-	bodyStr := strings.TrimSuffix(string(body), "\n")
-
-	switch rv.Kind() {
-	case reflect.Slice, reflect.Map:
-		if len(comments) != 0 && len(comments) != rv.Len() {
-			return "", fmt.Errorf("comments: got %d, want %d or none", len(comments), rv.Len())
-		}
-		switch {
-		case rv.IsNil():
-			return "", nil
-		case rv.Len() == 0:
-			return " " + bodyStr, nil // yaml renders "[]"/"{}" itself
-		default:
-			return "\n  " + strings.ReplaceAll(besideEntries(bodyStr, comments), "\n", "\n  "), nil
-		}
-	default:
-		return beside(" "+bodyStr, comments)
-	}
-}
-
 // ValidatedDecode decodes one yaml body into T, rejecting unknown fields — a typo'd
 // key errors out — and firm-validates the result; setDefaults is called before validations.
 func ValidatedDecode[T any](body []byte, setDefaults func(T) T) (T, error) {
@@ -125,6 +83,48 @@ func decode[T any](body []byte) (T, error) {
 	return t, nil
 }
 
+// Value renders v as a YAML value for a template line. Unset (nil) renders bare, keeping
+// bare key = null = unset — which the yaml library cannot express (it marshals "null"/"[]");
+// an empty non-nil slice/map keeps its explicit emptiness (" []"/" {}"); a plain value
+// renders inline; a list or map renders as a 2-space indented block. Values marshal
+// through yaml, so quoting and map-key order match what a yaml parser reads back.
+//
+// comments sit beside the rendered lines after " # ": each slice/map entry gets its own,
+// so len(comments) must match the entry count or be empty; a plain value — including the
+// unset bare key — takes at most one.
+func Value(v any, comments []string) (string, error) {
+	rv := reflect.ValueOf(v)
+	if !rv.IsValid() || (rv.Kind() == reflect.Pointer && rv.IsNil()) {
+		return beside("", comments) // unset: the bare key stands
+	}
+	if rv.Kind() == reflect.Pointer {
+		rv = rv.Elem()
+	}
+
+	body, err := yaml.Marshal(rv.Interface())
+	if err != nil {
+		return "", err
+	}
+	bodyStr := strings.TrimSuffix(string(body), "\n")
+
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Map:
+		if len(comments) != 0 && len(comments) != rv.Len() {
+			return "", fmt.Errorf("comments: got %d, want %d or none", len(comments), rv.Len())
+		}
+		switch {
+		case rv.IsNil():
+			return "", nil
+		case rv.Len() == 0:
+			return " " + bodyStr, nil // yaml renders "[]"/"{}" itself
+		default:
+			return "\n  " + strings.ReplaceAll(besideEntries(bodyStr, comments), "\n", "\n  "), nil
+		}
+	default:
+		return beside(" "+bodyStr, comments)
+	}
+}
+
 // beside joins at most one comment beside a rendered line
 func beside(line string, comments []string) (string, error) {
 	switch {
@@ -135,6 +135,22 @@ func beside(line string, comments []string) (string, error) {
 	default:
 		return line, nil
 	}
+}
+
+// besideEntries joins each comment beside its entry line — the block's column-0 lines,
+// one per entry; an empty comment leaves its entry line bare
+func besideEntries(block string, comments []string) string {
+	lines := strings.Split(block, "\n")
+	ci := 0 // ci matches `comments` length as long keys or with \n renders as an explicit k/v pair
+	for i, line := range lines {
+		if ci < len(comments) && !strings.HasPrefix(line, " ") {
+			if comments[ci] != "" {
+				lines[i] = line + " # " + comments[ci]
+			}
+			ci++
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // CommentFirstEntry builds comments for entries, only the first set; nil for an empty list
@@ -158,23 +174,4 @@ func EntryToComments(entries []string, m map[string]string) []string {
 		comments[i] = m[entry]
 	}
 	return comments
-}
-
-// besideEntries joins each comment beside its entry line — the block's column-0 lines,
-// one per entry; an empty comment leaves its entry line bare
-func besideEntries(block string, comments []string) string {
-	lines := strings.Split(block, "\n")
-	ci := 0
-	for i, line := range lines {
-		// ci matches the validated comment count for ordinary blocks, but a key over 128
-		// chars (or with newlines) renders as an explicit "? key" + ": value" pair — two
-		// column-0 lines for one entry — so the bound still guards comments[ci]
-		if ci < len(comments) && !strings.HasPrefix(line, " ") {
-			if comments[ci] != "" {
-				lines[i] = line + " # " + comments[ci]
-			}
-			ci++
-		}
-	}
-	return strings.Join(lines, "\n")
 }

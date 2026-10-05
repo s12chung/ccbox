@@ -14,56 +14,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
-type entry struct {
-	Name string
-	Val  string
-}
-
-// TestValue_MultilineEntries pins a large multi-entry block — struct fields, nested maps
-// and sequences — with its comments beside the entry lines, as a readable literal
-func TestValue_MultilineEntries(t *testing.T) {
-	type server struct {
-		Name  string
-		Image string
-		Env   map[string]string
-		Cmds  []string
-	}
-
-	v := []server{
-		{Name: "web", Image: "nginx", Env: map[string]string{"PORT": "8080", "USER": "app"}, Cmds: []string{"migrate", "serve"}},
-		{Name: "db", Image: "postgres", Env: map[string]string{"PGDATA": "/var/lib/postgres"}, Cmds: []string{"initdb", "start"}},
-	}
-	got, err := Value(v, []string{"serves the app", "the database"})
-	require.NoError(t, err)
-	assert.Equal(t, `
-  - name: web # serves the app
-    image: nginx
-    env:
-      PORT: "8080"
-      USER: app
-    cmds:
-      - migrate
-      - serve
-  - name: db # the database
-    image: postgres
-    env:
-      PGDATA: /var/lib/postgres
-    cmds:
-      - initdb
-      - start`, got)
-}
-
-func TestCommentFirstEntry(t *testing.T) {
-	assert.Nil(t, CommentFirstEntry(nil, "why"))
-	assert.Equal(t, []string{"why", "", ""}, CommentFirstEntry([]string{"a", "b", "c"}, "why"))
-}
-
-func TestEntryToComments(t *testing.T) {
-	assert.Nil(t, EntryToComments(nil, nil))
-	m := map[string]string{"a": "a's", "c": "c's"}
-	assert.Equal(t, []string{"a's", "", "c's"}, EntryToComments([]string{"a", "b", "c"}, m))
-}
-
 func TestValue(t *testing.T) {
 	foo := "foo"
 	tests := []struct {
@@ -118,9 +68,7 @@ func TestValue(t *testing.T) {
 	}
 }
 
-type decoded struct {
-	Name string
-}
+type decoded struct{ Name string }
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[decoded]().
@@ -221,4 +169,54 @@ func TestReadLayers(t *testing.T) {
 			require.ErrorContains(t, err, "parse "+bad+":")
 		})
 	}
+}
+
+type entry struct {
+	Name string
+	Val  string
+}
+
+// TestValue_MultilineEntries pins a large multi-entry block — struct fields, nested maps
+// and sequences — with its comments beside the entry lines, as a readable literal
+func TestValue_MultilineEntries(t *testing.T) {
+	type server struct {
+		Name  string
+		Image string
+		Env   map[string]string
+		Cmds  []string
+	}
+
+	v := []server{
+		{Name: "web", Image: "nginx", Env: map[string]string{"PORT": "8080", "USER": "app"}, Cmds: []string{"migrate", "serve"}},
+		{Name: "db", Image: "postgres", Env: map[string]string{"PGDATA": "/var/lib/postgres"}, Cmds: []string{"initdb", "start"}},
+	}
+	got, err := Value(v, []string{"serves the app", "the database"})
+	require.NoError(t, err)
+	assert.Equal(t, `
+  - name: web # serves the app
+    image: nginx
+    env:
+      PORT: "8080"
+      USER: app
+    cmds:
+      - migrate
+      - serve
+  - name: db # the database
+    image: postgres
+    env:
+      PGDATA: /var/lib/postgres
+    cmds:
+      - initdb
+      - start`, got)
+}
+
+func TestCommentFirstEntry(t *testing.T) {
+	assert.Nil(t, CommentFirstEntry(nil, "why"))
+	assert.Equal(t, []string{"why", "", ""}, CommentFirstEntry([]string{"a", "b", "c"}, "why"))
+}
+
+func TestEntryToComments(t *testing.T) {
+	assert.Nil(t, EntryToComments(nil, nil))
+	m := map[string]string{"a": "a's", "c": "c's"}
+	assert.Equal(t, []string{"a's", "", "c's"}, EntryToComments([]string{"a", "b", "c"}, m))
 }
