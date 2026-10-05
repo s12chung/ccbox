@@ -3,8 +3,12 @@
 # cli: which coding CLI the image installs and launches
 cli:
 
+# no_proxy: skip the egress wall for direct network access
+no_proxy: false
+
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
+  # no_proxy: false # overrides no_proxy on --vnc run
   # gui_app: zcode # the GUI app's name; empty means none
   # config:
   #   resolution: the box's WxH for clients that can't auto-resize. defaults to 1280x1024

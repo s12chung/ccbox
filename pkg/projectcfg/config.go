@@ -44,14 +44,15 @@ const (
 
 // Config is the parsed .ccbox.yaml.
 type Config struct {
-	CLIName       *string           `yaml:"cli"`             // coding CLI to install + launch
-	VNC           *VNC              `yaml:"vnc"`             // the desktop's session: its GUI app plus VNC config
-	TmpfsMasks    []string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks   []string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyGlobs []string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
-	ReadOnlyBinds map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
-	Env           map[string]string `yaml:"env"`             // extra env vars set in the container
-	Allowlist     []string          `yaml:"allowlist"`       // egress wall domains
+	CLIName       *string           `yaml:"cli"`                // coding CLI to install + launch
+	NoProxy       bool              `yaml:"no_proxy,omitempty"` // skip the egress wall: direct network access
+	VNC           *VNC              `yaml:"vnc"`                // the desktop's session: its GUI app plus VNC config
+	TmpfsMasks    []string          `yaml:"tmpfs_masks"`        // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks   []string          `yaml:"volume_masks"`       // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyGlobs []string          `yaml:"read_only_globs"`    // project-relative globs to re-mount read-only
+	ReadOnlyBinds map[string]string `yaml:"read_only_binds"`    // host dir → container mount dir, bound read-only
+	Env           map[string]string `yaml:"env"`                // extra env vars set in the container
+	Allowlist     []string          `yaml:"allowlist"`          // egress wall domains
 
 	// projectDir anchors the masks' present-filters
 	projectDir string
@@ -68,6 +69,8 @@ type Config struct {
 // VNC is the desktop's session: the GUI app it installs and launches plus its
 // VNC config.
 type VNC struct {
+	// NoProxy overrides the top-level no_proxy on a vnc run; nil inherits it
+	NoProxy *bool `yaml:"no_proxy,omitempty"`
 	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
 	GUIAppName string `yaml:"gui_app,omitempty"`
 	// Config is the desktop's VNC session config: the box's WxH, for clients that
@@ -117,7 +120,7 @@ func (c *Config) CLI() cli.CLI { return cli.MustFor(*c.CLIName) }
 
 // merge layers other onto c, resetting the expanded caches
 func (c *Config) merge(other Config) {
-	mergeempty.Merge(c, other) // unexported fiels are not merged
+	mergeempty.Merge(c, other) // unexported fields are not merged
 	c.expandedTmpfsMasks = nil
 	c.expandedVolumeMasks = nil
 	c.expandedReadOnlyGlobs = nil
@@ -254,6 +257,17 @@ func (c *Config) SetHarnessDomains() []string {
 	return domains
 }
 
+// NoProxyFor resolves the run's skip-the-wall
+func (c *Config) NoProxyFor(serveVNC, flag bool) bool {
+	switch {
+	case flag:
+		return true
+	case serveVNC && c.VNC != nil && c.VNC.NoProxy != nil:
+		return *c.VNC.NoProxy
+	}
+	return c.NoProxy
+}
+
 // expandAllowlist runs the alias→domains expansion over the raw entries, keeping order
 // and dropping repeats. Cycle-free: validation bars DefaultsAlias/SetHarnessAlias from
 // a CLI.yaml, so SetHarnessDomains never re-enters the aliases.
@@ -295,9 +309,10 @@ func expandDomain(entry string) []string {
 // dirs, read_only_globs to their matched paths, read_only_binds to the host's present dirs,
 // list aliases expanded — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
-	type resolved Config // same yaml tags, no MarshalYAML method
-	return resolved{
+	type noMarshalYamlDefined Config
+	return noMarshalYamlDefined{
 		CLIName:       c.CLIName,
+		NoProxy:       c.NoProxy,
 		VNC:           c.VNC,
 		TmpfsMasks:    c.TmpfsMasksPresent(),
 		VolumeMasks:   c.VolumeMasksPresent(),

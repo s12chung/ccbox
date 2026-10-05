@@ -39,28 +39,28 @@ type RunModes struct {
 	Continue bool // -c: continue the last session
 	Resume   bool // -r: resume a session
 	NoProxy  bool // skip the egress wall: direct network access
-	VNC      bool // serve the config's desktop over VNC; implies NoProxy
+	VNC      bool // serve the config's desktop over VNC
 }
 
 // RunOptions renders the run's full docker.RunOptions
-func (rm *RunMap) RunOptions(flags RunFlags) (docker.RunOptions, func() error, error) {
-	hostOptions, clean, err := rm.HostOptions(flags.Modes.VNC)
+func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error, error) {
+	hostOptions, clean, err := rm.HostOptions(runFlags.Modes.VNC)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
-	env, err := rm.Env(flags.Modes.VNC)
+	env, err := rm.Env(runFlags.Modes.VNC)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
 
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,
-		Tag:            variantTag(flags.Tag, flags.Modes.VNC),
+		Tag:            variantTag(runFlags.Tag, runFlags.Modes.VNC),
 		Env:            env,
-		Cmd:            rm.Cmd(flags),
+		Cmd:            rm.Cmd(runFlags),
 		Proxy:          NewProxyMap(rm.cfg).Options(),
 		ProxyLogPath:   ProxyLogPath(rm.userDir),
-		NoProxy:        flags.Modes.NoProxy || flags.Modes.VNC,
+		NoProxy:        rm.cfg.NoProxyFor(runFlags.Modes.VNC, runFlags.Modes.NoProxy),
 	}, clean, nil
 }
 
