@@ -40,8 +40,8 @@ func TestRunConfig(t *testing.T) {
 				Env: []string{
 					"GH_TOKEN=gh",
 					"GOFLAGS=-mod=mod",
-					"http_proxy=http://ccbox-egress:8888",
-					"https_proxy=http://ccbox-egress:8888",
+					"http_proxy=http://ccbox-proxy:8888",
+					"https_proxy=http://ccbox-proxy:8888",
 					"no_proxy=localhost,127.0.0.1,::1",
 					"NO_PROXY=localhost,127.0.0.1,::1",
 				},
@@ -81,8 +81,8 @@ func TestRunConfig(t *testing.T) {
 				AttachStdout: true,
 				AttachStderr: true,
 				Env: []string{
-					"http_proxy=http://ccbox-egress:8888",
-					"https_proxy=http://ccbox-egress:8888",
+					"http_proxy=http://ccbox-proxy:8888",
+					"https_proxy=http://ccbox-proxy:8888",
 					"no_proxy=localhost,127.0.0.1,::1",
 					"NO_PROXY=localhost,127.0.0.1,::1",
 				},

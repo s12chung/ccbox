@@ -62,7 +62,7 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	}
 
 	// The egress wall network by default; a nil proxy runs on the engine's default bridge instead.
-	networkMode := container.NetworkMode(networkName)
+	networkMode := container.NetworkMode(proxyNetworkName)
 	if hostOptions.Proxy == nil {
 		networkMode = "bridge"
 	}
@@ -107,7 +107,7 @@ func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 
 func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	if hostOptions.Proxy != nil {
-		_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", egressName, nil) // silently ignore errors
+		_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", proxyContainerName, nil) // silently ignore errors
 	}
 
 	hostConfig, err := runHostConfig(ctxD, hostOptions)

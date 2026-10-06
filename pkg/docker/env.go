@@ -10,8 +10,8 @@ func envString(env map[string]string, noProxy bool) []string {
 		return renderedEnv
 	}
 	return append(renderedEnv, []string{
-		"http_proxy=http://" + egressName + ":" + proxyPort,
-		"https_proxy=http://" + egressName + ":" + proxyPort,
+		"http_proxy=http://" + proxyContainerName + ":" + proxyPort,
+		"https_proxy=http://" + proxyContainerName + ":" + proxyPort,
 		// Loopback never leaves the container, so route it direct — else local dev servers
 		// and browsers hit the proxy and get refused.
 		"no_proxy=localhost,127.0.0.1,::1",

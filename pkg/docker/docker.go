@@ -7,6 +7,6 @@ package docker
 const (
 	DefaultTag = "s12chung/ccbox:latest"
 
-	networkName = "ccbox-proxy"  // internal network with no direct egress
-	egressName  = "ccbox-egress" // tinyproxy container, the only way out
+	proxyNetworkName   = "ccbox-proxy"    // internal network with no direct egress
+	proxyContainerName = proxyNetworkName // tinyproxy container, the only way out
 )

@@ -3,8 +3,6 @@ package docker
 import (
 	"context"
 	"errors"
-	"io"
-	"net"
 	"os"
 	"os/signal"
 	"syscall"
@@ -50,8 +48,8 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
 	if err := dock.EnsureImageExists(ctxD, proxyImage); err != nil {
 		return joiner.Run, err
 	}
-	// Clear any stale egress container so the fixed name is free.
-	_ = ctxD.D.ContainerRemove(ctxD.Ctx, egressName, container.RemoveOptions{Force: true})
+	// Clear any stale proxy container so the fixed name is free.
+	_ = ctxD.D.ContainerRemove(ctxD.Ctx, proxyContainerName, container.RemoveOptions{Force: true})
 
 	if o.BeforeStart != nil {
 		if err := o.BeforeStart(); err != nil {
@@ -62,10 +60,10 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
 	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
 		&container.Config{Image: proxyImage},
 		&container.HostConfig{
-			NetworkMode: networkName,
+			NetworkMode: proxyNetworkName,
 			Binds:       mountSpecs([]Mount{NewBind(o.HostDir, tinyproxyDir).ReadOnly()}),
 		},
-		nil, nil, egressName)
+		nil, nil, proxyContainerName)
 	if err != nil {
 		return joiner.Run, err
 	}
@@ -91,13 +89,13 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
 	if o.OnStop != nil {
 		joiner.Push("on stop", o.OnStop)
 	}
-	logDone := streamLogs(o.Log, logs)
+	logDone := o.Log.StreamGo(logs)
 	return func() error {
 		return errors.Join(joiner.Run(), <-logDone)
 	}, nil
 }
 
-// Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
+// Proxy runs the tinyproxy container in the foreground (docker run --rm),
 // streaming its logs through Log until interrupted: SIGINT/SIGTERM, or Log.Stop closing —
 // the proxy exits on its own. Log.Stop must be set: a stopped proxy would hang the wait.
 func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
@@ -124,7 +122,7 @@ func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 // ensureNetwork creates the internal proxy network if absent. Like the Makefile's
 // `docker network create ... || true`, a pre-existing network is not an error.
 func ensureNetwork(ctxD *dock.CtxD) {
-	_, _ = ctxD.D.NetworkCreate(ctxD.Ctx, networkName, network.CreateOptions{
+	_, _ = ctxD.D.NetworkCreate(ctxD.Ctx, proxyNetworkName, network.CreateOptions{
 		Driver:   "bridge",
 		Internal: true,
 	})
@@ -141,41 +139,27 @@ func tearIdleNetwork(ctxD *dock.CtxD) error {
 	return err
 }
 
-// streamLogs streams logs through l in a goroutine and returns a channel yielding
-// its error when the stream ends.
-func streamLogs(l *tinyproxy.Log, logs io.ReadCloser) chan error {
-	logDone := make(chan error)
-	go func() {
-		logErr := l.Stream(logs)
-		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
-			logErr = nil
-		}
-		logDone <- logErr
-		close(logDone)
-	}()
-	return logDone
-}
-
 // ProxyReload makes a running proxy re-read its configs from HostDir. Tinyproxy reloads
 // on SIGUSR1 — never SIGHUP: with the image's foreground `-d`, SIGHUP is unhandled and
-// would kill the proxy.
+// would kill the proxy. ContainerKill is Docker's generic "send a signal" API — it only
+// kills because the default signal is SIGKILL.
 func ProxyReload(ctxD *dock.CtxD) error {
-	return ctxD.D.ContainerKill(ctxD.Ctx, egressName, "USR1")
+	return ctxD.D.ContainerKill(ctxD.Ctx, proxyContainerName, "USR1")
 }
 
 // ProxyClean removes the proxy network. A missing network is already clean (not an error);
 // an in-use one still errors.
 func ProxyClean(ctxD *dock.CtxD) error {
-	if err := ctxD.D.NetworkRemove(ctxD.Ctx, networkName); err != nil && !errdefs.IsNotFound(err) {
+	if err := ctxD.D.NetworkRemove(ctxD.Ctx, proxyNetworkName); err != nil && !errdefs.IsNotFound(err) {
 		return err
 	}
 	return nil
 }
 
-// isProxyRunning reports whether the egress container is up. A missing or stopped proxy is
+// isProxyRunning reports whether the proxy container is up. A missing or stopped proxy is
 // false, not an error.
 func isProxyRunning(ctxD *dock.CtxD) (bool, error) {
-	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, egressName)
+	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, proxyContainerName)
 	if errdefs.IsNotFound(err) {
 		return false, nil
 	}

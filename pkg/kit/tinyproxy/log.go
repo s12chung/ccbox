@@ -1,7 +1,9 @@
 package tinyproxy
 
 import (
+	"errors"
 	"io"
+	"net"
 	"strings"
 
 	"github.com/docker/docker/pkg/stdcopy"
@@ -28,6 +30,21 @@ func (l Log) Stream(logs io.ReadCloser) error {
 		close(l.Stop)
 	}
 	return err
+}
+
+// StreamGo streams logs via Stream in a goroutine and returns a channel yielding
+// its error when the stream ends.
+func (l Log) StreamGo(logs io.ReadCloser) chan error {
+	logDone := make(chan error)
+	go func() {
+		err := l.Stream(logs)
+		if errors.Is(err, net.ErrClosed) { // cleanup closed the stream; not a real failure
+			err = nil
+		}
+		logDone <- err
+		close(logDone)
+	}()
+	return logDone
 }
 
 var levelColors = map[string]prompt.Color{
