@@ -20,14 +20,15 @@ type ProxyMap struct {
 // NewProxyMap returns a new ProxyMap
 func NewProxyMap(cfg *projectcfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 
-// Options renders the egress wall's docker.ProxyOptions
-func (pm *ProxyMap) Options() docker.ProxyOptions {
+// Options renders the egress wall's docker.ProxyOptions, its logs streaming through log
+func (pm *ProxyMap) Options(log *docker.ProxyLog) *docker.ProxyOptions {
 	proxyConfigMap := map[string][]byte{
 		tinyproxy.ConfFile:     tinyproxy.MustConf(),
 		pkginfo.ProxyAllowFile: proxy.Render(pm.cfg.AllowlistExpanded()),
 	}
-	return docker.ProxyOptions{
+	return &docker.ProxyOptions{
 		HostDir: proxyLiveDir(),
+		Log:     log,
 		BeforeStart: func() error {
 			for name, body := range proxyConfigMap {
 				// atomically for reload

@@ -23,9 +23,10 @@ func TestRunConfig(t *testing.T) {
 					WorkspaceMount: "/home/ccbox/proj",
 					Mounts:         []Mount{NewBind("/host/proj", "/home/ccbox/proj")},
 				},
-				Tag: "ccbox:latest",
-				Env: map[string]string{"GH_TOKEN": "gh", "GOFLAGS": "-mod=mod"},
-				Cmd: []string{"claude"},
+				Tag:   "ccbox:latest",
+				Env:   map[string]string{"GH_TOKEN": "gh", "GOFLAGS": "-mod=mod"},
+				Cmd:   []string{"claude"},
+				Proxy: &ProxyOptions{},
 			},
 			want: &container.Config{
 				Image:        "ccbox:latest",
@@ -52,7 +53,6 @@ func TestRunConfig(t *testing.T) {
 				RunHostOptions: RunHostOptions{WorkspaceMount: "/home/ccbox/proj"},
 				Tag:            "ccbox:latest",
 				Env:            map[string]string{"GH_TOKEN": "gh"},
-				NoProxy:        true,
 			},
 			want: &container.Config{
 				Image:        "ccbox:latest",
@@ -70,6 +70,7 @@ func TestRunConfig(t *testing.T) {
 			opts: RunOptions{
 				RunHostOptions: RunHostOptions{WorkspaceMount: "/home/ccbox/proj"},
 				Tag:            "ccbox:latest",
+				Proxy:          &ProxyOptions{},
 			},
 			want: &container.Config{
 				Image:        "ccbox:latest",

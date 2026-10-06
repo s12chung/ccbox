@@ -34,13 +34,13 @@ func TestRunMap_RunOptions(t *testing.T) {
 	rm := NewRunMap(userDir, cfg)
 
 	// the pieces RunOptions composes
-	hostOptions, hostClean, err := rm.HostOptions(false, true)
+	hostOptions, hostClean, err := rm.HostOptions(false, false)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
 	env, err := rm.Env(false)
 	require.NoError(t, err)
 
-	options, clean, err := rm.RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{NoProxy: true}})
+	options, clean, err := rm.RunOptions(RunFlags{Tag: "dev:tag"})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -49,13 +49,17 @@ func TestRunMap_RunOptions(t *testing.T) {
 	assert.Equal(t, env, options.Env)
 	assert.Equal(t, "dev:tag", options.Tag)
 	assert.Equal(t, []string{"claude"}, options.Cmd)
+	require.NotNil(t, options.Proxy)
 	assert.NotNil(t, options.Proxy.BeforeStart)
 	assert.NotNil(t, options.Proxy.OnStop)
+	require.NotNil(t, options.Proxy.Log)
+	logFile, ok := options.Proxy.Log.Writer.(*os.File)
+	require.True(t, ok)
+	assert.Equal(t, filepath.Join(userDir, "proxy.log"), logFile.Name())
 	options.Proxy.BeforeStart = nil
 	options.Proxy.OnStop = nil
-	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir()}, options.Proxy)
-	assert.Equal(t, filepath.Join(userDir, "proxy.log"), options.ProxyLogPath)
-	assert.True(t, options.NoProxy)
+	options.Proxy.Log = nil
+	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir()}, *options.Proxy)
 }
 
 func TestRunMap_RunOptions_VNC(t *testing.T) {
@@ -76,17 +80,12 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	defer func() { require.NoError(t, clean()) }()
 
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image")
-	assert.True(t, options.NoProxy, "the vnc section's no_proxy rides through the resolution")
+	assert.Nil(t, options.Proxy, "the vnc section's no_proxy rides through the resolution: no egress wall")
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
 	expanded := cfg.AllowlistExpanded()
 	for _, d := range guiapp.App.AllowDomains {
 		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the proxy via the harness alias")
 	}
-	assert.NotNil(t, options.Proxy.BeforeStart)
-	assert.NotNil(t, options.Proxy.OnStop)
-	options.Proxy.BeforeStart = nil
-	options.Proxy.OnStop = nil
-	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir()}, options.Proxy)
 }
 
 func TestRunMap_HostOptions(t *testing.T) {

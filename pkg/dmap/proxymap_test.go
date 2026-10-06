@@ -25,7 +25,7 @@ func TestProxyMap_Options(t *testing.T) {
 	allowContents := proxy.Render(cfg.AllowlistExpanded())
 	conf := tinyproxy.MustConf()
 
-	options := NewProxyMap(cfg).Options()
+	options := NewProxyMap(cfg).Options(nil)
 	assert.Equal(t, proxyLiveDir(), options.HostDir)
 	require.True(t, ioutil.Missing(proxyLiveDir()), "rendering alone writes nothing")
 

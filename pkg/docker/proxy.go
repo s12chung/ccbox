@@ -31,15 +31,38 @@ const (
 )
 
 // ProxyOptions configures the egress wall: BeforeStart seeds HostDir — bound read-only
-// at tinyproxyDir — just before the proxy starts, and OnStop runs once the proxy is torn down
+// at tinyproxyDir — just before the proxy starts, OnStop runs once the proxy is torn down,
+// and Log streams the proxy's logs
 type ProxyOptions struct {
 	HostDir     string
 	BeforeStart func() error
 	OnStop      func() error
+	Log         *ProxyLog
 }
 
-// proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
-func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (func() error, error) {
+// ProxyLog streams the proxy's logs through Writer; Colored tints each line per tinyproxy
+// level, and Stop closes when the stream ends — the foreground proxy exits on its own
+type ProxyLog struct {
+	Writer  io.Writer
+	Colored bool
+	Stop    chan struct{}
+}
+
+// Log streams logs through Writer
+func (pl ProxyLog) Log(logs io.ReadCloser) error {
+	w := pl.Writer
+	if pl.Colored {
+		w = proxyColorWriter(w)
+	}
+	_, err := stdcopy.StdCopy(w, w, logs)
+	if pl.Stop != nil {
+		close(pl.Stop)
+	}
+	return err
+}
+
+// proxyStart brings the egress wall up and streams its logs via Log in a goroutine.
+func proxyStart(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
 	var joiner klean.Joiner
 
 	ensureNetwork(ctxD)
@@ -91,22 +114,20 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	if o.OnStop != nil {
 		joiner.Push("on stop", o.OnStop)
 	}
-	logDone := streamLogs(logFn, logs)
+	logDone := streamLogs(o.Log, logs)
 	return func() error {
 		return errors.Join(joiner.Run(), <-logDone)
 	}, nil
 }
 
 // Proxy runs the tinyproxy egress container in the foreground (docker run --rm),
-// streaming its logs until interrupted. Blocks until SIGINT/SIGTERM stops it.
+// streaming its logs through Log until interrupted: SIGINT/SIGTERM, or Log.Stop closing —
+// the proxy exits on its own. Log.Stop must be set: a stopped proxy would hang the wait.
 func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
-	// proxy exits on its own (logFn closes stop).
-	stop := make(chan struct{})
-	clean, err := proxyStart(ctxD, o, func(logs io.ReadCloser) error {
-		_, err := stdcopy.StdCopy(proxyColorWriter(os.Stdout), proxyColorWriter(os.Stderr), logs)
-		close(stop)
-		return err
-	})
+	if o.Log == nil || o.Log.Stop == nil {
+		return errors.New("Log.Stop is required: the foreground wait ends when the log stream does")
+	}
+	clean, err := proxyStart(ctxD, o)
 	defer log.Defer("proxy clean", clean)
 	if err != nil {
 		return err
@@ -118,7 +139,7 @@ func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	defer signal.Stop(sig)
 	select {
 	case <-sig:
-	case <-stop:
+	case <-o.Log.Stop:
 	}
 	return nil
 }
@@ -162,12 +183,12 @@ func tearIdleNetwork(ctxD *dock.CtxD) error {
 	return err
 }
 
-// streamLogs streams logs through logFn in a goroutine and returns a channel yielding
+// streamLogs streams logs through l in a goroutine and returns a channel yielding
 // its error when the stream ends.
-func streamLogs(logFn func(logs io.ReadCloser) error, logs io.ReadCloser) chan error {
+func streamLogs(l *ProxyLog, logs io.ReadCloser) chan error {
 	logDone := make(chan error)
 	go func() {
-		logErr := logFn(logs)
+		logErr := l.Log(logs)
 		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
 			logErr = nil
 		}

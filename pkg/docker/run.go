@@ -2,16 +2,12 @@ package docker
 
 import (
 	"context"
-	"io"
-	"os"
 
 	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 const proxyPort = "8888"
@@ -31,9 +27,9 @@ type RunOptions struct {
 	Env map[string]string // container env minus the proxy vars
 	Cmd []string          // command the entrypoint execs; nil uses the image default (shell)
 
-	Proxy        ProxyOptions // HostDir of the auto-started proxy's configs
-	ProxyLogPath string       // file the auto-started proxy's logs are appended to
-	NoProxy      bool         // run on plain bridge networking: no proxy network or env
+	// Proxy is the auto-started egress wall's options; nil runs on plain bridge
+	// networking: no proxy network or env
+	Proxy *ProxyOptions
 }
 
 // RunHostOptions is everything mounted into the devbox: the workspace, the host dirs
@@ -56,7 +52,7 @@ func runConfig(hostOptions RunOptions) *container.Config {
 		AttachStdin:  true,
 		AttachStdout: true,
 		AttachStderr: true,
-		Env:          envString(hostOptions.Env, hostOptions.NoProxy),
+		Env:          envString(hostOptions.Env, hostOptions.Proxy == nil),
 	}
 }
 
@@ -65,9 +61,9 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		return nil, err
 	}
 
-	// The egress wall network by default; --no-proxy runs on the engine's default bridge instead.
+	// The egress wall network by default; a nil proxy runs on the engine's default bridge instead.
 	networkMode := container.NetworkMode(networkName)
-	if hostOptions.NoProxy {
+	if hostOptions.Proxy == nil {
 		networkMode = "bridge"
 	}
 	return &container.HostConfig{
@@ -86,7 +82,7 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 // and returns its exit code. proxyStart brings the proxy up for the session (see AutoProxy);
 // the container is removed on return, before the session's proxy is torn down.
 func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
-	if hostOptions.NoProxy {
+	if hostOptions.Proxy == nil {
 		return runDevbox(ctxD, hostOptions)
 	}
 
@@ -101,16 +97,7 @@ func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 }
 
 func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
-	file, err := os.OpenFile(hostOptions.ProxyLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, ioutil.File)
-	if err != nil {
-		return 0, err
-	}
-	defer log.Defer("close log file", file.Close)
-
-	clean, err := proxyStart(ctxD, hostOptions.Proxy, func(logs io.ReadCloser) error {
-		_, logErr := stdcopy.StdCopy(file, file, logs)
-		return logErr
-	})
+	clean, err := proxyStart(ctxD, *hostOptions.Proxy)
 	defer log.Defer("proxy clean", clean)
 	if err != nil {
 		return 0, err
@@ -119,7 +106,7 @@ func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 }
 
 func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
-	if !hostOptions.NoProxy {
+	if hostOptions.Proxy != nil {
 		_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", egressName, nil) // silently ignore errors
 	}
 

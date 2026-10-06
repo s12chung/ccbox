@@ -6,6 +6,8 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
 
@@ -45,24 +47,34 @@ type RunModes struct {
 // RunOptions renders the run's full docker.RunOptions
 func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error, error) {
 	noProxy := rm.cfg.NoProxyFor(runFlags.Modes.VNC, runFlags.Modes.NoProxy)
+	var joiner klean.Joiner
 	hostOptions, clean, err := rm.HostOptions(runFlags.Modes.VNC, noProxy)
+	joiner.Push("clean run files", clean)
 	if err != nil {
-		return docker.RunOptions{}, clean, err
+		return docker.RunOptions{}, joiner.Run, err
 	}
 	env, err := rm.Env(runFlags.Modes.VNC)
 	if err != nil {
-		return docker.RunOptions{}, clean, err
+		return docker.RunOptions{}, joiner.Run, err
 	}
 
+	var proxyOptions *docker.ProxyOptions
+	if !noProxy {
+		logFile, err := os.OpenFile(proxyLogPath(rm.userDir), os.O_APPEND|os.O_CREATE|os.O_WRONLY, ioutil.File)
+		if err != nil {
+			return docker.RunOptions{}, joiner.Run, err
+		}
+		joiner.Push("close proxy log file", logFile.Close)
+
+		proxyOptions = NewProxyMap(rm.cfg).Options(&docker.ProxyLog{Writer: logFile})
+	}
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,
 		Tag:            variantTag(runFlags.Tag, runFlags.Modes.VNC),
 		Env:            env,
 		Cmd:            rm.cmd(runFlags),
-		Proxy:          NewProxyMap(rm.cfg).Options(),
-		ProxyLogPath:   proxyLogPath(rm.userDir),
-		NoProxy:        noProxy,
-	}, clean, nil
+		Proxy:          proxyOptions,
+	}, joiner.Run, nil
 }
 
 // HostOptions renders the run's host options for docker.Run; vnc mounts the
