@@ -58,10 +58,10 @@ func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error
 		RunHostOptions: hostOptions,
 		Tag:            variantTag(runFlags.Tag, runFlags.Modes.VNC),
 		Env:            env,
-		Cmd:            rm.Cmd(runFlags),
+		Cmd:            rm.cmd(runFlags),
 		Proxy:          NewProxyMap(rm.cfg).Options(),
-		ProxyLogPath:   ProxyLogPath(rm.userDir),
-		NoProxy:        rm.cfg.NoProxyFor(runFlags.Modes.VNC, runFlags.Modes.NoProxy),
+		ProxyLogPath:   proxyLogPath(rm.userDir),
+		NoProxy:        noProxy,
 	}, clean, nil
 }
 
@@ -127,7 +127,7 @@ func hostTerminalEnv() map[string]string {
 	return env
 }
 
-// Cmd maps the run flags to the CLI's session launch argv.
-func (rm *RunMap) Cmd(flags RunFlags) []string {
+// cmd maps the run flags to the CLI's session launch argv.
+func (rm *RunMap) cmd(flags RunFlags) []string {
 	return rm.cfg.CLI().SessionCmd(flags.Modes.Shell, flags.Modes.Continue, flags.Modes.Resume, flags.Args)
 }

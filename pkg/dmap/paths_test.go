@@ -12,7 +12,7 @@ func TestCLIDataBindPath(t *testing.T) {
 }
 
 func TestProxyLogPath(t *testing.T) {
-	assert.Equal(t, "/home/me/.ccbox/proxy.log", ProxyLogPath("/home/me/.ccbox"))
+	assert.Equal(t, "/home/me/.ccbox/proxy.log", proxyLogPath("/home/me/.ccbox"))
 }
 
 func TestWorkspaceMount(t *testing.T) {

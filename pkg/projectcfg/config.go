@@ -66,19 +66,6 @@ type Config struct {
 	expandedAllowlist     []string
 }
 
-// VNC is the desktop's session: the GUI app it installs and launches plus its
-// VNC config.
-type VNC struct {
-	// NoProxy overrides the top-level no_proxy on a vnc run; nil inherits it
-	NoProxy *bool `yaml:"no_proxy,omitempty"`
-	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
-	GUIAppName string `yaml:"gui_app,omitempty"`
-	// Config is the desktop's VNC session config: the box's WxH, for clients that
-	// cannot resize themselves (e.g. macOS Screen Sharing); nil inherits the
-	// desktop script's own resolution fallback
-	Config *pkginfo.VNCConfig `yaml:"config"`
-}
-
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Config]().
 		NotNil("CLIName").
@@ -102,6 +89,22 @@ func init() {
 			},
 			"Allowlist": {firm.Elems[[]string](firmrule.DomainOrAlias(allowlistAliases))},
 		}))
+}
+
+// VNC is the desktop's session: the GUI app it installs and launches plus its
+// VNC config.
+type VNC struct {
+	// NoProxy overrides the top-level no_proxy on a vnc run; nil inherits it
+	NoProxy *bool `yaml:"no_proxy,omitempty"`
+	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
+	GUIAppName string `yaml:"gui_app,omitempty"`
+	// Config is the desktop's VNC session config: the box's WxH, for clients that
+	// cannot resize themselves (e.g. macOS Screen Sharing); nil inherits the
+	// desktop script's own resolution fallback
+	Config *pkginfo.VNCConfig `yaml:"config"`
+}
+
+func init() {
 	firm.MustRegisterType(firm.NewDefinition[VNC]().
 		Validates(firm.RuleMap{
 			"GUIAppName": {rule.OneOf[string]{

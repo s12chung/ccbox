@@ -235,9 +235,9 @@ func TestRunMap_Env_DefaultsVNC(t *testing.T) {
 func TestRunMap_Cmd(t *testing.T) {
 	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
 
-	assert.Equal(t, []string{"claude"}, rm.Cmd(RunFlags{}))
-	assert.Nil(t, rm.Cmd(RunFlags{Modes: RunModes{Shell: true}}), "shell runs the image default instead")
-	assert.Equal(t, []string{"claude", "-c"}, rm.Cmd(RunFlags{Modes: RunModes{Continue: true}}))
+	assert.Equal(t, []string{"claude"}, rm.cmd(RunFlags{}))
+	assert.Nil(t, rm.cmd(RunFlags{Modes: RunModes{Shell: true}}), "shell runs the image default instead")
+	assert.Equal(t, []string{"claude", "-c"}, rm.cmd(RunFlags{Modes: RunModes{Continue: true}}))
 	assert.Equal(t, []string{"claude", "--resume", "sess"},
-		rm.Cmd(RunFlags{Args: []string{"sess"}, Modes: RunModes{Resume: true}}))
+		rm.cmd(RunFlags{Args: []string{"sess"}, Modes: RunModes{Resume: true}}))
 }
