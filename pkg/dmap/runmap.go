@@ -5,6 +5,7 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
+	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
@@ -66,7 +67,7 @@ func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error
 		}
 		joiner.Push("close proxy log file", logFile.Close)
 
-		proxyOptions = NewProxyMap(rm.cfg).Options(&docker.ProxyLog{Writer: logFile})
+		proxyOptions = NewProxyMap(rm.cfg).Options(&tinyproxy.Log{Writer: logFile})
 	}
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,

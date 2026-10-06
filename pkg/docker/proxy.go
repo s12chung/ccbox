@@ -7,18 +7,16 @@ import (
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
-	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/util/klean"
-	"github.com/s12chung/ccbox/pkg/util/prompt"
 )
 
 // The egress proxy image and the in-container dir its configs are served from: the
@@ -37,28 +35,7 @@ type ProxyOptions struct {
 	HostDir     string
 	BeforeStart func() error
 	OnStop      func() error
-	Log         *ProxyLog
-}
-
-// ProxyLog streams the proxy's logs through Writer; Colored tints each line per tinyproxy
-// level, and Stop closes when the stream ends — the foreground proxy exits on its own
-type ProxyLog struct {
-	Writer  io.Writer
-	Colored bool
-	Stop    chan struct{}
-}
-
-// Log streams logs through Writer
-func (pl ProxyLog) Log(logs io.ReadCloser) error {
-	w := pl.Writer
-	if pl.Colored {
-		w = proxyColorWriter(w)
-	}
-	_, err := stdcopy.StdCopy(w, w, logs)
-	if pl.Stop != nil {
-		close(pl.Stop)
-	}
-	return err
+	Log         *tinyproxy.Log
 }
 
 // proxyStart brings the egress wall up and streams its logs via Log in a goroutine.
@@ -144,25 +121,6 @@ func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	return nil
 }
 
-func proxyColorWriter(w io.Writer) io.Writer { return prompt.NewColorWriter(w, tinyproxyLevelColor) }
-
-var tinyproxyLevelColors = map[string]prompt.Color{
-	"CRITICAL": prompt.ColorBoldRed,
-	"ERROR":    prompt.ColorRed,
-	"WARNING":  prompt.ColorYellow,
-	"NOTICE":   prompt.ColorGreen,
-	"CONNECT":  prompt.ColorCyan,
-	"INFO":     prompt.ColorDim,
-}
-
-func tinyproxyLevelColor(line string) prompt.Color {
-	fields := strings.Fields(line)
-	if len(fields) == 0 {
-		return ""
-	}
-	return tinyproxyLevelColors[fields[0]]
-}
-
 // ensureNetwork creates the internal proxy network if absent. Like the Makefile's
 // `docker network create ... || true`, a pre-existing network is not an error.
 func ensureNetwork(ctxD *dock.CtxD) {
@@ -185,10 +143,10 @@ func tearIdleNetwork(ctxD *dock.CtxD) error {
 
 // streamLogs streams logs through l in a goroutine and returns a channel yielding
 // its error when the stream ends.
-func streamLogs(l *ProxyLog, logs io.ReadCloser) chan error {
+func streamLogs(l *tinyproxy.Log, logs io.ReadCloser) chan error {
 	logDone := make(chan error)
 	go func() {
-		logErr := l.Log(logs)
+		logErr := l.Stream(logs)
 		if errors.Is(logErr, net.ErrClosed) { // cleanup closed the stream; not a real failure
 			logErr = nil
 		}

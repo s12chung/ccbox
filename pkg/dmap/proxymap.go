@@ -21,7 +21,7 @@ type ProxyMap struct {
 func NewProxyMap(cfg *projectcfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 
 // Options renders the egress wall's docker.ProxyOptions, its logs streaming through log
-func (pm *ProxyMap) Options(log *docker.ProxyLog) *docker.ProxyOptions {
+func (pm *ProxyMap) Options(log *tinyproxy.Log) *docker.ProxyOptions {
 	proxyConfigMap := map[string][]byte{
 		tinyproxy.ConfFile:     tinyproxy.MustConf(),
 		pkginfo.ProxyAllowFile: proxy.Render(pm.cfg.AllowlistExpanded()),
