@@ -12,11 +12,19 @@ import (
 	"github.com/s12chung/firm/rule"
 )
 
-// cliName is a filesystem-safe CLI name: no separators, no leading dot
-var cliName = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)}
+const (
+	// EnvVar is the container env var carrying a coding CLI's PkgInfo JSON.
+	EnvVar = "CLI_PKGINFO"
 
-// EnvVar is the container env var carrying a coding CLI's PkgInfo JSON.
-const EnvVar = "CLI_PKGINFO"
+	// ProxyMount is the proxy's live dir's devbox bind: the host handles the allow file
+	// within it, and the devbox trusts the bind
+	ProxyMount = "/etc/ccbox/proxy"
+	// ProxyAllowFile is the proxy's rendered allow file within ProxyMount — also the
+	// name of the proxy container's tinyproxy filter file.
+	ProxyAllowFile = "allow.txt"
+	// ProxyAllowPath is ProxyAllowFile's path in the devbox: the allowlist command's input.
+	ProxyAllowPath = ProxyMount + "/" + ProxyAllowFile
+)
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or
 // ReleaseURL. It travels to the container as the CLI_PKGINFO env JSON, and is
@@ -31,7 +39,7 @@ func init() {
 	firm.MustRegisterType(firm.NewDefinition[PkgInfo]().
 		ValidatesSelf(rule.OneNotNil{Fields: []string{"Npm", "ReleaseURL"}}).
 		Validates(firm.RuleMap{
-			"Name":       {cliName},
+			"Name":       {rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9._-]*$`)}},
 			"Npm":        {firm.Backed()},
 			"ReleaseURL": {firm.Backed()},
 		}))

@@ -37,6 +37,13 @@ func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 	return NewRunMap(t.TempDir(), cfg)
 }
 
+func TestProxyAllowBinds(t *testing.T) {
+	bind := docker.NewBind(proxyAllowHostDir(), pkginfo.ProxyMount).ReadOnly()
+
+	assert.Equal(t, []docker.Mount{bind}, proxyAllowBinds(false))
+	assert.Empty(t, proxyAllowBinds(true))
+}
+
 func TestVolumes(t *testing.T) {
 	// sorted for a deterministic spec; global marks a volume shared by every project
 	assert.Equal(t, []docker.Mount{

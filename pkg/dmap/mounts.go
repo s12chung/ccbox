@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
+	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
@@ -45,6 +46,7 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(projectcfg.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
+		proxyAllowBinds(noProxy),
 		volumes(globalVolumes(serveVNC), true),
 		volumes(cacheVolumeNames(projectDir), false),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
@@ -53,6 +55,13 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 		cliDataBinds(rm.userDir, c),
 		cliScratchBind(scratchBind.HostPath, scratchBind.ContainerPath),
 	), clean, nil
+}
+
+func proxyAllowBinds(noProxy bool) []docker.Mount {
+	if noProxy {
+		return nil
+	}
+	return []docker.Mount{docker.NewBind(proxyAllowHostDir(), pkginfo.ProxyMount).ReadOnly()}
 }
 
 // volumes renders a name→dir map as volume binds under the given scope, sorted for a

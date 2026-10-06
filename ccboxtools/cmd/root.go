@@ -32,4 +32,4 @@ func Execute() int {
 	return 0
 }
 
-func init() { rootCmd.AddCommand(updateCmd, entrypointCmd, guiappCmd) }
+func init() { rootCmd.AddCommand(updateCmd, entrypointCmd, guiappCmd, allowlistCmd) }

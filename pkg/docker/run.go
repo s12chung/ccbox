@@ -2,7 +2,6 @@ package docker
 
 import (
 	"context"
-	"errors"
 	"io"
 	"os"
 
@@ -108,16 +107,15 @@ func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	}
 	defer log.Defer("close log file", file.Close)
 
-	cleanup, err := proxyStart(ctxD, hostOptions.Proxy, func(logs io.ReadCloser) error {
+	clean, err := proxyStart(ctxD, hostOptions.Proxy, func(logs io.ReadCloser) error {
 		_, logErr := stdcopy.StdCopy(file, file, logs)
 		return logErr
 	})
+	defer log.Defer("proxy clean", clean)
 	if err != nil {
 		return 0, err
 	}
-
-	code, runErr := runDevbox(ctxD, hostOptions)
-	return code, errors.Join(runErr, cleanup())
+	return runDevbox(ctxD, hostOptions)
 }
 
 func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {

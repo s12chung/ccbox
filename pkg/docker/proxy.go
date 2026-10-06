@@ -31,30 +31,27 @@ const (
 	tinyproxyDir = "/etc/tinyproxy"
 )
 
-// ProxyOptions configures the egress wall: Config holds the tinyproxy configs copied
-// into tinyproxyDir, and Overrides seeds files (the generated allow.txt) into them.
+// ProxyOptions configures the egress wall: ConfigFS and ConfigFileMap
+// are tar-ed and extracted at tinyproxyDir, and OnStart/OnStop run once the wall
+// is up/torn down
 type ProxyOptions struct {
-	Config    fs.FS
-	Overrides map[string][]byte
+	ConfigFS      fs.FS
+	ConfigFileMap map[string][]byte
+	OnStart       func() error
+	OnStop        func() error
 }
 
 // proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
 func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) error) (func() error, error) {
-	var err error
 	var joiner klean.Joiner
-	defer func() {
-		if err != nil {
-			log.Defer("teardown wall", joiner.Run)
-		}
-	}()
 
 	ensureNetwork(ctxD)
 	joiner.Push("remove wall network", func() error {
 		return tearIdleNetwork(ctxD)
 	})
 
-	if err = dock.EnsureImageExists(ctxD, proxyImage); err != nil {
-		return nil, err
+	if err := dock.EnsureImageExists(ctxD, proxyImage); err != nil {
+		return joiner.Run, err
 	}
 	// Clear any stale egress container so the fixed name is free.
 	_ = ctxD.D.ContainerRemove(ctxD.Ctx, egressName, container.RemoveOptions{Force: true})
@@ -64,22 +61,22 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 		&container.HostConfig{NetworkMode: networkName},
 		nil, nil, egressName)
 	if err != nil {
-		return nil, err
+		return joiner.Run, err
 	}
 	id := resp.ID
 	joiner.Push("remove container", func() error {
 		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
-	configTar, err := tarutil.ToTar(o.Config, o.Overrides)
+	configTar, err := tarutil.ToTar(o.ConfigFS, o.ConfigFileMap)
 	if err != nil {
-		return nil, err
+		return joiner.Run, err
 	}
 	if err = ctxD.D.CopyToContainer(ctxD.Ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
-		return nil, err
+		return joiner.Run, err
 	}
 	if err = ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
-		return nil, err
+		return joiner.Run, err
 	}
 	joiner.Push("container stop", func() error {
 		timeout := 5
@@ -88,10 +85,18 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 
 	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
 	if err != nil {
-		return nil, err
+		return joiner.Run, err
 	}
 	joiner.Push("close logs", logs.Close)
 
+	if o.OnStart != nil {
+		if err := o.OnStart(); err != nil {
+			return joiner.Run, err
+		}
+	}
+	if o.OnStop != nil {
+		joiner.Push("on stop", o.OnStop)
+	}
 	logDone := streamLogs(logFn, logs)
 	return func() error {
 		return errors.Join(joiner.Run(), <-logDone)
@@ -108,6 +113,7 @@ func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 		close(stop)
 		return err
 	})
+	defer log.Defer("proxy clean", clean)
 	if err != nil {
 		return err
 	}
@@ -120,7 +126,7 @@ func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	case <-sig:
 	case <-stop:
 	}
-	return clean()
+	return nil
 }
 
 func proxyColorWriter(w io.Writer) io.Writer { return prompt.NewColorWriter(w, tinyproxyLevelColor) }
