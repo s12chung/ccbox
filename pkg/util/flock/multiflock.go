@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 const (

@@ -14,7 +14,6 @@ import (
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -28,6 +27,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 // ContainerHome is the container user's home: read_only_binds' ~/ mounts sit under it

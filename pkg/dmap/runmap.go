@@ -3,13 +3,13 @@ package dmap
 import (
 	"os"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 // envGHToken passes the host's GitHub token through to the container for gh.

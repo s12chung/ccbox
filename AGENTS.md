@@ -12,9 +12,11 @@ The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang fi
 
 This curated directory will help you discover common patterns (`pkg/util` and `pkg/kit`) and navigate the project:
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/*`) plus the prebuilt `dist/ccboxtools` binary into the binary, then hands off to `cmd`.
-- **`toolsbuild/`** — `go run` command that builds `dist/ccboxtools`
-- **`ccboxtools/`** — the container's entrypoint — it verifies the container security and installs and maintains the harness CLI
-  - `pkg/util/log` — log helpers and abstraction, never use `fmt.Print*`
+- **`tools/`** — everything that builds and ships the container's tool binary (`dist/ccboxtools`)
+  - `ccboxtools/` — the container's entrypoint — it verifies the container security and installs and maintains the harness CLI (nested Go module, replace'd in go.mod)
+    - `pkg/util/log` — log helpers and abstraction, never use `fmt.Print*`
+  - `toolsbuild/` — `go run` command that builds `dist/ccboxtools`
+  - `build/` — the canonical build of the `ccboxtools` module, shared by `toolsbuild` and `ccbox doctor tools`
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
@@ -32,7 +34,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
   - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:
-  - `make build` — builds `dist/ccboxtools` via `toolsbuild/`, verifies it with `doctor tools`, then builds the `ccbox` binary to `/tmp/ccbox` in the **container**
+  - `make build` — builds `dist/ccboxtools` via `tools/toolsbuild`, verifies it with `doctor tools`, then builds the `ccbox` binary to `/tmp/ccbox` in the **container**
   - `make lint` - all linting
   - `make test` — runs all linting and tests that are possible without a Docker daemon
 
@@ -52,4 +54,4 @@ For tests:
 
 ### Linting
 
-`golangci-lint` is very strict. When encountering `bodyclose`, use this pattern `defer func() { log.WarnErr("intent", resp.Body.Close()) }()`, where `log` is `ccboxtools/pkg/util/log`.
+`golangci-lint` is very strict. When encountering `bodyclose`, use this pattern `defer func() { log.WarnErr("intent", resp.Body.Close()) }()`, where `log` is `tools/ccboxtools/pkg/util/log`.

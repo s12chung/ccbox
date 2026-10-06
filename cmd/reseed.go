@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 var reseedCmd = &cobra.Command{

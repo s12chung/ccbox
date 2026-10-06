@@ -5,7 +5,7 @@ package printutil
 import (
 	"strings"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // Section is one printed group: a header line, then its items bulleted under

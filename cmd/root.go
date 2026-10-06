@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
@@ -22,6 +21,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // Injected from main (package main can't be imported, so the embed FS comes in here).

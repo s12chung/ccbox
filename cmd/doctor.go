@@ -13,12 +13,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/provider"
-	"github.com/s12chung/ccbox/pkg/toolsbuild"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	toolsbuild "github.com/s12chung/ccbox/tools/build"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 var doctorCmd = &cobra.Command{
@@ -28,7 +28,7 @@ var doctorCmd = &cobra.Command{
 
 var doctorToolsCmd = &cobra.Command{
 	Use:    "tools",
-	Short:  "Check the embedded ccboxtools binary is a fresh build of ccboxtools/",
+	Short:  "Check the embedded ccboxtools binary is a fresh build of tools/ccboxtools/",
 	Hidden: true, // a maintainer command; runs at build time (see the Makefile)
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		embedded, err := fs.ReadFile(buildContext, "dist/ccboxtools")
@@ -94,7 +94,7 @@ func toolsGoarch(ctx context.Context) (string, error) {
 }
 
 // validateTools byte-compares the embedded binary against a fresh canonical
-// build (pkg/toolsbuild) — the compiler is the differ, so any drift in the
+// build (tools/build) — the compiler is the differ, so any drift in the
 // tree, the toolchain or the flags is caught by construction
 func validateTools(embedded []byte, goarch string, rebuild func(goarch string) ([]byte, error)) error {
 	fresh, err := rebuild(goarch)
@@ -102,7 +102,7 @@ func validateTools(embedded []byte, goarch string, rebuild func(goarch string) (
 		return err
 	}
 	if !bytes.Equal(embedded, fresh) {
-		log.Errorf("embedded dist/ccboxtools doesn't match a fresh linux/%s build of ccboxtools/", goarch)
+		log.Errorf("embedded dist/ccboxtools doesn't match a fresh linux/%s build of tools/ccboxtools/", goarch)
 		return errors.New("stale dist/ccboxtools — run make")
 	}
 	return nil

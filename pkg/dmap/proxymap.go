@@ -3,13 +3,13 @@ package dmap
 import (
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/proxy"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/proxy"
 )
 
 // ProxyMap maps the project config and the egress wall configs to the docker pkg proxy options

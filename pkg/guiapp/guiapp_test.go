@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 func TestFor(t *testing.T) {

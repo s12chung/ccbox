@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 // stubSeedTreeFn swaps the seed step for a test double and returns a restore func.

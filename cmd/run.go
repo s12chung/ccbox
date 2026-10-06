@@ -6,7 +6,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap"
 	"github.com/s12chung/ccbox/pkg/docker"
@@ -14,6 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 var runModes dmap.RunModes

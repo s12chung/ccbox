@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/sharer"
 	"github.com/s12chung/ccbox/pkg/util/slug"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 // The tests pin PersistDir's own wiring — the paths it lands on and the seed it binds.

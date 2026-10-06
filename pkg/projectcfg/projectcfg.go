@@ -7,13 +7,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 const (

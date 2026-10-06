@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/proxy"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/proxy"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 func TestProxyMap_Options(t *testing.T) {

@@ -3,8 +3,8 @@ package cmd
 import (
 	"strings"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/util/uslice"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 func printPresentGuardMounts() {

@@ -8,13 +8,13 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
 	"github.com/s12chung/ccbox/pkg/util/uslice"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 var configCmd = &cobra.Command{

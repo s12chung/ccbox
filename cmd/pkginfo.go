@@ -3,7 +3,7 @@ package cmd
 import (
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 var pkginfoCmd = &cobra.Command{

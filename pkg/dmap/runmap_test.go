@@ -8,9 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
@@ -19,6 +16,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 func TestRunMap_RunOptions(t *testing.T) {

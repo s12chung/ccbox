@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 // tmpfsMasks maps each project-relative dir to its masked container path.

@@ -4,7 +4,7 @@ TAG ?= s12chung/ccbox:latest
 GOARCH ?= $(shell go env GOARCH)
 
 build:
-	go run ./toolsbuild -goarch $(GOARCH) -o dist/ccboxtools
+	go run ./tools/toolsbuild -goarch $(GOARCH) -o dist/ccboxtools
 	go build -o $(BIN)
 	GOARCH=$(GOARCH) $(BIN) doctor tools
 
@@ -14,9 +14,9 @@ lint: lint.terms
 	find pkg/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null
 
-	go run ./toolsbuild -goarch $(GOARCH) -o dist/ccboxtools # needed to build for lint
+	go run ./tools/toolsbuild -goarch $(GOARCH) -o dist/ccboxtools # needed to build for lint
 	golangci-lint run --fix $(TEST)
-	cd ccboxtools && golangci-lint run --fix $(TEST)
+	cd tools/ccboxtools && golangci-lint run --fix $(TEST)
 
 lint.terms:
 	@out=$$(grep -rnE '(_|\b)[Ww][Aa][Ll][Ll]([Ee][Dd]|[Ss])?(_|\b)|[a-z]Wall' \
@@ -29,8 +29,8 @@ ci: lint test
 test.all: test test.docker
 
 test: lint
-	cd ccboxtools && go test -race -count=2 ./pkg/util/flock ./pkg/install # -race -count=2 for lock interplay
-	cd ccboxtools && go test ./...
+	cd tools/ccboxtools && go test -race -count=2 ./pkg/util/flock ./pkg/install # -race -count=2 for lock interplay
+	cd tools/ccboxtools && go test ./...
 	go test ./...
 
 # Manual: needs the built image + network egress, so it stays out of CI.

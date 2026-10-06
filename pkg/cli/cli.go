@@ -25,8 +25,6 @@ import (
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
@@ -34,6 +32,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/maputil"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // Load loads the cli set

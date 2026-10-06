@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 func TestXDGConfigDir(t *testing.T) {

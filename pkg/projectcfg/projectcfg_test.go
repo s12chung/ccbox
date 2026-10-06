@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -21,6 +19,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 // mkDirs creates the given project-relative dirs under dir, so presence-sensitive

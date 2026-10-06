@@ -7,7 +7,7 @@ import (
 	"io"
 	"io/fs"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // ToTar packs every file in src into an in-memory tar, skipping directories and

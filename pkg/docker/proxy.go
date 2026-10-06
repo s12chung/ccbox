@@ -13,10 +13,10 @@ import (
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/network"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/util/klean"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // The egress proxy image and the in-container dir its configs are served from: the

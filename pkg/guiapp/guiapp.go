@@ -8,7 +8,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 // GUIApp is a GUI app the image ships: its definition plus the egress wall

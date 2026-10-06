@@ -13,7 +13,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
@@ -22,6 +21,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/runid"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // Share drives the scratch's lifecycle for Real across concurrent runs: the first
