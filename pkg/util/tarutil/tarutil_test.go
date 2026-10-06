@@ -39,23 +39,8 @@ func TestToTar(t *testing.T) {
 		"sub/b.txt": {Data: []byte("B")}, // nested → exercises dir skipping
 	}
 
-	r, err := ToTar(src, nil)
+	r, err := ToTar(src)
 	require.NoError(t, err)
 
 	assert.Equal(t, map[string]string{"a.txt": "A", "sub/b.txt": "B"}, tarEntries(t, r))
-}
-
-func TestToTarOverrides(t *testing.T) {
-	src := fstest.MapFS{
-		"a.txt": {Data: []byte("A")},
-	}
-	overrides := map[string][]byte{
-		"a.txt": []byte("OVERRIDDEN"), // replaces src
-		"c.txt": []byte("C"),          // adds
-	}
-
-	r, err := ToTar(src, overrides)
-	require.NoError(t, err)
-
-	assert.Equal(t, map[string]string{"a.txt": "OVERRIDDEN", "c.txt": "C"}, tarEntries(t, r))
 }

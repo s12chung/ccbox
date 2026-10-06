@@ -114,7 +114,12 @@ func TestSafeSymlink(t *testing.T) {
 	}
 }
 
-func TestSafeWriteFile(t *testing.T) {
+func TestSafeWriteFile(t *testing.T)   { testWriteFile(t, SafeWriteFile) }
+func TestAtomicWriteFile(t *testing.T) { testWriteFile(t, AtomicWriteFile) }
+
+// testWriteFile runs the writers' shared contract: File perms, parent-dir creation and
+// overwrite, no leftovers in the target dir
+func testWriteFile(t *testing.T, write func(path string, body []byte) error) {
 	tests := []struct {
 		name       string
 		setup      func(t *testing.T, dir string) string // writes the pre-state, returns the path to write
@@ -153,7 +158,7 @@ func TestSafeWriteFile(t *testing.T) {
 			dir := t.TempDir()
 			path := tt.setup(t, dir)
 
-			err := SafeWriteFile(path, []byte(tt.body))
+			err := write(path, []byte(tt.body))
 			if tt.err {
 				assert.Error(t, err)
 				return
@@ -166,15 +171,37 @@ func TestSafeWriteFile(t *testing.T) {
 
 			file, err := os.Stat(path)
 			require.NoError(t, err)
-			assert.Equal(t, File, file.Mode().Perm())
+			assert.Equal(t, File, file.Mode().Perm(), "the temp file's 0600 does not leak")
 
 			if tt.createdDir != "" {
 				created, err := os.Stat(filepath.Join(dir, tt.createdDir))
 				require.NoError(t, err)
 				assert.Equal(t, Dir, created.Mode().Perm())
 			}
+
+			// no temp file is left behind for a globbing reader to trip on
+			entries, err := os.ReadDir(filepath.Dir(path))
+			require.NoError(t, err)
+			assert.Len(t, entries, 1, "only the written file remains")
 		})
 	}
+}
+
+func TestClearDir(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "dir")
+
+	// a missing dir is already clean
+	require.NoError(t, ClearDir(dir))
+
+	require.NoError(t, SafeWriteFile(filepath.Join(dir, "file"), nil))
+	require.NoError(t, SafeWriteFile(filepath.Join(dir, "sub/nested"), nil))
+
+	require.NoError(t, ClearDir(dir))
+
+	require.True(t, Present(dir), "the dir itself stays")
+	entries, err := os.ReadDir(dir)
+	require.NoError(t, err)
+	assert.Empty(t, entries)
 }
 
 func TestExpandHome(t *testing.T) {

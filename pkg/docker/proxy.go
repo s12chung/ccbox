@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"io"
-	"io/fs"
 	"net"
 	"os"
 	"os/signal"
@@ -20,25 +19,23 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
-	"github.com/s12chung/ccbox/pkg/util/tarutil"
 )
 
-// The egress proxy image and the in-container dir its configs are copied into.
-// Pinned by digest: the wall is a security boundary, so it must not move on its
-// own — bump this deliberately to pick up upstream patches.
+// The egress proxy image and the in-container dir its configs are served from: the
+// live host dir is bound there read-only. Pinned by digest: the wall is a security
+// boundary, so it must not move on its own — bump this deliberately to pick up
+// upstream patches.
 const (
 	proxyImage   = "kalaksi/tinyproxy@sha256:b534ce213f2c88c30aea409935ca7a0af19ddf515dd0f96196e8e07f02a5ca36"
 	tinyproxyDir = "/etc/tinyproxy"
 )
 
-// ProxyOptions configures the egress wall: ConfigFS and ConfigFileMap
-// are tar-ed and extracted at tinyproxyDir, and OnStart/OnStop run once the wall
-// is up/torn down
+// ProxyOptions configures the egress wall: BeforeStart seeds HostDir — bound read-only
+// at tinyproxyDir — just before the wall starts, and OnStop runs once the wall is torn down
 type ProxyOptions struct {
-	ConfigFS      fs.FS
-	ConfigFileMap map[string][]byte
-	OnStart       func() error
-	OnStop        func() error
+	HostDir     string
+	BeforeStart func() error
+	OnStop      func() error
 }
 
 // proxyStart brings the egress wall up and streams its logs via logFn in a goroutine.
@@ -56,9 +53,18 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	// Clear any stale egress container so the fixed name is free.
 	_ = ctxD.D.ContainerRemove(ctxD.Ctx, egressName, container.RemoveOptions{Force: true})
 
+	if o.BeforeStart != nil {
+		if err := o.BeforeStart(); err != nil {
+			return joiner.Run, err
+		}
+	}
+
 	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
 		&container.Config{Image: proxyImage},
-		&container.HostConfig{NetworkMode: networkName},
+		&container.HostConfig{
+			NetworkMode: networkName,
+			Binds:       mountSpecs([]Mount{NewBind(o.HostDir, tinyproxyDir).ReadOnly()}),
+		},
 		nil, nil, egressName)
 	if err != nil {
 		return joiner.Run, err
@@ -68,13 +74,6 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
 	})
 
-	configTar, err := tarutil.ToTar(o.ConfigFS, o.ConfigFileMap)
-	if err != nil {
-		return joiner.Run, err
-	}
-	if err = ctxD.D.CopyToContainer(ctxD.Ctx, id, tinyproxyDir, configTar, container.CopyToContainerOptions{}); err != nil {
-		return joiner.Run, err
-	}
 	if err = ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
 		return joiner.Run, err
 	}
@@ -89,11 +88,6 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	}
 	joiner.Push("close logs", logs.Close)
 
-	if o.OnStart != nil {
-		if err := o.OnStart(); err != nil {
-			return joiner.Run, err
-		}
-	}
 	if o.OnStop != nil {
 		joiner.Push("on stop", o.OnStop)
 	}
@@ -181,6 +175,13 @@ func streamLogs(logFn func(logs io.ReadCloser) error, logs io.ReadCloser) chan e
 		close(logDone)
 	}()
 	return logDone
+}
+
+// ProxyReload makes a running wall re-read its configs from HostDir. Tinyproxy reloads
+// on SIGUSR1 — never SIGHUP: with the image's foreground `-d`, SIGHUP is unhandled and
+// would kill the wall.
+func ProxyReload(ctxD *dock.CtxD) error {
+	return ctxD.D.ContainerKill(ctxD.Ctx, egressName, "USR1")
 }
 
 // ProxyClean removes the wall network. A missing network is already clean (not an error);

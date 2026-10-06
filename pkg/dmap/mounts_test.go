@@ -38,7 +38,7 @@ func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 }
 
 func TestProxyAllowBinds(t *testing.T) {
-	bind := docker.NewBind(proxyAllowHostDir(), pkginfo.ProxyMount).ReadOnly()
+	bind := docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly()
 
 	assert.Equal(t, []docker.Mount{bind}, proxyAllowBinds(false))
 	assert.Empty(t, proxyAllowBinds(true))

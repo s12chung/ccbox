@@ -10,14 +10,12 @@ import (
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/ccboxtools/pkg/proxy"
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/testutil"
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -51,14 +49,11 @@ func TestRunMap_RunOptions(t *testing.T) {
 	assert.Equal(t, env, options.Env)
 	assert.Equal(t, "dev:tag", options.Tag)
 	assert.Equal(t, []string{"claude"}, options.Cmd)
-	assert.NotNil(t, options.Proxy.OnStart)
+	assert.NotNil(t, options.Proxy.BeforeStart)
 	assert.NotNil(t, options.Proxy.OnStop)
-	options.Proxy.OnStart = nil
+	options.Proxy.BeforeStart = nil
 	options.Proxy.OnStop = nil
-	assert.Equal(t, docker.ProxyOptions{
-		ConfigFS:      tinyproxy.Config,
-		ConfigFileMap: map[string][]byte{pkginfo.ProxyAllowFile: proxy.Render(cfg.AllowlistExpanded())},
-	}, options.Proxy)
+	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir()}, options.Proxy)
 	assert.Equal(t, filepath.Join(userDir, "proxy.log"), options.ProxyLogPath)
 	assert.True(t, options.NoProxy)
 }
@@ -87,14 +82,11 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	for _, d := range guiapp.App.AllowDomains {
 		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the wall via the harness alias")
 	}
-	assert.NotNil(t, options.Proxy.OnStart)
+	assert.NotNil(t, options.Proxy.BeforeStart)
 	assert.NotNil(t, options.Proxy.OnStop)
-	options.Proxy.OnStart = nil
+	options.Proxy.BeforeStart = nil
 	options.Proxy.OnStop = nil
-	assert.Equal(t, docker.ProxyOptions{
-		ConfigFS:      tinyproxy.Config,
-		ConfigFileMap: map[string][]byte{pkginfo.ProxyAllowFile: proxy.Render(expanded)},
-	}, options.Proxy)
+	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir()}, options.Proxy)
 }
 
 func TestRunMap_HostOptions(t *testing.T) {
@@ -132,7 +124,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(home, ".ccbox", "codex"), "/home/ccbox/.codex"),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "persist", s), "/home/ccbox/.ccbox/persist"),
-		docker.NewBind(proxyAllowHostDir(), pkginfo.ProxyMount).ReadOnly(),
+		docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly(),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),
 		docker.NewVolume("ccbox"+s+"-gem-cache-default", "/home/ccbox/.gem"),
@@ -165,7 +157,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	defer func() { require.NoError(t, clean()) }()
 
 	assert.NotContains(t, hostOptions.Mounts,
-		docker.NewBind(proxyAllowHostDir(), pkginfo.ProxyMount).ReadOnly(),
+		docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly(),
 		"a no-proxy run has no proxy, so no allow-file bind")
 }
 

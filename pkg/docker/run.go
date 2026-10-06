@@ -31,7 +31,7 @@ type RunOptions struct {
 	Env map[string]string // container env minus the wall's proxy vars
 	Cmd []string          // command the entrypoint execs; nil uses the image default (shell)
 
-	Proxy        ProxyOptions // configs + generated allow.txt for an auto-started wall
+	Proxy        ProxyOptions // HostDir of an auto-started wall's configs
 	ProxyLogPath string       // file an auto-started wall's logs are appended to
 	NoProxy      bool         // run on plain bridge networking, no wall or proxy env
 }

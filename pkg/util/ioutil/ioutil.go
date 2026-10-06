@@ -7,6 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 )
 
 // Modes for the files and directories ccbox writes.
@@ -31,6 +33,56 @@ func SafeWriteFile(path string, body []byte) error {
 		return err
 	}
 	return os.WriteFile(path, body, File)
+}
+
+// AtomicWriteFile writes body at path with File perms via temp file + rename, creating
+// its parent dir when missing. A concurrent reader sees either the old or the new file,
+// never a partial or missing one.
+func AtomicWriteFile(path string, body []byte) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, Dir); err != nil {
+		return err
+	}
+
+	temp, err := os.CreateTemp(dir, filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer log.Defer("temp file close", temp.Close)
+	// a successful rename already moved the temp away: a missing temp is already clean
+	defer log.Defer("temp file removal", func() error {
+		err := os.Remove(temp.Name())
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	})
+
+	if _, err := temp.Write(body); err != nil {
+		return err
+	}
+	if err := temp.Chmod(File); err != nil { // CreateTemp makes it 0600 — unreadable to other uids
+		return err
+	}
+	return os.Rename(temp.Name(), path)
+}
+
+// ClearDir removes dir's contents, keeping the dir itself. A missing dir is already
+// clean.
+func ClearDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	for _, entry := range entries {
+		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SafeSymlink symlinks path to target, creating its parent dir when missing. The target

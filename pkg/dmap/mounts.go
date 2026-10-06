@@ -61,7 +61,7 @@ func proxyAllowBinds(noProxy bool) []docker.Mount {
 	if noProxy {
 		return nil
 	}
-	return []docker.Mount{docker.NewBind(proxyAllowHostDir(), pkginfo.ProxyMount).ReadOnly()}
+	return []docker.Mount{docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly()}
 }
 
 // volumes renders a name→dir map as volume binds under the given scope, sorted for a

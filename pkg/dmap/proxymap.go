@@ -1,9 +1,6 @@
 package dmap
 
 import (
-	"errors"
-	"io/fs"
-	"os"
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/ccboxtools/pkg/pkginfo"
@@ -25,28 +22,29 @@ func NewProxyMap(cfg *projectcfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} 
 
 // Options renders the egress wall's docker.ProxyOptions
 func (pm *ProxyMap) Options() docker.ProxyOptions {
-	allowFileContents := proxy.Render(pm.cfg.AllowlistExpanded())
+	proxyConfigMap := map[string][]byte{
+		tinyproxy.ConfFile:     tinyproxy.MustConf(),
+		pkginfo.ProxyAllowFile: proxy.Render(pm.cfg.AllowlistExpanded()),
+	}
 	return docker.ProxyOptions{
-		ConfigFS:      tinyproxy.Config,
-		ConfigFileMap: map[string][]byte{pkginfo.ProxyAllowFile: allowFileContents},
-		OnStart: func() error {
-			return ioutil.SafeWriteFile(proxyAllowHostPath(), allowFileContents)
-		},
-		OnStop: func() error {
-			err := os.Remove(proxyAllowHostPath())
-			if errors.Is(err, fs.ErrNotExist) {
-				return nil // a missing file is already clean
+		HostDir: proxyLiveDir(),
+		BeforeStart: func() error {
+			for name, body := range proxyConfigMap {
+				// atomically for reload
+				if err := ioutil.AtomicWriteFile(filepath.Join(proxyLiveDir(), name), body); err != nil {
+					return err
+				}
 			}
-			return err
+			return nil
 		},
+		// contents go, not the dir: a devbox may still bind it
+		OnStop: func() error { return ioutil.ClearDir(proxyLiveDir()) },
 	}
 }
 
-// proxyAllowHostDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy. proxyStart
-// writes the rendered allow bytes here at proxy start, and every devbox binds the dir
-// read-only for the allowlist command — a dir bind tracks the changing file as the
-// running proxy's current allowlist.
-func proxyAllowHostDir() string { return filepath.Join(userdir.Tmp(), "proxy") }
+// proxyLiveDir is the wall's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
+// the changing files as the running wall's current configs.
+func proxyLiveDir() string { return filepath.Join(userdir.Tmp(), "proxy") }
 
-// proxyAllowHostPath is the rendered allow file within proxyAllowHostDir
-func proxyAllowHostPath() string { return filepath.Join(proxyAllowHostDir(), pkginfo.ProxyAllowFile) }
+// proxyAllowPath is the rendered allow file within proxyLiveDir
+func proxyAllowPath() string { return filepath.Join(proxyLiveDir(), pkginfo.ProxyAllowFile) }
