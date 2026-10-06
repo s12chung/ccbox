@@ -56,7 +56,8 @@ type Config struct {
 
 	// projectDir anchors the masks' present-filters
 	projectDir string
-	// serveVNC is the loaded run mode: the GUI app's domains ride SetHarnessAlias's expansion only on it
+	// serveVNC is the resolved run mode — the --vnc flag or the vnc section's enabled:
+	// the GUI app's domains ride SetHarnessAlias's expansion only on it
 	serveVNC bool
 	// cache the DefaultsAlias expansions of raw lists and the read_only_binds' path resolutions
 	expandedTmpfsMasks    []string
@@ -94,6 +95,8 @@ func init() {
 // VNC is the desktop's session: the GUI app it installs and launches plus its
 // VNC config.
 type VNC struct {
+	// Enabled always runs with VNC served — the --vnc flag's config form
+	Enabled bool `yaml:"enabled,omitempty"`
 	// NoProxy overrides the top-level no_proxy on a vnc run; nil inherits it
 	NoProxy *bool `yaml:"no_proxy,omitempty"`
 	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
@@ -116,6 +119,9 @@ func init() {
 
 // ProjectDir is the project dir the config was loaded from
 func (c *Config) ProjectDir() string { return c.projectDir }
+
+// ServeVNC is the resolved run mode: the --vnc flag or the vnc section's enabled
+func (c *Config) ServeVNC() bool { return c.serveVNC }
 
 // CLI resolves the config's cli name to its cli.CLI; MustFor is
 // infallible for a loaded config

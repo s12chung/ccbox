@@ -18,6 +18,10 @@ import (
 
 var runModes dmap.RunModes
 
+// runVNC serves the desktop session (`--vnc`); Load resolves it with the vnc
+// section's enabled, so the runs ride projectConfig's resolved mode
+var runVNC bool
+
 // resumeArgs allows a single positional session name, and only alongside -r/--resume.
 func resumeArgs(_ *cobra.Command, args []string) error {
 	switch {
@@ -32,7 +36,7 @@ func resumeArgs(_ *cobra.Command, args []string) error {
 // run builds the image then runs the devbox container interactively behind the
 // egress wall. It is the root command's action — `ccbox` with no subcommand.
 func run(cmd *cobra.Command, args []string) error {
-	if err := build(cmd.Context(), runModes.VNC); err != nil {
+	if err := build(cmd.Context(), projectConfig.ServeVNC()); err != nil {
 		return err
 	}
 	defer printPresentGuardMounts()
@@ -70,7 +74,7 @@ func init() {
 	f.BoolVarP(&runModes.Resume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
 	f.BoolVar(&runModes.Shell, "shell", false, "drop into a shell instead of launching the harness CLI")
 	f.BoolVar(&runModes.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
-	f.BoolVar(&runModes.VNC, "vnc", false, "serve VNC at localhost:5900 (experimental)")
+	f.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental)")
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume", "shell")
 }
 

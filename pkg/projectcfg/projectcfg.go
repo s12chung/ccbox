@@ -96,7 +96,7 @@ func SeedUserConfig(cli string) (string, error) {
 }
 
 // Load reads the layerPaths, then overlays the CLI flags as the top layer, and validates
-func Load(projectDir string, flags Config, serveVNC bool) (*Config, error) {
+func Load(projectDir string, flags Config, vncFlag bool) (*Config, error) {
 	layers, err := yamlutil.ReadLayers[Config](layerPaths(projectDir))
 	if err != nil {
 		return nil, err
@@ -106,6 +106,6 @@ func Load(projectDir string, flags Config, serveVNC bool) (*Config, error) {
 		return nil, err
 	}
 	c.projectDir = projectDir
-	c.serveVNC = serveVNC
+	c.serveVNC = vncFlag || (c.VNC != nil && c.VNC.Enabled)
 	return &c, nil
 }

@@ -74,12 +74,12 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(t.TempDir(), cfg).RunOptions(RunFlags{Tag: "dev:tag", Modes: RunModes{VNC: true}})
+	options, clean, err := NewRunMap(t.TempDir(), cfg).RunOptions(RunFlags{Tag: "dev:tag"})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
-	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image")
+	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
 	assert.Nil(t, options.Proxy, "the vnc section's no_proxy rides through the resolution: no egress wall")
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
 	expanded := cfg.AllowlistExpanded()

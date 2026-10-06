@@ -65,7 +65,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 		var err error
-		projectConfig, err = projectcfg.Load(mustGetwd(), projectcfg.Config{CLIName: flagCLI}, runModes.VNC)
+		projectConfig, err = projectcfg.Load(mustGetwd(), projectcfg.Config{CLIName: flagCLI}, runVNC)
 		return err
 	},
 }

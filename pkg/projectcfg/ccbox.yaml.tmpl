@@ -8,6 +8,7 @@ no_proxy:{{yaml .NoProxy nil}}
 
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
+  # enabled: true # always runs with VNC served — the --vnc flag's config form
   # no_proxy: false # overrides no_proxy on --vnc run
   # gui_app: zcode # the GUI app's name; empty means none
 {{- if and .VNC .VNC.Config}}

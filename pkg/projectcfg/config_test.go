@@ -49,7 +49,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	c := Config{
 		CLIName:       new("claude"),
 		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: "zcode", NoProxy: new(true), Config: &pkginfo.VNCConfig{Resolution: "1280x1024"}},
+		VNC:           &VNC{GUIAppName: "zcode", Enabled: true, NoProxy: new(true), Config: &pkginfo.VNCConfig{Resolution: "1280x1024"}},
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
@@ -76,6 +76,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		NoProxy: true,         // a zero later layer keeps: a scalar can't be unset, only overridden
 		VNC: &VNC{ // per-field: the later layer's set fields win, its unset gui_app keeps the earlier's
 			GUIAppName: "zcode",
+			Enabled:    true,
 			NoProxy:    new(false),
 			Config:     &pkginfo.VNCConfig{Resolution: "1600x900"},
 		},
@@ -522,11 +523,22 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 
 		headlessConfig, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
+		assert.False(t, headlessConfig.ServeVNC())
 		assert.Equal(t, harnessDomains, headlessConfig.AllowlistExpanded())
 
 		vncConfig, err := Load(dir, Config{}, true)
 		require.NoError(t, err)
+		assert.True(t, vncConfig.ServeVNC())
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.AllowDomains), vncConfig.AllowlistExpanded())
+	})
+
+	t.Run("enabled rides the harness alias without the flag", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\nallowlist:\n  - ccbox-set-harness\n")
+
+		c, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		assert.True(t, c.ServeVNC())
+		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.AllowDomains), c.AllowlistExpanded())
 	})
 }
 
