@@ -80,7 +80,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
 	expanded := cfg.AllowlistExpanded()
 	for _, d := range guiapp.App.AllowDomains {
-		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the wall via the harness alias")
+		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the proxy via the harness alias")
 	}
 	assert.NotNil(t, options.Proxy.BeforeStart)
 	assert.NotNil(t, options.Proxy.OnStop)

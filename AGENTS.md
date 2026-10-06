@@ -6,9 +6,9 @@ You run inside the container defined at `Dockerfile`, and we often swap containe
 
 ### Key components
 The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang files map to `cmd/`, which talks to the Docker Engine SDK in-process. Commands:
-  - `ccbox` (no subcommand) — runs the devbox container interactively behind the wall, wiring the local terminal to the container's pty; launches the configured CLI by default (`--shell` for a plain shell, `--no-proxy` to skip the wall for direct egress). Maps to `cmd/run.go`.
-  - `ccbox proxy` — runs the `tinyproxy` egress wall in the foreground
-  - `ccbox config` — prints the effective .ccbox.yaml
+- `ccbox` (no subcommand) — runs the devbox container interactively behind the egress wall, wiring the local terminal to the container's pty; launches the configured CLI by default (`--shell` for a plain shell, `--no-proxy` to skip the proxy for direct egress). Maps to `cmd/run.go`.
+- `ccbox proxy` — runs the `tinyproxy` egress wall in the foreground
+- `ccbox config` — prints the effective .ccbox.yaml
 
 This curated directory will help you discover common patterns (`pkg/util` and `pkg/kit`) and navigate the project:
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/*`) plus the prebuilt `dist/ccboxtools` binary into the binary, then hands off to `cmd`.
@@ -18,7 +18,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
-  - `docker/` — the build/run/proxy lifecycle over the Docker SDK
+  - `docker/` — the build/run/proxy lifecycle over the Docker SDK. DOCKER ONLY, no host side state
   - `projectcfg/` — related to `ccbox` Config as described in the README
   - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins.
   - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage

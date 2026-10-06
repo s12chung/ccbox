@@ -28,12 +28,12 @@ type RunOptions struct {
 	RunHostOptions
 
 	Tag string
-	Env map[string]string // container env minus the wall's proxy vars
+	Env map[string]string // container env minus the proxy vars
 	Cmd []string          // command the entrypoint execs; nil uses the image default (shell)
 
-	Proxy        ProxyOptions // HostDir of an auto-started wall's configs
-	ProxyLogPath string       // file an auto-started wall's logs are appended to
-	NoProxy      bool         // run on plain bridge networking, no wall or proxy env
+	Proxy        ProxyOptions // HostDir of the auto-started proxy's configs
+	ProxyLogPath string       // file the auto-started proxy's logs are appended to
+	NoProxy      bool         // run on plain bridge networking: no proxy network or env
 }
 
 // RunHostOptions is everything mounted into the devbox: the workspace, the host dirs
@@ -82,9 +82,9 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	}, nil
 }
 
-// Run starts the devbox container interactively (docker run -it --rm) behind the wall and
-// returns its exit code. proxyStart brings the wall up for the session (see AutoProxy); the
-// container is removed on return, before any wall proxyStart owns is torn down.
+// Run starts the devbox container interactively (docker run -it --rm) behind the egress wall
+// and returns its exit code. proxyStart brings the proxy up for the session (see AutoProxy);
+// the container is removed on return, before the session's proxy is torn down.
 func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	if hostOptions.NoProxy {
 		return runDevbox(ctxD, hostOptions)

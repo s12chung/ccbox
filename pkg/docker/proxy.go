@@ -22,7 +22,7 @@ import (
 )
 
 // The egress proxy image and the in-container dir its configs are served from: the
-// live host dir is bound there read-only. Pinned by digest: the wall is a security
+// live host dir is bound there read-only. Pinned by digest: the proxy is a security
 // boundary, so it must not move on its own — bump this deliberately to pick up
 // upstream patches.
 const (
@@ -31,7 +31,7 @@ const (
 )
 
 // ProxyOptions configures the egress wall: BeforeStart seeds HostDir — bound read-only
-// at tinyproxyDir — just before the wall starts, and OnStop runs once the wall is torn down
+// at tinyproxyDir — just before the proxy starts, and OnStop runs once the proxy is torn down
 type ProxyOptions struct {
 	HostDir     string
 	BeforeStart func() error
@@ -43,7 +43,7 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions, logFn func(logs io.ReadCloser) 
 	var joiner klean.Joiner
 
 	ensureNetwork(ctxD)
-	joiner.Push("remove wall network", func() error {
+	joiner.Push("remove proxy network", func() error {
 		return tearIdleNetwork(ctxD)
 	})
 
@@ -142,7 +142,7 @@ func tinyproxyLevelColor(line string) prompt.Color {
 	return tinyproxyLevelColors[fields[0]]
 }
 
-// ensureNetwork creates the internal wall network if absent. Like the Makefile's
+// ensureNetwork creates the internal proxy network if absent. Like the Makefile's
 // `docker network create ... || true`, a pre-existing network is not an error.
 func ensureNetwork(ctxD *dock.CtxD) {
 	_, _ = ctxD.D.NetworkCreate(ctxD.Ctx, networkName, network.CreateOptions{
@@ -152,11 +152,11 @@ func ensureNetwork(ctxD *dock.CtxD) {
 }
 
 // tearIdleNetwork tears the network down only if we're its last user. A still-running devbox keeps
-// the wall attached (expected) — leave it; `proxy clean` can clean it.
+// the proxy attached (expected) — leave it; `proxy clean` can clean it.
 func tearIdleNetwork(ctxD *dock.CtxD) error {
 	err := ProxyClean(ctxD)
 	if errdefs.IsPermissionDenied(err) {
-		log.Infof("keeping wall network around: %v", err)
+		log.Infof("keeping proxy network around: %v", err)
 		return nil
 	}
 	return err
@@ -177,14 +177,14 @@ func streamLogs(logFn func(logs io.ReadCloser) error, logs io.ReadCloser) chan e
 	return logDone
 }
 
-// ProxyReload makes a running wall re-read its configs from HostDir. Tinyproxy reloads
+// ProxyReload makes a running proxy re-read its configs from HostDir. Tinyproxy reloads
 // on SIGUSR1 — never SIGHUP: with the image's foreground `-d`, SIGHUP is unhandled and
-// would kill the wall.
+// would kill the proxy.
 func ProxyReload(ctxD *dock.CtxD) error {
 	return ctxD.D.ContainerKill(ctxD.Ctx, egressName, "USR1")
 }
 
-// ProxyClean removes the wall network. A missing network is already clean (not an error);
+// ProxyClean removes the proxy network. A missing network is already clean (not an error);
 // an in-use one still errors.
 func ProxyClean(ctxD *dock.CtxD) error {
 	if err := ctxD.D.NetworkRemove(ctxD.Ctx, networkName); err != nil && !errdefs.IsNotFound(err) {
@@ -193,7 +193,7 @@ func ProxyClean(ctxD *dock.CtxD) error {
 	return nil
 }
 
-// isProxyRunning reports whether the egress container is up. A missing or stopped wall is
+// isProxyRunning reports whether the egress container is up. A missing or stopped proxy is
 // false, not an error.
 func isProxyRunning(ctxD *dock.CtxD) (bool, error) {
 	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, egressName)

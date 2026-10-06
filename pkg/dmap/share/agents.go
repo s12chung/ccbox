@@ -104,7 +104,7 @@ func readAgentsMd(path string, isNoProxy bool) ([]byte, error) {
 	return append([]byte(adminMd(isNoProxy)), body...), nil
 }
 
-// adminMd renders the admin doc; a direct-network run drops the walled-network section.
+// adminMd renders the admin doc; a direct-network run drops the network section.
 // The template is static, so execute errors are unreachable.
 func adminMd(isNoProxy bool) string {
 	var b bytes.Buffer

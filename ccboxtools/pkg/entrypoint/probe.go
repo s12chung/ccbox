@@ -12,7 +12,7 @@ import (
 	"github.com/s12chung/ccbox/ccboxtools/pkg/util/log"
 )
 
-// Wall probe URLs: api.github.com returns 200 unauthenticated and matches the
+// Proxy probe URLs: api.github.com returns 200 unauthenticated and matches the
 // proxy allowlist, so it makes a clean positive probe. Overridable for other allowlists.
 const (
 	defaultAllowedURL = "https://api.github.com"
@@ -21,23 +21,23 @@ const (
 )
 
 const (
-	allowedURLVar = "WALL_ALLOWED_URL"
-	blockedURLVar = "WALL_BLOCKED_URL"
-	directURLVar  = "WALL_DIRECT_URL"
+	allowedURLVar = "PROXY_ALLOWED_URL"
+	blockedURLVar = "PROXY_BLOCKED_URL"
+	directURLVar  = "PROXY_DIRECT_URL"
 
-	// proxyEnv marks the wall: the container only has the proxy env vars when the
-	// wall exists — no http_proxy, no wall to verify (`ccbox --no-proxy` runs on
+	// proxyEnv marks the proxy: the container only has the proxy env vars when the
+	// proxy exists — no http_proxy, no proxy to verify (`ccbox --no-proxy` runs on
 	// plain bridge networking without them).
 	proxyEnv = "http_proxy"
 
 	probeMax = 5 * time.Second
 )
 
-// probeWall verifies the egress wall with three curl-parity probes: an allowlisted
+// probeProxy verifies the egress wall with three curl-parity probes: an allowlisted
 // host must be reachable through the proxy, a non-allowlisted host must be rejected
 // by it, and bypassing it must have no route at all — proving --internal holds even
 // for tools that ignore proxy env vars.
-func probeWall() error {
+func probeProxy() error {
 	proxy := probeClient(http.ProxyFromEnvironment)
 	direct := probeClient(nil)
 

@@ -12,7 +12,7 @@ func CLIDataBindPath(userDir, cliName, key string) string {
 	return filepath.Join(userDir, "data", cliName, slug.Path(key))
 }
 
-// ProxyLogPath is the host file an auto-started wall's logs are appended to: userDir/proxy.log
+// ProxyLogPath is the host file the auto-started proxy's logs are appended to: userDir/proxy.log
 func ProxyLogPath(userDir string) string { return filepath.Join(userDir, "proxy.log") }
 
 // workspaceMount is the in-container workspace path: the WorkingDir and bind target for the project dir.

@@ -257,7 +257,7 @@ func (c *Config) SetHarnessDomains() []string {
 	return domains
 }
 
-// NoProxyFor resolves the run's skip-the-wall
+// NoProxyFor resolves the run's skip-the-proxy
 func (c *Config) NoProxyFor(serveVNC, flag bool) bool {
 	switch {
 	case flag:

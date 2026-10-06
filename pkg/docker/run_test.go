@@ -47,7 +47,7 @@ func TestRunConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "NoProxySkipsWallEnv",
+			name: "NoProxySkipsProxyEnv",
 			opts: RunOptions{
 				RunHostOptions: RunHostOptions{WorkspaceMount: "/home/ccbox/proj"},
 				Tag:            "ccbox:latest",

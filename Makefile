@@ -8,7 +8,7 @@ build:
 	go build -o $(BIN)
 	GOARCH=$(GOARCH) $(BIN) doctor tools
 
-lint:
+lint: lint.terms
 	hadolint Dockerfile
 	shellcheck docker/desktop.sh docker/web-browser pkg/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
@@ -17,6 +17,13 @@ lint:
 	go run ./toolsbuild -goarch $(GOARCH) -o dist/ccboxtools # needed to build for lint
 	golangci-lint run --fix $(TEST)
 	cd ccboxtools && golangci-lint run --fix $(TEST)
+
+lint.terms:
+	@out=$$(grep -rnE '(_|\b)[Ww][Aa][Ll][Ll]([Ee][Dd]|[Ss])?(_|\b)|[a-z]Wall' \
+		--include='*.go' --include='*.md' --include='*.tmpl' --include='*.sh' --include='*.bats' \
+		--include='*.yaml' --include='*.yml' --include='*.json' --include='*.toml' . \
+		| grep -vE '[Ee]gress[ -]?[Ww]all|wall/walled|^\./(\.git|dist|\.idea)/'); \
+	if [ -n "$$out" ]; then echo "$$out"; echo 'standalone "wall/walled" is banned — use "proxy" or "egress wall"' >&2; exit 1; fi
 
 ci: lint test
 test.all: test test.docker

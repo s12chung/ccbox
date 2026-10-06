@@ -3,7 +3,7 @@ package docker
 import "sort"
 
 // envString renders env as KEY=VALUE in sorted-key order for a deterministic spec, with the
-// wall's proxy vars appended last — so they override any user-supplied proxy setting.
+// proxy vars appended last — so they override any user-supplied proxy setting.
 func envString(env map[string]string, noProxy bool) []string {
 	renderedEnv := sortedEnv(env)
 	if noProxy {
@@ -13,7 +13,7 @@ func envString(env map[string]string, noProxy bool) []string {
 		"http_proxy=http://" + egressName + ":" + proxyPort,
 		"https_proxy=http://" + egressName + ":" + proxyPort,
 		// Loopback never leaves the container, so route it direct — else local dev servers
-		// and browsers hit the wall and get refused.
+		// and browsers hit the proxy and get refused.
 		"no_proxy=localhost,127.0.0.1,::1",
 		"NO_PROXY=localhost,127.0.0.1,::1",
 	}...)

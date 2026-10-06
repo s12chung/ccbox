@@ -30,7 +30,7 @@ func Run(argv []string, vncInfo *pkginfo.VNCInfo) error {
 		return err
 	}
 	if os.Getenv(proxyEnv) != "" {
-		if err := probeWall(); err != nil {
+		if err := probeProxy(); err != nil {
 			return err
 		}
 	}

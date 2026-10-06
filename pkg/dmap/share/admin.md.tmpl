@@ -15,7 +15,7 @@ Most importantly, `/tmp` is a persistent volume — treat it as your scratch spa
 
 ALL other directories are **wiped on exit** via `docker run --rm`.
 {{if not .IsNoProxy}}
-## Network is walled, allowlist-only
+## Network is egress walled, allowlist-only
 
 All egress is forced through a proxy that **denies by default**, EXCEPT loopback (`localhost`, `127.0.0.1`, `::1`) via `no_proxy`.
 

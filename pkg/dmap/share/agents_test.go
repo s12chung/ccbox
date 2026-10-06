@@ -169,16 +169,16 @@ func TestAgentsMd_PromotesPrefixed(t *testing.T) {
 	}
 }
 
-// TestAdminMd pins the rendered admin doc to the committed testdata fixtures — the
-// walled render must stay byte-identical to the old admin.md. Regenerate with:
+// TestAdminMd pins the rendered admin doc to the committed testdata fixtures — each
+// render must stay byte-identical to its fixture. Regenerate with:
 // `UPDATE_FIXTURES=1 go test ./pkg/dmap/share/ -run TestAdminMd`
 func TestAdminMd(t *testing.T) {
 	for _, tt := range []struct {
 		name      string // fixture name: testdata/TestAdminMd_<name>.md
 		isNoProxy bool
 	}{
-		{"walled", false},  // the walled-network section rides
-		{"no-proxy", true}, // the walled-network section is dropped
+		{"proxy", false},   // the network section rides
+		{"no-proxy", true}, // the network section is dropped
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got := adminMd(tt.isNoProxy)

@@ -42,8 +42,8 @@ func (pm *ProxyMap) Options() docker.ProxyOptions {
 	}
 }
 
-// proxyLiveDir is the wall's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
-// the changing files as the running wall's current configs.
+// proxyLiveDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
+// the changing files as the running proxy's current configs.
 func proxyLiveDir() string { return filepath.Join(userdir.Tmp(), "proxy") }
 
 // proxyAllowPath is the rendered allow file within proxyLiveDir
