@@ -74,10 +74,9 @@ func init() {
 			"CLIName": {rule.OneOf[string]{ValuesFunc: cli.Names}},
 			"VNC":     {firm.Backed()},
 
-			// mask dirs are project-relative: no absolute paths, no ".." traversal
-			"TmpfsMasks":    {firm.Elems[[]string](firmrule.MaskDir)},
-			"VolumeMasks":   {firm.Elems[[]string](firmrule.MaskDir)},
-			"ReadOnlyGlobs": {firm.Elems[[]string](firmrule.MaskGlob)},
+			"TmpfsMasks":    {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
+			"VolumeMasks":   {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
+			"ReadOnlyGlobs": {firm.Elems[[]string](rule.ShowValue(firmrule.MaskGlob))},
 
 			// host dir → container mount dir, bound read-only
 			"ReadOnlyBinds": {firm.KeyValues[map[string]string](firmrule.Bind{
@@ -88,7 +87,7 @@ func init() {
 				firm.Keys[map[string]string](firmrule.EnvVar),
 				firm.Values[map[string]string](rule.Present{}),
 			},
-			"Allowlist": {firm.Elems[[]string](firmrule.DomainOrAlias(allowlistAliases))},
+			"Allowlist": {firm.Elems[[]string](rule.ShowValue(firmrule.DomainOrAlias(allowlistAliases)))},
 		}))
 }
 

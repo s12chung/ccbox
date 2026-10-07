@@ -66,8 +66,8 @@ func (b Bind) ValidateValue(value reflect.Value) firm.ErrorMap {
 		return nil
 	}
 	for host, mount := range binds {
-		if msg := bindEntryError(b.Specials, host, mount); msg != "" {
-			return firm.ErrorMap{bindName: firm.TemplateError{Template: msg}}
+		if errMap := bindEntryError(b.Specials, host, mount); errMap != nil {
+			return errMap
 		}
 	}
 	return nil
@@ -76,25 +76,19 @@ func (b Bind) ValidateValue(value reflect.Value) firm.ErrorMap {
 // DomainOrAlias validates for domains or aliases, resolving the alias list at
 // validation time — aliases load at startup (user-defined ones included)
 func DomainOrAlias(aliasesFunc func() []string) firm.RuleBasic {
-	return rule.ErrCustomized{
-		Rule: rule.Or{
-			Rules: []firm.RuleBasic{
-				rule.OneOf[string]{ValuesFunc: aliasesFunc},
-				rule.And{
-					Rules: []firm.RuleBasic{
-						rule.Not{Rule: aliasPrefixRule}, // alias syntax fits with domains
-						Domain,
-					},
-				},
-			},
-		},
-		CustomErr: func(firm.ErrorMap) firm.ErrorMap {
+	return rule.CustomizeErr(
+		rule.Or(
+			rule.OneOf[string]{ValuesFunc: aliasesFunc},
+			// aliasPrefixRule is a subset of Domain, so AND NOT it
+			rule.And(rule.Not(aliasPrefixRule), Domain),
+		),
+		func(firm.ErrorMap) firm.ErrorMap {
 			return firm.ErrorMap{domainOrAliasName: firm.TemplateError{
 				TemplateFields: map[string]string{"Aliases": quotedValues(aliasesFunc())},
 				Template:       "is not a domain or one of {{.Aliases}}",
 			}}
 		},
-	}
+	)
 }
 
 // quotedValues renders values for an error message, quoted like firm's OneOf: an
@@ -111,19 +105,27 @@ func quotedValues[T comparable](values []T) string {
 	return fmt.Sprintf("%v", strs)
 }
 
-// bindEntryError describes the pair's first problem, or "" for a good pair
-func bindEntryError(specials []string, host, mount string) string {
+// bindEntryError returns the pair's specific TemplateError, or nil for a good pair
+func bindEntryError(specials []string, host, mount string) firm.ErrorMap {
 	switch {
 	case slices.Contains(specials, host):
 		if mount != EnabledValue {
-			return "must be enabled"
+			return bindErr("must be enabled", mount)
 		}
-		return ""
+		return nil
 	case !bindPath.Regexp.MatchString(host):
-		return "must be " + strings.Join(specials, ", ") + " or a host path (~/… or /…, no .. segment)"
+		return bindErr("must be "+strings.Join(specials, ", ")+" or a host path (~/… or /…, no .. segment)", mount)
 	case !bindPath.Regexp.MatchString(mount):
-		return "must be a container mount path (~/… or /…, no .. segment)"
+		return bindErr("must be a container mount path (~/… or /…, no .. segment)", mount)
 	default:
-		return ""
+		return nil
 	}
+}
+
+// bindErr names the pair's bad mount, quoted so empty values show — the error key already names the host
+func bindErr(requirement, mount string) firm.ErrorMap {
+	return firm.ErrorMap{bindName: firm.TemplateError{
+		TemplateFields: map[string]string{"Mount": strconv.Quote(mount)},
+		Template:       requirement + ": {{.Mount}}",
+	}}
 }

@@ -8,8 +8,8 @@ github.com/itchyny/gojq v0.12.19/go.mod h1:5galtVPDywX8SPSOrqjGxkBeDhSxEW1gSxoy7
 github.com/itchyny/timefmt-go v0.1.8 h1:1YEo1JvfXeAHKdjelbYr/uCuhkybaHCeTkH8Bo791OI=
 github.com/itchyny/timefmt-go v0.1.8/go.mod h1:5E46Q+zj7vbTgWY8o5YkMeYb4I6GeWLFnetPy5oBrAI=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
-github.com/s12chung/firm v0.2.2-0.20261005015313-7dc86935bfb2 h1:4xNZ/uo0Hf/5Vdwej5nP6Qa4SG5AXwuhSBqgW1Fs99k=
-github.com/s12chung/firm v0.2.2-0.20261005015313-7dc86935bfb2/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
+github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae h1:ut9qPScPrkpKcNwCa8F0kGl+CZbZImmPtmCaHi8JUyg=
+github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
 github.com/spf13/cobra v1.10.2 h1:DMTTonx5m65Ic0GOoRY2c16WCbHxOOw6xxezuLaBpcU=
 github.com/spf13/cobra v1.10.2/go.mod h1:7C1pvHqHw5A4vrJfjNwvOdzYu0Gml16OCs2GRiTUUS4=
 github.com/spf13/pflag v1.0.9 h1:9exaQaMOCwffKiiiYk6/BndUBv+iRViNW+4lEMi0PvY=

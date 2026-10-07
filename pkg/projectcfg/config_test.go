@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -43,6 +44,26 @@ func TestConfig_CLI(t *testing.T) {
 
 	bare := Config{CLIName: new("emacs")}
 	assert.PanicsWithValue(t, `cli: unknown cli "emacs"`, func() { bare.CLI() })
+}
+
+func TestConfig_ValidateErrors(t *testing.T) {
+	c := Config{
+		CLIName:       new("claude"),
+		TmpfsMasks:    []string{"/etc"},
+		ReadOnlyGlobs: []string{"../escape"},
+		ReadOnlyBinds: map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"},
+	}
+	errMap := firm.ValidateAny(c)
+	require.NotEmpty(t, errMap)
+	// ShowValue appends the failing element, bindErr the failing mount, to each error
+	assert.Equal(t, strings.Join([]string{
+		`projectcfg.Config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
+		`projectcfg.Config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
+		`projectcfg.Config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
+			`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$: "../escape"`,
+		`projectcfg.Config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
+			`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$: "/etc"`,
+	}, ", "), errMap.Error())
 }
 
 func TestConfig_mergeOverlays(t *testing.T) {

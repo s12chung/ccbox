@@ -110,14 +110,14 @@ func TestBind(t *testing.T) {
 		binds map[string]string
 		want  string
 	}{
-		{map[string]string{"gitconfig": "/home/ccbox/.config/git"}, "must be enabled"}, // no custom mount over the default
-		{map[string]string{"gitconfig": ""}, "must be enabled"},
-		{map[string]string{"fonts": "/mnt"}, "must be gitconfig or a host path"},
-		{map[string]string{"../escape": "/mnt"}, "must be gitconfig or a host path"},
-		{map[string]string{"fonts/": "/mnt"}, "must be gitconfig or a host path"},
-		{map[string]string{"~/fonts": "enabled"}, "must be a container mount path"},
-		{map[string]string{"~/fonts": "mnt"}, "must be a container mount path"},
-		{map[string]string{"~/fonts": "/mnt/../x"}, "must be a container mount path"},
+		{map[string]string{"gitconfig": "/home/ccbox/.config/git"}, `must be enabled: "/home/ccbox/.config/git"`}, // no custom mount over the default
+		{map[string]string{"gitconfig": ""}, `must be enabled: ""`},
+		{map[string]string{"fonts": "/mnt"}, `must be gitconfig or a host path (~/… or /…, no .. segment): "/mnt"`},
+		{map[string]string{"../escape": "/mnt"}, `must be gitconfig or a host path (~/… or /…, no .. segment): "/mnt"`},
+		{map[string]string{"fonts/": "/mnt"}, `must be gitconfig or a host path (~/… or /…, no .. segment): "/mnt"`},
+		{map[string]string{"~/fonts": "enabled"}, `must be a container mount path (~/… or /…, no .. segment): "enabled"`},
+		{map[string]string{"~/fonts": "mnt"}, `must be a container mount path (~/… or /…, no .. segment): "mnt"`},
+		{map[string]string{"~/fonts": "/mnt/../x"}, `must be a container mount path (~/… or /…, no .. segment): "/mnt/../x"`},
 	}
 
 	// the pair rule runs per entry, as KeyValues passes it down
@@ -133,6 +133,9 @@ func TestBind(t *testing.T) {
 			assert.Containsf(t, errMap.Error(), "["+host+"]", "%v", tt.binds)
 		}
 	}
+	// the full string: the key names the entry's host, the template shows the bad mount
+	assert.Equal(t, `map[string]string.[fonts].Bind: map[string]string.[fonts] must be gitconfig or a host path (~/… or /…, no .. segment): "/mnt"`,
+		v.Validate(map[string]string{"fonts": "/mnt"}).Error())
 
 	t.Run("specials are injectable", func(t *testing.T) {
 		v := firm.KeyValues[map[string]string](Bind{Specials: []string{"cas"}})
