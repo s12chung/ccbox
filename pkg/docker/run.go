@@ -93,10 +93,7 @@ func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	if proxyRunning {
 		return runDevbox(ctxD, hostOptions)
 	}
-	return runWithProxy(ctxD, hostOptions)
-}
 
-func runWithProxy(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	clean, err := proxyStart(ctxD, *hostOptions.Proxy)
 	defer log.Defer("proxy clean", clean)
 	if err != nil {
