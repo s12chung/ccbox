@@ -381,16 +381,12 @@ func TestLoad_EmptyResolutionInherits(t *testing.T) {
 }
 
 func TestLoad_NoProxy(t *testing.T) {
-	// the vnc section's pointer survives a decode that leaves it distinct from its zero
 	dir := t.TempDir()
-	writeConfig(t, dir, projectConfigFileName, "no_proxy: true\nvnc:\n  no_proxy: false\n")
+	writeConfig(t, dir, projectConfigFileName, "no_proxy: true\n")
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	assert.True(t, c.NoProxy)
-	require.NotNil(t, c.VNC)
-	require.NotNil(t, c.VNC.NoProxy)
-	assert.False(t, *c.VNC.NoProxy)
 }
 
 func TestLoad_InvalidErrors(t *testing.T) {

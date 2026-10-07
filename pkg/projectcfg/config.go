@@ -97,8 +97,6 @@ func init() {
 type VNC struct {
 	// Enabled always runs with VNC served — the --vnc flag's config form
 	Enabled bool `yaml:"enabled,omitempty"`
-	// NoProxy overrides the top-level no_proxy on a vnc run; nil inherits it
-	NoProxy *bool `yaml:"no_proxy,omitempty"`
 	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
 	GUIAppName string `yaml:"gui_app,omitempty"`
 	// Config is the desktop's VNC session config: the box's WxH, for clients that
@@ -273,15 +271,9 @@ func (c *Config) SetHarnessDomains() []string {
 	return domains
 }
 
-// NoProxyFor resolves the run's skip-the-proxy
+// NoProxyFor resolves the run's skip-the-proxy — a vnc run always skips it
 func (c *Config) NoProxyFor(serveVNC, flag bool) bool {
-	switch {
-	case flag:
-		return true
-	case serveVNC && c.VNC != nil && c.VNC.NoProxy != nil:
-		return *c.VNC.NoProxy
-	}
-	return c.NoProxy
+	return serveVNC || flag || c.NoProxy
 }
 
 // expandAllowlist runs the alias→domains expansion over the raw entries, keeping order

@@ -6,10 +6,9 @@ cli: claude
 # no_proxy: skip the egress wall for direct network access
 no_proxy: false
 
-# vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
+# vnc: Experimental --vnc session via. port 5900, always no proxy (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form
-  # no_proxy: false # overrides no_proxy on --vnc run
   # gui_app: zcode # the GUI app's name; empty means none
   config:
     # resolution: the box's WxH for clients that can't auto-resize. defaults to 1280x1024

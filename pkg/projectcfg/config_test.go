@@ -49,7 +49,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	c := Config{
 		CLIName:       new("claude"),
 		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: "zcode", Enabled: true, NoProxy: new(true), Config: &pkginfo.VNCConfig{Resolution: "1280x1024"}},
+		VNC:           &VNC{GUIAppName: "zcode", Enabled: true, Config: &pkginfo.VNCConfig{Resolution: "1280x1024"}},
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
@@ -59,7 +59,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	}
 	other := Config{
 		CLIName:       new("codex"),
-		VNC:           &VNC{NoProxy: new(false), Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
+		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
 		TmpfsMasks:    []string{"build"},
 		VolumeMasks:   []string{"cache"},
 		ReadOnlyGlobs: []string{".envrc"},
@@ -77,7 +77,6 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		VNC: &VNC{ // per-field: the later layer's set fields win, its unset gui_app keeps the earlier's
 			GUIAppName: "zcode",
 			Enabled:    true,
-			NoProxy:    new(false),
 			Config:     &pkginfo.VNCConfig{Resolution: "1600x900"},
 		},
 		TmpfsMasks:    []string{"dist", "build"},
@@ -103,11 +102,9 @@ func TestConfig_NoProxyFor(t *testing.T) {
 	}{
 		{"defaults to false", Config{}, false, false, false},
 		{"the top level stands alone", Config{NoProxy: true}, false, false, true},
+		{"a vnc run always skips it", Config{}, true, false, true},
 		{"the top level stands on a vnc run without a vnc section", Config{NoProxy: true}, true, false, true},
-		{"the vnc section needs a vnc run", Config{VNC: &VNC{NoProxy: new(true)}}, false, false, false},
-		{"the vnc section overrides the top level on a vnc run", Config{NoProxy: true, VNC: &VNC{NoProxy: new(false)}}, true, false, false},
 		{"the flag overrides the top level", Config{NoProxy: true}, false, true, true},
-		{"the flag overrides the vnc section", Config{VNC: &VNC{NoProxy: new(false)}}, true, true, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -552,7 +549,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	c := &Config{
 		CLIName:       new("claude"),
 		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: guiapp.App.Name, NoProxy: new(true), Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
+		VNC:           &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
 		TmpfsMasks:    []string{DefaultsAlias, "dist", "build"},
 		VolumeMasks:   []string{DefaultsAlias, "target", "cache"},
 		ReadOnlyGlobs: []string{DefaultsAlias, ".env"},
@@ -573,7 +570,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	want := Config{
 		CLIName:       new("claude"),
 		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: guiapp.App.Name, NoProxy: new(true), Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
+		VNC:           &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
 		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
 		VolumeMasks:   []string{"node_modules", "target"},
 		ReadOnlyGlobs: []string{"secrets"},

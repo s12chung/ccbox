@@ -65,7 +65,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	// the base layer carries the gui_app, as a project's config would
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 		CLIName:   new("claude"),
-		VNC:       &projectcfg.VNC{GUIAppName: guiapp.App.Name, NoProxy: new(true)},
+		VNC:       &projectcfg.VNC{GUIAppName: guiapp.App.Name},
 		Allowlist: []string{projectcfg.DefaultsAlias, projectcfg.SetHarnessAlias},
 	}, true)
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	defer func() { require.NoError(t, clean()) }()
 
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
-	assert.Nil(t, options.Proxy, "the vnc section's no_proxy rides through the resolution: no egress wall")
+	assert.Nil(t, options.Proxy, "a vnc run always skips the egress wall")
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
 	expanded := cfg.AllowlistExpanded()
 	for _, d := range guiapp.App.AllowDomains {
