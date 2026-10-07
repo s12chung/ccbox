@@ -39,15 +39,15 @@ var configCmd = &cobra.Command{
 	},
 }
 
-// printLoadedPaths lists the config files loaded, in load order
+// printLoadedPaths lists the config files loaded and not loaded, in load order
 func printLoadedPaths() {
-	loaded := projectcfg.LoadedPaths(projectConfig.ProjectDir())
-	if len(loaded) == 0 {
-		return
-	}
+	loaded, notLoaded := projectcfg.LoadedPaths(projectConfig.ProjectDir())
 	log.Info("\n# Config files, in load order:")
 	for _, path := range loaded {
 		log.Infof("#   %s", userdir.Tilde(path))
+	}
+	for _, path := range notLoaded {
+		log.Infof("#   %s (not loaded)", userdir.Tilde(path))
 	}
 	log.Info("")
 }

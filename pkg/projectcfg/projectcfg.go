@@ -4,7 +4,6 @@ package projectcfg
 
 import (
 	"errors"
-	"os"
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
@@ -38,15 +37,17 @@ func layerPaths(projectDir string) []string {
 	return []string{UserConfigFile(), filepath.Join(projectDir, projectConfigFileName), filepath.Join(projectDir, localConfigFileName)}
 }
 
-// LoadedPaths returns the layer config files present on disk, in load order
-func LoadedPaths(projectDir string) []string {
-	var present []string
+// LoadedPaths returns the layer config paths split into loaded and not loaded, each in load order
+func LoadedPaths(projectDir string) ([]string, []string) {
+	var loaded, notLoaded []string
 	for _, path := range layerPaths(projectDir) {
-		if _, err := os.Stat(path); err == nil {
-			present = append(present, path)
+		if ioutil.Present(path) {
+			loaded = append(loaded, path)
+		} else {
+			notLoaded = append(notLoaded, path)
 		}
 	}
-	return present
+	return loaded, notLoaded
 }
 
 // Init writes to projectDir/.ccbox.yaml and returns its path.

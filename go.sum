@@ -484,6 +484,10 @@ github.com/ryanuber/go-glob v1.0.0 h1:iQh3xXAumdQ+4Ufa5b25cRpC5TYKlno6hsv6Cb3pkB
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
 github.com/s12chung/firm v0.2.2-0.20261005015313-7dc86935bfb2 h1:4xNZ/uo0Hf/5Vdwej5nP6Qa4SG5AXwuhSBqgW1Fs99k=
 github.com/s12chung/firm v0.2.2-0.20261005015313-7dc86935bfb2/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
+github.com/s12chung/firm v0.2.2-0.20261007040727-6a62ab624c3f h1:XyWO1ul69C6sCc6Av9ezwbVpIJWEQRAJPHaxovBXjIs=
+github.com/s12chung/firm v0.2.2-0.20261007040727-6a62ab624c3f/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
+github.com/s12chung/firm v0.2.2-0.20261007042220-af850b775ada h1:zXfSFd4Xkh+SwvOp44JSotCqsFp4f1Yq9lRAAhaEGKA=
+github.com/s12chung/firm v0.2.2-0.20261007042220-af850b775ada/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
 github.com/sassoftware/relic v7.2.1+incompatible h1:Pwyh1F3I0r4clFJXkSI8bOyJINGqpgjJU3DYAZeI05A=
 github.com/sassoftware/relic v7.2.1+incompatible/go.mod h1:CWfAxv73/iLZ17rbyhIEq3K9hs5w6FpNMdUT//qR+zk=
 github.com/sassoftware/relic/v7 v7.6.2 h1:rS44Lbv9G9eXsukknS4mSjIAuuX+lMq/FnStgmZlUv4=

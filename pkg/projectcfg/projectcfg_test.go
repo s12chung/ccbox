@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -166,7 +167,7 @@ func TestSeedUserConfig_ChoosesCLI(t *testing.T) {
 func TestLoadedPaths(t *testing.T) {
 	tests := []struct {
 		name  string
-		files []string // config file names present on disk, in load order
+		files []string // config file names present on disk
 	}{
 		{"no files", nil},
 		{"project only", []string{projectConfigFileName}},
@@ -180,15 +181,21 @@ func TestLoadedPaths(t *testing.T) {
 			for _, name := range tt.files {
 				writeConfig(t, dir, name, "cli: claude\n")
 			}
-			var want []string
-			for _, name := range tt.files {
+			var wantLoaded, wantNotLoaded []string
+			for _, name := range []string{userConfigFileName, projectConfigFileName, localConfigFileName} {
+				path := filepath.Join(dir, name)
 				if name == userConfigFileName {
-					want = append(want, UserConfigFile())
-					continue
+					path = UserConfigFile()
 				}
-				want = append(want, filepath.Join(dir, name))
+				if slices.Contains(tt.files, name) {
+					wantLoaded = append(wantLoaded, path)
+				} else {
+					wantNotLoaded = append(wantNotLoaded, path)
+				}
 			}
-			assert.Equal(t, want, LoadedPaths(dir))
+			loaded, notLoaded := LoadedPaths(dir)
+			assert.Equal(t, wantLoaded, loaded)
+			assert.Equal(t, wantNotLoaded, notLoaded)
 		})
 	}
 
@@ -197,7 +204,9 @@ func TestLoadedPaths(t *testing.T) {
 		dir := t.TempDir()
 		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, ioutil.File))
 
-		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, LoadedPaths(dir))
+		loaded, notLoaded := LoadedPaths(dir)
+		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, loaded)
+		assert.Equal(t, []string{UserConfigFile(), filepath.Join(dir, localConfigFileName)}, notLoaded)
 	})
 }
 
