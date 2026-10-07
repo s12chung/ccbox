@@ -30,12 +30,15 @@ const (
 
 // ProxyOptions configures the egress wall
 type ProxyOptions struct {
-	HostDir     string         // the live host dir, bound read-only at tinyproxyDir
-	HoldersDir  string         // the host dir of the proxy session's holder flock entries
-	BeforeStart func() error   // seeds HostDir just before the proxy starts
-	OnStop      func() error   // runs once the proxy is torn down
-	LogFile     string         // the host file the proxy's creator appends the container's logs to
-	Log         *tinyproxy.Log // the optional foreground stream
+	HostDir    string // the live host dir, bound read-only at tinyproxyDir
+	HoldersDir string // the host dir of the proxy session's holder flock entries
+
+	BeforeStart func() error // before the proxy starts
+	OnRefresh   func() error // on refreshing proxy
+	OnStop      func() error // runs once the proxy is torn down
+
+	LogFile string         // the host file the proxy's creator appends the container's logs to
+	Log     *tinyproxy.Log // the optional foreground stream
 }
 
 // holdProxy joins the proxy's holder session, ensuring the egress wall is up: the first
@@ -54,9 +57,10 @@ func holdProxy(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
 	return klean.SwallowErr(leave, flock.ErrNotLast), nil
 }
 
-// ensureProxy brings the egress wall up: it adopts a running proxy as-is and replaces a
-// stopped or stale one — the takeover — then streams its logs to LogFile, with Log as
-// the optional foreground view.
+// ensureProxy brings the egress wall up: it replaces a stopped or stale proxy — the
+// takeover — and adopts a running one by refreshing its configs and reloading, so the
+// holder's current configs land; then it streams the proxy's logs to LogFile, with Log
+// as the optional foreground view.
 func ensureProxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	ensureNetwork(ctxD)
 
@@ -71,8 +75,22 @@ func ensureProxy(ctxD *dock.CtxD, o ProxyOptions) error {
 		if err := streamLogFile(ctxD, o); err != nil {
 			return err
 		}
+	} else if err := refreshProxy(ctxD, o); err != nil {
+		if !errdefs.IsNotFound(err) {
+			return err
+		}
+		return ensureProxy(ctxD, o) // the proxy died mid-adopt: a retry heals it, the creator now
 	}
 	return streamProxyLogs(ctxD, o) // nil Log streams nothing
+}
+
+func refreshProxy(ctxD *dock.CtxD, o ProxyOptions) error {
+	if o.OnRefresh != nil {
+		if err := o.OnRefresh(); err != nil {
+			return err
+		}
+	}
+	return proxyReload(ctxD)
 }
 
 // startProxy replaces any stale proxy container with a fresh one, seeded by BeforeStart
@@ -209,11 +227,11 @@ func tearIdleNetwork(ctxD *dock.CtxD) error {
 	return err
 }
 
-// ProxyReload makes a running proxy re-read its configs from HostDir. Tinyproxy reloads
+// proxyReload makes a running proxy re-read its configs from HostDir. Tinyproxy reloads
 // on SIGUSR1 — never SIGHUP: with the image's foreground `-d`, SIGHUP is unhandled and
 // would kill the proxy. ContainerKill is Docker's generic "send a signal" API — it only
 // kills because the default signal is SIGKILL.
-func ProxyReload(ctxD *dock.CtxD) error {
+func proxyReload(ctxD *dock.CtxD) error {
 	return ctxD.D.ContainerKill(ctxD.Ctx, proxyContainerName, "USR1")
 }
 

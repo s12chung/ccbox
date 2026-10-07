@@ -65,3 +65,42 @@ func TestProxyAllowPath(t *testing.T) {
 	home := testutil.Home(t)
 	assert.Equal(t, filepath.Join(home, ".ccbox", "tmp", "proxy", "allow.txt"), proxyAllowPath())
 }
+
+func TestProxyMap_AllowlistDiff(t *testing.T) {
+	testutil.Home(t)
+
+	cfg := &projectcfg.Config{CLIName: new("claude"), Allowlist: []string{"new.example.dev", "kept.example.dev"}}
+	pm := NewProxyMap(cfg)
+	fresh := proxy.Render(cfg.AllowlistExpanded())
+	changed := func() string {
+		r, err := pm.allowlistDiff(fresh)
+		require.NoError(t, err)
+		return r
+	}
+
+	assert.Equal(t, "+new.example.dev\n+kept.example.dev", changed(),
+		"a missing file diffs from nothing, in bare domains never the file's regex")
+
+	old := &projectcfg.Config{CLIName: new("claude"), Allowlist: []string{"old.example.dev"}}
+	require.NoError(t, NewProxyMap(old).Options(nil).BeforeStart())
+	assert.Equal(t, "-old.example.dev\n+new.example.dev\n+kept.example.dev", changed())
+
+	require.NoError(t, NewProxyMap(cfg).Options(nil).OnRefresh())
+	assert.Empty(t, changed(), "an unchanged allowlist diffs nothing")
+}
+
+func TestProxyMap_Options_OnRefresh(t *testing.T) {
+	testutil.Home(t)
+
+	old := &projectcfg.Config{CLIName: new("claude"), Allowlist: []string{"old.example.dev"}}
+	require.NoError(t, NewProxyMap(old).Options(nil).BeforeStart())
+
+	cfg := &projectcfg.Config{CLIName: new("claude"), Allowlist: []string{"new.example.dev"}}
+	options := NewProxyMap(cfg).Options(nil)
+	require.NoError(t, options.OnRefresh())
+
+	written, err := os.ReadFile(proxyAllowPath())
+	require.NoError(t, err)
+	assert.Equal(t, proxy.Render(cfg.AllowlistExpanded()), written)
+	require.NoError(t, options.OnRefresh(), "a re-refresh is clean")
+}
