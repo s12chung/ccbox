@@ -1,9 +1,11 @@
 package projectcfg
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -47,16 +49,24 @@ func TestConfig_CLI(t *testing.T) {
 }
 
 func TestConfig_ValidateErrors(t *testing.T) {
+	aliases := allowlistAliases()
+	quoted := make([]string, len(aliases))
+	for i, a := range aliases {
+		quoted[i] = strconv.Quote(a)
+	}
 	c := Config{
 		CLIName:       new("claude"),
 		TmpfsMasks:    []string{"/etc"},
 		ReadOnlyGlobs: []string{"../escape"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"},
+		Allowlist:     []string{"X.AI"},
 	}
 	errMap := firm.ValidateAny(c)
 	require.NotEmpty(t, errMap)
 	// ShowValue appends the failing element, bindErr the failing mount, to each error
 	assert.Equal(t, strings.Join([]string{
+		`projectcfg.Config.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
+			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
 		`projectcfg.Config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
 		`projectcfg.Config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
 		`projectcfg.Config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
