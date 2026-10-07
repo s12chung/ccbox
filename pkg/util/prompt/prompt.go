@@ -2,12 +2,29 @@
 package prompt
 
 import (
+	"bufio"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/moby/term"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
+
+// Confirm prints question on stdout and returns true only on y/yes. Piped or closed
+// stdin reads EOF and answers no.
+func Confirm(question string) bool {
+	log.Info(question + " [y/N] ")
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
+}
 
 // RawTerminal puts stdin into raw mode so keystrokes reach the container
 // unbuffered, returning a restore func to undo it. ok is false when stdin isn't

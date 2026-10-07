@@ -213,6 +213,13 @@ func (c *Config) ReadOnlyPathsPresent() []string {
 	return paths
 }
 
+// ManyReadOnlyMatches reports whether ReadOnlyPathsPresent() matches globkit.MatchLimit
+// paths or more — a strayed `ccbox config` at home or / globs into everywhere. The walk
+// quits at the limit.
+func (c *Config) ManyReadOnlyMatches() bool {
+	return globkit.ManyMatches(c.projectDir, c.readOnlyGlobsMatchers()...)
+}
+
 // ReadOnlyBindsExpanded resolves the raw binds to host dir → container mount: the gitconfig
 // entry to the host's XDG git dir at GitConfigMount, the rest's ~/ paths to their own side's
 // home.

@@ -1,6 +1,7 @@
 package globkit
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -52,18 +53,19 @@ func TestDoubleStarRooted(t *testing.T) {
 	})
 }
 
-func TestWalkMatches(t *testing.T) {
-	write := func(t *testing.T, paths ...string) string {
-		t.Helper()
-		dir := t.TempDir()
-		for _, p := range paths {
-			abs := filepath.Join(dir, p)
-			require.NoError(t, os.MkdirAll(filepath.Dir(abs), ioutil.Dir))
-			require.NoError(t, os.WriteFile(abs, nil, ioutil.File))
-		}
-		return dir
+// write creates each path under a fresh temp dir (parents included), returning the dir
+func write(t *testing.T, paths ...string) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, p := range paths {
+		abs := filepath.Join(dir, p)
+		require.NoError(t, os.MkdirAll(filepath.Dir(abs), ioutil.Dir))
+		require.NoError(t, os.WriteFile(abs, nil, ioutil.File))
 	}
+	return dir
+}
 
+func TestWalkMatches(t *testing.T) {
 	t.Run("matches files and dirs by rel path, in walk order, root excluded", func(t *testing.T) {
 		root := write(t, ".env", "certs/server.pem")
 		matches := WalkMatches(root, DoubleStarRooted(".env"), DoubleStarRooted("certs"))
@@ -127,5 +129,34 @@ func TestWalkMatches(t *testing.T) {
 	t.Run("an absent root matches nothing", func(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "missing")
 		assert.Nil(t, WalkMatches(missing, DoubleStarRooted("**/*")))
+	})
+}
+
+func TestManyMatches(t *testing.T) {
+	// envFiles seeds n subdirs, each holding a .env for the **/.env matcher
+	envFiles := func(t *testing.T, n int) string {
+		t.Helper()
+		paths := make([]string, n)
+		for i := range n {
+			paths[i] = fmt.Sprintf("svc%03d/.env", i)
+		}
+		return write(t, paths...)
+	}
+	matcher := DoubleStarRooted("**/.env")
+
+	t.Run("under the limit is not many", func(t *testing.T) {
+		assert.False(t, ManyMatches(envFiles(t, 2), matcher))
+	})
+
+	t.Run("at the limit is many", func(t *testing.T) {
+		assert.True(t, ManyMatches(envFiles(t, MatchLimit), matcher))
+	})
+
+	t.Run("over the limit is many", func(t *testing.T) {
+		assert.True(t, ManyMatches(envFiles(t, MatchLimit+1), matcher))
+	})
+
+	t.Run("an absent root is not many", func(t *testing.T) {
+		assert.False(t, ManyMatches(filepath.Join(t.TempDir(), "missing"), matcher))
 	})
 }

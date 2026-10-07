@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"strings"
@@ -8,11 +9,13 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/pkg/kit/globkit"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
+	"github.com/s12chung/ccbox/pkg/util/prompt"
 	"github.com/s12chung/ccbox/pkg/util/uslice"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
@@ -23,6 +26,9 @@ var configCmd = &cobra.Command{
 	RunE: func(_ *cobra.Command, _ []string) error {
 		log.Info("# Run `ccbox config defaults` for the alias expansions")
 		printLoadedPaths()
+		if !confirmReadOnlyPaths() {
+			return nil
+		}
 		out, err := yaml.Marshal(projectConfig)
 		if err != nil {
 			return err
@@ -44,6 +50,22 @@ func printLoadedPaths() {
 		log.Infof("#   %s", userdir.Tilde(path))
 	}
 	log.Info("")
+}
+
+// confirmReadOnlyPaths asks before printing when read_only_globs matched globkit.MatchLimit
+// paths or more — a stray `ccbox config` at home or / globs into everywhere. Returns
+// whether to print.
+func confirmReadOnlyPaths() bool {
+	if !projectConfig.ManyReadOnlyMatches() {
+		return true
+	}
+	question := fmt.Sprintf("read_only_globs matched %d+ paths in %s; print the config anyway?",
+		globkit.MatchLimit, userdir.Tilde(projectConfig.ProjectDir()))
+	if prompt.Confirm(question) {
+		return true
+	}
+	log.Info("config aborted")
+	return false
 }
 
 // printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs and bind

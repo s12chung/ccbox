@@ -52,3 +52,25 @@ func MainHome(m *testing.M, setup func()) int {
 	_ = os.RemoveAll(home)
 	return code
 }
+
+// Stdin swaps stdin for a pipe seeded with input — "" reads EOF immediately —
+// restored at cleanup, so a prompt under test never blocks on the real terminal.
+func Stdin(t *testing.T, input string) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+	if input != "" {
+		if _, err := w.WriteString(input); err != nil {
+			panic(err)
+		}
+	}
+	_ = w.Close()
+	orig := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = orig
+		_ = r.Close()
+	})
+}
