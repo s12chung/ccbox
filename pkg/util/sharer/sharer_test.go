@@ -283,7 +283,7 @@ func TestSymlink_Exists(t *testing.T) {
 	}
 }
 
-// TestShare_VerifyShared: a live entry implies the share is present — the scratch's
+// TestShare_VerifyShared: an existing run's entry implies the share is present — the scratch's
 // bind, or Real itself once occupied
 func TestShare_VerifyShared(t *testing.T) {
 	for _, w := range wirings {
@@ -305,18 +305,18 @@ func TestShare_Begin_Piggyback(t *testing.T) {
 			testutil.Home(t)
 			s := w.newShare()
 
-			// a live run binds the share and edits it
+			// an existing run binds the share and edits it
 			_, clean, err := s.Begin()
 			require.NoError(t, err)
 			w.edit(t, "memory")
 
-			// a second run piggybacks: the same bind, the live run's edit intact
+			// a second run piggybacks: the same bind, the existing run's edit intact
 			bind, piggybackClean, err := s.Begin()
 			require.NoError(t, err)
 			assert.Equal(t, w.bind(), bind)
 			w.assertBound(t, "memory")
 
-			// the piggyback's cleanup leaves the share for the live run
+			// the piggyback's cleanup leaves the share for the existing run
 			require.NoError(t, piggybackClean())
 			assert.True(t, present(t, w.bind()))
 
@@ -328,8 +328,8 @@ func TestShare_Begin_Piggyback(t *testing.T) {
 	}
 }
 
-// TestShare_Begin_LatecomerBindsReal: a latecomer joining a live session whose host
-// has written its own Real mid-session binds Real, and the live run's share is
+// TestShare_Begin_LatecomerBindsReal: a latecomer joining an existing session whose host
+// has written its own Real mid-session binds Real, and the existing run's share is
 // left alone
 func TestShare_Begin_LatecomerBindsReal(t *testing.T) {
 	for _, w := range wirings {
@@ -337,7 +337,7 @@ func TestShare_Begin_LatecomerBindsReal(t *testing.T) {
 			testutil.Home(t)
 			s := w.newShare()
 
-			// a live run binds the share
+			// an existing run binds the share
 			_, clean, err := s.Begin()
 			require.NoError(t, err)
 
@@ -349,7 +349,7 @@ func TestShare_Begin_LatecomerBindsReal(t *testing.T) {
 			require.NoError(t, err)
 			assert.Equal(t, w.lateBind(), bind)
 
-			// the live run's share is untouched until its last out cleans up
+			// the existing run's share is untouched until its last out cleans up
 			require.NoError(t, piggybackClean())
 			assert.True(t, present(t, w.bind()))
 

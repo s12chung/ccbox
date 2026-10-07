@@ -3,6 +3,7 @@ package ioutil
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -122,3 +123,13 @@ func ExpandHome(path, home string) string {
 	}
 	return filepath.Join(home, strings.TrimPrefix(path, "~"))
 }
+
+// BlockedCloser wraps f with a no-op Close: for files that must outlive whoever
+// streams through them (e.g. os.Stdout — closing it frees fd 1 for the next open).
+func BlockedCloser(f *os.File) io.WriteCloser {
+	return blockedCloser{f}
+}
+
+type blockedCloser struct{ *os.File }
+
+func (blockedCloser) Close() error { return nil }

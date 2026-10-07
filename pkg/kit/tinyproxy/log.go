@@ -14,14 +14,22 @@ import (
 // Log streams tinyproxy's logs through Writer; Colored tints each line per level, and
 // Stop closes when the stream ends — the foreground proxy exits on its own
 type Log struct {
-	Writer  io.Writer
+	Writer  io.WriteCloser
 	Colored bool
 	Stop    chan struct{}
 }
 
+// Close closes the Log's writer
+func (l Log) Close() error {
+	if l.Writer == nil {
+		return nil
+	}
+	return l.Writer.Close()
+}
+
 // Stream streams logs through Writer
 func (l Log) Stream(logs io.ReadCloser) error {
-	w := l.Writer
+	var w io.Writer = l.Writer
 	if l.Colored {
 		w = prompt.NewColorWriter(w, levelColor)
 	}

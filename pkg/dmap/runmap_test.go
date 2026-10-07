@@ -52,14 +52,10 @@ func TestRunMap_RunOptions(t *testing.T) {
 	require.NotNil(t, options.Proxy)
 	assert.NotNil(t, options.Proxy.BeforeStart)
 	assert.NotNil(t, options.Proxy.OnStop)
-	require.NotNil(t, options.Proxy.Log)
-	logFile, ok := options.Proxy.Log.Writer.(*os.File)
-	require.True(t, ok)
-	assert.Equal(t, filepath.Join(userDir, "proxy.log"), logFile.Name())
+	assert.Nil(t, options.Proxy.Log, "runs ride the session's log file, not a foreground stream")
 	options.Proxy.BeforeStart = nil
 	options.Proxy.OnStop = nil
-	options.Proxy.Log = nil
-	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir()}, *options.Proxy)
+	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir(), HoldersDir: proxyHoldersDir(), LogFile: proxyLogPath()}, *options.Proxy)
 }
 
 func TestRunMap_RunOptions_VNC(t *testing.T) {

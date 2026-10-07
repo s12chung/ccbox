@@ -211,3 +211,8 @@ func TestExpandHome(t *testing.T) {
 	assert.Equal(t, "relative/x", ExpandHome("relative/x", "/home/me"))
 	assert.Equal(t, "~x", ExpandHome("~x", "/home/me"), "only the ~/ prefix resolves")
 }
+
+func TestBlockedCloser(t *testing.T) {
+	wc := BlockedCloser(os.Stdout)
+	require.NoError(t, wc.Close(), "the no-op Close never fails")
+}

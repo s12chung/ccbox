@@ -20,15 +20,18 @@ type ProxyMap struct {
 // NewProxyMap returns a new ProxyMap
 func NewProxyMap(cfg *projectcfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 
-// Options renders the egress wall's docker.ProxyOptions, its logs streaming through log
+// Options renders the egress wall's docker.ProxyOptions; log is the optional foreground
+// stream — nil runs ride the session's log file only
 func (pm *ProxyMap) Options(log *tinyproxy.Log) *docker.ProxyOptions {
 	proxyConfigMap := map[string][]byte{
 		tinyproxy.ConfFile:     tinyproxy.MustConf(),
 		pkginfo.ProxyAllowFile: proxy.Render(pm.cfg.AllowlistExpanded()),
 	}
 	return &docker.ProxyOptions{
-		HostDir: proxyLiveDir(),
-		Log:     log,
+		HostDir:    proxyLiveDir(),
+		HoldersDir: proxyHoldersDir(),
+		LogFile:    proxyLogPath(),
+		Log:        log,
 		BeforeStart: func() error {
 			for name, body := range proxyConfigMap {
 				// atomically for reload
@@ -46,6 +49,9 @@ func (pm *ProxyMap) Options(log *tinyproxy.Log) *docker.ProxyOptions {
 // proxyLiveDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
 // the changing files as the running proxy's current configs.
 func proxyLiveDir() string { return filepath.Join(userdir.Tmp(), "proxy") }
+
+// proxyHoldersDir is the proxy session's holder flock dir on the host: ~/.ccbox/tmp/proxy-holders
+func proxyHoldersDir() string { return filepath.Join(userdir.Tmp(), "proxy-holders") }
 
 // proxyAllowPath is the rendered allow file within proxyLiveDir
 func proxyAllowPath() string { return filepath.Join(proxyLiveDir(), pkginfo.ProxyAllowFile) }

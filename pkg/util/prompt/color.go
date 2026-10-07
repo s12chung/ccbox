@@ -41,9 +41,12 @@ type ColorWriter struct {
 }
 
 // NewColorWriter colors w when it's a terminal; otherwise it returns w
-// untouched, so escapes never litter piped or redirected output.
+// untouched, so escapes never litter piped or redirected output. Terminal-ness
+// resolves through Fd — writer wrappers holding back a file (e.g.
+// ioutil.BlockedCloser) expose it with one.
 func NewColorWriter(w io.Writer, colorer LineColorer) io.Writer {
-	if _, isTerm := term.GetFdInfo(w); !isTerm {
+	f, ok := w.(interface{ Fd() uintptr })
+	if !ok || !term.IsTerminal(f.Fd()) {
 		return w
 	}
 	return &ColorWriter{w: w, colorer: colorer}

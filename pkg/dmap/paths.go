@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -12,8 +13,9 @@ func CLIDataBindPath(userDir, cliName, key string) string {
 	return filepath.Join(userDir, "data", cliName, slug.Path(key))
 }
 
-// proxyLogPath is the host file the auto-started proxy's logs are appended to: userDir/proxy.log
-func proxyLogPath(userDir string) string { return filepath.Join(userDir, "proxy.log") }
+// proxyLogPath is the proxy session's host log file: ~/.ccbox/proxy.log — the proxy's
+// creator appends the container's log stream here, outliving any single run
+func proxyLogPath() string { return filepath.Join(userdir.Dir(), "proxy.log") }
 
 // workspaceMount is the in-container workspace path: the WorkingDir and bind target for the project dir.
 func workspaceMount(projectDir string) string {

@@ -13,6 +13,8 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
+	"github.com/s12chung/ccbox/pkg/util/flock"
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
@@ -26,34 +28,65 @@ const (
 	tinyproxyDir = "/etc/tinyproxy"
 )
 
-// ProxyOptions configures the egress wall: BeforeStart seeds HostDir — bound read-only
-// at tinyproxyDir — just before the proxy starts, OnStop runs once the proxy is torn down,
-// and Log streams the proxy's logs
+// ProxyOptions configures the egress wall
 type ProxyOptions struct {
-	HostDir     string
-	BeforeStart func() error
-	OnStop      func() error
-	Log         *tinyproxy.Log
+	HostDir     string         // the live host dir, bound read-only at tinyproxyDir
+	HoldersDir  string         // the host dir of the proxy session's holder flock entries
+	BeforeStart func() error   // seeds HostDir just before the proxy starts
+	OnStop      func() error   // runs once the proxy is torn down
+	LogFile     string         // the host file the proxy's creator appends the container's logs to
+	Log         *tinyproxy.Log // the optional foreground stream
 }
 
-// proxyStart brings the egress wall up and streams its logs via Log in a goroutine.
-func proxyStart(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
-	var joiner klean.Joiner
+// holdProxy joins the proxy's holder session, ensuring the egress wall is up: the first
+// holder starts the proxy, a latecomer adopts the running one — or starts it back up
+// when it died on its holder — and the leave tears it down only for the last holder out.
+// The leave is nil on error.
+func holdProxy(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
+	ensure := func() error { return ensureProxy(ctxD, o) }
+	leave, err := flock.MultiFlock{Dir: o.HoldersDir}.Join(
+		ensure, ensure, // verify == ensure: a latecomer heals a proxy that died on its holder
+		func() error { return stopProxy(ctxD, o) },
+	)
+	if err != nil {
+		return nil, err
+	}
+	return klean.SwallowErr(leave, flock.ErrNotLast), nil
+}
 
+// ensureProxy brings the egress wall up: it adopts a running proxy as-is and replaces a
+// stopped or stale one — the takeover — then streams its logs to LogFile, with Log as
+// the optional foreground view.
+func ensureProxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	ensureNetwork(ctxD)
-	joiner.Push("remove proxy network", func() error {
-		return tearIdleNetwork(ctxD)
-	})
 
+	running, err := isProxyRunning(ctxD)
+	if err != nil {
+		return err
+	}
+	if !running { // the creator anchors the container's log stream: one writer per container
+		if err := startProxy(ctxD, o); err != nil {
+			return err
+		}
+		if err := streamLogFile(ctxD, o); err != nil {
+			return err
+		}
+	}
+	return streamProxyLogs(ctxD, o) // nil Log streams nothing
+}
+
+// startProxy replaces any stale proxy container with a fresh one, seeded by BeforeStart
+// and bound to the live dir read-only.
+func startProxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	if err := dock.EnsureImageExists(ctxD, proxyImage); err != nil {
-		return joiner.Run, err
+		return err
 	}
 	// Clear any stale proxy container so the fixed name is free.
 	_ = ctxD.D.ContainerRemove(ctxD.Ctx, proxyContainerName, container.RemoveOptions{Force: true})
 
 	if o.BeforeStart != nil {
 		if err := o.BeforeStart(); err != nil {
-			return joiner.Run, err
+			return err
 		}
 	}
 
@@ -65,48 +98,85 @@ func proxyStart(ctxD *dock.CtxD, o ProxyOptions) (func() error, error) {
 		},
 		nil, nil, proxyContainerName)
 	if err != nil {
-		return joiner.Run, err
+		return err
 	}
-	id := resp.ID
-	joiner.Push("remove container", func() error {
-		return ctxD.D.ContainerRemove(context.Background(), id, container.RemoveOptions{Force: true})
-	})
-
-	if err = ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
-		return joiner.Run, err
+	if err = ctxD.D.ContainerStart(ctxD.Ctx, resp.ID, container.StartOptions{}); err != nil {
+		return err
 	}
-	joiner.Push("container stop", func() error {
-		timeout := 5
-		return ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
-	})
+	// The internal proxy network has no upstream route: the proxy forwards over
+	// the engine's default bridge instead. runDevbox re-asserts the connect on
+	// every run start, so an adopted proxy gets egress from it too.
+	_ = ctxD.D.NetworkConnect(ctxD.Ctx, bridgeNetworkName, resp.ID, nil)
+	return nil
+}
 
-	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+// streamLogFile appends the container's log stream to the session's log file — the file
+// view every holder shares.
+func streamLogFile(ctxD *dock.CtxD, o ProxyOptions) error {
+	f, err := os.OpenFile(o.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, ioutil.File) // #nosec G304 -- the session's own log file
 	if err != nil {
-		return joiner.Run, err
+		return err
 	}
-	joiner.Push("close logs", logs.Close)
+	return streamLogs(ctxD, &tinyproxy.Log{Writer: f}) // uncolored: it's a file
+}
 
-	if o.OnStop != nil {
-		joiner.Push("on stop", o.OnStop)
+// streamProxyLogs tails the proxy's logs through the foreground Log; nil streams nothing.
+func streamProxyLogs(ctxD *dock.CtxD, o ProxyOptions) error {
+	if o.Log == nil {
+		return nil
 	}
-	logDone := o.Log.StreamGo(logs)
-	return func() error {
-		return errors.Join(joiner.Run(), <-logDone)
-	}, nil
+	return streamLogs(ctxD, o.Log)
+}
+
+// streamLogs tails the proxy container's logs through l in a goroutine; l closes with
+// the stream's reader when the stream ends with the container, or immediately on an error.
+func streamLogs(ctxD *dock.CtxD, l *tinyproxy.Log) error {
+	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, proxyContainerName, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+	if err != nil {
+		return errors.Join(l.Close(), err)
+	}
+	logDone := l.StreamGo(logs)
+	go func() {
+		<-logDone
+		log.WarnErr("close proxy logs", errors.Join(l.Close(), logs.Close()))
+	}()
+	return nil
+}
+
+// stopProxy tears the egress wall down: it stops and removes the proxy container, runs
+// OnStop, then removes the network. Missing pieces are already-clean, not errors.
+func stopProxy(ctxD *dock.CtxD, o ProxyOptions) error {
+	timeout := 5
+	err := ctxD.D.ContainerStop(context.Background(), proxyContainerName, container.StopOptions{Timeout: &timeout})
+	if err != nil && !errdefs.IsNotFound(err) {
+		return err
+	}
+	err = ctxD.D.ContainerRemove(context.Background(), proxyContainerName, container.RemoveOptions{Force: true})
+	if err != nil && !errdefs.IsNotFound(err) {
+		return err
+	}
+	if o.OnStop != nil {
+		if err := o.OnStop(); err != nil {
+			return err
+		}
+	}
+	return tearIdleNetwork(ctxD)
 }
 
 // Proxy runs the tinyproxy container in the foreground (docker run --rm),
 // streaming its logs through Log until interrupted: SIGINT/SIGTERM, or Log.Stop closing —
 // the proxy exits on its own. Log.Stop must be set: a stopped proxy would hang the wait.
+// holdProxy holds the egress wall's session for the command — the proxy outlives it whenever
+// another holder (a run, another proxy command) remains.
 func Proxy(ctxD *dock.CtxD, o ProxyOptions) error {
 	if o.Log == nil || o.Log.Stop == nil {
 		return errors.New("Log.Stop is required: the foreground wait ends when the log stream does")
 	}
-	clean, err := proxyStart(ctxD, o)
-	defer log.Defer("proxy clean", clean)
+	leave, err := holdProxy(ctxD, o)
 	if err != nil {
 		return err
 	}
+	defer log.Defer("proxy leave", leave)
 
 	// Foreground: block until Ctrl-C.
 	sig := make(chan os.Signal, 1)

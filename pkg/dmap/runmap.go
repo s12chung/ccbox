@@ -4,9 +4,7 @@ import (
 	"os"
 
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -61,13 +59,7 @@ func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error
 
 	var proxyOptions *docker.ProxyOptions
 	if !noProxy {
-		logFile, err := os.OpenFile(proxyLogPath(rm.userDir), os.O_APPEND|os.O_CREATE|os.O_WRONLY, ioutil.File)
-		if err != nil {
-			return docker.RunOptions{}, joiner.Run, err
-		}
-		joiner.Push("close proxy log file", logFile.Close)
-
-		proxyOptions = NewProxyMap(rm.cfg).Options(&tinyproxy.Log{Writer: logFile})
+		proxyOptions = NewProxyMap(rm.cfg).Options(nil)
 	}
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,

@@ -1,6 +1,6 @@
 // Package flock anchors exclusive kernel flock(2) locks on empty lockfiles: the kernel
 // releases a lock when its holder dies, so the files need no stale handling. MultiFlock
-// counts a shared resource's live holders with the same trick.
+// counts a shared resource's existing holders with the same trick.
 package flock
 
 import (

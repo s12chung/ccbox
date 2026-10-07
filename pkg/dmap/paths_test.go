@@ -1,9 +1,12 @@
 package dmap
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 func TestCLIDataBindPath(t *testing.T) {
@@ -12,7 +15,8 @@ func TestCLIDataBindPath(t *testing.T) {
 }
 
 func TestProxyLogPath(t *testing.T) {
-	assert.Equal(t, "/home/me/.ccbox/proxy.log", proxyLogPath("/home/me/.ccbox"))
+	home := testutil.Home(t)
+	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy.log"), proxyLogPath())
 }
 
 func TestWorkspaceMount(t *testing.T) {

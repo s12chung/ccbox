@@ -3,10 +3,13 @@ package prompt
 import (
 	"bytes"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
 func TestColor_Wrap(t *testing.T) {
@@ -51,4 +54,15 @@ func TestColorWriter_WriteBuffersSplitLine(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "\x1b[31mhello\x1b[0m\n", buf.String(),
 		"split line emitted once, fully colored")
+}
+
+func TestNewColorWriter_NonTerm(t *testing.T) {
+	colorer := func(string) Color { return ColorRed }
+	r, w, err := os.Pipe() // a pipe is no terminal
+	require.NoError(t, err)
+	defer func() { assert.NoError(t, r.Close()) }()
+
+	assert.Equal(t, w, NewColorWriter(w, colorer))
+	assert.Equal(t, io.Writer(ioutil.BlockedCloser(w)), NewColorWriter(ioutil.BlockedCloser(w), colorer),
+		"terminal-ness resolves through the wrapper's Fd")
 }

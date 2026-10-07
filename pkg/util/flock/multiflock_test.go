@@ -17,9 +17,9 @@ func newMultiFlock(t *testing.T) MultiFlock {
 	return MultiFlock{Dir: t.TempDir()}
 }
 
-// liveEntry creates a live holder's entry: a file flock-held by this process, as a
-// concurrent holder holds
-func liveEntry(t *testing.T, m MultiFlock) {
+// existingEntry creates an existing holder's entry: a file flock-held by this process,
+// as a concurrent holder holds
+func existingEntry(t *testing.T, m MultiFlock) {
 	t.Helper()
 	f, err := os.CreateTemp(m.Dir, entryPrefix)
 	require.NoError(t, err)
@@ -58,6 +58,7 @@ func TestMultiFlock_Join_Solo(t *testing.T) {
 	leave, err := m.Join(
 		func() error { validateRan = true; return nil },
 		func() error { fnRan = true; return nil },
+		nil,
 	)
 	require.NoError(t, err)
 	assert.True(t, fnRan, "the holder is the resource's first: it creates")
@@ -70,19 +71,20 @@ func TestMultiFlock_Join_Solo(t *testing.T) {
 
 func TestMultiFlock_Join_Existing(t *testing.T) {
 	m := newMultiFlock(t)
-	liveEntry(t, m)
+	existingEntry(t, m)
 
 	fnRan, validateRan := false, false
 	leave, err := m.Join(
 		func() error { validateRan = true; return nil },
 		func() error { fnRan = true; return nil },
+		nil,
 	)
 	require.NoError(t, err)
-	assert.True(t, validateRan, "the held entry counts as a live holder: verify, don't create")
+	assert.True(t, validateRan, "the held entry counts as an existing holder: verify, don't create")
 	assert.False(t, fnRan)
 
-	require.ErrorIs(t, leave(), ErrNotLast) // the live other keeps this holder from being last
-	assert.Len(t, entryNames(t, m), 1, "the live entry is kept")
+	require.ErrorIs(t, leave(), ErrNotLast) // the existing holder keeps the calling holder from being last
+	assert.Len(t, entryNames(t, m), 1, "the existing entry is kept")
 }
 
 func TestMultiFlock_Join_CallbackUnderLock(t *testing.T) {
@@ -93,7 +95,7 @@ func TestMultiFlock_Join_CallbackUnderLock(t *testing.T) {
 			held = errors.Is(lockErr, ErrHeld)
 			return nil
 		}
-		_, err := m.Join(callback, callback)
+		_, err := m.Join(callback, callback, nil)
 		require.NoError(t, err)
 		return held
 	}
@@ -101,7 +103,7 @@ func TestMultiFlock_Join_CallbackUnderLock(t *testing.T) {
 	assert.True(t, check(newMultiFlock(t)), "fn runs under the dir lock")
 
 	m := newMultiFlock(t)
-	liveEntry(t, m)
+	existingEntry(t, m)
 	assert.True(t, check(m), "validateExistingFn runs under the dir lock")
 }
 
@@ -110,9 +112,9 @@ func TestMultiFlock_Join_SweepsDeadEntries(t *testing.T) {
 	dead := deadEntry(t, m)
 
 	fnRan := false
-	leave, err := m.Join(func() error { return nil }, func() error { fnRan = true; return nil })
+	leave, err := m.Join(func() error { return nil }, func() error { fnRan = true; return nil }, nil)
 	require.NoError(t, err)
-	assert.True(t, fnRan, "the dead entry is not a live holder: the holder creates")
+	assert.True(t, fnRan, "the dead entry is not an existing holder: the holder creates")
 	assert.NoFileExists(t, dead, "the dead entry is swept")
 	require.Len(t, entryNames(t, m), 1, "only the holder's own entry remains")
 
@@ -122,7 +124,7 @@ func TestMultiFlock_Join_SweepsDeadEntries(t *testing.T) {
 func TestMultiFlock_Leave_SweepsDeadEntries(t *testing.T) {
 	m := newMultiFlock(t)
 
-	leave, err := m.Join(func() error { return nil }, func() error { return nil })
+	leave, err := m.Join(func() error { return nil }, func() error { return nil }, nil)
 	require.NoError(t, err)
 	deadEntry(t, m)
 
@@ -130,22 +132,68 @@ func TestMultiFlock_Leave_SweepsDeadEntries(t *testing.T) {
 	assert.Empty(t, entryNames(t, m))
 }
 
+func TestMultiFlock_Leave_Teardown_LastOnly(t *testing.T) {
+	m := newMultiFlock(t)
+
+	teardowns := 0
+	first, err := m.Join(func() error { return nil }, func() error { return nil }, func() error { teardowns++; return nil })
+	require.NoError(t, err)
+	second, err := m.Join(func() error { return nil }, func() error { return nil }, func() error { teardowns++; return nil })
+	require.NoError(t, err)
+
+	require.ErrorIs(t, first(), ErrNotLast)
+	assert.Zero(t, teardowns, "an existing holder remains: its leave skips teardown")
+	require.NoError(t, second())
+	assert.Equal(t, 1, teardowns, "the last one out tears the resource down")
+}
+
+func TestMultiFlock_Leave_Teardown_UnderLock(t *testing.T) {
+	m := newMultiFlock(t)
+
+	held := false
+	leave, err := m.Join(func() error { return nil }, func() error { return nil }, func() error {
+		_, lockErr := TryEx(m.lockPath())
+		held = errors.Is(lockErr, ErrHeld)
+		return nil
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, leave())
+	assert.True(t, held, "teardown runs under the dir lock: a blocked join sees no half state")
+}
+
+func TestMultiFlock_Leave_Teardown_ErrorStillDrops(t *testing.T) {
+	m := newMultiFlock(t)
+	wantErr := errors.New("boom")
+
+	leave, err := m.Join(func() error { return nil }, func() error { return nil }, func() error { return wantErr })
+	require.NoError(t, err)
+
+	require.ErrorIs(t, leave(), wantErr)
+	assert.Empty(t, entryNames(t, m), "a failed teardown must not hold the count hostage")
+
+	fnRan := false
+	_, err = m.Join(func() error { return nil }, func() error { fnRan = true; return nil }, nil)
+	require.NoError(t, err)
+	assert.True(t, fnRan, "the dropped entry lets the next holder create anew")
+}
+
 func TestMultiFlock_Join_CallbackError(t *testing.T) {
 	wantErr := errors.New("boom")
 
 	t.Run("Fn", func(t *testing.T) {
 		m := newMultiFlock(t)
-		_, err := m.Join(func() error { return nil }, func() error { return wantErr })
+		_, err := m.Join(func() error { return nil }, func() error { return wantErr }, nil)
 		require.ErrorIs(t, err, wantErr)
 		assert.Empty(t, entryNames(t, m), "a failed create registers no entry")
 	})
 
 	t.Run("ValidateExistingFn", func(t *testing.T) {
 		m := newMultiFlock(t)
-		liveEntry(t, m)
-		_, err := m.Join(func() error { return wantErr }, func() error { return nil })
+		existingEntry(t, m)
+		_, err := m.Join(func() error { return wantErr }, func() error { return nil }, nil)
 		require.ErrorIs(t, err, wantErr)
-		assert.Len(t, entryNames(t, m), 1, "only the live entry remains")
+		assert.Len(t, entryNames(t, m), 1, "only the existing entry remains")
 	})
 }
 
@@ -162,6 +210,7 @@ func TestMultiFlock_Join_Concurrent(t *testing.T) {
 			leave, err := m.Join(
 				func() error { validates.Add(1); return nil },
 				func() error { fns.Add(1); return nil },
+				nil,
 			)
 			if err != nil {
 				t.Errorf("join: %v", err)
@@ -174,9 +223,9 @@ func TestMultiFlock_Join_Concurrent(t *testing.T) {
 	}
 	joins.Wait()
 	assert.Equal(t, int32(1), fns.Load(), "exactly one holder created the resource")
-	assert.Equal(t, int32(holders-1), validates.Load(), "every other holder joined the live ones")
+	assert.Equal(t, int32(holders-1), validates.Load(), "every other holder joined the existing ones")
 
-	// every holder leaves: all but the last out find a live holder among the rest
+	// every holder leaves: all but the last out find an existing holder among the rest
 	var notLasts atomic.Int32
 	var leavesDone sync.WaitGroup
 	for _, leave := range leaves {
@@ -191,28 +240,28 @@ func TestMultiFlock_Join_Concurrent(t *testing.T) {
 		})
 	}
 	leavesDone.Wait()
-	assert.Equal(t, int32(holders-1), notLasts.Load(), "every holder but the last out leaves a live holder behind")
+	assert.Equal(t, int32(holders-1), notLasts.Load(), "every holder but the last out leaves an existing holder behind")
 	assert.Empty(t, entryNames(t, m), "every entry is dropped")
 }
 
 func TestMultiFlock_Clean_Solo(t *testing.T) {
 	m := newMultiFlock(t)
 
-	release, live, err := m.Clean()
+	release, existing, err := m.Clean()
 	require.NoError(t, err)
-	assert.Equal(t, 0, live)
+	assert.Equal(t, 0, existing)
 	assert.Empty(t, entryNames(t, m))
 	release()
 }
 
 func TestMultiFlock_Clean_Existing(t *testing.T) {
 	m := newMultiFlock(t)
-	liveEntry(t, m)
+	existingEntry(t, m)
 
-	release, live, err := m.Clean()
+	release, existing, err := m.Clean()
 	require.NoError(t, err)
-	assert.Equal(t, 1, live, "the held entry counts as a live holder")
-	assert.Len(t, entryNames(t, m), 1, "the live entry is kept")
+	assert.Equal(t, 1, existing, "the held entry counts as an existing holder")
+	assert.Len(t, entryNames(t, m), 1, "the existing entry is kept")
 	release()
 }
 
@@ -220,9 +269,9 @@ func TestMultiFlock_Clean_SweepsDeadEntries(t *testing.T) {
 	m := newMultiFlock(t)
 	dead := deadEntry(t, m)
 
-	release, live, err := m.Clean()
+	release, existing, err := m.Clean()
 	require.NoError(t, err)
-	assert.Equal(t, 0, live, "the dead entry is not a live holder")
+	assert.Equal(t, 0, existing, "the dead entry is not an existing holder")
 	assert.NoFileExists(t, dead, "the dead entry is swept")
 	release()
 }

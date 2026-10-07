@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	// entryPrefix marks holder entry files, whose names are mere handles: the flocks
-	// carry the liveness
+	// entryPrefix marks holder entry files, whose names are mere handles: an entry
+	// exists while its flock is held
 	entryPrefix = "holder-"
 
 	// lockFileName is never removed: an immortal lockfile avoids the unlink+flock
@@ -19,29 +19,29 @@ const (
 	lockFileName = ".lock"
 )
 
-// ErrNotLast reports that the leaving holder was not the last live one: the
-// last one out swallows it to skip its clean
-var ErrNotLast = errors.New("flock: a live holder remains")
+// ErrNotLast reports that existing holders remain: the last one out swallows it to
+// skip its teardown
+var ErrNotLast = errors.New("flock: an existing holder remains")
 
-// MultiFlock tracks a shared resource's live holders in Dir: one flock-held entry per
+// MultiFlock tracks a shared resource's existing holders in Dir: one flock-held entry per
 // holder, so the kernel — not stored state — carries the count, and a dead holder's
 // entry is swept once its lock is gone.
 type MultiFlock struct{ Dir string }
 
 // Join flocks the holder's entry in Dir and runs one callback under the dir lock: fn
 // creates the resource for its first holder, verifyExisting verifies it for
-// latecomers. The callback precedes the registration, so a failed join leaves
-// nothing behind. It returns the holder's leave.
-func (m MultiFlock) Join(verifyExisting, fn func() error) (func() error, error) {
-	release, live, err := m.Clean()
+// latecomers. It returns the holder's leave, which runs teardown for the last one out.
+func (m MultiFlock) Join(verifyExisting, fn, teardown func() error) (func() error, error) {
+	release, existing, err := m.Clean()
 	if err != nil {
 		return nil, err
 	}
 	defer release()
 
-	if live > 0 {
+	if existing > 0 { // an existing holder holds the resource: verify it, don't create it
 		fn = verifyExisting
 	}
+	// the callback precedes the registration: a failed join leaves nothing behind
 	if err := fn(); err != nil {
 		return nil, err
 	}
@@ -49,44 +49,51 @@ func (m MultiFlock) Join(verifyExisting, fn func() error) (func() error, error) 
 	if err != nil {
 		return nil, err
 	}
-	return func() error { return m.leave(entry) }, nil
+	return func() error { return m.leave(entry, teardown) }, nil
 }
 
 // Clean takes the dir lock and sweeps the dead entries, returning the lock's release
-// and the live holders' count
+// and the existing holders' count
 func (m MultiFlock) Clean() (func(), int, error) {
 	dirLock, err := Ex(m.lockPath())
 	if err != nil {
 		return nil, 0, err
 	}
 	release := func() { log.Defer("release dir lock", dirLock.Release) }
-	live, err := m.sweep()
+	existing, err := m.sweep()
 	if err != nil {
 		release()
 		return nil, 0, err
 	}
-	return release, live, nil
+	return release, existing, nil
 }
 
-// leave sweeps the dead ones and drops the holder's entry; a live holder remaining
-// reports ErrNotLast
-func (m MultiFlock) leave(e *entry) error {
-	release, live, err := m.Clean() // the sweep counts this holder's own live entry
+// leave sweeps the dead ones and drops the calling holder's entry; an existing holder
+// remaining reports ErrNotLast and skips teardown, the last one out runs teardown first
+func (m MultiFlock) leave(e *entry, teardown func() error) error {
+	release, existing, err := m.Clean() // the sweep counts the calling holder's own entry
 	if err != nil {
 		return err
 	}
 	defer release()
 
-	if err := e.drop(); err != nil {
-		return err
-	}
-	if live > 1 { // the count includes this holder: the remainder is the others
+	if existing > 1 { // the count includes the calling holder: the remainder is the others
+		if err := e.drop(); err != nil {
+			return err
+		}
 		return ErrNotLast
 	}
-	return nil
+	// teardown runs under the dir lock, before the entry drops: a join blocked on the
+	// lock then sees the resource fully up or fully torn down, never half
+	var terr error
+	if teardown != nil {
+		terr = teardown()
+	}
+	// the entry drops regardless: a failed teardown must not hold the count hostage
+	return errors.Join(terr, e.drop())
 }
 
-// sweep counts the live entries and removes the dead ones. It runs under the dir
+// sweep counts the existing entries and removes the dead ones. It runs under the dir
 // lock, so every entry is fully registered (its flock held) or abandoned (its holder
 // died) — no half-registered state to mistake for either.
 func (m MultiFlock) sweep() (int, error) {
@@ -94,7 +101,7 @@ func (m MultiFlock) sweep() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	live := 0
+	existing := 0
 	for _, e := range entries {
 		if !strings.HasPrefix(e.Name(), entryPrefix) || e.IsDir() {
 			continue
@@ -102,7 +109,7 @@ func (m MultiFlock) sweep() (int, error) {
 		p := filepath.Join(m.Dir, e.Name())
 		switch l, err := TryEx(p); {
 		case errors.Is(err, ErrHeld):
-			live++
+			existing++
 		case err != nil:
 			return 0, err
 		default:
@@ -111,7 +118,7 @@ func (m MultiFlock) sweep() (int, error) {
 			}
 		}
 	}
-	return live, nil
+	return existing, nil
 }
 
 func (m MultiFlock) lockPath() string { return filepath.Join(m.Dir, lockFileName) }

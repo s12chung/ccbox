@@ -1,5 +1,5 @@
 // Package sharer shares host paths into the devbox: while a persistent path is
-// missing, runs bind a seeded scratch copy, and the last live run promotes its changes
+// missing, runs bind a seeded scratch copy, and the last out promotes its changes
 // into the persistent path. Share drives the lifecycle over the
 // ScratchContent and ScratchSync axes — the file-vs-dir and symlink-vs-direct branches.
 package sharer
@@ -38,22 +38,23 @@ type Share struct {
 // promoting the run's changes into Real. A "" path binds nothing: Real is reached
 // via its own mount.
 func (s Share) Begin() (string, func() error, error) {
-	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare)
-	clean := klean.SwallowErr(klean.NewQueue(leave, s.clean).Run, flock.ErrNotLast)
+	leave, err := s.multiflock().Join(s.verifyShared, s.initialShare, s.clean)
 	if err != nil {
-		return "", clean, err
+		// no holder entry: still tidy a crashed run's leftovers
+		return "", s.clean, err
 	}
+	bind := s.Sync.ScratchBindPath(s.RealPath)
 	if s.Sync.RealPresent(s.RealPath) {
-		return s.Sync.RealBindPath(s.RealPath), clean, nil
+		bind = s.Sync.RealBindPath(s.RealPath)
 	}
-	return s.Sync.ScratchBindPath(s.RealPath), clean, nil
+	return bind, klean.SwallowErr(leave, flock.ErrNotLast), nil
 }
 
-// verifyShared verifies the live share is present: the scratch's bind, or Real
+// verifyShared verifies the share is present: the scratch's bind, or Real
 // when the first holder bound it directly
 func (s Share) verifyShared() error {
 	if ioutil.Missing(s.Sync.ScratchBindPath(s.RealPath)) && !s.Sync.RealPresent(s.RealPath) {
-		return fmt.Errorf("%s: live run's share missing: neither %s nor %s",
+		return fmt.Errorf("%s: existing run's share missing: neither %s nor %s",
 			s.Name, userdir.Tilde(s.Sync.ScratchBindPath(s.RealPath)), userdir.Tilde(s.RealPath))
 	}
 	return nil
@@ -96,8 +97,8 @@ func (s Share) clean() error {
 	return os.RemoveAll(s.Sync.ScratchPath(s.RealPath))
 }
 
-// multiflock tracks Real's live runs by ScratchPath's rel path, re-rooted under
-// the run registry, so a layout change never orphans live runs' locks
+// multiflock tracks Real's existing runs by ScratchPath's rel path, re-rooted under
+// the run registry, so a layout change never orphans existing runs' locks
 func (s Share) multiflock() flock.MultiFlock {
 	return flock.MultiFlock{Dir: runsDirFor(s.Sync.ScratchPath(s.RealPath))}
 }

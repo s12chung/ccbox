@@ -12,6 +12,10 @@ import (
 
 const proxyPort = "8888"
 
+// bridgeNetworkName is the engine's default bridge: the devbox runs on the internal
+// proxy network, so the proxy itself forwards over the bridge.
+const bridgeNetworkName = "bridge"
+
 // desktopVNCPort is the port a run's desktop serves native VNC on. Published
 // on the host loopback, so a VNC client connects at localhost:5900 when the run
 // serves a desktop (--vnc); nothing listens behind the port when it doesn't. 5900
@@ -64,7 +68,7 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	// The egress wall network by default; a nil proxy runs on the engine's default bridge instead.
 	networkMode := container.NetworkMode(proxyNetworkName)
 	if hostOptions.Proxy == nil {
-		networkMode = "bridge"
+		networkMode = bridgeNetworkName
 	}
 	return &container.HostConfig{
 		NetworkMode: networkMode,
@@ -79,32 +83,25 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 }
 
 // Run starts the devbox container interactively (docker run -it --rm) behind the egress wall
-// and returns its exit code. proxyStart brings the proxy up for the session (see AutoProxy);
-// the container is removed on return, before the session's proxy is torn down.
+// and returns its exit code. holdProxy holds the egress wall's session for the run — the proxy
+// outlives the run whenever another holder remains — and the container is removed on
+// return, before the session's leave.
 func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	if hostOptions.Proxy == nil {
 		return runDevbox(ctxD, hostOptions)
 	}
-
-	proxyRunning, err := isProxyRunning(ctxD)
+	leave, err := holdProxy(ctxD, *hostOptions.Proxy)
 	if err != nil {
 		return 0, err
 	}
-	if proxyRunning {
-		return runDevbox(ctxD, hostOptions)
-	}
-
-	clean, err := proxyStart(ctxD, *hostOptions.Proxy)
-	defer log.Defer("proxy clean", clean)
-	if err != nil {
-		return 0, err
-	}
+	defer log.Defer("proxy leave", leave)
 	return runDevbox(ctxD, hostOptions)
 }
 
 func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 	if hostOptions.Proxy != nil {
-		_ = ctxD.D.NetworkConnect(ctxD.Ctx, "bridge", proxyContainerName, nil) // silently ignore errors
+		// re-asserted per run: a proxy adopted from a creator that skipped it gets egress here
+		_ = ctxD.D.NetworkConnect(ctxD.Ctx, bridgeNetworkName, proxyContainerName, nil) // silently ignore errors
 	}
 
 	hostConfig, err := runHostConfig(ctxD, hostOptions)
