@@ -4,6 +4,7 @@ package cmd
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,12 +43,24 @@ var projectConfig *projectcfg.Config
 
 var rootCmd = &cobra.Command{
 	Use:           "ccbox",
-	Short:         "Hardened Docker devbox for Claude Code",
-	Long:          "Hardened Docker devbox for Claude Code. With no subcommand, runs the devbox container interactively behind the egress wall.",
+	Short:         "Run your harness in a hardened Docker devbox",
+	Long:          "Run your harness in a hardened Docker devbox; `ccbox run [command...]` execs a command in it instead.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Args:          resumeArgs,
-	RunE:          run,
+	Args: func(_ *cobra.Command, args []string) error {
+		switch {
+		case len(args) > 1:
+			return errors.New("accepts at most one session name")
+		case len(args) == 1 && !runMode.Resume:
+			return errors.New("a session name requires -r/--resume")
+		}
+		return nil
+	},
+	RunE: func(cmd *cobra.Command, args []string) error {
+		mode := runMode
+		mode.Args = args
+		return run(cmd.Context(), mode)
+	},
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		for c := cmd; c != nil; c = c.Parent() {
 			if c.Name() == doctorCmd.Name() {
@@ -81,6 +94,11 @@ func Execute(build embed.FS) int {
 }
 
 func init() {
+	f := rootCmd.Flags()
+	f.BoolVarP(&runMode.Continue, "continue", "c", false, "continue the last session")
+	f.BoolVarP(&runMode.Resume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
+	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume")
+
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.Var(flagutils.StringPtr(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
@@ -90,7 +108,7 @@ func init() {
 		return cli.Names(), cobra.ShellCompDirectiveNoFileComp
 	}))
 
-	rootCmd.AddCommand(buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
+	rootCmd.AddCommand(runCmd, buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
 }
 
 // rootSeed seeds the user-level harness state if missing

@@ -27,25 +27,19 @@ func NewRunMap(userDir string, cfg *projectcfg.Config) *RunMap {
 	return &RunMap{userDir: userDir, cfg: cfg}
 }
 
-// RunFlags are the run command's CLI inputs that shape the run's docker options
-type RunFlags struct {
-	Tag   string
-	Args  []string
-	Modes RunModes
-}
-
-// RunModes are the run command's boolean mode flags
-type RunModes struct {
-	Shell    bool // drop into the image's default shell instead of launching the CLI
-	Continue bool // -c: continue the last session
-	Resume   bool // -r: resume a session
-	NoProxy  bool // skip the egress wall: direct network access
+// RunMode is the run's selected mode, with Args carrying its args
+type RunMode struct {
+	Shell    bool     // the run subcommand: Args exec in the container
+	Continue bool     // -c: continue the last session
+	Resume   bool     // -r: resume a session
+	NoProxy  bool     // skip the egress wall: direct network access
+	Args     []string // the exec argv (run), or the resumed session's name (-r)
 }
 
 // RunOptions renders the run's full docker.RunOptions
-func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error, error) {
+func (rm *RunMap) RunOptions(tag string, mode RunMode) (docker.RunOptions, func() error, error) {
 	serveVNC := rm.cfg.ServeVNC()
-	noProxy := rm.cfg.NoProxyFor(serveVNC, runFlags.Modes.NoProxy)
+	noProxy := rm.cfg.NoProxyFor(serveVNC, mode.NoProxy)
 	var joiner klean.Joiner
 	hostOptions, clean, err := rm.HostOptions(serveVNC, noProxy)
 	joiner.Push("clean run files", clean)
@@ -63,9 +57,9 @@ func (rm *RunMap) RunOptions(runFlags RunFlags) (docker.RunOptions, func() error
 	}
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,
-		Tag:            variantTag(runFlags.Tag, serveVNC),
+		Tag:            variantTag(tag, serveVNC),
 		Env:            env,
-		Cmd:            rm.cmd(runFlags),
+		Cmd:            rm.cmd(mode),
 		Proxy:          proxyOptions,
 	}, joiner.Run, nil
 }
@@ -132,7 +126,11 @@ func hostTerminalEnv() map[string]string {
 	return env
 }
 
-// cmd maps the run flags to the CLI's session launch argv.
-func (rm *RunMap) cmd(flags RunFlags) []string {
-	return rm.cfg.CLI().SessionCmd(flags.Modes.Shell, flags.Modes.Continue, flags.Modes.Resume, flags.Args)
+// cmd maps the run mode to the container's Cmd: the run command's exec argv —
+// nil for the image's default shell — or the CLI's session launch argv.
+func (rm *RunMap) cmd(mode RunMode) []string {
+	if mode.Shell {
+		return mode.Args
+	}
+	return rm.cfg.CLI().SessionCmd(mode.Continue, mode.Resume, mode.Args)
 }

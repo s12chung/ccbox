@@ -1,5 +1,4 @@
 BIN ?= dist/ccbox
-TAG ?= s12chung/ccbox:latest
 
 GOARCH ?= $(shell go env GOARCH)
 
@@ -38,11 +37,4 @@ test.docker:
 	bats tests/
 
 docker.test: build
-	$(BIN) build --tag $(TAG)
-	docker run --rm \
-	-v ccbox-clis:/opt/ccbox/clis \
-	-v $(shell pwd):/home/ccbox/docker.test \
-	--workdir /home/ccbox/docker.test \
-	-e CLI_PKGINFO="$$( $(BIN) pkginfo )" \
-	$(TAG) \
-	-lc 'make test.all'
+	TERM=xterm-256color $(BIN) run make test.all

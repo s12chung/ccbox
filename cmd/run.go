@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"os"
 
@@ -16,27 +17,27 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
-var runModes dmap.RunModes
+var runMode dmap.RunMode
 
 // runVNC serves the desktop session (`--vnc`); Load resolves it with the vnc
 // section's enabled, so the runs ride projectConfig's resolved mode
 var runVNC bool
 
-// resumeArgs allows a single positional session name, and only alongside -r/--resume.
-func resumeArgs(_ *cobra.Command, args []string) error {
-	switch {
-	case len(args) > 1:
-		return errors.New("accepts at most one session name")
-	case len(args) == 1 && !runModes.Resume:
-		return errors.New("a session name requires -r/--resume")
-	}
-	return nil
+// runCmd execs a command in a fresh devbox container; bare, it drops into the
+// image's default shell.
+var runCmd = &cobra.Command{
+	Use:                   "run [command...]",
+	Short:                 "Exec a command in the devbox container",
+	Args:                  cobra.ArbitraryArgs,
+	DisableFlagsInUseLine: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return run(cmd.Context(), dmap.RunMode{Shell: true, NoProxy: runMode.NoProxy, Args: args})
+	},
 }
 
-// run builds the image then runs the devbox container interactively behind the
-// egress wall. It is the root command's action — `ccbox` with no subcommand.
-func run(cmd *cobra.Command, args []string) error {
-	if err := build(cmd.Context(), projectConfig.ServeVNC()); err != nil {
+// run builds the image then runs the devbox container
+func run(ctx context.Context, mode dmap.RunMode) error {
+	if err := build(ctx, projectConfig.ServeVNC()); err != nil {
 		return err
 	}
 	defer printPresentGuardMounts()
@@ -50,17 +51,14 @@ func run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	options, clean, err := dmap.NewRunMap(userDir, projectConfig).RunOptions(dmap.RunFlags{
-		Tag:   flagTag,
-		Args:  args,
-		Modes: runModes,
-	})
+	options, clean, err := dmap.NewRunMap(userDir, projectConfig).RunOptions(flagTag, mode)
 	defer log.Defer("clean run files", clean)
 	if err != nil {
 		return err
 	}
 
-	code, err := docker.Run(dock.MustNewCtxD(cmd.Context()), options)
+	//nolint:contextcheck // the chain's context.Background cleanups are deliberate: a cancelled ctx can't block cleanup
+	code, err := docker.Run(dock.MustNewCtxD(ctx), options)
 	if err != nil {
 		return err
 	}
@@ -69,13 +67,12 @@ func run(cmd *cobra.Command, args []string) error {
 }
 
 func init() {
-	f := rootCmd.Flags()
-	f.BoolVarP(&runModes.Continue, "continue", "c", false, "continue the last session")
-	f.BoolVarP(&runModes.Resume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
-	f.BoolVar(&runModes.Shell, "shell", false, "drop into a shell instead of launching the harness CLI")
-	f.BoolVar(&runModes.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
-	f.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental, always no proxy)")
-	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume", "shell")
+	for _, c := range []*cobra.Command{rootCmd, runCmd} {
+		rf := c.Flags()
+		rf.BoolVar(&runMode.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
+		rf.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental, always no proxy)")
+	}
+	runCmd.Flags().SetInterspersed(false)
 }
 
 // seedRunMounts seeds the run mounts in userDir

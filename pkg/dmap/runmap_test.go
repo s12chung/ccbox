@@ -40,7 +40,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	env, err := rm.Env(false)
 	require.NoError(t, err)
 
-	options, clean, err := rm.RunOptions(RunFlags{Tag: "dev:tag"})
+	options, clean, err := rm.RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -72,7 +72,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(t.TempDir(), cfg).RunOptions(RunFlags{Tag: "dev:tag"})
+	options, clean, err := NewRunMap(t.TempDir(), cfg).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -232,9 +232,11 @@ func TestRunMap_Env_DefaultsVNC(t *testing.T) {
 func TestRunMap_Cmd(t *testing.T) {
 	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
 
-	assert.Equal(t, []string{"claude"}, rm.cmd(RunFlags{}))
-	assert.Nil(t, rm.cmd(RunFlags{Modes: RunModes{Shell: true}}), "shell runs the image default instead")
-	assert.Equal(t, []string{"claude", "-c"}, rm.cmd(RunFlags{Modes: RunModes{Continue: true}}))
+	assert.Equal(t, []string{"claude"}, rm.cmd(RunMode{}))
+	assert.Nil(t, rm.cmd(RunMode{Shell: true}), "bare run drops into the image's default shell")
+	assert.Equal(t, []string{"make", "test"},
+		rm.cmd(RunMode{Shell: true, Args: []string{"make", "test"}}), "run execs the args")
+	assert.Equal(t, []string{"claude", "-c"}, rm.cmd(RunMode{Continue: true}))
 	assert.Equal(t, []string{"claude", "--resume", "sess"},
-		rm.cmd(RunFlags{Args: []string{"sess"}, Modes: RunModes{Resume: true}}))
+		rm.cmd(RunMode{Resume: true, Args: []string{"sess"}}))
 }

@@ -347,13 +347,11 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 func TestCLI_SessionCmd(t *testing.T) {
 	tests := []struct {
 		cli    CLI
-		shell  bool
 		cont   bool
 		resume bool
 		args   []string
 		want   []string
 	}{
-		{cli: MustFor("claude"), shell: true, want: nil},
 		{cli: MustFor("claude"), want: []string{"claude"}},
 		{cli: MustFor("claude"), cont: true, want: []string{"claude", "-c"}},
 		{cli: MustFor("claude"), resume: true, want: []string{"claude", "--resume"}},
@@ -383,8 +381,8 @@ func TestCLI_SessionCmd(t *testing.T) {
 		{cli: MustFor("pi"), resume: true, args: []string{"abc123"}, want: []string{"pi", "--session", "abc123"}},
 	}
 	for _, tt := range tests {
-		got := tt.cli.SessionCmd(tt.shell, tt.cont, tt.resume, tt.args)
-		assert.Equal(t, tt.want, got, "%s shell=%v cont=%v resume=%v", tt.cli.Name, tt.shell, tt.cont, tt.resume)
+		got := tt.cli.SessionCmd(tt.cont, tt.resume, tt.args)
+		assert.Equal(t, tt.want, got, "%s cont=%v resume=%v", tt.cli.Name, tt.cont, tt.resume)
 	}
 }
 

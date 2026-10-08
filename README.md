@@ -2,7 +2,7 @@
 
 > A protected Docker devbox for running a harness CLI — Claude Code, Codex, etc.
 
-Run `ccbox` from a repo root to run the harness CLI in a Docker container. `ccbox --shell` will open a shell instead.
+Run `ccbox` from a repo root to run the harness CLI in a Docker container. `ccbox run` opens a shell in it instead; `ccbox run <command...>` execs a command there.
 
 - Limits harness access — unprivileged user, no root, no Docker daemon, a disposable container
 - Configurable [protective host-mounts](#protective-mounts) to the container
