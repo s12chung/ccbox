@@ -20,10 +20,17 @@ var sharedAllowlistDefaults = []string{
 	"cdn.playwright.dev",
 	"playwright.download.prss.microsoft.com",
 
-	// GitHub: source + release assets (used by gh, delta, yq, rg, fd, jq, python-build-standalone, ruby-build)
+	// GitHub: source + release assets
 	"github.com",
 	"githubusercontent.com",
 	"githubassets.com",
+
+	// Other repos: git hosts + Google's source viewer (vanity import sources)
+	"cs.opensource.google",
+	"gitlab.com",
+	"bitbucket.org",
+	"codeberg.org",
+	"sourceforge.net",
 
 	// Man pages (canonical man text, not cheatsheets)
 	"manpages.debian.org",
