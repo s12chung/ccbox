@@ -26,8 +26,10 @@ var App = GUIApp{
 		PkgInfo: pkginfo.PkgInfo{
 			Name: "zcode",
 			ReleaseURL: &pkginfo.ReleaseURL{
-				// channel pins stable — the updater's preview channel is 3
-				URL: "https://zcode.z.ai/api/v1/releases/electron/manifest?platform=linux-$arch&channel=1",
+				// the vendor's updater maps stable→channel 1, preview→channel 3, but
+				// stable only advances for requests carrying its device_mid — bare
+				// requests (ccbox, the website) lag a release; 3 serves the same build
+				URL: "https://zcode.z.ai/api/v1/releases/electron/manifest?platform=linux-$arch&channel=3",
 				JQSchema: &pkginfo.JQSchema{
 					Format:      "yaml",
 					Version:     ".version",
