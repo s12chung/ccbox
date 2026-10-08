@@ -178,7 +178,7 @@ func TestRunMap_Env(t *testing.T) {
 	t.Setenv("GH_TOKEN", "tok")
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
-	vnc := &projectcfg.VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}
+	vnc := &projectcfg.VNC{GUIAppName: guiapp.App.Name}
 	rm := testRunMap(t, projectcfg.Config{
 		CLIName: new("claude"),
 		Env:     map[string]string{"DISABLE_AUTOUPDATER": "0"},
@@ -221,12 +221,12 @@ func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 	assert.NotContains(t, env, pkginfo.VNCConfigEnvVar)
 }
 
-func TestRunMap_Env_DefaultsVNC(t *testing.T) {
+func TestRunMap_Env_EmptyVNC(t *testing.T) {
 	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
 
 	env, err := rm.Env(true)
 	require.NoError(t, err)
-	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "no vnc section takes the desktop's own defaults")
+	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "an empty vnc section serves the desktop with no GUI app")
 }
 
 func TestRunMap_Cmd(t *testing.T) {

@@ -10,8 +10,6 @@ no_proxy: false
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form
   # gui_app: zcode # the GUI app's name; empty means none
-  # config:
-  #   resolution: the box's WxH for clients that can't auto-resize. defaults to 1280x1024
 
 # tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
 # Use for editor junk (.vscode) or throwaway build output. Directories that do not exist in the project are safely ignored.

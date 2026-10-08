@@ -12,7 +12,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 const (
@@ -67,7 +66,6 @@ func Init(projectDir string) (string, error) {
 func userSeedConfig(cli string) *Config {
 	return &Config{
 		CLIName:       new(cli),
-		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}},
 		TmpfsMasks:    []string{DefaultsAlias},
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},

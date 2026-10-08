@@ -53,10 +53,9 @@ var rpmInfo = pkginfo.GUIPkgInfo{
 	DesktopName: "App",
 }
 
-// vncInfo builds the session info serveDesktop serves, config defaulted like the
-// env-parsed one
+// vncInfo builds the session info serveDesktop serves
 func vncInfo(guiApp *pkginfo.GUIPkgInfo) *pkginfo.VNCInfo {
-	return &pkginfo.VNCInfo{GUIApp: guiApp, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}
+	return &pkginfo.VNCInfo{GUIApp: guiApp}
 }
 
 // writeChrome bakes one playwright chromium under dir, as `playwright install` does,
@@ -70,20 +69,20 @@ func writeChrome(t *testing.T) {
 	t.Setenv(vncdeps.BrowsersPathEnv, dir)
 }
 
-// writeDesktopScript bakes a desktop script recording its $VNC_RESOLUTION to a file,
-// points PATH at it, and returns the file's path
+// writeDesktopScript bakes a desktop script marking a file as started, points PATH
+// at it, and returns the file's path
 func writeDesktopScript(t *testing.T) string {
 	t.Helper()
-	resolutionFile := filepath.Join(t.TempDir(), "resolution")
+	desktopFile := filepath.Join(t.TempDir(), "desktop-started")
 	script := filepath.Join(t.TempDir(), "desktop")
 	require.NoError(t, os.WriteFile(script,
-		[]byte("#!/bin/sh\nprintf '%s' \"$VNC_RESOLUTION\" > "+resolutionFile+"\n"), artifact.ExecFileMode))
+		[]byte("#!/bin/sh\n: > "+desktopFile+"\n"), artifact.ExecFileMode))
 	t.Setenv("PATH", filepath.Dir(script))
-	return resolutionFile
+	return desktopFile
 }
 
 func TestServeDesktop_ErrorsWithoutChromium(t *testing.T) {
-	resolutionFile := writeDesktopScript(t)        // PATH finds the desktop script...
+	desktopFile := writeDesktopScript(t)           // PATH finds the desktop script...
 	t.Setenv(vncdeps.BrowsersPathEnv, t.TempDir()) // ...but no chromium under the browsers dir
 
 	err := serveDesktop(vncInfo(nil))
@@ -91,7 +90,7 @@ func TestServeDesktop_ErrorsWithoutChromium(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no playwright chromium")
 	require.Never(t, func() bool {
-		_, err := os.ReadFile(resolutionFile) //nolint:gosec // test fixture path
+		_, err := os.Stat(desktopFile) //nolint:gosec // test fixture path
 		return err == nil
 	}, 100*time.Millisecond, 10*time.Millisecond, "the dependency check must run before the desktop starts")
 }
@@ -119,13 +118,13 @@ func TestServeDesktop_ErrorsWhenInstallFails(t *testing.T) {
 
 func TestServeDesktop_NoGUIAppServesDesktopAlone(t *testing.T) {
 	writeChrome(t)
-	resolutionFile := writeDesktopScript(t)
+	desktopFile := writeDesktopScript(t)
 
 	require.NoError(t, serveDesktop(vncInfo(nil)))
 	// the window only bounds the wait: macOS first-spawns freshly-written
 	// scripts slowly (Gatekeeper/EDR scans), while success lands in milliseconds
 	require.Eventually(t, func() bool {
-		body, err := os.ReadFile(resolutionFile) //nolint:gosec // test fixture path
-		return err == nil && string(body) == "1600x900"
-	}, 5*time.Second, time.Millisecond, "the desktop must start at the run's resolution")
+		_, err := os.Stat(desktopFile) //nolint:gosec // test fixture path
+		return err == nil
+	}, 5*time.Second, time.Millisecond, "the desktop must start")
 }

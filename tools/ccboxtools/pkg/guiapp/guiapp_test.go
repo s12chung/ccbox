@@ -31,7 +31,7 @@ var debInfo = pkginfo.GUIPkgInfo{
 // mustVNCJSON renders g as the run's VNCConfigEnvVar JSON.
 func mustVNCJSON(t *testing.T, g pkginfo.GUIPkgInfo) string {
 	t.Helper()
-	body, err := json.Marshal(pkginfo.VNCInfo{GUIApp: &g, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}})
+	body, err := json.Marshal(pkginfo.VNCInfo{GUIApp: &g})
 	require.NoError(t, err)
 	return string(body)
 }
@@ -54,7 +54,6 @@ func TestLoad(t *testing.T) {
 		require.NotNil(t, info)
 		require.NotNil(t, info.GUIApp)
 		assert.Equal(t, debInfo, *info.GUIApp)
-		assert.Equal(t, "1600x900", info.Config.Resolution)
 	})
 
 	t.Run("a bad body warns and reads as no vnc", func(t *testing.T) {

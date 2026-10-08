@@ -53,7 +53,7 @@ func serveDesktop(vncInfo *pkginfo.VNCInfo) error {
 	if err := vncdeps.CheckPlaywright(os.Getenv, filepath.Glob); err != nil {
 		return err
 	}
-	if err := vnc.StartDesktop(vncInfo.Config.Resolution); err != nil {
+	if err := vnc.StartDesktop(); err != nil {
 		return err
 	}
 	if vncInfo.GUIApp != nil {

@@ -80,7 +80,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	c := Config{
 		CLIName:       new("claude"),
 		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: "zcode", Enabled: true, Config: &pkginfo.VNCConfig{Resolution: "1280x1024"}},
+		VNC:           &VNC{GUIAppName: "zcode", Enabled: true},
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
@@ -90,7 +90,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	}
 	other := Config{
 		CLIName:       new("codex"),
-		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
+		VNC:           &VNC{},
 		TmpfsMasks:    []string{"build"},
 		VolumeMasks:   []string{"cache"},
 		ReadOnlyGlobs: []string{".envrc"},
@@ -105,10 +105,9 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	assert.Equal(t, Config{
 		CLIName: new("codex"), // a set later layer wins
 		NoProxy: true,         // a zero later layer keeps: a scalar can't be unset, only overridden
-		VNC: &VNC{ // per-field: the later layer's set fields win, its unset gui_app keeps the earlier's
+		VNC: &VNC{ // the empty section merges per field: the later layer's unset gui_app keeps the earlier's
 			GUIAppName: "zcode",
 			Enabled:    true,
-			Config:     &pkginfo.VNCConfig{Resolution: "1600x900"},
 		},
 		TmpfsMasks:    []string{"dist", "build"},
 		VolumeMasks:   []string{"target", "cache"},
@@ -580,7 +579,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	c := &Config{
 		CLIName:       new("claude"),
 		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
+		VNC:           &VNC{GUIAppName: guiapp.App.Name},
 		TmpfsMasks:    []string{DefaultsAlias, "dist", "build"},
 		VolumeMasks:   []string{DefaultsAlias, "target", "cache"},
 		ReadOnlyGlobs: []string{DefaultsAlias, ".env"},
@@ -601,7 +600,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	want := Config{
 		CLIName:       new("claude"),
 		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}},
+		VNC:           &VNC{GUIAppName: guiapp.App.Name},
 		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
 		VolumeMasks:   []string{"node_modules", "target"},
 		ReadOnlyGlobs: []string{"secrets"},
@@ -616,7 +615,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 
 func TestVNC_InfoJSON(t *testing.T) {
 	t.Run("with gui app", func(t *testing.T) {
-		v := &VNC{GUIAppName: guiapp.App.Name, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}
+		v := &VNC{GUIAppName: guiapp.App.Name}
 
 		body, err := v.InfoJSON()
 		require.NoError(t, err)
@@ -627,27 +626,14 @@ func TestVNC_InfoJSON(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, info.GUIApp)
 		assert.Equal(t, guiapp.App.GUIPkgInfo, *info.GUIApp)
-		assert.Equal(t, "1600x900", info.Config.Resolution)
 	})
 
 	t.Run("empty gui app", func(t *testing.T) {
-		v := &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}
+		v := &VNC{}
 
 		body, err := v.InfoJSON()
 		require.NoError(t, err)
-		assert.JSONEq(t, `{"config":{"resolution":"1600x900"}}`, body)
-	})
-
-	t.Run("no config defaults the resolution", func(t *testing.T) {
-		v := &VNC{GUIAppName: guiapp.App.Name}
-
-		body, err := v.InfoJSON()
-		require.NoError(t, err)
-
-		info, err := pkginfo.VNCInfoFromJSON(body)
-		require.NoError(t, err)
-		require.NotNil(t, info.GUIApp)
-		assert.Equal(t, pkginfo.DefaultResolution, info.Config.Resolution)
+		assert.JSONEq(t, `{}`, body)
 	})
 }
 

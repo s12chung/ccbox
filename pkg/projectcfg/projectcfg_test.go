@@ -20,7 +20,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -113,7 +112,6 @@ func TestSeedUserConfig(t *testing.T) {
 	// the seed is the defaults' carrier
 	want := Config{
 		CLIName:       new("claude"),
-		VNC:           &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}},
 		TmpfsMasks:    []string{DefaultsAlias},
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},
@@ -303,10 +301,10 @@ func TestLoad_LayersFiles(t *testing.T) {
 	bodies := map[string]string{             // one entry per configFiles term
 		"user": "cli: grok\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
-			"env:\n  FOO: user\n  BAR: user\nvnc:\n  gui_app: zcode\n  config:\n    resolution: 1280x1024\nallowlist:\n  - user.example.dev\n",
+			"env:\n  FOO: user\n  BAR: user\nvnc:\n  gui_app: zcode\nallowlist:\n  - user.example.dev\n",
 		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
-			"env:\n  FOO: project\n  BAZ: project\nvnc:\n  config:\n    resolution: 1600x900\nallowlist:\n  - ccbox-defaults\n",
+			"env:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\n",
 		"local": "cli: codex\ntmpfs_masks:\n  - cache\n" +
 			"read_only_binds:\n  ~/certs: /mnt/certs\n" +
 			"env:\n  FOO: local\nallowlist:\n  - example.com\n",
@@ -319,10 +317,9 @@ func TestLoad_LayersFiles(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "codex", *c.CLIName) // later layer wins
 
-	// per-field merge: the project's resolution wins, its unset gui_app keeps the user's;
-	// the local layer's unset section leaves both standing
+	// per-field merge: the local layer's unset section leaves the user's gui_app standing
 	require.NotNil(t, c.VNC)
-	assert.Equal(t, &VNC{GUIAppName: "zcode", Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}, c.VNC)
+	assert.Equal(t, &VNC{GUIAppName: "zcode"}, c.VNC)
 
 	// lists append raw, lowest layer first, the seed's aliases carried as-is
 	assert.Equal(t, []string{DefaultsAlias, "dist", "build", "cache"}, c.TmpfsMasks)
@@ -359,34 +356,13 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 }
 
 func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
-	// per-field merge: the project's config-only vnc overlays the seed's — gui_app unset on both sides
+	// per-field merge: the project's enabled-only vnc overlays the seed's — gui_app unset on both sides
 	dir := t.TempDir()
-	writeConfig(t, dir, projectConfigFileName, "vnc:\n  config:\n    resolution: 1600x900\n")
+	writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: true\n")
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
-	assert.Equal(t, &VNC{Config: &pkginfo.VNCConfig{Resolution: "1600x900"}}, c.VNC)
-}
-
-func TestLoad_VNCWithoutConfig(t *testing.T) {
-	// the unset config keeps the seed's — the desktop script's own resolution fallback
-	dir := t.TempDir()
-	writeConfig(t, dir, projectConfigFileName, "vnc:\n  gui_app: zcode\n")
-
-	c, err := Load(dir, Config{}, false)
-	require.NoError(t, err)
-	assert.Equal(t, &VNC{GUIAppName: "zcode", Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}}, c.VNC)
-}
-
-func TestLoad_EmptyResolutionInherits(t *testing.T) {
-	// an explicit empty resolution is indistinguishable from an unset one — it inherits,
-	// like every config field a later layer can't unset, only override
-	dir := t.TempDir()
-	writeConfig(t, dir, projectConfigFileName, "vnc:\n  config:\n    resolution:\n")
-
-	c, err := Load(dir, Config{}, false)
-	require.NoError(t, err)
-	assert.Equal(t, &VNC{Config: &pkginfo.VNCConfig{Resolution: pkginfo.DefaultResolution}}, c.VNC)
+	assert.Equal(t, &VNC{Enabled: true}, c.VNC)
 }
 
 func TestLoad_NoProxy(t *testing.T) {
@@ -435,10 +411,8 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"read_only_globs bad glob char", "read_only_globs:\n  - \"dist/{a,b}\"\n", []string{"ReadOnlyGlobs", "Match"}},
 		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
 		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
-		{"bad vnc resolution format", "vnc:\n  config:\n    resolution: 1600 by 900\n", []string{"VNC", "must be WxH"}},
-		{"vnc resolution out of range", "vnc:\n  config:\n    resolution: 16385x900\n", []string{"VNC", "within 32..16384"}},
 		{
-			"unknown gui_app", "vnc:\n  gui_app: emacs\n  config:\n    resolution: 1600x900\n",
+			"unknown gui_app", "vnc:\n  gui_app: emacs\n",
 			[]string{"GUIAppName", `is not one of ["zcode" ""]`},
 		},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "DomainOrAlias"}},

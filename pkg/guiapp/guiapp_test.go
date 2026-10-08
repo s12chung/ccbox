@@ -38,7 +38,7 @@ func TestApp_WiresLaunch(t *testing.T) {
 func TestApp_RoundTripsVNCInfo(t *testing.T) {
 	// the container parses the run's VNC_CONFIG through firm validation — the
 	// host-built config must stay valid there
-	body, err := json.Marshal(pkginfo.VNCInfo{GUIApp: &App.GUIPkgInfo, Config: &pkginfo.VNCConfig{Resolution: "1600x900"}})
+	body, err := json.Marshal(pkginfo.VNCInfo{GUIApp: &App.GUIPkgInfo})
 	require.NoError(t, err)
 
 	info, err := pkginfo.VNCInfoFromJSON(string(body))

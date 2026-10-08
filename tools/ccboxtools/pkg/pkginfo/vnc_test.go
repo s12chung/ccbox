@@ -14,23 +14,17 @@ func TestVNCInfoFromJSON(t *testing.T) {
 		body string
 		want VNCInfo
 	}{
-		{"no config defaults the resolution", `{}`, VNCInfo{Config: &VNCConfig{Resolution: DefaultResolution}}},
-		{"empty config defaults the resolution", `{"config":{}}`, VNCInfo{Config: &VNCConfig{Resolution: DefaultResolution}}},
-		{"config alone", `{"config":{"resolution":"1600x900"}}`, VNCInfo{Config: &VNCConfig{Resolution: "1600x900"}}},
+		{"empty", `{}`, VNCInfo{}},
 		{
 			"with gui app",
-			`{"gui_app":{"name":"app","npm":{"package":"app"}},"config":{"resolution":"1600x900"}}`,
-			VNCInfo{
-				GUIApp: &GUIPkgInfo{PkgInfo: PkgInfo{Name: "app", Npm: &Npm{Package: "app"}}},
-				Config: &VNCConfig{Resolution: "1600x900"},
-			},
+			`{"gui_app":{"name":"app","npm":{"package":"app"}}}`,
+			VNCInfo{GUIApp: &GUIPkgInfo{PkgInfo: PkgInfo{Name: "app", Npm: &Npm{Package: "app"}}}},
 		},
 		{
 			"gui app with release_url and launch wiring",
 			`{"gui_app":{"name":"zcode","version_url":{"url":"https://z",` +
 				`"jq_schema":{"format":"yaml","version":".version","download_url":".url"},` +
-				`"artifact":{"type":"deb","rel_bin":"opt/Z/z"}},"args":["--no-sandbox"],"desktop_name":"ZCode"},` +
-				`"config":{"resolution":"1600x900"}}`,
+				`"artifact":{"type":"deb","rel_bin":"opt/Z/z"}},"args":["--no-sandbox"],"desktop_name":"ZCode"}}`,
 			VNCInfo{
 				GUIApp: &GUIPkgInfo{
 					PkgInfo: PkgInfo{
@@ -44,7 +38,6 @@ func TestVNCInfoFromJSON(t *testing.T) {
 					Args:        []string{"--no-sandbox"},
 					DesktopName: "ZCode",
 				},
-				Config: &VNCConfig{Resolution: "1600x900"},
 			},
 		},
 	}
@@ -63,13 +56,10 @@ func TestVNCInfoFromJSON_Invalid(t *testing.T) {
 		body string
 		want string
 	}{
-		{"unknown field", `{"config":{"resolution":"1600x900"},"depth":24}`, "unknown field"},
-		{"unknown gui_app field", `{"gui_app":{"name":"app","icon":"z"},"config":{"resolution":"1600x900"}}`, "unknown field"},
-		{"bad JSON", `{"config":`, "parse"},
-		{"bad format", `{"config":{"resolution":"1600 by 900"}}`, "must be WxH"},
-		{"below bounds", `{"config":{"resolution":"31x32"}}`, "within 32..16384"},
-		{"above bounds", `{"config":{"resolution":"16385x900"}}`, "within 32..16384"},
-		{"gui app without source", `{"gui_app":{"name":"app"},"config":{"resolution":"1600x900"}}`, "OneNotNil"},
+		{"unknown field", `{"depth":24}`, "unknown field"},
+		{"unknown gui_app field", `{"gui_app":{"name":"app","icon":"z"}}`, "unknown field"},
+		{"bad JSON", `{"gui_app":`, "parse"},
+		{"gui app without source", `{"gui_app":{"name":"app"}}`, "OneNotNil"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -88,7 +78,6 @@ func TestVNCInfoFromJSON_RoundTrip(t *testing.T) {
 			Args:        []string{"--no-sandbox"},
 			DesktopName: "App",
 		},
-		Config: &VNCConfig{Resolution: "1600x900"},
 	}
 	body, err := json.Marshal(info)
 	require.NoError(t, err)

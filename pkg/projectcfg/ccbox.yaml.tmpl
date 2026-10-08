@@ -10,14 +10,6 @@ no_proxy:{{yaml .NoProxy nil}}
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form
   # gui_app: zcode # the GUI app's name; empty means none
-{{- if and .VNC .VNC.Config}}
-  config:
-    # resolution: the box's WxH for clients that can't auto-resize. defaults to {{defaultResolution}}
-    resolution: {{.VNC.Config.Resolution}}
-{{- else}}
-  # config:
-  #   resolution: the box's WxH for clients that can't auto-resize. defaults to {{defaultResolution}}
-{{- end}}
 
 # tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
 # Use for editor junk (.vscode) or throwaway build output. Directories that do not exist in the project are safely ignored.

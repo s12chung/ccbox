@@ -46,7 +46,7 @@ const (
 type Config struct {
 	CLIName       *string           `yaml:"cli"`                // coding CLI to install + launch
 	NoProxy       bool              `yaml:"no_proxy,omitempty"` // skip the egress wall: direct network access
-	VNC           *VNC              `yaml:"vnc"`                // the desktop's session: its GUI app plus VNC config
+	VNC           *VNC              `yaml:"vnc"`                // the desktop's session: its GUI app
 	TmpfsMasks    []string          `yaml:"tmpfs_masks"`        // project-relative dirs to mask with a writable tmpfs
 	VolumeMasks   []string          `yaml:"volume_masks"`       // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyGlobs []string          `yaml:"read_only_globs"`    // project-relative globs to re-mount read-only
@@ -91,17 +91,12 @@ func init() {
 		}))
 }
 
-// VNC is the desktop's session: the GUI app it installs and launches plus its
-// VNC config.
+// VNC is the desktop's session: the GUI app it installs and launches.
 type VNC struct {
 	// Enabled always runs with VNC served — the --vnc flag's config form
 	Enabled bool `yaml:"enabled,omitempty"`
 	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
 	GUIAppName string `yaml:"gui_app,omitempty"`
-	// Config is the desktop's VNC session config: the box's WxH, for clients that
-	// cannot resize themselves (e.g. macOS Screen Sharing); nil inherits the
-	// desktop script's own resolution fallback
-	Config *pkginfo.VNCConfig `yaml:"config"`
 }
 
 func init() {
@@ -110,7 +105,6 @@ func init() {
 			"GUIAppName": {rule.OneOf[string]{
 				Values: append(guiapp.Names(), ""), // empty name means no GUI app to run
 			}},
-			"Config": {firm.Backed()},
 		}))
 }
 
@@ -331,9 +325,9 @@ func (c *Config) MarshalYAML() (any, error) {
 }
 
 // InfoJSON renders the section as the VNCConfigEnvVar JSON: the GUI app the run
-// installs and launches plus its VNC config
+// installs and launches
 func (v *VNC) InfoJSON() (string, error) {
-	info := pkginfo.VNCInfo{Config: v.Config}
+	var info pkginfo.VNCInfo
 	if v.GUIAppName != "" {
 		app, err := guiapp.For(v.GUIAppName)
 		if err != nil {
@@ -354,8 +348,7 @@ var (
 	//go:embed ccbox.yaml.tmpl
 	configTmplSrc string
 	tmpl          = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
-		"yaml":              yamlutil.Value,
-		"defaultResolution": func() string { return pkginfo.DefaultResolution },
+		"yaml": yamlutil.Value,
 	}).Parse(configTmplSrc))
 )
 

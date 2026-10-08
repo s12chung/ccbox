@@ -46,10 +46,10 @@ func TestPtr(t *testing.T) {
 	*out = "y"
 	assert.Equal(t, "a", a)
 
-	src := &struct{ Resolution string }{"1600x900"}
+	src := &struct{ Value string }{"old"}
 	cp := Ptr(src, nil)
-	cp.Resolution = "31x31"
-	assert.Equal(t, "1600x900", src.Resolution) // a struct pointee is deep-copied, not aliased
+	cp.Value = "new"
+	assert.Equal(t, "old", src.Value) // a struct pointee is deep-copied, not aliased
 }
 
 func TestStruct(t *testing.T) {
