@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
@@ -171,10 +172,7 @@ type DirScratch struct {
 // Seed seeds the embedded tree onto the scratch
 func (d DirScratch) Seed(bind string) error {
 	_, err := fsync.Seed(d.SeedFS, bind)
-	if errors.Is(err, fsync.ErrNoChanges) {
-		return nil
-	}
-	return err
+	return errs.Swallow(err, fsync.ErrNoChanges)
 }
 
 // IsChanged reports whether the run's tree differs from the embedded one

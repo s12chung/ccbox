@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
 
@@ -20,7 +21,7 @@ var ErrExists = errors.New("fsync: file already exists")
 
 // File seeds path with body when absent, creating its parent dir. An existing file
 // is never touched: the returned error wraps ErrExists, carrying the path.
-func File(path, body string) error {
+func File(path string, body []byte) error {
 	switch _, err := os.Stat(path); {
 	case err == nil:
 		return fmt.Errorf("%s: %w", path, ErrExists)
@@ -30,8 +31,12 @@ func File(path, body string) error {
 	if err := os.MkdirAll(filepath.Dir(path), ioutil.Dir); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(body), ioutil.File)
+	return os.WriteFile(path, body, ioutil.File)
 }
+
+// SafeFile is File with ErrExists swallowed: an existing file — a mid-race
+// appearance included — is a no-op, not an error; it is never touched.
+func SafeFile(path string, body []byte) error { return errs.Swallow(File(path, body), ErrExists) }
 
 // ErrNoChanges reports that Seed made no changes: every destination already
 // matched its source, so nothing was written or backed up.

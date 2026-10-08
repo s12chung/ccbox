@@ -18,10 +18,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
 
-# System config (at /etc/mise) read by `mise install` below installs to shared /usr/local
+# System config + optional lock (at /etc/mise) read by `mise install` below installs to shared /usr/local
 # _temp_ MISE_DATA_DIR aims full install there  (`mise install --system` doesn't put shims)
 # _temp_ so at runtime ccbox's `mise use` -> ~/.local.
-COPY docker/mise-system.toml /etc/mise/config.toml
+COPY docker/mise/ /etc/mise/
 ENV PATH=/usr/local/share/mise/shims:$PATH
 # Shared browser binaries for playwright (tests) and the desktop variant's
 # web-browser wrapper (the vnc stage below); outside the masked home caches,

@@ -107,7 +107,7 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 		{
 			caseName: "LaysAll",
 			admin:    new(""),
-			readme:   new(agentsReadmeMd),
+			readme:   new(string(agentsReadmeMd)),
 		},
 		{
 			caseName: "SkipsExistingAdmin",

@@ -362,7 +362,7 @@ type configTmpl struct {
 
 const defaultsExpansionComment = "`ccbox config defaults` for expansions"
 
-func (c *Config) renderTmpl() (string, error) {
+func (c *Config) renderTmpl() ([]byte, error) {
 	var b bytes.Buffer
 	data := configTmpl{
 		Config:                *c,
@@ -376,9 +376,9 @@ func (c *Config) renderTmpl() (string, error) {
 		}),
 	}
 	if err := tmpl.Execute(&b, data); err != nil {
-		return "", fmt.Errorf("render Config template: %w", err)
+		return nil, fmt.Errorf("render Config template: %w", err)
 	}
-	return b.String(), nil
+	return b.Bytes(), nil
 }
 
 func absentDirs(projectDir string, dirs []string) []string {

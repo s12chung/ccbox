@@ -3,13 +3,13 @@
 package projectcfg
 
 import (
-	"errors"
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 )
@@ -49,17 +49,9 @@ func LoadedPaths(projectDir string) ([]string, []string) {
 	return loaded, notLoaded
 }
 
-// Init writes to projectDir/.ccbox.yaml and returns its path.
-func Init(projectDir string) (string, error) {
-	path := filepath.Join(projectDir, projectConfigFileName)
-	body, err := new(Config).renderTmpl()
-	if err != nil {
-		return "", err
-	}
-	if err := fsync.File(path, body); err != nil {
-		return "", err
-	}
-	return path, nil
+// Init writes a starter .ccbox.yaml to projectDir
+func Init(projectDir string) error {
+	return initConfig(filepath.Join(projectDir, projectConfigFileName), Config{})
 }
 
 // userSeedConfig is the user-level seed's data with ccbox defaults--referenced in tests
@@ -75,24 +67,17 @@ func userSeedConfig(cli string) *Config {
 	}
 }
 
-// SeedUserConfig safe-seeds the user-level config with ccbox's own defaults, naming the
-// seeded cli. An existing file is never touched. Returns the path seeded, or "" when it
-// already exists.
-func SeedUserConfig(cli string) (string, error) {
-	if ioutil.Present(UserConfigFile()) {
-		return "", nil // the no-op path: no seed, no log
-	}
-	body, err := userSeedConfig(cli).renderTmpl()
+// SeedConfig safe-seeds the config with ccbox's own defaults, naming the seeded cli.
+func SeedConfig(path, cli string) error {
+	return errs.Swallow(initConfig(path, *userSeedConfig(cli)), fsync.ErrExists)
+}
+
+func initConfig(path string, config Config) error {
+	body, err := config.renderTmpl()
 	if err != nil {
-		return "", err
+		return err
 	}
-	if err := fsync.File(UserConfigFile(), body); err != nil {
-		if errors.Is(err, fsync.ErrExists) { // lost a seed race: no seed, no log
-			return "", nil
-		}
-		return "", err
-	}
-	return UserConfigFile(), nil
+	return fsync.File(path, body)
 }
 
 // Load reads the layerPaths, then overlays the CLI flags as the top layer, and validates

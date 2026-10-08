@@ -655,13 +655,13 @@ func TestConfig_renderTmpl(t *testing.T) {
 			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
 			if os.Getenv("UPDATE_FIXTURES") != "" {
 				require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
-				require.NoError(t, os.WriteFile(path, []byte(got), ioutil.File))
+				require.NoError(t, os.WriteFile(path, got, ioutil.File))
 			}
 
 			// #nosec G304 -- the package's own fixture path
 			want, err := os.ReadFile(path)
 			require.NoError(t, err)
-			assert.Equal(t, string(want), got)
+			assert.Equal(t, want, got)
 		})
 	}
 }

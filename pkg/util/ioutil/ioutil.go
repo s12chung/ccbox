@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -52,11 +53,7 @@ func AtomicWriteFile(path string, body []byte) error {
 	defer log.Defer("temp file close", temp.Close)
 	// a successful rename already moved the temp away: a missing temp is already clean
 	defer log.Defer("temp file removal", func() error {
-		err := os.Remove(temp.Name())
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		return err
+		return errs.Swallow(os.Remove(temp.Name()), fs.ErrNotExist)
 	})
 
 	if _, err := temp.Write(body); err != nil {
@@ -73,10 +70,7 @@ func AtomicWriteFile(path string, body []byte) error {
 func ClearDir(dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
-		return err
+		return errs.Swallow(err, fs.ErrNotExist)
 	}
 	for _, entry := range entries {
 		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {

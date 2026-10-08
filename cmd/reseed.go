@@ -57,9 +57,14 @@ func safeSeed(fsys fs.FS, dst string, confirm bool) error {
 	renamed, err := seedFn(fsys, dst)
 	switch {
 	case errors.Is(err, fsync.ErrNoChanges):
-		log.Infof("no seed changes")
+		if confirm {
+			log.Infof("no seed changes")
+		}
+		return nil
 	case err != nil:
 		return err
+	case !confirm:
+		return nil // the first run's seed stays quiet
 	case len(renamed) == 0:
 		log.Infof("seeded: %s with no overwritten files", dst)
 	default:

@@ -12,13 +12,14 @@ import (
 
 // RunMap maps one run's project config to the docker pkg options
 type RunMap struct {
-	userDir string // the run's mounts sit under this ccbox per-user host dir
-	cfg     *projectcfg.Config
+	userDir      string // the run's mounts sit under this ccbox per-user host dir
+	cfg          *projectcfg.Config
+	tagByProject bool
 }
 
 // NewRunMap returns a new RunMap
-func NewRunMap(userDir string, cfg *projectcfg.Config) *RunMap {
-	return &RunMap{userDir: userDir, cfg: cfg}
+func NewRunMap(userDir string, cfg *projectcfg.Config, tagByProject bool) *RunMap {
+	return &RunMap{userDir: userDir, cfg: cfg, tagByProject: tagByProject}
 }
 
 // RunMode is the run's selected mode, with Args carrying its args
@@ -51,7 +52,7 @@ func (rm *RunMap) RunOptions(tag string, mode RunMode) (docker.RunOptions, func(
 	}
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,
-		Tag:            variantTag(tag, serveVNC),
+		Tag:            tag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
 		Env:            env,
 		Cmd:            rm.cmd(mode),
 		Proxy:          proxyOptions,

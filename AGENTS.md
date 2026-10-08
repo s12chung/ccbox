@@ -21,6 +21,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`pkg/`**
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK--manages DOCKER ONLY, knows nothing but docker lifecycle
+  - `mise/` — related to mise configs
   - `projectcfg/` — related to `ccbox` Config as described in the README
   - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins.
   - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
@@ -29,9 +30,8 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
     - `ioutil/` — io utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
   - `kit/` — non-std lib abstractions and utilities, most used: `dock`, `pick`, `firmrule`
     - `tinyproxy/` — the egress wall configs
-- **`Dockerfile`** — builds the devbox image from the inputs under `docker/`.
-- **`docker/`** — baked into the image:
-  - `mise-system.toml` — pinned system devbox toolchain (runtimes + CLIs), installed to `/etc/mise`.
+- **`Dockerfile`** — builds the devbox image from the inputs under `docker/` plus mise config defined in the `mise` pkg.
+- **`docker/`** — baked into the vnc variant image only
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
 - **`Makefile`** — primary entrypoints are:
   - `make build` — builds `dist/ccboxtools` via `tools/toolsbuild`, verifies it with `doctor tools`, then builds the `ccbox` binary to `/tmp/ccbox` in the **container**

@@ -16,6 +16,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
+	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
@@ -26,7 +27,7 @@ import (
 )
 
 // Injected from main (package main can't be imported, so the embed FS comes in here).
-var buildContext embed.FS // Dockerfile + docker/* — the build context
+var embedBuildContext embed.FS // Dockerfile + docker/* — the build context
 
 // Shared flags.
 var (
@@ -37,9 +38,11 @@ var (
 // exitCode lets `run` propagate the container's exit status out through Execute.
 var exitCode int
 
-// projectConfig is the layered config (user < project < local < flags), loaded once
-// before any command runs.
-var projectConfig *projectcfg.Config
+// loaded once together before any command runs
+var (
+	projectConfig *projectcfg.Config // layered config (user < project < local < flags)
+	tagByProject  bool               // whether the project carries its own mise config
+)
 
 var rootCmd = &cobra.Command{
 	Use:           "ccbox",
@@ -79,13 +82,18 @@ var rootCmd = &cobra.Command{
 		}
 		var err error
 		projectConfig, err = projectcfg.Load(mustGetwd(), projectcfg.Config{CLIName: flagCLI}, runVNC)
-		return err
+		if err != nil {
+			return err
+		}
+		tagByProject = ioutil.Present(mise.ProjectConfigPath(projectConfig.ProjectDir()))
+		return nil
 	},
 }
 
 // Execute runs the CLI and returns the process exit code.
-func Execute(build embed.FS) int {
-	buildContext = build
+func Execute(buildContext embed.FS) int {
+	embedBuildContext = buildContext
+	initMiseImage()
 	if err := rootCmd.Execute(); err != nil {
 		log.Errorf("command failed: %v", err)
 		return 1
@@ -94,6 +102,7 @@ func Execute(build embed.FS) int {
 }
 
 func init() {
+	// see run.go's init for more flags set for rootCmd
 	f := rootCmd.Flags()
 	f.BoolVarP(&runMode.Continue, "continue", "c", false, "continue the last session")
 	f.BoolVarP(&runMode.Resume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
@@ -122,12 +131,16 @@ func rootSeed() error {
 	if err := share.SafeSeedAgentsMd(); err != nil {
 		return err
 	}
+	if err := mise.SeedConfig(mise.UserConfigPath()); err != nil {
+		return err
+	}
 	return safeSeedUserConfig()
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing
 func safeSeedUserConfig() error {
-	if ioutil.Present(projectcfg.UserConfigFile()) {
+	path := projectcfg.UserConfigFile()
+	if ioutil.Present(path) {
 		return nil // the file already existed: no seed, so no prompt, no log
 	}
 	cli, err := pick.Select(
@@ -143,12 +156,7 @@ func safeSeedUserConfig() error {
 	if cli == "" { // no terminal to show the picker
 		return fmt.Errorf("no harness CLI selected: rerun in a terminal to pick one, or set cli in %s", projectcfg.UserConfigFile())
 	}
-	seeded, err := projectcfg.SeedUserConfig(cli)
-	if err != nil || seeded == "" { // "" = lost a seed race: no seed, so no log
-		return err
-	}
-	log.Infof("seeded %s", seeded)
-	return nil
+	return projectcfg.SeedConfig(path, cli)
 }
 
 func mustGetwd() string {

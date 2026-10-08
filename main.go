@@ -15,8 +15,8 @@ import (
 // all: keeps the desktop home's dot-dirs (.config) embedded.
 //
 //go:embed all:Dockerfile all:docker/* dist/ccboxtools
-var buildContext embed.FS
+var embedBuildContext embed.FS
 
 func main() {
-	os.Exit(cmd.Execute(buildContext))
+	os.Exit(cmd.Execute(embedBuildContext))
 }

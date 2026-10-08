@@ -26,12 +26,11 @@ type BuildOptions struct {
 	BuildArgs map[string]string
 }
 
-// Build builds the devbox image from the embedded build context (src) on BuildKit,
-// in-process via the buildx library, streaming progress to stderr and loading the
-// result into the local daemon's image store. src must hold the Dockerfile and every
-// path it COPYs.
-func Build(ctx context.Context, src fs.FS, o BuildOptions) error {
-	contextTar, err := tarutil.ToTar(src)
+// Build builds the devbox image from the build fs on BuildKit, in-process via the
+// buildx library, streaming progress to stderr and loading the result into the local
+// daemon's image store. contextFS must hold the Dockerfile and every path it COPYs.
+func Build(ctx context.Context, contextFS fs.FS, o BuildOptions) error {
+	contextTar, err := tarutil.ToTar(contextFS)
 	if err != nil {
 		return err
 	}

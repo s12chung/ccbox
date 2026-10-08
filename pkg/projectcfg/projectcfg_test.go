@@ -89,8 +89,7 @@ func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "projectcfg")
 	must.Do(err)
 	must.Do(os.Setenv("HOME", dir))
-	_, err = SeedUserConfig("claude")
-	must.Do(err)
+	must.Do(SeedConfig(UserConfigFile(), "claude"))
 
 	cli.Load()
 
@@ -99,15 +98,13 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestSeedUserConfig(t *testing.T) {
+func TestSeedConfig(t *testing.T) {
 	dir := t.TempDir()
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, volumeDefaults...)
 	useHome(t)
 
-	path, err := SeedUserConfig("claude")
-	require.NoError(t, err)
-	assert.Equal(t, UserConfigFile(), path)
+	require.NoError(t, SeedConfig(UserConfigFile(), "claude"))
 
 	// the seed is the defaults' carrier
 	want := Config{
@@ -137,13 +134,11 @@ func TestSeedUserConfig(t *testing.T) {
 	})
 }
 
-func TestSeedUserConfig_SkipsExisting(t *testing.T) {
+func TestSeedConfig_SkipsExisting(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, userConfigFileName, "cli: codex\n")
 
-	path, err := SeedUserConfig("claude")
-	require.NoError(t, err)
-	assert.Empty(t, path)
+	require.NoError(t, SeedConfig(UserConfigFile(), "claude"))
 
 	// #nosec G304 -- the package's own temp user file
 	body, err := os.ReadFile(UserConfigFile())
@@ -151,12 +146,10 @@ func TestSeedUserConfig_SkipsExisting(t *testing.T) {
 	assert.Equal(t, "cli: codex\n", string(body)) // the user's own file is never touched
 }
 
-func TestSeedUserConfig_ChoosesCLI(t *testing.T) {
+func TestSeedConfig_ChoosesCLI(t *testing.T) {
 	useHome(t)
 
-	path, err := SeedUserConfig("codex")
-	require.NoError(t, err)
-	assert.Equal(t, UserConfigFile(), path)
+	require.NoError(t, SeedConfig(UserConfigFile(), "codex"))
 
 	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the package's own temp user file
 	require.NoError(t, err)
@@ -211,9 +204,8 @@ func TestLoadedPaths(t *testing.T) {
 
 func TestInit_WritesLoadableDefault(t *testing.T) {
 	projectDir := t.TempDir()
-	configPath, err := Init(projectDir)
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(projectDir, projectConfigFileName), configPath)
+	require.NoError(t, Init(projectDir))
+	configPath := filepath.Join(projectDir, projectConfigFileName)
 
 	cOut := loadProjectConfigYAML(t, projectDir)
 
@@ -228,8 +220,7 @@ func TestInit_RefusesExisting(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("tmpfs_masks: []\n"), ioutil.File))
 
-	_, err := Init(dir)
-	assert.ErrorIs(t, err, fsync.ErrExists)
+	assert.ErrorIs(t, Init(dir), fsync.ErrExists)
 }
 
 func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {

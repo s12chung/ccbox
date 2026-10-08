@@ -6,20 +6,27 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 func TestBuildMap_Options(t *testing.T) {
-	options := NewBuildMap("tag", false).Options()
+	options := NewBuildMap("tag", t.TempDir(), false, false).Options()
 	assert.Equal(t, "tag", options.Tag)
 	assert.Equal(t, baseTarget, options.Target)
 	assert.Equal(t, map[string]string{dataBindDirsArgKey: dataBindDirs(cli.All())}, options.BuildArgs)
 }
 
 func TestBuildMap_Options_VNC(t *testing.T) {
-	options := NewBuildMap("tag", true).Options()
+	options := NewBuildMap("tag", t.TempDir(), false, true).Options()
 	assert.Equal(t, "tag-vnc", options.Tag)
 	assert.Equal(t, vncTarget, options.Target)
+}
+
+func TestBuildMap_Options_TagByProject(t *testing.T) {
+	projectDir := t.TempDir()
+	options := NewBuildMap("tag", projectDir, true, false).Options()
+	assert.Equal(t, "tag"+slug.Path(projectDir), options.Tag)
 }
 
 func TestDataBindDirs(t *testing.T) {

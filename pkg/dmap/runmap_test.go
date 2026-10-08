@@ -31,7 +31,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 	userDir := t.TempDir()
-	rm := NewRunMap(userDir, cfg)
+	rm := NewRunMap(userDir, cfg, false)
 
 	// the pieces RunOptions composes
 	hostOptions, hostClean, err := rm.HostOptions(false, false)
@@ -72,7 +72,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(t.TempDir(), cfg).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(t.TempDir(), cfg, false).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -84,6 +84,25 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	for _, d := range guiapp.App.AllowDomains {
 		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the proxy via the harness alias")
 	}
+}
+
+func TestRunMap_RunOptions_TagByProject(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+
+	projectDir := t.TempDir()
+	cfg, err := projectcfg.Load(projectDir, projectcfg.Config{
+		CLIName:   new("claude"),
+		Allowlist: []string{projectcfg.DefaultsAlias, "example.com"},
+	}, false)
+	require.NoError(t, err)
+
+	options, clean, err := NewRunMap(t.TempDir(), cfg, true).RunOptions("dev:tag", RunMode{})
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+
+	assert.Equal(t, "dev:tag"+slug.Path(projectDir), options.Tag)
 }
 
 func TestRunMap_HostOptions(t *testing.T) {
@@ -107,7 +126,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(false, false)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg, false).HostOptions(false, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -148,7 +167,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("codex")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(false, true)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg, false).HostOptions(false, true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -165,7 +184,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("claude")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg).HostOptions(true, false)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg, false).HostOptions(true, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()

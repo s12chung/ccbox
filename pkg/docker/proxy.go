@@ -149,7 +149,7 @@ func streamProxyLogs(ctxD *dock.CtxD, o ProxyOptions) error {
 // streamLogs tails the proxy container's logs through l in a goroutine; l closes with
 // the stream's reader when the stream ends with the container, or immediately on an error.
 func streamLogs(ctxD *dock.CtxD, l *tinyproxy.Log) error {
-	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, proxyContainerName, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+	logs, err := dock.FollowLogs(ctxD, proxyContainerName)
 	if err != nil {
 		return errors.Join(l.Close(), err)
 	}

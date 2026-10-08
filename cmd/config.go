@@ -96,8 +96,8 @@ var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Write a starter .ccbox.yaml template to fill in",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		path, err := projectcfg.Init(projectConfig.ProjectDir())
-		if err != nil {
+		path := projectConfig.ProjectDir()
+		if err := projectcfg.Init(path); err != nil {
 			return err
 		}
 		log.Infof("wrote %s", path)

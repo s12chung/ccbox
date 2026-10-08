@@ -34,7 +34,7 @@ func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
 	}
 	cfg, err := projectcfg.Load(t.TempDir(), flags, false)
 	require.NoError(t, err)
-	return NewRunMap(t.TempDir(), cfg)
+	return NewRunMap(t.TempDir(), cfg, false)
 }
 
 func TestProxyAllowBinds(t *testing.T) {

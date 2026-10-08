@@ -3,6 +3,7 @@
 package dock
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -15,6 +16,7 @@ import (
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
@@ -102,21 +104,12 @@ func runChownContainer(ctxD *CtxD, image, uid string, fresh []OwnedVolume) error
 		return ctxD.D.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
 	})
 
-	// Register the wait before start so a fast exit isn't missed.
-	statusCh, errCh := ctxD.D.ContainerWait(ctxD.Ctx, resp.ID, container.WaitConditionNextExit)
-	if err := ctxD.D.ContainerStart(ctxD.Ctx, resp.ID, container.StartOptions{}); err != nil {
-		return err
+	var logs bytes.Buffer
+	if err := RunOnce(ctxD, resp.ID, &logs); err != nil {
+		return fmt.Errorf("chown volumes %v: %w\n%s",
+			uslice.Map(fresh, func(vol OwnedVolume) string { return vol.Name }), err, logs.String())
 	}
-	select {
-	case err := <-errCh:
-		return err
-	case st := <-statusCh:
-		if st.StatusCode != 0 {
-			return fmt.Errorf("chown volumes %v: container exited %d",
-				uslice.Map(fresh, func(vol OwnedVolume) string { return vol.Name }), st.StatusCode)
-		}
-		return nil
-	}
+	return nil
 }
 
 // chownMnt is vol's mount point in the chown container: /mnt/<volume-name>. Volume names
@@ -141,6 +134,33 @@ func EnsureImageExists(ctxD *CtxD, ref string) error {
 
 	defer log.Defer("close image pull", readCloser.Close)
 	return prompt.DisplayProgress(readCloser)
+}
+
+// FollowLogs opens the container's combined follow stream. The daemon holds it open
+// until the container exits and closes it then, so the stream's end doubles as the wait.
+func FollowLogs(ctxD *CtxD, id string) (io.ReadCloser, error) {
+	return ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+}
+
+// RunOnce runs a created container to exit, copying its combined follow stream into w —
+// the copy doubles as the wait — and fails on a non-zero exit. Callers report their own output.
+func RunOnce(ctxD *CtxD, id string, w io.Writer) error {
+	logs, err := FollowLogs(ctxD, id)
+	if err != nil {
+		return err
+	}
+	defer log.Defer("close logs", logs.Close)
+	if _, err := stdcopy.StdCopy(w, w, logs); err != nil {
+		return err
+	}
+	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, id)
+	if err != nil {
+		return err
+	}
+	if code := info.State.ExitCode; code != 0 {
+		return fmt.Errorf("container exited %d", code)
+	}
+	return nil
 }
 
 // RunInteractive wires the local terminal to the container: raw mode, a hijacked

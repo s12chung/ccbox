@@ -185,7 +185,7 @@ func TestMerge_ChangedAsideDst(t *testing.T) {
 func TestFile_Seeds(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config", "ccbox.yaml") // parent dir absent
 
-	require.NoError(t, File(path, "new body"))
+	require.NoError(t, File(path, []byte("new body")))
 
 	assertFile(t, path, "new body")
 	assertMode(t, path, ioutil.File)
@@ -195,10 +195,33 @@ func TestFile_SkipsExisting(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "ccbox.yaml")
 	writeFile(t, path, "user's own config")
 
-	err := File(path, "new body")
+	err := File(path, []byte("new body"))
 	require.ErrorIs(t, err, ErrExists)
 	require.ErrorContains(t, err, path, "the error carries the path")
 	assertFile(t, path, "user's own config")
+}
+
+func TestSafeFile_Seeds(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config", "ccbox.yaml") // parent dir absent
+	require.NoError(t, SafeFile(path, []byte("new body")))
+	assertFile(t, path, "new body")
+}
+
+func TestSafeFile_SkipsExisting(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ccbox.yaml")
+	writeFile(t, path, "user's own config")
+
+	require.NoError(t, SafeFile(path, []byte("new body")))
+
+	assertFile(t, path, "user's own config")
+}
+
+func TestSafeFile_Errors(t *testing.T) {
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	writeFile(t, blocker, "a file")
+	path := filepath.Join(blocker, "ccbox.yaml") // the parent is a file, not a dir
+
+	require.Error(t, SafeFile(path, []byte("new body")))
 }
 
 func writeFile(t *testing.T, path, body string) {

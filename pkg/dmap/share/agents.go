@@ -3,7 +3,6 @@ package share
 import (
 	"bytes"
 	_ "embed"
-	"errors"
 	"os"
 	"path"
 	"path/filepath"
@@ -21,19 +20,13 @@ import (
 // SafeSeedAgentsMd seeds the shared AGENTS docs when missing: the ccbox-admin variant empty
 // and the README.md explainer; existing ones are never touched
 func SafeSeedAgentsMd() error {
-	if ioutil.Present(userAgentsMdPath()) {
+	if ioutil.Present(userAgentsMdPath()) || ioutil.Present(userAgentsAdminMdPath()) {
 		return nil
 	}
-	if err := fsync.File(userAgentsAdminMdPath(), ""); err != nil {
-		if !errors.Is(err, fsync.ErrExists) {
-			return err
-		}
-		return nil
-	}
-	if err := fsync.File(userAgentsReadmeMdPath(), agentsReadmeMd); err != nil && !errors.Is(err, fsync.ErrExists) {
+	if err := fsync.SafeFile(userAgentsAdminMdPath(), nil); err != nil {
 		return err
 	}
-	return nil
+	return fsync.SafeFile(userAgentsReadmeMdPath(), agentsReadmeMd)
 }
 
 // AgentsMd returns the ShareBinder for CLI's AGENTS doc. Real copy is at realCliFile
@@ -82,7 +75,7 @@ var (
 )
 
 //go:embed AGENTS.README.md
-var agentsReadmeMd string
+var agentsReadmeMd []byte
 
 const (
 	// AgentsMdFileName is the shared AGENTS doc's file name, joined into the scratch

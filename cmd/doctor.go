@@ -31,7 +31,7 @@ var doctorToolsCmd = &cobra.Command{
 	Short:  "Check the embedded ccboxtools binary is a fresh build of tools/ccboxtools/",
 	Hidden: true, // a maintainer command; runs at build time (see the Makefile)
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		embedded, err := fs.ReadFile(buildContext, "dist/ccboxtools")
+		embedded, err := fs.ReadFile(embedBuildContext, "dist/ccboxtools")
 		if err != nil {
 			return err
 		}

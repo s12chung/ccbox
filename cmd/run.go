@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -51,7 +50,7 @@ func run(ctx context.Context, mode dmap.RunMode) error {
 		return err
 	}
 
-	options, clean, err := dmap.NewRunMap(userDir, projectConfig).RunOptions(flagTag, mode)
+	options, clean, err := dmap.NewRunMap(userDir, projectConfig, tagByProject).RunOptions(flagTag, mode)
 	defer log.Defer("clean run files", clean)
 	if err != nil {
 		return err
@@ -91,7 +90,7 @@ func safeSeedCLIDataBinds(userDir string, c cli.CLI) error {
 			if err := os.MkdirAll(host, ioutil.Dir); err != nil {
 				return err
 			}
-		} else if err := fsync.File(host, *content); err != nil && !errors.Is(err, fsync.ErrExists) {
+		} else if err := fsync.SafeFile(host, []byte(*content)); err != nil {
 			return err
 		}
 	}

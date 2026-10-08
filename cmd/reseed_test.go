@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/cli"
+	"github.com/s12chung/ccbox/pkg/util/fsync"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
@@ -84,4 +85,15 @@ func TestSafeSeedConfig_PropagatesSeedError(t *testing.T) {
 
 	testutil.Home(t)
 	assert.ErrorIs(t, safeSeedCLIConfig("claude", false), wantErr)
+}
+
+func TestSafeSeedConfig_NoChanges(t *testing.T) {
+	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
+		return nil, fsync.ErrNoChanges
+	})()
+
+	testutil.Home(t)
+	for _, confirm := range []bool{false, true} {
+		require.NoErrorf(t, safeSeedCLIConfig("claude", confirm), "confirm=%v: a no-changes seed is not an error", confirm)
+	}
 }
