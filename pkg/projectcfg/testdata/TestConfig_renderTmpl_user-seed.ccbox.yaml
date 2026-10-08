@@ -37,9 +37,11 @@ read_only_binds:
   # ~/.aws: ~/.aws
   # /srv/ca: /home/ccbox/.local/share/ca
 
-# env: extra environment variables set in the container
-env:
-  # FOO: bar
+# forward_env: forward the host's env vars into the container.
+forward_env:
+  - TERM
+  - COLORTERM
+  # - GH_TOKEN
 
 # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
 # Run `ccbox config defaults` to see aliases and their expansions.

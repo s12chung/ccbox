@@ -10,12 +10,6 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-// envGHToken passes the host's GitHub token through to the container for gh.
-const envGHToken = "GH_TOKEN"
-
-// envTerminalVars forwards the host terminal's vars
-var envTerminalVars = []string{"TERM", "COLORTERM"}
-
 // RunMap maps one run's project config to the docker pkg options
 type RunMap struct {
 	userDir string // the run's mounts sit under this ccbox per-user host dir
@@ -96,11 +90,8 @@ func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	env := mergeempty.Map(cli.Env, hostTerminalEnv())
-	env = mergeempty.Map(mergeempty.Map(env, rm.cfg.Env), map[string]string{
-		pkginfo.EnvVar: pkgInfo,
-		envGHToken:     os.Getenv(envGHToken),
-	})
+	env := mergeempty.Map(cli.Env, forwardEnv(rm.cfg.ForwardEnv))
+	env = mergeempty.Map(env, map[string]string{pkginfo.EnvVar: pkgInfo})
 	if serveVNC {
 		body, err := rm.vncCfg().InfoJSON()
 		if err != nil {
@@ -114,13 +105,12 @@ func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	return env, nil
 }
 
-// hostTerminalEnv reads envTerminalVars, skipping unset ones so docker's TERM default stands —
-// an empty TERM renders worse than that default.
-func hostTerminalEnv() map[string]string {
-	env := make(map[string]string, len(envTerminalVars))
-	for _, k := range envTerminalVars {
-		if v := os.Getenv(k); v != "" {
-			env[k] = v
+// forwardEnv reads the config's vars off the host, skipping empty ones
+func forwardEnv(names []string) map[string]string {
+	env := make(map[string]string, len(names))
+	for _, name := range names {
+		if v := os.Getenv(name); v != "" {
+			env[name] = v
 		}
 	}
 	return env

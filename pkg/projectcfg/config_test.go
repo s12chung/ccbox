@@ -85,7 +85,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
-		Env:           map[string]string{"FOO": "base", "BAR": "base"},
+		ForwardEnv:    []string{"FOO", "BAR"},
 		Allowlist:     []string{"ccbox-defaults"},
 	}
 	other := Config{
@@ -95,7 +95,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		VolumeMasks:   []string{"cache"},
 		ReadOnlyGlobs: []string{".envrc"},
 		ReadOnlyBinds: map[string]string{"~/fonts": "/mnt/fonts", "~/certs": "/home/ccbox/certs"},
-		Env:           map[string]string{"FOO": "local", "BAZ": "local"},
+		ForwardEnv:    []string{"FOO"},
 		Allowlist:     []string{"example.com"},
 	}
 
@@ -117,8 +117,8 @@ func TestConfig_mergeOverlays(t *testing.T) {
 			"~/fonts":    "/mnt/fonts",
 			"~/certs":    "/home/ccbox/certs",
 		},
-		Env:       map[string]string{"FOO": "local", "BAR": "base", "BAZ": "local"},
-		Allowlist: []string{"ccbox-defaults", "example.com"},
+		ForwardEnv: []string{"FOO", "BAR", "FOO"}, // lists append
+		Allowlist:  []string{"ccbox-defaults", "example.com"},
 	}, c)
 }
 
@@ -584,7 +584,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 		VolumeMasks:   []string{DefaultsAlias, "target", "cache"},
 		ReadOnlyGlobs: []string{DefaultsAlias, ".env"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		Env:           map[string]string{"FOO": "bar"},
+		ForwardEnv:    []string{"FOO"},
 		Allowlist:     []string{"user.example.dev", DefaultsAlias, "example.com"},
 		projectDir:    dir,
 	}
@@ -607,8 +607,8 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 		ReadOnlyBinds: map[string]string{ // the gitconfig dir is present here: kept, resolved
 			filepath.Join(home, ".config", "git"): GitConfigMount,
 		},
-		Env:       map[string]string{"FOO": "bar"},
-		Allowlist: append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),
+		ForwardEnv: []string{"FOO"},
+		Allowlist:  append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),
 	}
 	assert.Equal(t, want, got)
 }

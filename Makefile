@@ -1,5 +1,5 @@
-BIN ?= dist/ccbox
-
+# in the container, dist/ is a throwaway tmpfs: build to the persistent /tmp there
+BIN ?= $(if $(DEVCONTAINER),/tmp/ccbox,dist/ccbox)
 GOARCH ?= $(shell go env GOARCH)
 
 build:

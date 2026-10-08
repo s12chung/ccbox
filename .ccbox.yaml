@@ -22,9 +22,9 @@ read_only_binds:
   # /srv/ca: /home/ccbox/.local/share/ca
 
 
-# env: extra environment variables set in the container
-env:
-  BIN: /tmp/ccbox
+# forward_env: forward the host's env vars into the container.
+forward_env:
+  # - GH_TOKEN
 
 # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains
 allowlist:

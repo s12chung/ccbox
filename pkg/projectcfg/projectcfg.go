@@ -66,6 +66,7 @@ func Init(projectDir string) (string, error) {
 func userSeedConfig(cli string) *Config {
 	return &Config{
 		CLIName:       new(cli),
+		ForwardEnv:    []string{"TERM", "COLORTERM"},
 		TmpfsMasks:    []string{DefaultsAlias},
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},

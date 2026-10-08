@@ -178,11 +178,12 @@ func TestRunMap_Env(t *testing.T) {
 	t.Setenv("GH_TOKEN", "tok")
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("DISABLE_AUTOUPDATER", "0")
 	vnc := &projectcfg.VNC{GUIAppName: guiapp.App.Name}
 	rm := testRunMap(t, projectcfg.Config{
-		CLIName: new("claude"),
-		Env:     map[string]string{"DISABLE_AUTOUPDATER": "0"},
-		VNC:     vnc,
+		CLIName:    new("claude"),
+		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN", "DISABLE_AUTOUPDATER"},
+		VNC:        vnc,
 	})
 	env, err := rm.Env(true)
 	require.NoError(t, err)
@@ -193,7 +194,7 @@ func TestRunMap_Env(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", // from CLI.yaml
-		"DISABLE_AUTOUPDATER":                      "0", // overrides CLI.yaml from above
+		"DISABLE_AUTOUPDATER":                      "0", // forwarded, overrides CLI.yaml's from above
 		"TERM":                                     "xterm-256color",
 		"COLORTERM":                                "truecolor",
 		pkginfo.EnvVar:                             pkgInfo,
@@ -202,15 +203,20 @@ func TestRunMap_Env(t *testing.T) {
 	}, env)
 }
 
-func TestRunMap_Env_SkipsUnsetTerminalVars(t *testing.T) {
+func TestRunMap_Env_SkipsEmpty(t *testing.T) {
+	t.Setenv("GH_TOKEN", "")
 	t.Setenv("TERM", "")
 	t.Setenv("COLORTERM", "")
-	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
+	rm := testRunMap(t, projectcfg.Config{
+		CLIName:    new("claude"),
+		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN"},
+	})
 
 	env, err := rm.Env(false)
 	require.NoError(t, err)
 	assert.NotContains(t, env, "TERM")
 	assert.NotContains(t, env, "COLORTERM")
+	assert.NotContains(t, env, "GH_TOKEN", "an unset var forwards nothing too")
 }
 
 func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {

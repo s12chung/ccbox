@@ -112,6 +112,7 @@ func TestSeedUserConfig(t *testing.T) {
 	// the seed is the defaults' carrier
 	want := Config{
 		CLIName:       new("claude"),
+		ForwardEnv:    []string{"TERM", "COLORTERM"},
 		TmpfsMasks:    []string{DefaultsAlias},
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},
@@ -301,13 +302,13 @@ func TestLoad_LayersFiles(t *testing.T) {
 	bodies := map[string]string{             // one entry per configFiles term
 		"user": "cli: grok\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
-			"env:\n  FOO: user\n  BAR: user\nvnc:\n  gui_app: zcode\nallowlist:\n  - user.example.dev\n",
+			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  gui_app: zcode\nallowlist:\n  - user.example.dev\n",
 		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
-			"env:\n  FOO: project\n  BAZ: project\nallowlist:\n  - ccbox-defaults\n",
+			"forward_env:\n  - FOO\n  - BAZ\nallowlist:\n  - ccbox-defaults\n",
 		"local": "cli: codex\ntmpfs_masks:\n  - cache\n" +
 			"read_only_binds:\n  ~/certs: /mnt/certs\n" +
-			"env:\n  FOO: local\nallowlist:\n  - example.com\n",
+			"forward_env:\n  - QUX\nallowlist:\n  - example.com\n",
 	}
 	for _, cf := range configFiles {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
@@ -324,8 +325,8 @@ func TestLoad_LayersFiles(t *testing.T) {
 	// lists append raw, lowest layer first, the seed's aliases carried as-is
 	assert.Equal(t, []string{DefaultsAlias, "dist", "build", "cache"}, c.TmpfsMasks)
 
-	// env overlays, later wins
-	assert.Equal(t, map[string]string{"FOO": "local", "BAR": "user", "BAZ": "project"}, c.Env)
+	// forward_env appends, layer order
+	assert.Equal(t, []string{"FOO", "BAR", "FOO", "BAZ", "QUX"}, c.ForwardEnv)
 
 	// binds merge per key, the later layer's entry wins
 	assert.Equal(t, map[string]string{
@@ -409,8 +410,8 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"absolute read_only_globs", "read_only_globs:\n  - /etc\n", []string{"ReadOnlyGlobs", "Match"}},
 		{"read_only_globs traversal", "read_only_globs:\n  - dist/../x\n", []string{"ReadOnlyGlobs", "Match"}},
 		{"read_only_globs bad glob char", "read_only_globs:\n  - \"dist/{a,b}\"\n", []string{"ReadOnlyGlobs", "Match"}},
-		{"bad env key", "env:\n  bad-key: \"1\"\n", []string{"Env", "Match"}},
-		{"empty env value", "env:\n  FOO: \"\"\n", []string{"Env", "Present"}},
+		{"bad forward_env name", "forward_env:\n  - bad-name\n", []string{"ForwardEnv", "Match"}},
+		{"empty forward_env name", "forward_env:\n  - \"\"\n", []string{"ForwardEnv", "Match"}},
 		{
 			"unknown gui_app", "vnc:\n  gui_app: emacs\n",
 			[]string{"GUIAppName", `is not one of ["zcode" ""]`},

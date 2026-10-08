@@ -33,9 +33,9 @@ read_only_binds:{{yaml .ReadOnlyBinds nil}}
   # ~/.aws: ~/.aws
   # /srv/ca: /home/ccbox/.local/share/ca
 
-# env: extra environment variables set in the container
-env:{{yaml .Env nil}}
-  # FOO: bar
+# forward_env: forward the host's env vars into the container.
+forward_env:{{yaml .ForwardEnv nil}}
+  # - GH_TOKEN
 
 # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
 # Run `ccbox config defaults` to see aliases and their expansions.

@@ -51,7 +51,7 @@ type Config struct {
 	VolumeMasks   []string          `yaml:"volume_masks"`       // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyGlobs []string          `yaml:"read_only_globs"`    // project-relative globs to re-mount read-only
 	ReadOnlyBinds map[string]string `yaml:"read_only_binds"`    // host dir → container mount dir, bound read-only
-	Env           map[string]string `yaml:"env"`                // extra env vars set in the container
+	ForwardEnv    []string          `yaml:"forward_env"`        // host env vars forwarded into the container
 	Allowlist     []string          `yaml:"allowlist"`          // egress wall domains
 
 	// projectDir anchors the masks' present-filters
@@ -83,11 +83,8 @@ func init() {
 				Specials: []string{GitConfigKey},
 			})},
 
-			"Env": {
-				firm.Keys[map[string]string](firmrule.EnvVar),
-				firm.Values[map[string]string](rule.Present{}),
-			},
-			"Allowlist": {firm.Elems[[]string](rule.ShowValue(firmrule.DomainOrAlias(allowlistAliases)))},
+			"ForwardEnv": {firm.Elems[[]string](rule.ShowValue(firmrule.EnvVar))},
+			"Allowlist":  {firm.Elems[[]string](rule.ShowValue(firmrule.DomainOrAlias(allowlistAliases)))},
 		}))
 }
 
@@ -319,7 +316,7 @@ func (c *Config) MarshalYAML() (any, error) {
 		VolumeMasks:   c.VolumeMasksPresent(),
 		ReadOnlyGlobs: c.ReadOnlyPathsPresent(),
 		ReadOnlyBinds: c.ReadOnlyBindsPresent(),
-		Env:           c.Env,
+		ForwardEnv:    c.ForwardEnv,
 		Allowlist:     c.AllowlistExpanded(),
 	}, nil
 }
