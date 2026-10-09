@@ -15,8 +15,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
-	"github.com/s12chung/ccbox/pkg/util/prompt"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
+	"github.com/s12chung/ccbox/pkg/util/term"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -61,7 +61,7 @@ func confirmReadOnlyPaths() bool {
 	}
 	question := fmt.Sprintf("read_only_globs matched %d+ paths in %s; print the config anyway?",
 		globkit.MatchLimit, userdir.Tilde(projectConfig.ProjectDir()))
-	if prompt.Confirm(question) {
+	if term.Confirm(question) {
 		return true
 	}
 	log.Info("config aborted")

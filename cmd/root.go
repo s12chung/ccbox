@@ -5,9 +5,7 @@ package cmd
 import (
 	"embed"
 	"errors"
-	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 
@@ -15,11 +13,10 @@ import (
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/provider"
-	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/flagptr"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -82,7 +79,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 		tagByProject = osutil.Present(mise.ProjectConfigPath(projectConfig.ProjectDir()))
-		return nil
+		return prompt.ProjectDirSize(projectConfig.ProjectDir())
 	},
 }
 
@@ -135,20 +132,11 @@ func safeSeedUserConfig() error {
 	if osutil.Present(path) {
 		return nil // the file already existed: no seed, so no prompt, no log
 	}
-	cli, err := pick.Select(
-		"Select a harness CLI",
-		[]string{
-			fmt.Sprintf("(stored in %s)", userdir.Tilde(projectcfg.UserConfigFile())),
-			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md"))),
-		},
-		cli.Names())
+	cliName, err := prompt.HarnessCLI(cli.Names())
 	if err != nil {
 		return err
 	}
-	if cli == "" { // no terminal to show the picker
-		return fmt.Errorf("no harness CLI selected: rerun in a terminal to pick one, or set cli in %s", projectcfg.UserConfigFile())
-	}
-	return projectcfg.SeedConfig(path, cli)
+	return projectcfg.SeedConfig(path, cliName)
 }
 
 func mustGetwd() string {

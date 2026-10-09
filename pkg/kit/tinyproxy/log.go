@@ -8,7 +8,7 @@ import (
 
 	"github.com/docker/docker/pkg/stdcopy"
 
-	"github.com/s12chung/ccbox/pkg/util/prompt"
+	"github.com/s12chung/ccbox/pkg/util/term"
 )
 
 // Log streams tinyproxy's logs through Writer; Colored tints each line per level, and
@@ -31,7 +31,7 @@ func (l Log) Close() error {
 func (l Log) Stream(logs io.ReadCloser) error {
 	var w io.Writer = l.Writer
 	if l.Colored {
-		w = prompt.NewColorWriter(w, levelColor)
+		w = term.NewColorWriter(w, levelColor)
 	}
 	_, err := stdcopy.StdCopy(w, w, logs)
 	if l.Stop != nil {
@@ -55,16 +55,16 @@ func (l Log) StreamGo(logs io.ReadCloser) chan error {
 	return logDone
 }
 
-var levelColors = map[string]prompt.Color{
-	"CRITICAL": prompt.ColorBoldRed,
-	"ERROR":    prompt.ColorRed,
-	"WARNING":  prompt.ColorYellow,
-	"NOTICE":   prompt.ColorGreen,
-	"CONNECT":  prompt.ColorCyan,
-	"INFO":     prompt.ColorDim,
+var levelColors = map[string]term.Color{
+	"CRITICAL": term.ColorBoldRed,
+	"ERROR":    term.ColorRed,
+	"WARNING":  term.ColorYellow,
+	"NOTICE":   term.ColorGreen,
+	"CONNECT":  term.ColorCyan,
+	"INFO":     term.ColorDim,
 }
 
-func levelColor(line string) prompt.Color {
+func levelColor(line string) term.Color {
 	fields := strings.Fields(line)
 	if len(fields) == 0 {
 		return ""

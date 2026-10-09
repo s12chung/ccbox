@@ -20,8 +20,8 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/must"
-	"github.com/s12chung/ccbox/pkg/util/prompt"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
+	"github.com/s12chung/ccbox/pkg/util/term"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -134,7 +134,7 @@ func EnsureImageExists(ctxD *CtxD, ref string) error {
 	}
 
 	defer log.Defer("close image pull", readCloser.Close)
-	return prompt.DisplayProgress(readCloser)
+	return term.DisplayProgress(readCloser)
 }
 
 // FollowLogs opens the container's combined follow stream. The daemon holds it open
@@ -180,7 +180,7 @@ func RunInteractive(ctxD *CtxD, id string) error {
 	}
 	defer att.Close()
 
-	if restore, ok := prompt.RawTerminal(); ok {
+	if restore, ok := term.Raw(); ok {
 		defer log.Defer("restore terminal", restore)
 	}
 
@@ -194,7 +194,7 @@ func RunInteractive(ctxD *CtxD, id string) error {
 	}
 
 	// Forward window resizes to the container's tty.
-	stopResizes := prompt.ForwardResizes(func(h, w uint) {
+	stopResizes := term.ForwardResizes(func(h, w uint) {
 		_ = ctxD.D.ContainerResize(ctxD.Ctx, id, container.ResizeOptions{Height: h, Width: w})
 	})
 	defer stopResizes()

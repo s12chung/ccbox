@@ -1,10 +1,10 @@
-package prompt
+package term
 
 import (
 	"bytes"
 	"io"
 
-	"github.com/moby/term"
+	mobyterm "github.com/moby/term"
 )
 
 // Color is an ANSI escape sequence tinting terminal output; ColorReset closes any of the others.
@@ -46,7 +46,7 @@ type ColorWriter struct {
 // osutil.BlockedCloser) expose it with one.
 func NewColorWriter(w io.Writer, colorer LineColorer) io.Writer {
 	f, ok := w.(interface{ Fd() uintptr })
-	if !ok || !term.IsTerminal(f.Fd()) {
+	if !ok || !mobyterm.IsTerminal(f.Fd()) {
 		return w
 	}
 	return &ColorWriter{w: w, colorer: colorer}
