@@ -29,7 +29,7 @@ Protect your protect these configs:
 - `volume_masks` — cover directories with a persistent per-project volume: the container keeps its own copy across runs. For `node_modules`-like folders.
 - `read_only_globs` — block writes to glob paths (files or directories) with read-only re-mounts: the real files, never modified. For files that must never change (configs, secrets).
 
-`ccbox` built-in LLM harness configurations prevent reads, as external container configurations can't. You can [add your own harnesses](pkg/cli/clitmpl/user-clis/README.md) that do so too.
+`ccbox` built-in LLM harness configurations prevent reads, as external container configurations can't. You can [add your own harnesses](pkg/models/cli/clitmpl/user-clis/README.md) that do so too.
 
 ## Docs
 

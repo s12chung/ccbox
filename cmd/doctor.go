@@ -13,9 +13,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/pkg/cli"
-	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
-	"github.com/s12chung/ccbox/pkg/provider"
+	"github.com/s12chung/ccbox/pkg/models/cli"
+	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
+	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	toolsbuild "github.com/s12chung/ccbox/tools/toolsbuild/pkg/build"

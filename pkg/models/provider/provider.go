@@ -1,7 +1,7 @@
 // Package provider holds the LLM API providers the egress wall knows: a CLI's
 // provider traffic is allowlisted by alias, so the domains live here alone.
 //
-// NOTE: like pkg/cli — Load() runs once at startup (cmd.rootCmd.PersistentPreRunE),
+// NOTE: like pkg/models/cli — Load() runs once at startup (cmd.rootCmd.PersistentPreRunE),
 // after seeding. The built-ins are a compile-time constant, while user providers
 // warn+skip, effectively guaranteeing a workable set onwards. It runs before
 // cli.Load(), whose user clis may alias user providers in allow_domains.

@@ -9,8 +9,8 @@ build:
 
 lint: lint.terms
 	hadolint Dockerfile
-	shellcheck docker/desktop.sh docker/web-browser pkg/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
-	find pkg/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
+	shellcheck docker/desktop.sh docker/web-browser pkg/models/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
+	find pkg/models/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null
 
 	go run ./tools/toolsbuild -goarch $(GOARCH) -o dist/ccboxtools # needed to build for lint

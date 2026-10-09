@@ -25,10 +25,10 @@ import (
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 
-	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
-	"github.com/s12chung/ccbox/pkg/provider"
+	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
+	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mapx"
 	"github.com/s12chung/ccbox/pkg/util/must"

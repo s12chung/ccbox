@@ -10,9 +10,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
+	"github.com/s12chung/ccbox/pkg/models/provider"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/provider"
-	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
 	"github.com/s12chung/ccbox/pkg/util/slicex"

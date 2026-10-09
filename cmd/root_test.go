@@ -4,8 +4,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/s12chung/ccbox/pkg/cli"
-	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
+	"github.com/s12chung/ccbox/pkg/models/cli"
+	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
