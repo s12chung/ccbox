@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -96,7 +96,7 @@ func TestWriteDesktopEntry(t *testing.T) {
 	t.Run("overwrites stale entry", func(t *testing.T) {
 		home := testutil.Home(t)
 		path := filepath.Join(home, ".local", "share", "applications", "app.desktop")
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), fsutil.DirMode))
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), installutil.DirMode))
 		require.NoError(t, os.WriteFile(path, []byte("stale"), fileMode))
 
 		require.NoError(t, writeDesktopEntry(debInfo))

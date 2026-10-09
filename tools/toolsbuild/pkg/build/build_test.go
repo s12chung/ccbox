@@ -18,7 +18,7 @@ func repoRoot(t *testing.T) string {
 
 	_, this, _, ok := runtime.Caller(0)
 	require.True(t, ok)
-	return filepath.Dir(filepath.Dir(filepath.Dir(this))) // tools/build → repo root
+	return filepath.Join(filepath.Dir(this), "..", "..", "..", "..") // tools/toolsbuild/pkg/build → repo root
 }
 
 func TestBuildCmd(t *testing.T) {

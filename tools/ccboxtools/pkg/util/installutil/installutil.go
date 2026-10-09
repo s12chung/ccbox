@@ -1,6 +1,6 @@
-// Package fsutil holds the fs moves shared by the versioned installs under the
+// Package installutil holds utils for versioned installs under the
 // clis and apps volumes: staging renames, the current-symlink flip, and pruning.
-package fsutil
+package installutil
 
 import (
 	"os"

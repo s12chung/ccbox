@@ -17,8 +17,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	toolsbuild "github.com/s12chung/ccbox/tools/build"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
+	toolsbuild "github.com/s12chung/ccbox/tools/toolsbuild/pkg/build"
 )
 
 var doctorCmd = &cobra.Command{

@@ -10,7 +10,7 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/flock"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -27,7 +27,7 @@ const AppsRoot = "/opt/ccbox/apps"
 // lock. A failure keeps the installed version; with nothing usable installed, it fails.
 func FromPkgDir(pkgDir pkger.PkgDir) error {
 	return flock.Do(pkgDir.LockPath(), func() error {
-		active := fsutil.CurrentVersion(pkgDir.Current())
+		active := installutil.CurrentVersion(pkgDir.Current())
 		latest, err := pkgDir.Latest()
 		if err != nil {
 			if active == "" {
@@ -51,7 +51,7 @@ func FromPkgDir(pkgDir pkger.PkgDir) error {
 			return err
 		}
 		log.Infof("installed %s %s", pkgDir.Name(), latest)
-		return fsutil.Prune(pkgDir.Dir(), latest)
+		return installutil.Prune(pkgDir.Dir(), latest)
 	}, skipInstalled(pkgDir))
 }
 
@@ -71,7 +71,7 @@ func skipInstalled(pkgDir pkger.PkgDir) func() bool {
 		if os.Getenv(LockWaitEnv) != "" {
 			return false
 		}
-		active := fsutil.CurrentVersion(pkgDir.Current())
+		active := installutil.CurrentVersion(pkgDir.Current())
 		if active == "" {
 			return false
 		}
@@ -92,13 +92,13 @@ func installed(pkgDir pkger.PkgDir, version string) bool {
 // the current and bin symlinks.
 func install(pkgDir pkger.PkgDir, version string) error {
 	tmp := pkgDir.TmpDir(version)
-	if err := fsutil.SafeMkdir(tmp); err != nil {
+	if err := installutil.SafeMkdir(tmp); err != nil {
 		return err
 	}
 	if err := pkgDir.Install(tmp, version); err != nil {
 		return fmt.Errorf("install %s %s: %w", pkgDir.Name(), version, err)
 	}
-	if err := fsutil.SafeMv(tmp, pkgDir.VersionDir(version)); err != nil {
+	if err := installutil.SafeMv(tmp, pkgDir.VersionDir(version)); err != nil {
 		return err
 	}
 	return updateSymlinks(pkgDir, version)
@@ -106,8 +106,8 @@ func install(pkgDir pkger.PkgDir, version string) error {
 
 // updateSymlinks flips current and the PATH-exposed bin link to version.
 func updateSymlinks(pkgDir pkger.PkgDir, version string) error {
-	if err := fsutil.ReplaceSymlink(version, pkgDir.Current()); err != nil {
+	if err := installutil.ReplaceSymlink(version, pkgDir.Current()); err != nil {
 		return err
 	}
-	return fsutil.ReplaceSymlink(pkgDir.BinLinkTarget(), pkgDir.BinLink())
+	return installutil.ReplaceSymlink(pkgDir.BinLinkTarget(), pkgDir.BinLink())
 }

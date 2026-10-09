@@ -11,8 +11,8 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/s12chung/ccbox/tools/build"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/tools/toolsbuild/pkg/build"
 )
 
 func main() {

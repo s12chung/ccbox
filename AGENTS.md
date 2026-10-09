@@ -14,9 +14,9 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`main.go`** — `//go:embed`s the build context (`Dockerfile`, `docker/*`) plus the prebuilt `dist/ccboxtools` binary into the binary, then hands off to `cmd`.
 - **`tools/`** — everything that builds and ships the container's tool binary (`dist/ccboxtools`)
   - `ccboxtools/` — the container's entrypoint — it verifies the container security and installs and maintains the harness CLI (nested Go module, replace'd in go.mod)
-    - `pkg/util/log` — log helpers and abstraction, never use `fmt.Print*`
+    - `pkg/util/` - std lib utility packages shared between `ccbox` and `ccboxtools`, notable: `flock`, `httputil`, `testutil`
+      - `log/` — log helpers and abstraction, never use `fmt.Print*`
   - `toolsbuild/` — `go run` command that builds `dist/ccboxtools`
-  - `build/` — the canonical build of the `ccboxtools` module, shared by `toolsbuild` and `ccbox doctor tools`
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `dmap/` — maps the projectcfg.Config, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
@@ -25,7 +25,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
   - `projectcfg/` — related to `ccbox` Config as described in the README
   - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins.
   - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
-  - `util/` — std lib utility packages, notable: `must`, `seed`, `slug`, `mergeempty`, `slicex`
+  - `util/` — std lib utility packages, notable: `klean`, `must`, `seed`, `prompt`, `mergeempty`, `slicex`
     - `osutil/` — os-level file utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
   - `kit/` — non-std lib abstractions and utilities, most used: `dock`, `pick`, `firmrule`
     - `tinyproxy/` — the egress wall configs

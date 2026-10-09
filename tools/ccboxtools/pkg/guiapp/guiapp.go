@@ -13,7 +13,7 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/fsutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -75,7 +75,7 @@ func writeDesktopEntry(info pkginfo.GUIPkgInfo) error {
 		return err
 	}
 	dir := filepath.Join(home, ".local", "share", "applications")
-	if err := os.MkdirAll(dir, fsutil.DirMode); err != nil {
+	if err := os.MkdirAll(dir, installutil.DirMode); err != nil {
 		return err
 	}
 	entry := fmt.Sprintf(desktopEntryFmt, info.DesktopName)
