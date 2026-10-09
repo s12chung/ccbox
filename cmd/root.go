@@ -23,7 +23,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/flagutils"
 	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // Injected from main (package main can't be imported, so the embed FS comes in here).
@@ -34,9 +33,6 @@ var (
 	flagTag string
 	flagCLI *string
 )
-
-// exitCode lets `run` propagate the container's exit status out through Execute.
-var exitCode int
 
 // loaded once together before any command runs
 var (
@@ -90,15 +86,11 @@ var rootCmd = &cobra.Command{
 	},
 }
 
-// Execute runs the CLI and returns the process exit code.
-func Execute(buildContext embed.FS) int {
+// Execute runs the CLI
+func Execute(buildContext embed.FS) error {
 	embedBuildContext = buildContext
 	initMiseImage()
-	if err := rootCmd.Execute(); err != nil {
-		log.Errorf("command failed: %v", err)
-		return 1
-	}
-	return exitCode
+	return rootCmd.Execute()
 }
 
 func init() {

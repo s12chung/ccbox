@@ -82,23 +82,23 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	}, nil
 }
 
-// Run starts the devbox container interactively (docker run -it --rm) behind the egress wall
-// and returns its exit code. holdProxy holds the egress wall's session for the run — the proxy
-// outlives the run whenever another holder remains — and the container is removed on
-// return, before the session's leave.
-func Run(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
+// Run starts the devbox container interactively (docker run -it --rm) behind the egress wall,
+// returning the container's exit code as errs.ExitError. holdProxy holds the egress wall's
+// session for the run — the proxy outlives the run whenever another holder remains — and the
+// container is removed on return, before the session's leave.
+func Run(ctxD *dock.CtxD, hostOptions RunOptions) error {
 	if hostOptions.Proxy == nil {
 		return runDevbox(ctxD, hostOptions)
 	}
 	leave, err := holdProxy(ctxD, *hostOptions.Proxy)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer log.Defer("proxy leave", leave)
 	return runDevbox(ctxD, hostOptions)
 }
 
-func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
+func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) error {
 	if hostOptions.Proxy != nil {
 		// re-asserted per run: a proxy adopted from a creator that skipped it gets egress here
 		_ = ctxD.D.NetworkConnect(ctxD.Ctx, bridgeNetworkName, proxyContainerName, nil) // silently ignore errors
@@ -106,11 +106,11 @@ func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) (int, error) {
 
 	hostConfig, err := runHostConfig(ctxD, hostOptions)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx, runConfig(hostOptions), hostConfig, nil, nil, "")
 	if err != nil {
-		return 0, err
+		return err
 	}
 
 	// --rm: remove on return regardless of how we got here

@@ -57,12 +57,7 @@ func run(ctx context.Context, mode dmap.RunMode) error {
 	}
 
 	//nolint:contextcheck // the chain's context.Background cleanups are deliberate: a cancelled ctx can't block cleanup
-	code, err := docker.Run(dock.MustNewCtxD(ctx), options)
-	if err != nil {
-		return err
-	}
-	exitCode = code
-	return nil
+	return docker.Run(dock.MustNewCtxD(ctx), options)
 }
 
 func init() {

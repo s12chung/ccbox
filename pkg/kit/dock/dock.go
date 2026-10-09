@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/docker/docker/pkg/stdcopy"
 
+	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
 	"github.com/s12chung/ccbox/pkg/util/uslice"
@@ -170,12 +171,12 @@ func RunOnce(ctxD *CtxD, id string, w io.Writer) error {
 // Discipline: every exit path must restore the terminal, so this returns errors
 // rather than calling os.Exit/log.Fatal (which skip defers). On a kill/hangup it
 // stops the container instead of exiting, so this same unwind still runs.
-func RunInteractive(ctxD *CtxD, id string) (int, error) {
+func RunInteractive(ctxD *CtxD, id string) error {
 	att, err := ctxD.D.ContainerAttach(ctxD.Ctx, id, container.AttachOptions{
 		Stream: true, Stdin: true, Stdout: true, Stderr: true,
 	})
 	if err != nil {
-		return 0, err
+		return err
 	}
 	defer att.Close()
 
@@ -189,7 +190,7 @@ func RunInteractive(ctxD *CtxD, id string) (int, error) {
 	statusCh, errCh := ctxD.D.ContainerWait(ctxD.Ctx, id, container.WaitConditionNextExit)
 
 	if err := ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
-		return 0, err
+		return err
 	}
 
 	// Forward window resizes to the container's tty.
@@ -222,8 +223,8 @@ func RunInteractive(ctxD *CtxD, id string) (int, error) {
 
 	select {
 	case err := <-errCh:
-		return 0, err
+		return err
 	case st := <-statusCh:
-		return int(st.StatusCode), nil
+		return errs.Exit(int(st.StatusCode))
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"os"
 
 	"github.com/s12chung/ccbox/cmd"
+	"github.com/s12chung/ccbox/pkg/util/errs"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // `go:embed` can't reach above its own package dir and can't
@@ -18,5 +20,12 @@ import (
 var embedBuildContext embed.FS
 
 func main() {
-	os.Exit(cmd.Execute(embedBuildContext))
+	err := cmd.Execute(embedBuildContext)
+	if code, ok := errs.ExitCode(err); ok {
+		os.Exit(code)
+	}
+	if err != nil {
+		log.Errorf("command failed: %v", err)
+		os.Exit(1)
+	}
 }
