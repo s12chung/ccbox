@@ -15,13 +15,13 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/errs"
-	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/runid"
 	"github.com/s12chung/ccbox/pkg/util/seed"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/flock"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 

@@ -13,9 +13,9 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
-	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/flock"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
