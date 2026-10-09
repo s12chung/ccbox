@@ -17,9 +17,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/runtime"
-	"github.com/s12chung/ccbox/pkg/util/fsync"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -29,7 +29,7 @@ func mkDirs(t *testing.T, dir string, dirs ...string) {
 	t.Helper()
 	for _, d := range dirs {
 		// #nosec G703 -- the test's own paths: a temp project dir or TestMain's temp home
-		require.NoError(t, os.MkdirAll(filepath.Join(dir, d), ioutil.Dir))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, d), osutil.Dir))
 	}
 }
 
@@ -38,7 +38,7 @@ func mkDirs(t *testing.T, dir string, dirs ...string) {
 func useHome(t *testing.T) string {
 	t.Helper()
 	home := testutil.Home(t)
-	require.NoError(t, os.MkdirAll(filepath.Join(home, ".ccbox", "config"), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".ccbox", "config"), osutil.Dir))
 	return UserConfigFile()
 }
 
@@ -50,7 +50,7 @@ func writeConfig(t *testing.T, dir string, name string, body string) string {
 	if name == userConfigFileName {
 		path = useHome(t)
 	}
-	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 	return path
 }
 
@@ -68,7 +68,7 @@ func copyFile(t *testing.T, src, dst string) {
 	body, err := os.ReadFile(src) // #nosec G304 -- the test's own scaffold path
 	require.NoError(t, err)
 	// #nosec G703 -- the scaffold re-written verbatim into the test's own temp project
-	require.NoError(t, os.WriteFile(dst, body, ioutil.File))
+	require.NoError(t, os.WriteFile(dst, body, osutil.File))
 }
 
 // configFiles lists the config files by level term and file name, in load order
@@ -126,7 +126,7 @@ func TestSeedConfig(t *testing.T) {
 	})
 
 	t.Run("an empty project file is unset like a missing one", func(t *testing.T) {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, ioutil.File))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, osutil.File))
 
 		c, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestLoadedPaths(t *testing.T) {
 	t.Run("an empty file counts as loaded", func(t *testing.T) {
 		useHome(t)
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, ioutil.File))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, osutil.File))
 
 		loaded, notLoaded := LoadedPaths(dir)
 		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, loaded)
@@ -218,9 +218,9 @@ func TestInit_WritesLoadableDefault(t *testing.T) {
 
 func TestInit_RefusesExisting(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("tmpfs_masks: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("tmpfs_masks: []\n"), osutil.File))
 
-	assert.ErrorIs(t, Init(dir), fsync.ErrExists)
+	assert.ErrorIs(t, Init(dir), seed.ErrExists)
 }
 
 func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
@@ -278,7 +278,7 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 
 func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("allowlist: []\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("allowlist: []\n"), osutil.File))
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
@@ -434,7 +434,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(tt.body), ioutil.File))
+			require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(tt.body), osutil.File))
 
 			_, err := Load(dir, Config{}, false)
 			require.Error(t, err)
@@ -463,8 +463,8 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 
 func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), ioutil.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localConfigFileName), []byte("cli: codex\n"), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), osutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, localConfigFileName), []byte("cli: codex\n"), osutil.File))
 
 	c, err := Load(dir, Config{CLIName: new("grok")}, false)
 	require.NoError(t, err)

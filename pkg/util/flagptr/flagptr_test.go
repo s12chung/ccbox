@@ -1,4 +1,4 @@
-package flagutils
+package flagptr
 
 import (
 	"flag"
@@ -14,18 +14,18 @@ type parser interface {
 	Parse(args []string) error
 }
 
-// TestStringPtr runs the flag behavior through both flag libraries: the stdlib
+// TestString runs the flag behavior through both flag libraries: the stdlib
 // flag and pflag, which cobra binds.
-func TestStringPtr(t *testing.T) {
+func TestString(t *testing.T) {
 	flavors := map[string]func(p **string) parser{
 		"stdlib": func(p **string) parser {
 			fs := flag.NewFlagSet("test", flag.ContinueOnError)
-			fs.Var(StringPtr(p), "cli", "")
+			fs.Var(String(p), "cli", "")
 			return fs
 		},
 		"pflag": func(p **string) parser {
 			fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-			fs.Var(StringPtr(p), "cli", "")
+			fs.Var(String(p), "cli", "")
 			return fs
 		},
 	}
@@ -51,14 +51,14 @@ func TestStringPtr(t *testing.T) {
 	}
 }
 
-func TestStringPtrValue_String(t *testing.T) {
+func TestValue_String(t *testing.T) {
 	var v *string
-	value := StringPtr(&v)
+	value := String(&v)
 	assert.Empty(t, value.String()) // nil target: the unset rendering
 
 	require.NoError(t, value.Set("codex"))
 	assert.Equal(t, "codex", value.String())
 
-	var zero StringPtrValue
+	var zero Value
 	assert.Empty(t, zero.String()) // flag's zero-value reflection must not panic
 }

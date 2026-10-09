@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/sharer"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/scratch"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 // The tests pin PersistDir's own wiring — the paths it lands on and the seed it binds.
-// The driver's behavior is pinned in pkg/util/sharer.
+// The driver's behavior is pinned in pkg/util/scratch.
 
 const testProjectDir = "/Users/me/proj"
 
@@ -28,7 +28,7 @@ func TestSeedFS(t *testing.T) {
 }
 
 // testPersistDir builds a PersistDir over a fresh temp home
-func testPersistDir(t *testing.T) sharer.ShareBinder {
+func testPersistDir(t *testing.T) scratch.Binder {
 	t.Helper()
 	testutil.Home(t)
 	return PersistDir(testProjectDir)
@@ -37,8 +37,8 @@ func testPersistDir(t *testing.T) sharer.ShareBinder {
 // realDir is the project's persistent state dir: ~/.ccbox/persist/<slug>
 func realDir() string { return filepath.Join(userdir.Dir(), "persist", slug.Path(testProjectDir)) }
 
-// scratch is the seeded scratch copy of realDir: ~/.ccbox/tmp/persist/<slug>
-func scratch() string { return filepath.Join(userdir.Tmp(), "persist", slug.Path(testProjectDir)) }
+// scratchPath is the seeded scratch copy of realDir: ~/.ccbox/tmp/persist/<slug>
+func scratchPath() string { return filepath.Join(userdir.Tmp(), "persist", slug.Path(testProjectDir)) }
 
 // TestPersistDir_RealPath pins Real's path: the project dir's slug under the persist root
 func TestPersistDir_RealPath(t *testing.T) {
@@ -52,7 +52,7 @@ func TestPersistDir_Begin(t *testing.T) {
 
 		bind, clean, err := s.Begin()
 		require.NoError(t, err)
-		assert.Equal(t, scratch(), bind.HostPath, "the tmp dir binds while Real is missing")
+		assert.Equal(t, scratchPath(), bind.HostPath, "the tmp dir binds while Real is missing")
 		assertSeeded(t, filepath.Join(bind.HostPath, "README.md"))
 
 		// the run's changes promote into realDir
@@ -60,27 +60,27 @@ func TestPersistDir_Begin(t *testing.T) {
 		require.NoError(t, clean())
 		assertSeeded(t, filepath.Join(realDir(), "README.md"))
 		assertFile(t, filepath.Join(realDir(), "notes.txt"), "run's edit")
-		assert.NoDirExists(t, scratch())
+		assert.NoDirExists(t, scratchPath())
 	})
 
 	t.Run("Existing", func(t *testing.T) {
 		s := testPersistDir(t)
-		require.NoError(t, os.MkdirAll(realDir(), ioutil.Dir))
+		require.NoError(t, os.MkdirAll(realDir(), osutil.Dir))
 
 		bind, clean, err := s.Begin()
 		require.NoError(t, err)
 		assert.Equal(t, realDir(), bind.HostPath, "an existing dir binds directly")
 		require.NoError(t, clean())
-		assert.NoDirExists(t, scratch(), "an existing dir binds directly, no scratch seeded")
+		assert.NoDirExists(t, scratchPath(), "an existing dir binds directly, no scratch seeded")
 	})
 }
 
 // writeScratch writes body at rel under the run's scratch
 func writeScratch(t *testing.T, rel, body string) {
 	t.Helper()
-	path := filepath.Join(scratch(), rel)
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
-	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+	path := filepath.Join(scratchPath(), rel)
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+	require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 }
 
 func assertSeeded(t *testing.T, path string) {

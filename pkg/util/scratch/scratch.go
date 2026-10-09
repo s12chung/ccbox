@@ -1,8 +1,8 @@
-// Package sharer shares host paths into the devbox: while a persistent path is
+// Package scratch shares host paths into the devbox: while a persistent path is
 // missing, runs bind a seeded scratch copy, and the last out promotes its changes
 // into the persistent path. Share drives the lifecycle over the
-// ScratchContent and ScratchSync axes — the file-vs-dir and symlink-vs-direct branches.
-package sharer
+// Content and Sync axes — the file-vs-dir and symlink-vs-direct branches.
+package scratch
 
 import (
 	"bytes"
@@ -17,22 +17,22 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/flock"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
-	"github.com/s12chung/ccbox/pkg/util/fsync"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/runid"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
-// Share drives the scratch's lifecycle for Real across concurrent runs: the first
+// Share drives the scratch lifecycle for Real across concurrent runs: the first
 // run seeds it, latecomers bind it as-is, and the last out promotes its changes
 // and cleans it up.
 type Share struct {
-	Name     string         // prefixes errors, e.g. "agents"
-	RealPath string         // persistent path promoted into
-	Content  ScratchContent // file vs dir
-	Sync     ScratchSync    // symlink vs direct
+	Name     string  // prefixes errors, e.g. "agents"
+	RealPath string  // persistent path promoted into
+	Content  Content // file vs dir
+	Sync     Sync    // symlink vs direct
 }
 
 // Begin shares Real for the run, returning the host path to bind and a cleanup
@@ -54,7 +54,7 @@ func (s Share) Begin() (string, func() error, error) {
 // verifyShared verifies the share is present: the scratch's bind, or Real
 // when the first holder bound it directly
 func (s Share) verifyShared() error {
-	if ioutil.Missing(s.Sync.ScratchBindPath(s.RealPath)) && !s.Sync.RealPresent(s.RealPath) {
+	if osutil.Missing(s.Sync.ScratchBindPath(s.RealPath)) && !s.Sync.RealPresent(s.RealPath) {
 		return fmt.Errorf("%s: existing run's share missing: neither %s nor %s",
 			s.Name, userdir.Tilde(s.Sync.ScratchBindPath(s.RealPath)), userdir.Tilde(s.RealPath))
 	}
@@ -83,7 +83,7 @@ func (s Share) clean() error {
 		return err
 	}
 	bind := s.Sync.ScratchBindPath(s.RealPath)
-	if ioutil.Missing(bind) {
+	if osutil.Missing(bind) {
 		return os.RemoveAll(s.Sync.ScratchPath(s.RealPath)) // a crashed run's leftovers
 	}
 	changed, err := s.Content.IsChanged(bind)
@@ -104,36 +104,36 @@ func (s Share) multiflock() flock.MultiFlock {
 	return flock.MultiFlock{Dir: runsDirFor(s.Sync.ScratchPath(s.RealPath))}
 }
 
-// ScratchContent is an interface splitting the FileScratch and DirScratch
+// Content is an interface splitting the File and Dir
 // implementations: the scratch's contents, seeded into the bind and promoted into
 // Real when the run changed them. Each step takes the bind — the file or root
 // bound into the run.
-type ScratchContent interface {
+type Content interface {
 	Seed(bind string) error              // write the initial contents to the bind
 	IsChanged(bind string) (bool, error) // whether the run changed the bind since Seed
 	Promote(bind, realPath string) error // write the bind's changes into realPath
 }
 
-// FileScratch is a single-file scratch: Source's body at the bind, with the
+// File is a single-file scratch: Source's body at the bind, with the
 // original for IsChanged kept outside the bind at +".orig".
-type FileScratch struct {
+type File struct {
 	Source func() ([]byte, error) // the body the scratch binds
 }
 
 // Seed writes the source body to the bind and its original copy
-func (f FileScratch) Seed(bind string) error {
+func (f File) Seed(bind string) error {
 	body, err := f.Source()
 	if err != nil {
 		return err
 	}
-	if err := ioutil.SafeWriteFile(origFile(bind), body); err != nil {
+	if err := osutil.SafeWriteFile(origFile(bind), body); err != nil {
 		return err
 	}
-	return ioutil.SafeWriteFile(bind, body)
+	return osutil.SafeWriteFile(bind, body)
 }
 
 // IsChanged diffs the bound file against the body it was bound from
-func (f FileScratch) IsChanged(bind string) (bool, error) {
+func (f File) IsChanged(bind string) (bool, error) {
 	bound, err := os.ReadFile(bind) // #nosec G304 -- the run's own bound copy
 	if err != nil {
 		return false, err
@@ -149,12 +149,12 @@ func (f FileScratch) IsChanged(bind string) (bool, error) {
 }
 
 // Promote overwrites realPath with the bound body, logging the set
-func (f FileScratch) Promote(bind, realPath string) error {
+func (f File) Promote(bind, realPath string) error {
 	body, err := os.ReadFile(bind) // #nosec G304 -- the run's own bound copy
 	if err != nil {
 		return err
 	}
-	if err := ioutil.SafeWriteFile(realPath, body); err != nil {
+	if err := osutil.SafeWriteFile(realPath, body); err != nil {
 		return err
 	}
 	log.Infof("set %s", userdir.Tilde(realPath))
@@ -163,27 +163,27 @@ func (f FileScratch) Promote(bind, realPath string) error {
 
 func origFile(bind string) string { return bind + ".orig" }
 
-// DirScratch is a dir scratch seeded from the embedded SeedFS; its bind is the
+// Dir is a dir scratch seeded from the embedded SeedFS; its bind is the
 // scratch's whole root.
-type DirScratch struct {
+type Dir struct {
 	SeedFS fs.FS
 }
 
 // Seed seeds the embedded tree onto the scratch
-func (d DirScratch) Seed(bind string) error {
-	_, err := fsync.Seed(d.SeedFS, bind)
-	return errs.Swallow(err, fsync.ErrNoChanges)
+func (d Dir) Seed(bind string) error {
+	_, err := seed.FS(d.SeedFS, bind)
+	return errs.Swallow(err, seed.ErrNoChanges)
 }
 
 // IsChanged reports whether the run's tree differs from the embedded one
-func (d DirScratch) IsChanged(bind string) (bool, error) {
+func (d Dir) IsChanged(bind string) (bool, error) {
 	matches, err := fsutil.Matches(d.SeedFS, bind)
 	return !matches, err
 }
 
 // Promote merges the run's tree into realPath, moving its differing copies aside
-func (d DirScratch) Promote(bind, realPath string) error {
-	asides, err := fsync.Merge(bind, realPath, "run-"+runid.New())
+func (d Dir) Promote(bind, realPath string) error {
+	asides, err := seed.Merge(bind, realPath, "run-"+runid.New())
 	if err != nil {
 		return err
 	}
@@ -193,11 +193,11 @@ func (d DirScratch) Promote(bind, realPath string) error {
 	return nil
 }
 
-// ScratchSync is an interface splitting the DirectScratch and SymlinkScratch
+// Sync is an interface splitting the Direct and Symlink
 // implementations: a temp scratch bound and cleared in each run (after handling any
 // promoted changes to Real if needed). Real will take the place of the scratch when
 // it exists.
-type ScratchSync interface {
+type Sync interface {
 	ScratchPath(realPath string) string     // the scratch root, cleaned after the run
 	ScratchBindPath(realPath string) string // the scratch's host path bound while Real is missing: the scratch, or a file within
 	RealBindPath(realPath string) string    // host path bound once Real exists; "" binds nothing
@@ -206,56 +206,56 @@ type ScratchSync interface {
 	RealPresent(realPath string) bool       // realPath present as itself, not as SeedSymlink's symlink
 }
 
-// DirectScratch creates the scratch and binds it directly.
-type DirectScratch struct{}
+// Direct creates the scratch and binds it directly.
+type Direct struct{}
 
 // ScratchPath is Real's rel path under userdir.Tmp()
-func (DirectScratch) ScratchPath(realPath string) string { return tmpDirFor(realPath) }
+func (Direct) ScratchPath(realPath string) string { return tmpDirFor(realPath) }
 
 // ScratchBindPath is ScratchPath: the whole root binds
-func (d DirectScratch) ScratchBindPath(realPath string) string { return d.ScratchPath(realPath) }
+func (d Direct) ScratchBindPath(realPath string) string { return d.ScratchPath(realPath) }
 
 // RealBindPath is Real itself
-func (DirectScratch) RealBindPath(realPath string) string { return realPath }
+func (Direct) RealBindPath(realPath string) string { return realPath }
 
 // SeedSymlink seeds no symlink
-func (DirectScratch) SeedSymlink(string) error { return nil }
+func (Direct) SeedSymlink(string) error { return nil }
 
 // ClearSymlink clears nothing
-func (DirectScratch) ClearSymlink(string) error { return nil }
+func (Direct) ClearSymlink(string) error { return nil }
 
 // RealPresent is Real's plain presence
-func (DirectScratch) RealPresent(realPath string) bool { return ioutil.Present(realPath) }
+func (Direct) RealPresent(realPath string) bool { return osutil.Present(realPath) }
 
-// SymlinkScratch creates a scratch which is symlinked at realPath to the container
+// Symlink creates a scratch which is symlinked at realPath to the container
 // Mount path.
-type SymlinkScratch struct{ Mount string }
+type Symlink struct{ Mount string }
 
 // ScratchPath is the ScratchBindPath's dir
-func (l SymlinkScratch) ScratchPath(string) string { return filepath.Dir(l.hostPath()) }
+func (l Symlink) ScratchPath(string) string { return filepath.Dir(l.hostPath()) }
 
 // ScratchBindPath is the Mount's host path
-func (l SymlinkScratch) ScratchBindPath(string) string { return l.hostPath() }
+func (l Symlink) ScratchBindPath(string) string { return l.hostPath() }
 
 // hostPath is Mount re-rooted into userdir.Tmp():
 // /home/ccbox/.ccbox/tmp/agents/<cli>/AGENTS.md → ~/.ccbox/tmp/agents/<cli>/AGENTS.md.
 // A Mount outside tmpMount violates the layout invariant — unreachable via dmap's
 // mounts — and panics.
-func (l SymlinkScratch) hostPath() string {
+func (l Symlink) hostPath() string {
 	return filepath.Join(userdir.Tmp(), must.Get(pathTail(l.Mount, tmpMount)))
 }
 
 // RealBindPath binds nothing: Real is reached via its own bind elsewhere
-func (SymlinkScratch) RealBindPath(string) string { return "" }
+func (Symlink) RealBindPath(string) string { return "" }
 
 // SeedSymlink symlinks Real at the Mount
-func (l SymlinkScratch) SeedSymlink(realPath string) error {
-	return ioutil.SafeSymlink(realPath, l.Mount)
+func (l Symlink) SeedSymlink(realPath string) error {
+	return osutil.SafeSymlink(realPath, l.Mount)
 }
 
 // ClearSymlink drops our symlink only
-func (l SymlinkScratch) ClearSymlink(realPath string) error {
-	if ioutil.IsSymlinkTo(realPath, l.Mount) {
+func (l Symlink) ClearSymlink(realPath string) error {
+	if osutil.IsSymlinkTo(realPath, l.Mount) {
 		return os.Remove(realPath)
 	}
 	return nil
@@ -264,7 +264,7 @@ func (l SymlinkScratch) ClearSymlink(realPath string) error {
 // RealPresent treats our own symlink — targeting Mount, dangling on the host by
 // design — as missing, so a past run's leftover re-shares; foreign symlinks stay
 // owned, untouched.
-func (l SymlinkScratch) RealPresent(realPath string) bool {
+func (l Symlink) RealPresent(realPath string) bool {
 	info, err := os.Lstat(realPath)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):

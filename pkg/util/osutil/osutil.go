@@ -1,5 +1,5 @@
-// Package ioutil contains utils for io
-package ioutil
+// Package osutil holds file utilities beyond the standard os package.
+package osutil
 
 import (
 	"errors"

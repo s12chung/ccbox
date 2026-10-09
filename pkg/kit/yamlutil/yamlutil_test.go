@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 func TestValue(t *testing.T) {
@@ -147,7 +147,7 @@ func TestReadLayers(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) string {
 		path := filepath.Join(dir, name)
-		require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+		require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 		return path
 	}
 	present := write("present.yaml", "name: web\n")

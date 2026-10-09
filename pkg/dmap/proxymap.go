@@ -11,7 +11,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/diff"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/proxy"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
@@ -35,7 +35,7 @@ func (pm *ProxyMap) Options(foreground *tinyproxy.Log) *docker.ProxyOptions {
 	writeConfigMap := func() error {
 		for name, body := range proxyConfigMap {
 			// atomically for reload
-			if err := ioutil.AtomicWriteFile(filepath.Join(proxyLiveDir(), name), body); err != nil {
+			if err := osutil.AtomicWriteFile(filepath.Join(proxyLiveDir(), name), body); err != nil {
 				return err
 			}
 		}
@@ -61,7 +61,7 @@ func (pm *ProxyMap) Options(foreground *tinyproxy.Log) *docker.ProxyOptions {
 			return nil
 		},
 		// contents go, not the dir: a devbox may still bind it
-		OnStop: func() error { return ioutil.ClearDir(proxyLiveDir()) },
+		OnStop: func() error { return osutil.ClearDir(proxyLiveDir()) },
 	}
 }
 

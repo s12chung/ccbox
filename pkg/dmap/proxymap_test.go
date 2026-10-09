@@ -10,7 +10,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/proxy"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -27,7 +27,7 @@ func TestProxyMap_Options(t *testing.T) {
 
 	options := NewProxyMap(cfg).Options(nil)
 	assert.Equal(t, proxyLiveDir(), options.HostDir)
-	require.True(t, ioutil.Missing(proxyLiveDir()), "rendering alone writes nothing")
+	require.True(t, osutil.Missing(proxyLiveDir()), "rendering alone writes nothing")
 
 	require.NotNil(t, options.BeforeStart)
 	require.NoError(t, options.BeforeStart())
@@ -49,7 +49,7 @@ func TestProxyMap_Options(t *testing.T) {
 
 	require.NotNil(t, options.OnStop)
 	require.NoError(t, options.OnStop())
-	require.True(t, ioutil.Present(proxyLiveDir()), "the dir stays: a devbox may still bind it")
+	require.True(t, osutil.Present(proxyLiveDir()), "the dir stays: a devbox may still bind it")
 	entries, err = os.ReadDir(proxyLiveDir())
 	require.NoError(t, err)
 	assert.Empty(t, entries)

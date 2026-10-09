@@ -20,7 +20,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
@@ -261,7 +261,7 @@ func TestConfig_ReadOnlyBinds(t *testing.T) {
 
 	t.Run("present keeps the host dirs on disk, absent takes the rest", func(t *testing.T) {
 		home := testutil.Home(t)
-		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
+		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 
 		c := loadBindsConfig(t, map[string]string{
 			GitConfigKey: firmrule.EnabledValue,
@@ -283,7 +283,7 @@ func TestConfig_ReadOnlyBinds(t *testing.T) {
 		expanded := c.ReadOnlyBindsExpanded()
 		assert.Nil(t, c.ReadOnlyBindsPresent())
 
-		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
+		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 		assert.Equal(t, map[string]string{filepath.Join(home, ".config", "git"): GitConfigMount}, c.ReadOnlyBindsPresent())
 		assert.Equal(t, expanded, c.ReadOnlyBindsExpanded()) // the cached expansion holds
 	})
@@ -360,7 +360,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.projectBody != "" {
-				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectConfigFileName), []byte(tt.projectBody), ioutil.File))
+				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectConfigFileName), []byte(tt.projectBody), osutil.File))
 			}
 			c, err := Load(tt.projectDir, Config{}, false)
 			require.NoError(t, err)
@@ -379,7 +379,7 @@ func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 		bodySb18.WriteString("  - \"" + g + "\"\n") // quoted: a leading * is a YAML alias marker
 	}
 	body += bodySb18.String()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), osutil.File))
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
@@ -434,8 +434,8 @@ func TestConfig_ReadOnlyPathsPresent(t *testing.T) {
 			useHome(t) // no user seed: the globs under test stand alone
 			projectDir := t.TempDir()
 			for _, p := range tt.files {
-				require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(projectDir, p)), ioutil.Dir))
-				require.NoError(t, os.WriteFile(filepath.Join(projectDir, p), nil, ioutil.File))
+				require.NoError(t, os.MkdirAll(filepath.Dir(filepath.Join(projectDir, p)), osutil.Dir))
+				require.NoError(t, os.WriteFile(filepath.Join(projectDir, p), nil, osutil.File))
 			}
 			c := readOnlyGlobsConfig(t, projectDir, tt.globs...)
 
@@ -448,12 +448,12 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	useHome(t) // no user seed: the globs under test stand alone
 	dir := t.TempDir()
 	mkDirs(t, dir, "build", "certs")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "build", "main.o"), nil, ioutil.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "certs", "server.pem"), nil, ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "build", "main.o"), nil, osutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "certs", "server.pem"), nil, osutil.File))
 	body := "cli: claude\n" +
 		"tmpfs_masks:\n  - build\n  - certs\n  - node_modules\n" +
 		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), osutil.File))
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
@@ -476,13 +476,13 @@ func TestConfig_ReadOnlyPathsPresent_Fresh(t *testing.T) {
 	t.Run("a run's created path shows", func(t *testing.T) {
 		dir := t.TempDir()
 		c := readOnlyGlobsConfig(t, dir, ".env")
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, ioutil.File))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, osutil.File))
 		assert.Equal(t, []string{".env"}, c.ReadOnlyPathsPresent())
 	})
 
 	t.Run("a run's removed path drops", func(t *testing.T) {
 		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, ioutil.File))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, osutil.File))
 		c := readOnlyGlobsConfig(t, dir, ".env")
 		require.NoError(t, os.Remove(filepath.Join(dir, ".env")))
 		assert.Nil(t, c.ReadOnlyPathsPresent())
@@ -491,7 +491,7 @@ func TestConfig_ReadOnlyPathsPresent_Fresh(t *testing.T) {
 
 func TestConfig_ReadOnlyGlobsExpanded(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, ioutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, osutil.File))
 	c := readOnlyGlobsConfig(t, dir, DefaultsAlias, "typo-glob")
 
 	// the alias expands in place. The project's own .ccbox.yaml matches the defaults' first
@@ -654,8 +654,8 @@ func TestConfig_renderTmpl(t *testing.T) {
 
 			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
 			if os.Getenv("UPDATE_FIXTURES") != "" {
-				require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
-				require.NoError(t, os.WriteFile(path, got, ioutil.File))
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+				require.NoError(t, os.WriteFile(path, got, osutil.File))
 			}
 
 			// #nosec G304 -- the package's own fixture path

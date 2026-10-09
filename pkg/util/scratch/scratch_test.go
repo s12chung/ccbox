@@ -1,4 +1,4 @@
-package sharer
+package scratch
 
 import (
 	"errors"
@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -30,8 +30,8 @@ func fileShare(source func() ([]byte, error)) Share {
 	return Share{
 		Name:     "test",
 		RealPath: realFile(),
-		Content:  FileScratch{Source: source},
-		Sync:     SymlinkScratch{Mount: testMount},
+		Content:  File{Source: source},
+		Sync:     Symlink{Mount: testMount},
 	}
 }
 
@@ -55,8 +55,8 @@ func dirShare() Share {
 	return Share{
 		Name:     "test",
 		RealPath: dirReal(),
-		Content:  DirScratch{SeedFS: dirSeedFS},
-		Sync:     DirectScratch{},
+		Content:  Dir{SeedFS: dirSeedFS},
+		Sync:     Direct{},
 	}
 }
 
@@ -66,8 +66,8 @@ func dirReal() string { return filepath.Join(userdir.Dir(), "state") }
 // dirScratch is the dir bound while dirReal is missing: the same rel path under userdir.Tmp()
 func dirScratch() string { return filepath.Join(userdir.Tmp(), "state") }
 
-// wiring is one of the two wirings the shared flows run on, across the ScratchContent and
-// ScratchSync axes: the file+symlink side in the AGENTS-doc share's shape, the dir+direct
+// wiring is one of the two wirings the shared flows run on, across the Content and
+// Sync axes: the file+symlink side in the AGENTS-doc share's shape, the dir+direct
 // side in the persist's. dir toggles the side; every step derives from it.
 type wiring struct {
 	name string
@@ -163,8 +163,8 @@ func (w wiring) assertStands(t *testing.T, body string) {
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
-	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+	require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 }
 
 func readFile(t *testing.T, path string) string {
@@ -196,7 +196,7 @@ func lstatGone(t *testing.T, path string) bool {
 // linkFile creates the share's symlink at path, pointing at target
 func linkFile(t *testing.T, path, target string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
 	require.NoError(t, os.Symlink(target, path))
 }
 
@@ -243,7 +243,7 @@ func TestDirect_ScratchPath(t *testing.T) {
 	testutil.FakeHome(t, "/home/me")
 	// Real's rel path re-rooted under userdir.Tmp()
 	assert.Equal(t, "/home/me/.ccbox/tmp/persist/-Users-me-proj",
-		DirectScratch{}.ScratchPath("/home/me/.ccbox/persist/-Users-me-proj"))
+		Direct{}.ScratchPath("/home/me/.ccbox/persist/-Users-me-proj"))
 }
 
 // TestSymlink_Exists: an occupation is ours only when Real is absent or our own
@@ -275,7 +275,7 @@ func TestSymlink_Exists(t *testing.T) {
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
 			testutil.Home(t)
-			l := SymlinkScratch{Mount: testMount}
+			l := Symlink{Mount: testMount}
 
 			tc.setup(t)
 			assert.Equal(t, tc.owned, l.RealPresent(realFile()))
@@ -504,8 +504,8 @@ func TestShare_Begin_CleansLeftover_IntoExistingReal(t *testing.T) {
 			tc.leftover(t)
 
 			// Real exists from an earlier clean, holding its own copy
-			require.NoError(t, os.MkdirAll(dirReal(), ioutil.Dir))
-			require.NoError(t, os.WriteFile(filepath.Join(dirReal(), "README.md"), []byte("real's own"), ioutil.File))
+			require.NoError(t, os.MkdirAll(dirReal(), osutil.Dir))
+			require.NoError(t, os.WriteFile(filepath.Join(dirReal(), "README.md"), []byte("real's own"), osutil.File))
 
 			// the next Begin promotes the leftover and binds Real
 			bind, clean, err := dirShare().Begin()
@@ -598,7 +598,7 @@ func TestShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 	require.NoError(t, err)
 	writeFile(t, bindFile(), "memory")
 	require.NoError(t, os.Remove(realFile()))               // clear our symlink
-	require.NoError(t, os.MkdirAll(realFile(), ioutil.Dir)) // a directory is unreadable: promotion fails
+	require.NoError(t, os.MkdirAll(realFile(), osutil.Dir)) // a directory is unreadable: promotion fails
 
 	require.Error(t, cleanup(), "Real is a directory")
 	assert.Equal(t, "memory", readFile(t, bindFile()), "scratch kept for the next run")
@@ -607,7 +607,7 @@ func TestShare_Cleanup_KeepsScratchOnPromoteError(t *testing.T) {
 
 func TestShare_Cleanup_LoneSymlink(t *testing.T) {
 	testutil.Home(t)
-	s := Share{Name: "test", RealPath: realFile(), Sync: SymlinkScratch{Mount: testMount}}
+	s := Share{Name: "test", RealPath: realFile(), Sync: Symlink{Mount: testMount}}
 
 	linkFile(t, realFile(), testMount) // leftover symlink: its scratch is already gone
 
@@ -630,7 +630,7 @@ func TestShare_Cleanup_DiffErrorDropsSymlink(t *testing.T) {
 
 func TestShare_Cleanup_LoneBaseline(t *testing.T) {
 	testutil.Home(t)
-	s := Share{Name: "test", RealPath: realFile(), Sync: SymlinkScratch{Mount: testMount}}
+	s := Share{Name: "test", RealPath: realFile(), Sync: Symlink{Mount: testMount}}
 
 	// a crash left its baseline; the scratch is gone
 	writeFile(t, baseFile(), "doc")
@@ -754,7 +754,7 @@ func TestShare_Clean_Changed(t *testing.T) {
 			_, clean, err := s.Begin()
 			require.NoError(t, err)
 			if tc.body == "" {
-				require.NoError(t, os.MkdirAll(filepath.Join(dirScratch(), tc.rel), ioutil.Dir))
+				require.NoError(t, os.MkdirAll(filepath.Join(dirScratch(), tc.rel), osutil.Dir))
 			} else {
 				writeScratch(t, tc.rel, tc.body)
 			}
@@ -787,10 +787,10 @@ func TestShare_Clean_IntoExistingReal(t *testing.T) {
 	writeScratch(t, "README.md", "run's edit")
 	writeScratch(t, "notes/new.txt", "new file")
 	writeScratch(t, "notes/same.txt", "same")
-	require.NoError(t, os.MkdirAll(dirReal(), ioutil.Dir))
-	require.NoError(t, ioutil.SafeWriteFile(filepath.Join(dirReal(), "README.md"), []byte("real's edit")))
-	require.NoError(t, ioutil.SafeWriteFile(filepath.Join(dirReal(), "notes/keep.txt"), []byte("keep")))
-	require.NoError(t, ioutil.SafeWriteFile(filepath.Join(dirReal(), "notes/same.txt"), []byte("same")))
+	require.NoError(t, os.MkdirAll(dirReal(), osutil.Dir))
+	require.NoError(t, osutil.SafeWriteFile(filepath.Join(dirReal(), "README.md"), []byte("real's edit")))
+	require.NoError(t, osutil.SafeWriteFile(filepath.Join(dirReal(), "notes/keep.txt"), []byte("keep")))
+	require.NoError(t, osutil.SafeWriteFile(filepath.Join(dirReal(), "notes/same.txt"), []byte("same")))
 
 	require.NoError(t, clean())
 

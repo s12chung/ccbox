@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 func TestColor_Wrap(t *testing.T) {
@@ -63,6 +63,6 @@ func TestNewColorWriter_NonTerm(t *testing.T) {
 	defer func() { assert.NoError(t, r.Close()) }()
 
 	assert.Equal(t, w, NewColorWriter(w, colorer))
-	assert.Equal(t, io.Writer(ioutil.BlockedCloser(w)), NewColorWriter(ioutil.BlockedCloser(w), colorer),
+	assert.Equal(t, io.Writer(osutil.BlockedCloser(w)), NewColorWriter(osutil.BlockedCloser(w), colorer),
 		"terminal-ness resolves through the wrapper's Fd")
 }

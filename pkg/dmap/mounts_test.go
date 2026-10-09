@@ -14,7 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -90,7 +90,7 @@ func TestReadOnlyBinds(t *testing.T) {
 
 	t.Run("binds the enabled gitconfig at the container's default XDG path", func(t *testing.T) {
 		home := testutil.Home(t)
-		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
+		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 
 		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
 			CLIName:       new("codex"),

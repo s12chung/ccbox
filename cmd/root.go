@@ -20,9 +20,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/flagutils"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/flagptr"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 // Injected from main (package main can't be imported, so the embed FS comes in here).
@@ -81,7 +81,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		tagByProject = ioutil.Present(mise.ProjectConfigPath(projectConfig.ProjectDir()))
+		tagByProject = osutil.Present(mise.ProjectConfigPath(projectConfig.ProjectDir()))
 		return nil
 	},
 }
@@ -102,7 +102,7 @@ func init() {
 
 	pf := rootCmd.PersistentFlags()
 	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
-	pf.Var(flagutils.StringPtr(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
+	pf.Var(flagptr.String(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
 	// unreachable error: "cli" is registered above
 	must.Do(rootCmd.RegisterFlagCompletionFunc("cli", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		// a closure, so that cli.Load() runs first in PersistentPreRunE
@@ -132,7 +132,7 @@ func rootSeed() error {
 // safeSeedUserConfig seeds the user-level config template if missing
 func safeSeedUserConfig() error {
 	path := projectcfg.UserConfigFile()
-	if ioutil.Present(path) {
+	if osutil.Present(path) {
 		return nil // the file already existed: no seed, so no prompt, no log
 	}
 	cli, err := pick.Select(

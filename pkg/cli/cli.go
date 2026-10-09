@@ -30,7 +30,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/maputil"
+	"github.com/s12chung/ccbox/pkg/util/mapx"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
@@ -173,7 +173,7 @@ func (c CLI) PkgInfoJSON() (string, error) {
 }
 
 // For looks up the CLI by name. ok is false for an unknown name.
-func For(name string) (CLI, bool) { return maputil.Get(all, name) }
+func For(name string) (CLI, bool) { return mapx.Get(all, name) }
 
 // MustFor is For for names already validated (projectcfg.Load rejects unknown
 // cli values); it panics on an unknown name.

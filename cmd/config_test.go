@@ -11,7 +11,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
@@ -113,8 +113,8 @@ func TestConfirmReadOnlyPaths(t *testing.T) {
 		t.Helper()
 		for i := range n {
 			d := filepath.Join(dir, fmt.Sprintf("svc%02d", i))
-			require.NoError(t, os.MkdirAll(d, ioutil.Dir))
-			require.NoError(t, os.WriteFile(filepath.Join(d, ".env"), []byte("K=v"), ioutil.File))
+			require.NoError(t, os.MkdirAll(d, osutil.Dir))
+			require.NoError(t, os.WriteFile(filepath.Join(d, ".env"), []byte("K=v"), osutil.File))
 		}
 	}
 	// loadReadOnlyConfig loads projectConfig over dir, whose flags carry the glob —

@@ -10,8 +10,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/errs"
-	"github.com/s12chung/ccbox/pkg/util/fsync"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 const (
@@ -40,7 +40,7 @@ func layerPaths(projectDir string) []string {
 func LoadedPaths(projectDir string) ([]string, []string) {
 	var loaded, notLoaded []string
 	for _, path := range layerPaths(projectDir) {
-		if ioutil.Present(path) {
+		if osutil.Present(path) {
 			loaded = append(loaded, path)
 		} else {
 			notLoaded = append(notLoaded, path)
@@ -69,7 +69,7 @@ func userSeedConfig(cli string) *Config {
 
 // SeedConfig safe-seeds the config with ccbox's own defaults, naming the seeded cli.
 func SeedConfig(path, cli string) error {
-	return errs.Swallow(initConfig(path, *userSeedConfig(cli)), fsync.ErrExists)
+	return errs.Swallow(initConfig(path, *userSeedConfig(cli)), seed.ErrExists)
 }
 
 func initConfig(path string, config Config) error {
@@ -77,7 +77,7 @@ func initConfig(path string, config Config) error {
 	if err != nil {
 		return err
 	}
-	return fsync.File(path, body)
+	return seed.File(path, body)
 }
 
 // Load reads the layerPaths, then overlays the CLI flags as the top layer, and validates

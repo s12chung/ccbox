@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 func srcFS() fstest.MapFS {
@@ -29,25 +29,25 @@ func writeFS(t *testing.T, fsys fs.FS, dest string) {
 			return err
 		}
 		if d.IsDir() {
-			return os.MkdirAll(filepath.Join(dest, p), ioutil.Dir)
+			return os.MkdirAll(filepath.Join(dest, p), osutil.Dir)
 		}
 		body, err := fs.ReadFile(fsys, p)
 		if err != nil {
 			return err
 		}
-		return os.WriteFile(filepath.Join(dest, p), body, ioutil.File)
+		return os.WriteFile(filepath.Join(dest, p), body, osutil.File)
 	})
 	require.NoError(t, err)
 }
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 }
 
 func mkdirAll(t *testing.T, path string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(path, ioutil.Dir))
+	require.NoError(t, os.MkdirAll(path, osutil.Dir))
 }
 
 func TestMatches(t *testing.T) {

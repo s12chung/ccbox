@@ -11,8 +11,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/fsync"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -82,10 +82,10 @@ func safeSeedCLIDataBinds(userDir string, c cli.CLI) error {
 	for key, content := range c.DataBinds {
 		host := dmap.CLIDataBindPath(userDir, c.Name, key)
 		if content == nil {
-			if err := os.MkdirAll(host, ioutil.Dir); err != nil {
+			if err := os.MkdirAll(host, osutil.Dir); err != nil {
 				return err
 			}
-		} else if err := fsync.SafeFile(host, []byte(*content)); err != nil {
+		} else if err := seed.SafeFile(host, []byte(*content)); err != nil {
 			return err
 		}
 	}

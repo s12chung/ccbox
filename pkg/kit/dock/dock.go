@@ -21,7 +21,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
-	"github.com/s12chung/ccbox/pkg/util/uslice"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -91,11 +91,11 @@ func runChownContainer(ctxD *CtxD, image, uid string, fresh []OwnedVolume) error
 		&container.Config{
 			Image:      image,
 			User:       "0:0",
-			Entrypoint: append([]string{"chown", uid + ":" + uid}, uslice.Map(fresh, chownMnt)...),
+			Entrypoint: append([]string{"chown", uid + ":" + uid}, slicex.Map(fresh, chownMnt)...),
 		},
 		&container.HostConfig{
 			NetworkMode: "none",
-			Binds:       uslice.Map(fresh, chownBind),
+			Binds:       slicex.Map(fresh, chownBind),
 		},
 		nil, nil, "")
 	if err != nil {
@@ -108,7 +108,7 @@ func runChownContainer(ctxD *CtxD, image, uid string, fresh []OwnedVolume) error
 	var logs bytes.Buffer
 	if err := RunOnce(ctxD, resp.ID, &logs); err != nil {
 		return fmt.Errorf("chown volumes %v: %w\n%s",
-			uslice.Map(fresh, func(vol OwnedVolume) string { return vol.Name }), err, logs.String())
+			slicex.Map(fresh, func(vol OwnedVolume) string { return vol.Name }), err, logs.String())
 	}
 	return nil
 }

@@ -2,7 +2,7 @@
 // expansion, the rest keep as-is
 package expand
 
-import "github.com/s12chung/ccbox/pkg/util/maputil"
+import "github.com/s12chung/ccbox/pkg/util/mapx"
 
 // Expansion is a keyed entry's expansion: Key renames the entry's key, Value resolves
 // its raw value
@@ -23,7 +23,7 @@ func Map(entries map[string]string, expansions map[string]Expansion, expand func
 		}
 		expanded[key] = value
 	}
-	return maputil.NilIfEmpty(expanded)
+	return mapx.NilIfEmpty(expanded)
 }
 
 // Slice expands each entry found in expansions to its expansion, keeping the other

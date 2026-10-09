@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 // ErrHeld reports the lock is held elsewhere
@@ -37,10 +37,10 @@ func TryEx(path string) (*Lock, error) {
 }
 
 func take(path string, how int) (*Lock, error) {
-	if err := os.MkdirAll(filepath.Dir(path), ioutil.Dir); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), osutil.Dir); err != nil {
 		return nil, err
 	}
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, ioutil.File) // #nosec G304 -- path is the lock's own file
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, osutil.File) // #nosec G304 -- path is the lock's own file
 	if err != nil {
 		return nil, err
 	}

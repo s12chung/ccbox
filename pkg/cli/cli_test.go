@@ -13,8 +13,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -59,12 +59,12 @@ const userCliYAML = "npm:\n  package: mycli\n\nconfig_home_mount: \".mycli\"\n\n
 func writeUserCli(t *testing.T, dir, name, yamlBody string, configFiles map[string]string) {
 	t.Helper()
 	root := filepath.Join(dir, "clis", name)
-	require.NoError(t, os.MkdirAll(root, ioutil.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "CLI.yaml"), []byte(yamlBody), ioutil.File))
+	require.NoError(t, os.MkdirAll(root, osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "CLI.yaml"), []byte(yamlBody), osutil.File))
 	for p, body := range configFiles {
 		dest := filepath.Join(root, p)
-		require.NoError(t, os.MkdirAll(filepath.Dir(dest), ioutil.Dir))
-		require.NoError(t, os.WriteFile(dest, []byte(body), ioutil.File))
+		require.NoError(t, os.MkdirAll(filepath.Dir(dest), osutil.Dir))
+		require.NoError(t, os.WriteFile(dest, []byte(body), osutil.File))
 	}
 }
 
@@ -125,8 +125,8 @@ func resetUserProviders(t *testing.T, dir string) {
 		provider.Load()
 	})
 	provider.SetUserConfigDir(dir)
-	require.NoError(t, os.MkdirAll(provider.UserDir(), ioutil.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(provider.UserDir(), "myprovider.yaml"), []byte("domains: [api.myprovider.dev]\n"), ioutil.File))
+	require.NoError(t, os.MkdirAll(provider.UserDir(), osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(provider.UserDir(), "myprovider.yaml"), []byte("domains: [api.myprovider.dev]\n"), osutil.File))
 	provider.Load()
 }
 

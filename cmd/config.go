@@ -16,7 +16,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
 	"github.com/s12chung/ccbox/pkg/util/prompt"
-	"github.com/s12chung/ccbox/pkg/util/uslice"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -136,7 +136,7 @@ var aliasFields = []aliasField{
 func aliasSections() []printutil.Section {
 	return slices.Concat(
 		[]printutil.Section{{Header: projectcfg.DefaultsAlias + ":"}},
-		uslice.Map(aliasFields, func(f aliasField) printutil.Section {
+		slicex.Map(aliasFields, func(f aliasField) printutil.Section {
 			return printutil.Section{Header: f.fieldName + ":", Items: f.defaults, Depth: 1}
 		}),
 		[]printutil.Section{{
@@ -144,10 +144,10 @@ func aliasSections() []printutil.Section {
 				"; a --vnc load adds the desktop's GUI app):",
 			Items: projectConfig.SetHarnessDomains(),
 		}},
-		uslice.Map(provider.All(), func(p provider.Provider) printutil.Section {
+		slicex.Map(provider.All(), func(p provider.Provider) printutil.Section {
 			return printutil.Section{Header: p.Alias() + ":", Items: p.Domains}
 		}),
-		uslice.Map(runtime.All(), func(r runtime.Runtime) printutil.Section {
+		slicex.Map(runtime.All(), func(r runtime.Runtime) printutil.Section {
 			return printutil.Section{Header: r.Alias() + ":", Items: r.Domains}
 		}),
 	)

@@ -1,4 +1,4 @@
-package uslice
+package slicex
 
 import (
 	"strconv"

@@ -12,7 +12,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
-	"github.com/s12chung/ccbox/pkg/util/fsync"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -31,8 +31,8 @@ func safeSeedCLIConfig(cliName string, confirm bool) error {
 	return safeSeed(clitmpl.UserCLIConfigSeedFS(cliName, c.IsUserDefined()), cli.UserConfigDir(cliName), confirm)
 }
 
-// seedFn is fsync.Seed, indirected so tests can stub out the file-copying step.
-var seedFn = fsync.Seed
+// seedFn is seed.FS, indirected so tests can stub out the file-copying step.
+var seedFn = seed.FS
 
 // safeSeed seeds dst from fsys when dst doesn't exist yet — or re-seeds after
 // confirmation when confirm is set, backing up overwritten files.
@@ -56,7 +56,7 @@ func safeSeed(fsys fs.FS, dst string, confirm bool) error {
 
 	renamed, err := seedFn(fsys, dst)
 	switch {
-	case errors.Is(err, fsync.ErrNoChanges):
+	case errors.Is(err, seed.ErrNoChanges):
 		if confirm {
 			log.Infof("no seed changes")
 		}

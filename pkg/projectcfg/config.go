@@ -24,9 +24,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/provider"
 	"github.com/s12chung/ccbox/pkg/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/maputil"
+	"github.com/s12chung/ccbox/pkg/util/mapx"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
@@ -135,7 +135,7 @@ func (c *Config) TmpfsMasksExpanded() []string {
 
 // TmpfsMasksPresent filters TmpfsMasksExpanded() to the paths present as dirs in the project
 func (c *Config) TmpfsMasksPresent() []string {
-	return ioutil.DirsPresent(c.projectDir, c.TmpfsMasksExpanded())
+	return osutil.DirsPresent(c.projectDir, c.TmpfsMasksExpanded())
 }
 
 // TmpfsMasksAbsent filters TmpfsMasksExpanded() to the paths NOT present as dirs in the project
@@ -153,7 +153,7 @@ func (c *Config) VolumeMasksExpanded() []string {
 
 // VolumeMasksPresent filters VolumeMasksExpanded() to the paths present as dirs in the project
 func (c *Config) VolumeMasksPresent() []string {
-	return ioutil.DirsPresent(c.projectDir, c.VolumeMasksExpanded())
+	return osutil.DirsPresent(c.projectDir, c.VolumeMasksExpanded())
 }
 
 // VolumeMasksAbsent filters VolumeMasksExpanded() to the paths NOT present as dirs in the project
@@ -222,7 +222,7 @@ func (c *Config) ReadOnlyBindsExpanded() map[string]string {
 				},
 			},
 			func(key, mount string) (string, string) { // ~/ resolves to their own side's home
-				return ioutil.ExpandHome(key, userdir.MustHome()), ioutil.ExpandHome(mount, ContainerHome)
+				return osutil.ExpandHome(key, userdir.MustHome()), osutil.ExpandHome(mount, ContainerHome)
 			},
 		)
 	}
@@ -382,7 +382,7 @@ func (c *Config) renderTmpl() ([]byte, error) {
 }
 
 func absentDirs(projectDir string, dirs []string) []string {
-	present := ioutil.DirsPresent(projectDir, dirs)
+	present := osutil.DirsPresent(projectDir, dirs)
 	var out []string
 	for _, d := range dirs {
 		if !slices.Contains(present, d) {
@@ -400,7 +400,7 @@ func presentKeys(binds map[string]string) map[string]string {
 			present[key] = value
 		}
 	}
-	return maputil.NilIfEmpty(present)
+	return mapx.NilIfEmpty(present)
 }
 
 // absentKeys filters binds to the keys missing from present
@@ -411,5 +411,5 @@ func absentKeys(binds, present map[string]string) map[string]string {
 			absent[key] = value
 		}
 	}
-	return maputil.NilIfEmpty(absent)
+	return mapx.NilIfEmpty(absent)
 }

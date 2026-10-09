@@ -1,4 +1,4 @@
-package fsync
+package seed
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 func srcFS() fstest.MapFS {
@@ -20,10 +20,10 @@ func srcFS() fstest.MapFS {
 	}
 }
 
-func TestSeed_Fresh(t *testing.T) {
+func TestFS_Fresh(t *testing.T) {
 	dest := t.TempDir()
 
-	renamed, err := Seed(srcFS(), dest)
+	renamed, err := FS(srcFS(), dest)
 	require.NoError(t, err)
 	assert.Empty(t, renamed, "fresh seed should back up nothing")
 
@@ -32,16 +32,16 @@ func TestSeed_Fresh(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 	assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	assertMode(t, filepath.Join(dest, "hooks/tripwire.sh"), ioutil.ExecFile)
-	assertMode(t, filepath.Join(dest, "settings.json"), ioutil.File)
+	assertMode(t, filepath.Join(dest, "hooks/tripwire.sh"), osutil.ExecFile)
+	assertMode(t, filepath.Join(dest, "settings.json"), osutil.File)
 }
 
-func TestSeed_BacksUpExisting(t *testing.T) {
+func TestFS_BacksUpExisting(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Seed(srcFS(), dest)
+	renamed, err := FS(srcFS(), dest)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
@@ -60,7 +60,7 @@ func TestSeed_BacksUpExisting(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "hooks/tripwire.old.sh"))
 }
 
-func TestSeed_SkipsIdentical(t *testing.T) {
+func TestFS_SkipsIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// Each dest already holds its source contents.
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
@@ -68,7 +68,7 @@ func TestSeed_SkipsIdentical(t *testing.T) {
 	mkdirAll(t, filepath.Join(dest, "hooks"))
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	renamed, err := Seed(srcFS(), dest)
+	renamed, err := FS(srcFS(), dest)
 	require.ErrorIs(t, err, ErrNoChanges)
 	assert.Empty(t, renamed, "identical files should back up nothing")
 
@@ -80,13 +80,13 @@ func TestSeed_SkipsIdentical(t *testing.T) {
 	assertNotExist(t, filepath.Join(dest, "settings.old.json"))
 }
 
-func TestSeed_PartiallyIdentical(t *testing.T) {
+func TestFS_PartiallyIdentical(t *testing.T) {
 	dest := t.TempDir()
 	// One dest matches its source; another differs.
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := Seed(srcFS(), dest)
+	renamed, err := FS(srcFS(), dest)
 	require.NoError(t, err, "a change alongside identical files is not ErrNoChanges")
 	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, renamed)
 
@@ -94,14 +94,14 @@ func TestSeed_PartiallyIdentical(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
 }
 
-func TestSeed_BackupExistsErrors(t *testing.T) {
+func TestFS_BackupExistsErrors(t *testing.T) {
 	dest := t.TempDir()
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
 	writeFile(t, filepath.Join(dest, "AGENTS.old.md"), "stale backup")
 
 	// The live file's backup already exists.
 	src := fstest.MapFS{"AGENTS.md": {Data: []byte("new agents")}}
-	_, err := Seed(src, dest)
+	_, err := FS(src, dest)
 	require.Error(t, err)
 
 	// Neither the live file nor the pre-existing backup was touched.
@@ -156,7 +156,7 @@ func TestMerge_AllIdentical(t *testing.T) {
 	mkdirAll(t, dst)
 	writeFile(t, filepath.Join(dst, "same.txt"), "same")
 
-	// unlike Seed, an unchanged merge is no error: Merge has no ErrNoChanges
+	// unlike FS, an unchanged merge is no error: Merge has no ErrNoChanges
 	asides, err := Merge(src, dst, "run-test")
 	require.NoError(t, err)
 	assert.Empty(t, asides)
@@ -188,7 +188,7 @@ func TestFile_Seeds(t *testing.T) {
 	require.NoError(t, File(path, []byte("new body")))
 
 	assertFile(t, path, "new body")
-	assertMode(t, path, ioutil.File)
+	assertMode(t, path, osutil.File)
 }
 
 func TestFile_SkipsExisting(t *testing.T) {
@@ -226,12 +226,12 @@ func TestSafeFile_Errors(t *testing.T) {
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
-	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+	require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 }
 
 func mkdirAll(t *testing.T, path string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(path, ioutil.Dir))
+	require.NoError(t, os.MkdirAll(path, osutil.Dir))
 }
 
 func assertFile(t *testing.T, path, want string) {

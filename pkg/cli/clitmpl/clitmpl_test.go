@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 // resetUserConfigDir redirects the user clis tree to a fresh temp dir, restoring
@@ -30,12 +30,12 @@ func resetUserConfigDir(t *testing.T) string {
 func writeCli(t *testing.T, dir, name, body string, configFiles map[string]string) {
 	t.Helper()
 	root := filepath.Join(dir, "clis", name)
-	require.NoError(t, os.MkdirAll(root, ioutil.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(root, "CLI.yaml"), []byte(body), ioutil.File))
+	require.NoError(t, os.MkdirAll(root, osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "CLI.yaml"), []byte(body), osutil.File))
 	for p, content := range configFiles {
 		dest := filepath.Join(root, p)
-		require.NoError(t, os.MkdirAll(filepath.Dir(dest), ioutil.Dir))
-		require.NoError(t, os.WriteFile(dest, []byte(content), ioutil.File))
+		require.NoError(t, os.MkdirAll(filepath.Dir(dest), osutil.Dir))
+		require.NoError(t, os.WriteFile(dest, []byte(content), osutil.File))
 	}
 }
 
@@ -72,8 +72,8 @@ func TestLoad_Walk(t *testing.T) {
 		dir := resetUserConfigDir(t)
 		writeCli(t, dir, "bad", "bad\n", nil)
 		writeCli(t, dir, "good", "ok\n", nil)
-		require.NoError(t, os.MkdirAll(filepath.Join(dir, "clis", "stray"), ioutil.Dir)) // stray dir
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "clis", "strayfile"), []byte("junk"), ioutil.File))
+		require.NoError(t, os.MkdirAll(filepath.Join(dir, "clis", "stray"), osutil.Dir)) // stray dir
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "clis", "strayfile"), []byte("junk"), osutil.File))
 
 		clis, warns, err := Load(UserTree(), parseDummy)
 

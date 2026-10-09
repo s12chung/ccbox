@@ -1,4 +1,4 @@
-package ioutil
+package osutil
 
 import (
 	"os"

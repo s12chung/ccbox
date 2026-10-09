@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/sharer"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/scratch"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 // The tests pin AgentsMd's own wiring — the source doc it binds and the paths it
-// lands on. The driver's behavior is pinned in pkg/util/sharer.
+// lands on. The driver's behavior is pinned in pkg/util/scratch.
 
 // resetUserDir points userdir at a fresh temp tree with the shared AGENTS docs seeded
 func resetUserDir(t *testing.T) string {
@@ -28,7 +28,7 @@ func resetUserDir(t *testing.T) string {
 // claudeMount is the scratch file's container path, as AgentsMd wires it
 const claudeMount = "/home/ccbox/.ccbox/tmp/agents/claude/AGENTS.md"
 
-func claudeShare() sharer.ShareBinder {
+func claudeShare() scratch.Binder {
 	return AgentsMd("claude", false)
 }
 
@@ -69,8 +69,8 @@ func claudeBase(userDir string) string { return claudeScratch(userDir) + ".orig"
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
-	require.NoError(t, os.WriteFile(path, []byte(body), ioutil.File))
+	require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+	require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 }
 
 func readFile(t *testing.T, path string) string {
@@ -185,8 +185,8 @@ func TestAdminMd(t *testing.T) {
 
 			path := filepath.Join("testdata", "TestAdminMd_"+tt.name+".md")
 			if os.Getenv("UPDATE_FIXTURES") != "" {
-				require.NoError(t, os.MkdirAll(filepath.Dir(path), ioutil.Dir))
-				require.NoError(t, os.WriteFile(path, []byte(got), ioutil.File))
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+				require.NoError(t, os.WriteFile(path, []byte(got), osutil.File))
 			}
 
 			// #nosec G304 -- the package's own fixture path

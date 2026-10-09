@@ -25,9 +25,8 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
   - `projectcfg/` — related to `ccbox` Config as described in the README
   - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.Dir()/clis` with the same format as the built-ins.
   - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
-  - `util/` — std lib utility packages, notable: `must`, `fsync`, `slug`, `mergeempty`, `uslice`
-    - `httputil/` — http utilities for requests
-    - `ioutil/` — io utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
+  - `util/` — std lib utility packages, notable: `must`, `seed`, `slug`, `mergeempty`, `slicex`
+    - `osutil/` — os-level file utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
   - `kit/` — non-std lib abstractions and utilities, most used: `dock`, `pick`, `firmrule`
     - `tinyproxy/` — the egress wall configs
 - **`Dockerfile`** — builds the devbox image from the inputs under `docker/` plus mise config defined in the `mise` pkg.

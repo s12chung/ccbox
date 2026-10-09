@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/cli"
-	"github.com/s12chung/ccbox/pkg/util/fsync"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -65,7 +65,7 @@ func TestSafeSeedConfig_MissingSeeds(t *testing.T) {
 
 func TestSafeSeedConfig_ExistingSkips(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, os.MkdirAll(cli.UserConfigDir("claude"), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(cli.UserConfigDir("claude"), osutil.Dir))
 
 	called := false
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
@@ -89,7 +89,7 @@ func TestSafeSeedConfig_PropagatesSeedError(t *testing.T) {
 
 func TestSafeSeedConfig_NoChanges(t *testing.T) {
 	defer stubSeedTreeFn(func(fs.FS, string) ([]string, error) {
-		return nil, fsync.ErrNoChanges
+		return nil, seed.ErrNoChanges
 	})()
 
 	testutil.Home(t)

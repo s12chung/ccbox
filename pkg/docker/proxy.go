@@ -14,8 +14,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/util/flock"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -131,7 +131,7 @@ func startProxy(ctxD *dock.CtxD, o ProxyOptions) error {
 // streamLogFile appends the container's log stream to the session's log file — the file
 // view every holder shares.
 func streamLogFile(ctxD *dock.CtxD, o ProxyOptions) error {
-	f, err := os.OpenFile(o.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, ioutil.File) // #nosec G304 -- the session's own log file
+	f, err := os.OpenFile(o.LogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, osutil.File) // #nosec G304 -- the session's own log file
 	if err != nil {
 		return err
 	}

@@ -14,7 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/guiapp"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -110,12 +110,12 @@ func TestRunMap_HostOptions(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	projectDir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), ioutil.Dir))
-	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "node_modules"), ioutil.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".env"), nil, ioutil.File))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), osutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "node_modules"), osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".env"), nil, osutil.File))
 	// the binds' host dirs must exist to survive the present-filter
-	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), ioutil.Dir))
-	require.NoError(t, os.MkdirAll(filepath.Join(home, "fonts"), ioutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(home, "fonts"), osutil.Dir))
 
 	cfg, err := projectcfg.Load(projectDir, projectcfg.Config{
 		CLIName:       new("codex"),

@@ -10,7 +10,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cli"
 	"github.com/s12chung/ccbox/pkg/dmap"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
@@ -73,8 +73,8 @@ func TestSafeSeedCLIDataBinds(t *testing.T) {
 		c := cli.CLI{PkgInfo: pkginfo.PkgInfo{Name: "opencode"}, DataBinds: map[string]*string{".local/share/opencode/auth.json": &content}}
 		host := dmap.CLIDataBindPath(userDir, "opencode", ".local/share/opencode/auth.json")
 
-		require.NoError(t, os.MkdirAll(filepath.Dir(host), ioutil.Dir))
-		require.NoError(t, os.WriteFile(host, []byte(`{"real":"creds"}`), ioutil.File))
+		require.NoError(t, os.MkdirAll(filepath.Dir(host), osutil.Dir))
+		require.NoError(t, os.WriteFile(host, []byte(`{"real":"creds"}`), osutil.File))
 
 		require.NoError(t, safeSeedCLIDataBinds(userDir, c))
 

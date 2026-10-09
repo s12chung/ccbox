@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-// ExecFileMode is the mode installed executables carry (mirrors the host's ioutil.ExecFile).
+// ExecFileMode is the mode installed executables carry (mirrors the host's osutil.ExecFile).
 const ExecFileMode os.FileMode = 0o755
 
 // RawBin installs a downloaded raw executable at the install dir's root.

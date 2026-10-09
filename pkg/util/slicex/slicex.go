@@ -1,5 +1,5 @@
-// Package uslice holds slice utilities beyond the standard slices package.
-package uslice
+// Package slicex holds slice utilities beyond the standard slices package.
+package slicex
 
 import "slices"
 

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 func TestDoubleStarRooted(t *testing.T) {
@@ -59,8 +59,8 @@ func write(t *testing.T, paths ...string) string {
 	dir := t.TempDir()
 	for _, p := range paths {
 		abs := filepath.Join(dir, p)
-		require.NoError(t, os.MkdirAll(filepath.Dir(abs), ioutil.Dir))
-		require.NoError(t, os.WriteFile(abs, nil, ioutil.File))
+		require.NoError(t, os.MkdirAll(filepath.Dir(abs), osutil.Dir))
+		require.NoError(t, os.WriteFile(abs, nil, osutil.File))
 	}
 	return dir
 }

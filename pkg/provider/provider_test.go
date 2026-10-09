@@ -14,8 +14,8 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
-	"github.com/s12chung/ccbox/pkg/util/uslice"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
 func TestMain(m *testing.M) {
@@ -100,13 +100,13 @@ const userProviderYAML = "domains:\n  - api.myprovider.dev\n"
 // writeUserProvider writes a user provider at UserDir()/<name>.yaml
 func writeUserProvider(t *testing.T, name, yamlBody string) {
 	t.Helper()
-	require.NoError(t, os.MkdirAll(UserDir(), ioutil.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(UserDir(), name+yamlExt), []byte(yamlBody), ioutil.File))
+	require.NoError(t, os.MkdirAll(UserDir(), osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(UserDir(), name+yamlExt), []byte(yamlBody), osutil.File))
 }
 
 // names lists the loaded set's names
 func names() []string {
-	return uslice.Map(All(), func(p Provider) string { return p.Name })
+	return slicex.Map(All(), func(p Provider) string { return p.Name })
 }
 
 func TestLoadUser(t *testing.T) {
@@ -126,17 +126,17 @@ func TestLoadUser(t *testing.T) {
 	t.Run("missing dir loads the built-ins only", func(t *testing.T) {
 		resetAll(t)
 		Load()
-		assert.Equal(t, uslice.Map(builtinProviders, func(p Provider) string { return p.Name }), names())
+		assert.Equal(t, slicex.Map(builtinProviders, func(p Provider) string { return p.Name }), names())
 	})
 
 	t.Run("stray files are ignored", func(t *testing.T) {
 		resetAll(t)
-		require.NoError(t, os.MkdirAll(UserDir(), ioutil.Dir))
-		require.NoError(t, os.WriteFile(filepath.Join(UserDir(), "README.md"), []byte("drop-ins live here"), ioutil.File))
-		require.NoError(t, os.WriteFile(filepath.Join(UserDir(), "notes.txt"), []byte("junk"), ioutil.File))
+		require.NoError(t, os.MkdirAll(UserDir(), osutil.Dir))
+		require.NoError(t, os.WriteFile(filepath.Join(UserDir(), "README.md"), []byte("drop-ins live here"), osutil.File))
+		require.NoError(t, os.WriteFile(filepath.Join(UserDir(), "notes.txt"), []byte("junk"), osutil.File))
 		Load()
 
-		assert.Equal(t, uslice.Map(builtinProviders, func(p Provider) string { return p.Name }), names())
+		assert.Equal(t, slicex.Map(builtinProviders, func(p Provider) string { return p.Name }), names())
 	})
 
 	t.Run("skips bad providers with a warning", func(t *testing.T) {
@@ -165,7 +165,7 @@ func testLoadUserSkips(t *testing.T, filename, body string) {
 	writeUserProvider(t, filename, body)
 	Load()
 
-	wantNames := uslice.Map(builtinProviders, func(p Provider) string { return p.Name })
+	wantNames := slicex.Map(builtinProviders, func(p Provider) string { return p.Name })
 	if filename == "good" {
 		wantNames = append(wantNames, filename)
 		slices.Sort(wantNames)

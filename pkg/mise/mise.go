@@ -14,9 +14,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/fsync"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -57,11 +57,11 @@ func ImageFromDockerfile(dockerfile []byte) (string, error) {
 // there, regenerating only when stale — a fresh one is left untouched. Creates both
 // the lock and its config-hash
 func GenerateLock(ctx context.Context, image, configPath string) error {
-	if !ioutil.Present(configPath) {
+	if !osutil.Present(configPath) {
 		return nil
 	}
 
-	expander := ioutil.Expander{Source: configPath, Expansion: LockPath(configPath)}
+	expander := osutil.Expander{Source: configPath, Expansion: LockPath(configPath)}
 	isStale, err := expander.IsStale()
 	if err != nil {
 		return err
@@ -112,14 +112,14 @@ const (
 var defaultConfig []byte
 
 // SeedConfig safe-seeds the user-level mise config with the pinned defaults
-func SeedConfig(path string) error { return fsync.SafeFile(path, defaultConfig) }
+func SeedConfig(path string) error { return seed.SafeFile(path, defaultConfig) }
 
 // BuildFS is the build fs for the image's `mise install`: the embed with the
 // mise config injected where the Dockerfile COPYs it
 func BuildFS(embed fs.FS, projectDir string) (fs.FS, error) {
 	var hostConfigFS fs.FS
 	for _, configPath := range []string{UserConfigPath(), ProjectConfigPath(projectDir)} {
-		if !ioutil.Present(configPath) {
+		if !osutil.Present(configPath) {
 			continue
 		}
 		var err error

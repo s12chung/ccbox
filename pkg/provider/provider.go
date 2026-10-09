@@ -26,7 +26,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
-	"github.com/s12chung/ccbox/pkg/util/uslice"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -89,7 +89,7 @@ func mustLoadAll() []Provider {
 	for _, p := range slices.Concat(builtinProviders, userProviders) {
 		byName[p.Name] = p
 	}
-	return uslice.Map(slices.Sorted(maps.Keys(byName)), func(name string) Provider { return byName[name] })
+	return slicex.Map(slices.Sorted(maps.Keys(byName)), func(name string) Provider { return byName[name] })
 }
 
 // All lists every known provider, sorted by name

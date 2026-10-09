@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -45,7 +45,7 @@ func TestGenerateLock_NoConfig(t *testing.T) {
 func TestGenerateLock_FreshLock(t *testing.T) {
 	testutil.Home(t)
 	configPath := ProjectConfigPath(t.TempDir())
-	require.NoError(t, os.WriteFile(configPath, []byte(fixtureConfig), ioutil.File))
+	require.NoError(t, os.WriteFile(configPath, []byte(fixtureConfig), osutil.File))
 	require.NoError(t, commitLock(t, configPath))
 
 	// a fresh lock skips the docker run, so this passes without a daemon
@@ -78,8 +78,8 @@ func TestSeedConfig(t *testing.T) {
 
 func TestSeedConfig_SkipsExisting(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, os.MkdirAll(userdir.Dir(), ioutil.Dir))
-	require.NoError(t, os.WriteFile(UserConfigPath(), []byte("custom"), ioutil.File))
+	require.NoError(t, os.MkdirAll(userdir.Dir(), osutil.Dir))
+	require.NoError(t, os.WriteFile(UserConfigPath(), []byte("custom"), osutil.File))
 
 	require.NoError(t, SeedConfig(UserConfigPath()))
 
@@ -92,7 +92,7 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 // leaves behind, without the docker run its test can't make.
 func commitLock(t *testing.T, configPath string) error {
 	t.Helper()
-	return ioutil.Expander{
+	return osutil.Expander{
 		Source:    configPath,
 		Expansion: LockPath(configPath),
 	}.Expand([]byte(fixtureLock))
@@ -118,7 +118,7 @@ func TestBuildFS(t *testing.T) {
 	testutil.Home(t) // the user level starts empty, like a fresh host
 
 	projectDir := t.TempDir()
-	require.NoError(t, os.WriteFile(ProjectConfigPath(projectDir), []byte(fixtureConfig), ioutil.File))
+	require.NoError(t, os.WriteFile(ProjectConfigPath(projectDir), []byte(fixtureConfig), osutil.File))
 	require.NoError(t, commitLock(t, ProjectConfigPath(projectDir)))
 
 	tests := []struct {

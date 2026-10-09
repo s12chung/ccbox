@@ -3,7 +3,7 @@ package cmd
 import (
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/util/uslice"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -23,10 +23,10 @@ func printPresentGuardMounts() {
 // so future runs guard it — a heads-up that it behaves differently from here.
 func warnCreatedGuardMounts(presentMasksBefore, presentPathsBefore []string) {
 	nowPresent := append(projectConfig.TmpfsMasksPresent(), projectConfig.VolumeMasksPresent()...)
-	if created := uslice.Minus(nowPresent, presentMasksBefore); len(created) > 0 {
+	if created := slicex.Minus(nowPresent, presentMasksBefore); len(created) > 0 {
 		log.Warnf("before run, these directories did not exist. future runs will mask them: %s", strings.Join(created, ", "))
 	}
-	if created := uslice.Minus(projectConfig.ReadOnlyPathsPresent(), presentPathsBefore); len(created) > 0 {
+	if created := slicex.Minus(projectConfig.ReadOnlyPathsPresent(), presentPathsBefore); len(created) > 0 {
 		log.Warnf("before run, these paths did not exist. future runs will re-mount them read-only: %s", strings.Join(created, ", "))
 	}
 }

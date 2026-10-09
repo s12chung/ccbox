@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/mise"
-	"github.com/s12chung/ccbox/pkg/util/ioutil"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -30,7 +30,7 @@ func TestEmbedMiseImage(t *testing.T) {
 func TestBuildContextHasCopySources(t *testing.T) {
 	testutil.Home(t) // BuildFS requires a committed config+lock: seed the default, keeping the test off the host's user level
 	require.NoError(t, mise.SeedConfig(mise.UserConfigPath()))
-	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), ioutil.File))
+	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
 	src, err := mise.BuildFS(embedBuildContext, t.TempDir())
 	require.NoError(t, err)
 
