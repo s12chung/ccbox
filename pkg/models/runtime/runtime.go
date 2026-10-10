@@ -5,7 +5,11 @@
 // and dmap's per-project cache volumes from.
 package runtime
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/s12chung/ccbox/pkg/mise"
+)
 
 // Runtime is a language runtime and everything the image knows about it: the
 // egress wall domains its toolchain talks to, and the image state the build
@@ -18,19 +22,19 @@ type Runtime struct {
 	Domains []string
 
 	// MiseTool is the runtime itself, as the mise config installs it
-	MiseTool MiseTool
+	MiseTool mise.Tool
 
 	// MiseToolsOptional groups the ecosystem tooling riding the runtime's install —
 	// a grouping, not a condition: every entry installs with the rest
-	MiseToolsOptional []MiseTool
+	MiseToolsOptional []mise.Tool
 
 	// AptPkgs are the runtime's shared libs kept in the image — present because of
 	// this runtime, not always exclusively (libssl3t64, zlib1g also serve libcurl)
 	AptPkgs []string
 
-	// AptPkgsTemp are build headers for the mise install's from-source compile,
+	// AptBuildDeps are build headers for the mise install's from-source compile,
 	// purged right after
-	AptPkgsTemp []string
+	AptBuildDeps []string
 
 	// CacheVolumes are the container dirs dmap maps per-project cache volumes to;
 	// the volume name's suffix is path.Base minus its leading dot
@@ -44,23 +48,14 @@ type Runtime struct {
 	EnvVars map[string]string
 }
 
-// MiseTool is one entry of the mise config's [tools] table
-type MiseTool struct {
-	Tool    string
-	Version string
-
-	// PostInstall runs after the install (python's setuptools/wheel shim)
-	PostInstall string
-}
-
 // runtimes is every known runtime, sorted by name.
 var runtimes = []Runtime{
 	// Go: vanity imports, module proxy, checksum db, toolchain mirror
 	{
 		Name:              "go",
 		Domains:           []string{"golang.org", "proxy.golang.org", "sum.golang.org", "dl.google.com", "storage.googleapis.com"},
-		MiseTool:          MiseTool{Tool: "go", Version: "1.26"},
-		MiseToolsOptional: []MiseTool{{Tool: "golangci-lint", Version: "2.13.1"}},
+		MiseTool:          mise.Tool{Tool: "go", Version: "1.26"},
+		MiseToolsOptional: []mise.Tool{{Tool: "golangci-lint", Version: "2.13.1"}},
 		CacheVolumes:      []string{"/home/ccbox/go"}, // go mod tidy module cache + GOBIN
 		BinEntries:        []string{"/home/ccbox/go/bin"},
 		EnvVars:           map[string]string{"GOBIN": "/home/ccbox/go/bin"},
@@ -69,8 +64,8 @@ var runtimes = []Runtime{
 	{
 		Name:         "node",
 		Domains:      []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
-		MiseTool:     MiseTool{Tool: "node", Version: "26.3.0"},
-		AptPkgs:      []string{"libatomic1"},
+		MiseTool:     mise.Tool{Tool: "node", Version: "26.3.0"},
+		AptPkgs:      []string{"libatomic1"},                                  // V8 needs libatomic on arm64
 		CacheVolumes: []string{"/home/ccbox/.npm", "/home/ccbox/.npm-global"}, // npm download cache; global packages
 		BinEntries:   []string{"/home/ccbox/.npm-global/bin"},
 		EnvVars: map[string]string{
@@ -83,7 +78,7 @@ var runtimes = []Runtime{
 		Name:    "python",
 		Domains: []string{"pypi.org", "pythonhosted.org"},
 		// postinstall re-adds setuptools/wheel CPython 3.12+ dropped (setuptools = 3.13's distutils shim)
-		MiseTool: MiseTool{
+		MiseTool: mise.Tool{
 			Tool:        "python",
 			Version:     "3.13",
 			PostInstall: "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0",
@@ -93,9 +88,9 @@ var runtimes = []Runtime{
 	{
 		Name:         "ruby",
 		Domains:      []string{"rubygems.org", "cache.ruby-lang.org"},
-		MiseTool:     MiseTool{Tool: "ruby", Version: "3.4"},
+		MiseTool:     mise.Tool{Tool: "ruby", Version: "3.4"},
 		AptPkgs:      []string{"libssl3t64", "libyaml-0-2", "zlib1g", "libffi8", "libreadline8t64", "libgmp10", "libzstd1"},
-		AptPkgsTemp:  []string{"libssl-dev", "libyaml-dev", "zlib1g-dev", "libffi-dev", "libreadline-dev", "libgmp-dev"},
+		AptBuildDeps: []string{"libssl-dev", "libyaml-dev", "zlib1g-dev", "libffi-dev", "libreadline-dev", "libgmp-dev"},
 		CacheVolumes: []string{"/home/ccbox/.gem"}, // bundler GEM_HOME
 		BinEntries:   []string{"/home/ccbox/.gem/bin"},
 		EnvVars:      map[string]string{"GEM_HOME": "/home/ccbox/.gem"},
@@ -128,6 +123,17 @@ func AllDomains() []string {
 		domains = append(domains, r.Domains...)
 	}
 	return domains
+}
+
+// AllMiseTools flattens every runtime's tools in All's order — the mise config's
+// [tools] input
+func AllMiseTools() []mise.Tool {
+	var tools []mise.Tool
+	for _, r := range runtimes {
+		tools = append(tools, r.MiseTool)
+		tools = append(tools, r.MiseToolsOptional...)
+	}
+	return tools
 }
 
 // DomainsFor resolves an allowlist alias to its runtime's domains — every

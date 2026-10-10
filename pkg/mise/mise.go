@@ -14,6 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
+	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
@@ -43,8 +44,8 @@ func LockPath(configPath string) string {
 // the same mise the devbox image builds from, so the two can't drift.
 var miseImageRe = regexp.MustCompile(`(?m)^FROM\s+(\S+)\s+AS\s+mise\s*$`)
 
-// ImageFromDockerfile extracts the pinned mise image reference from the Dockerfile.
-func ImageFromDockerfile(dockerfile []byte) (string, error) {
+// ImageRefFromDockerfile extracts the pinned mise image reference from the Dockerfile.
+func ImageRefFromDockerfile(dockerfile []byte) (string, error) {
 	match := miseImageRe.FindSubmatch(dockerfile)
 	if match == nil {
 		return "", errors.New("mise: the Dockerfile has no `FROM <image> AS mise`")
@@ -55,7 +56,7 @@ func ImageFromDockerfile(dockerfile []byte) (string, error) {
 // GenerateLock puts the committed lock beside the mise config when the config is
 // there, regenerating only when stale — a fresh one is left untouched. Creates both
 // the lock and its config-hash
-func GenerateLock(ctx context.Context, image, configPath string) error {
+func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 	if !osutil.Present(configPath) {
 		return nil
 	}
@@ -80,7 +81,7 @@ func GenerateLock(ctx context.Context, image, configPath string) error {
 	}
 	//nolint:contextcheck // the chain's context.Background cleanups are deliberate: a cancelled ctx can't block cleanup
 	lock, err := docker.GenerateMiseLock(ctxD, docker.MiseLockOptions{
-		Image:      image,
+		Image:      imageRef,
 		ConfigPath: configPath,
 		OutDir:     outDir,
 		UID:        os.Getuid(),
@@ -105,12 +106,14 @@ const (
 	contextLockPath   = "docker/mise/mise.lock"
 )
 
-// SeedConfig safe-seeds the user-level mise config with the pinned defaults
-func SeedConfig(path string) error { return seed.SafeFile(path, RenderConfig()) }
+// SeedConfig safe-seeds the user-level mise config: tools over the pinned defaults
+func SeedConfig(path string, tools []Tool) error {
+	return seed.SafeFile(path, must.Get(renderConfig(tools)))
+}
 
 // BuildFS is the build fs for the image's `mise install`: the embed with the
 // mise config injected where the Dockerfile COPYs it.
-func BuildFS(embed fs.FS, projectDir string) (fs.FS, error) {
+func BuildFS(embed fs.FS, projectDir string, tools []Tool) (fs.FS, error) {
 	var hostConfigFS fs.FS
 	for _, configPath := range []string{UserConfigPath(), ProjectConfigPath(projectDir)} {
 		if !osutil.Present(configPath) {
@@ -128,7 +131,7 @@ func BuildFS(embed fs.FS, projectDir string) (fs.FS, error) {
 		return nil, err
 	}
 	if hostConfigFS == nil {
-		hostConfigFS = mfs.MapFS{contextConfigPath: {Data: RenderConfig()}}
+		hostConfigFS = mfs.MapFS{contextConfigPath: {Data: must.Get(renderConfig(tools))}}
 	}
 	if err := merged.Merge(hostConfigFS); err != nil {
 		return nil, err

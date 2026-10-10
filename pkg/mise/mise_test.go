@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
@@ -21,16 +22,16 @@ const (
 	fixtureLock   = "lock"
 )
 
-func TestImageFromDockerfile(t *testing.T) {
+func TestImageRefFromDockerfile(t *testing.T) {
 	dockerfile := "FROM debian:trixie-slim AS base\n\nFROM ghcr.io/jdx/mise:2026.6.9 AS mise\n\nFROM base\n"
-	image, err := ImageFromDockerfile([]byte(dockerfile))
+	imageRef, err := ImageRefFromDockerfile([]byte(dockerfile))
 	require.NoError(t, err)
-	assert.Equal(t, "ghcr.io/jdx/mise:2026.6.9", image)
+	assert.Equal(t, "ghcr.io/jdx/mise:2026.6.9", imageRef)
 }
 
-func TestImageFromDockerfile_MissingFrom(t *testing.T) {
+func TestImageRefFromDockerfile_MissingFrom(t *testing.T) {
 	dockerfile := "FROM debian:trixie-slim AS base\nFROM ghcr.io/jdx/mise:2026.6.9\n"
-	_, err := ImageFromDockerfile([]byte(dockerfile))
+	_, err := ImageRefFromDockerfile([]byte(dockerfile))
 	assert.ErrorContains(t, err, "no `FROM <image> AS mise`")
 }
 
@@ -68,12 +69,12 @@ func TestGenerateLock_UserConfig(t *testing.T) {
 func TestSeedConfig(t *testing.T) {
 	testutil.Home(t)
 
-	require.NoError(t, SeedConfig(UserConfigPath()))
+	require.NoError(t, SeedConfig(UserConfigPath(), nil))
 
 	// the seed is the pinned defaults' carrier
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
-	assert.Equal(t, string(RenderConfig()), string(body))
+	assert.Equal(t, string(must.Get(renderConfig(nil))), string(body))
 }
 
 func TestSeedConfig_SkipsExisting(t *testing.T) {
@@ -81,7 +82,7 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 	require.NoError(t, os.MkdirAll(userdir.Dir(), osutil.Dir))
 	require.NoError(t, os.WriteFile(UserConfigPath(), []byte("custom"), osutil.File))
 
-	require.NoError(t, SeedConfig(UserConfigPath()))
+	require.NoError(t, SeedConfig(UserConfigPath(), nil))
 
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own config path
 	require.NoError(t, err)
@@ -102,7 +103,7 @@ func commitLock(t *testing.T, configPath string) error {
 func seedUser(t *testing.T) {
 	t.Helper()
 	testutil.Home(t)
-	require.NoError(t, SeedConfig(UserConfigPath()))
+	require.NoError(t, SeedConfig(UserConfigPath(), nil))
 	require.NoError(t, commitLock(t, UserConfigPath()))
 }
 
@@ -130,8 +131,8 @@ func TestBuildFS(t *testing.T) {
 	}{
 		// rootSeed seeds the user level on every ccbox invocation, so no config is a
 		// robustness path: the render falls in, unlocked
-		{name: "no config", projectDir: t.TempDir(), wantConfig: string(RenderConfig())},
-		{name: "user", seedUser: true, projectDir: t.TempDir(), wantConfig: string(RenderConfig()), wantLock: fixtureLock},
+		{name: "no config", projectDir: t.TempDir(), wantConfig: string(must.Get(renderConfig(nil)))},
+		{name: "user", seedUser: true, projectDir: t.TempDir(), wantConfig: string(must.Get(renderConfig(nil))), wantLock: fixtureLock},
 		// the user level is seeded here too: the project's own config wins
 		{name: "project", seedUser: true, projectDir: projectDir, wantConfig: fixtureConfig, wantLock: fixtureLock},
 	}
@@ -140,7 +141,7 @@ func TestBuildFS(t *testing.T) {
 			if tt.seedUser {
 				seedUser(t)
 			}
-			merged, err := BuildFS(embedFSFixture(), tt.projectDir)
+			merged, err := BuildFS(embedFSFixture(), tt.projectDir, nil)
 			require.NoError(t, err)
 
 			config, err := fs.ReadFile(merged, contextConfigPath)

@@ -1,4 +1,0 @@
-ENV GEM_HOME=/home/ccbox/.gem
-ENV GOBIN=/home/ccbox/go/bin
-ENV NPM_CONFIG_PREFIX=/home/ccbox/.npm-global
-ENV NPM_CONFIG_UPDATE_NOTIFIER=false

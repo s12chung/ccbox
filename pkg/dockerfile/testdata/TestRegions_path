@@ -1,1 +1,0 @@
-ENV PATH=/opt/ccbox/clis/bin:/home/ccbox/.local/share/mise/shims:/home/ccbox/.local/bin:/home/ccbox/go/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin:$PATH

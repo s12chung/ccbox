@@ -15,6 +15,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/provider"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/util/flagptr"
@@ -119,7 +120,7 @@ func rootSeed() error {
 	if err := share.SafeSeedAgentsMd(); err != nil {
 		return err
 	}
-	if err := mise.SeedConfig(mise.UserConfigPath()); err != nil {
+	if err := mise.SeedConfig(mise.UserConfigPath(), runtime.AllMiseTools()); err != nil {
 		return err
 	}
 	return safeSeedUserConfig()

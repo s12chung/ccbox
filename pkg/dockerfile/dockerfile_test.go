@@ -9,57 +9,36 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/s12chung/ccbox/pkg/models/runtime"
 )
 
-// TestRegions pin each generated statement to its testdata golden — the
-// pre-composer Dockerfile's bytes. Where the data's runtime-sorted order reorders
-// lines, the shift is functionally inert (ordering was hand-laid before).
+// TestRegions pins each generated region's render.
 func TestRegions(t *testing.T) {
-	for name, generate := range regions {
-		t.Run(name, func(t *testing.T) {
-			golden, err := os.ReadFile(filepath.Join("testdata", "TestRegions_"+name)) // #nosec G304 -- the test's own fixture
-			require.NoError(t, err)
-			assert.Equal(t, string(golden), generate(runtime.All()))
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"runtimeLibs", "        libatomic1 libssl3t64 libyaml-0-2 zlib1g libffi8 libreadline8t64 libgmp10 libzstd1 \\"},
+		{"buildDeps", "libssl-dev libyaml-dev zlib1g-dev libffi-dev libreadline-dev libgmp-dev"},
+		{"PATHDirs", "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin"},
+		{"envVars", "GOBIN=/home/ccbox/go/bin NPM_CONFIG_PREFIX=/home/ccbox/.npm-global NPM_CONFIG_UPDATE_NOTIFIER=false GEM_HOME=/home/ccbox/.gem"},
+		{"cacheDirs", "/home/ccbox/go /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.gem"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			generate, ok := regions[tt.name].(func() string)
+			require.True(t, ok)
+			assert.Equal(t, tt.want, generate())
 		})
 	}
 }
 
-func TestAptRegion_UnnotedRuntime(t *testing.T) {
-	// a runtime without an aptRowComments entry renders the generic section comment
-	runtimes := []runtime.Runtime{{Name: "go", AptPkgs: []string{"bison"}}}
-	assert.Contains(t, aptRegion(runtimes), "# - Go runtime libs\n")
-	assert.Contains(t, aptRegion(runtimes), "        bison \\\n")
-}
-
-// TestRender pins the embedded tmpl's render to its testdata golden: the tmpl and
-// the composer must move together, and the golden is the composed whole `ccbox
-// build` ships (make lint hadolints it).
 func TestRender(t *testing.T) {
 	golden, err := os.ReadFile(filepath.Join("testdata", "TestRender.Dockerfile")) // #nosec G304 -- the test's own fixture
 	require.NoError(t, err)
 
-	composed, err := render(tmplBody)
+	composed, err := render()
 	require.NoError(t, err)
 	assert.Equal(t, string(golden), string(composed))
-}
-
-func TestRender_TemplateErrors(t *testing.T) {
-	tests := []struct {
-		name     string
-		template string
-		wantErr  string
-	}{
-		{"unknown action", "{{bogus}}\n", `function "bogus" not defined`},
-		{"unrendered region", "FROM base\n", "the template never renders"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			_, err := render([]byte(tt.template))
-			assert.ErrorContains(t, err, tt.wantErr)
-		})
-	}
 }
 
 func TestPatchFS(t *testing.T) {

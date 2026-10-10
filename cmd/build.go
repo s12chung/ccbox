@@ -9,6 +9,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/mise"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
@@ -28,13 +29,13 @@ func init() {
 // build builds the image variant the mode asks for; `run` calls it too
 func build(ctx context.Context, serveVNC bool) error {
 	projectDir := projectConfig.ProjectDir()
-	miseImage := must.Get(mise.ImageFromDockerfile(dockerfile.Template()))
+	miseImageRef := must.Get(dockerfile.MiseImageRef())
 	for _, path := range []string{mise.ProjectConfigPath(projectDir), mise.UserConfigPath()} {
-		if err := mise.GenerateLock(ctx, miseImage, path); err != nil {
+		if err := mise.GenerateLock(ctx, miseImageRef, path); err != nil {
 			return err
 		}
 	}
-	buildContext, err := mise.BuildFS(embedBuildContext, projectDir)
+	buildContext, err := mise.BuildFS(embedBuildContext, projectDir, runtime.AllMiseTools())
 	if err != nil {
 		return err
 	}
