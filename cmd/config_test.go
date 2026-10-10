@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -18,8 +18,8 @@ import (
 
 func TestAliasSections(t *testing.T) {
 	cliName := "pi"
-	projectConfig = &projectcfg.Config{CLIName: &cliName}
-	t.Cleanup(func() { projectConfig = nil })
+	config = &cfg.Config{CLIName: &cliName}
+	t.Cleanup(func() { config = nil })
 
 	assert.Equal(t, []string{
 		"# ccbox-defaults:",
@@ -117,16 +117,16 @@ func TestConfirmReadOnlyPaths(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(d, ".env"), []byte("K=v"), osutil.File))
 		}
 	}
-	// loadReadOnlyConfig loads projectConfig over dir, whose flags carry the glob —
+	// loadReadOnlyConfig loads config over dir, whose flags carry the glob —
 	// testutil.Home keeps the user-level layer out of the match count
 	loadReadOnlyConfig := func(t *testing.T, dir string) {
 		t.Helper()
 		testutil.Home(t)
 		cliName := "claude"
-		c, err := projectcfg.Load(dir, projectcfg.Config{CLIName: &cliName, ReadOnlyGlobs: []string{"**/.env"}}, false)
+		c, err := cfg.Load(dir, cfg.Config{CLIName: &cliName, ReadOnlyGlobs: []string{"**/.env"}}, false)
 		require.NoError(t, err)
-		projectConfig = c
-		t.Cleanup(func() { projectConfig = nil })
+		config = c
+		t.Cleanup(func() { config = nil })
 	}
 
 	t.Run("under the limit prints without asking", func(t *testing.T) {

@@ -8,7 +8,7 @@
 //     dir are done, _effectively guaranteeing_ valid CLI structs and workable config/ dir onwards
 //  2. on cmd.rootCmd.PersistentPreRunE():
 //     a. clitmpl.UserSeedFS() seeds the clitmpl.UserDir()
-//     b. projectcfg.Load() validates projectcfg.Config, which given 1b., _effectively guarantees_ any
+//     b. cfg.Load() validates cfg.Config, which given 1b., _effectively guarantees_ any
 //     cliName passed down will match a CLI in All()
 //  3. MustFor() is also called in multiple places. 2b. should be the earliest guard for cliName passed down
 //  4. clitmpl.UserCLIConfigSeedFS() for seeding the config to configure the running containerized CLI
@@ -175,7 +175,7 @@ func (c CLI) PkgInfoJSON() (string, error) {
 // For looks up the CLI by name. ok is false for an unknown name.
 func For(name string) (CLI, bool) { return mapx.Get(all, name) }
 
-// MustFor is For for names already validated (projectcfg.Load rejects unknown
+// MustFor is For for names already validated (cfg.Load rejects unknown
 // cli values); it panics on an unknown name.
 func MustFor(name string) CLI {
 	c, ok := For(name)

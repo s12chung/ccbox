@@ -6,9 +6,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/cli"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
@@ -73,7 +73,7 @@ func dataBindDirs(clis []cli.CLI) string {
 	for _, cli := range clis {
 		for key := range cli.DataBinds {
 			if dir := path.Dir(key); dir != "." {
-				dirs[path.Join(projectcfg.ContainerHome, dir)] = struct{}{}
+				dirs[path.Join(cfg.ContainerHome, dir)] = struct{}{}
 			}
 		}
 	}

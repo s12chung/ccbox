@@ -8,12 +8,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
@@ -25,13 +25,13 @@ func TestRunMap_RunOptions(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+	config, err := cfg.Load(t.TempDir(), cfg.Config{
 		CLIName:   new("claude"),
-		Allowlist: []string{projectcfg.DefaultsAlias, "example.com"},
+		Allowlist: []string{cfg.DefaultsAlias, "example.com"},
 	}, false)
 	require.NoError(t, err)
 	userDir := t.TempDir()
-	rm := NewRunMap(userDir, cfg, false)
+	rm := NewRunMap(userDir, config, false)
 
 	// the pieces RunOptions composes
 	hostOptions, hostClean, err := rm.HostOptions(false, false)
@@ -65,14 +65,14 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	// the base layer carries the gui_app, as a project's config would
-	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+	config, err := cfg.Load(t.TempDir(), cfg.Config{
 		CLIName:   new("claude"),
-		VNC:       &projectcfg.VNC{GUIAppName: guiapp.App.Name},
-		Allowlist: []string{projectcfg.DefaultsAlias, projectcfg.SetHarnessAlias},
+		VNC:       &cfg.VNC{GUIAppName: guiapp.App.Name},
+		Allowlist: []string{cfg.DefaultsAlias, cfg.SetHarnessAlias},
 	}, true)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(t.TempDir(), cfg, false).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(t.TempDir(), config, false).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -80,7 +80,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
 	assert.Nil(t, options.Proxy, "a vnc run always skips the egress wall")
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
-	expanded := cfg.AllowlistExpanded()
+	expanded := config.AllowlistExpanded()
 	for _, d := range guiapp.App.AllowDomains {
 		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the proxy via the harness alias")
 	}
@@ -91,13 +91,13 @@ func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	projectDir := t.TempDir()
-	cfg, err := projectcfg.Load(projectDir, projectcfg.Config{
+	config, err := cfg.Load(projectDir, cfg.Config{
 		CLIName:   new("claude"),
-		Allowlist: []string{projectcfg.DefaultsAlias, "example.com"},
+		Allowlist: []string{cfg.DefaultsAlias, "example.com"},
 	}, false)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(t.TempDir(), cfg, true).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(t.TempDir(), config, true).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -117,16 +117,16 @@ func TestRunMap_HostOptions(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "fonts"), osutil.Dir))
 
-	cfg, err := projectcfg.Load(projectDir, projectcfg.Config{
+	config, err := cfg.Load(projectDir, cfg.Config{
 		CLIName:       new("codex"),
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"node_modules"},
 		ReadOnlyGlobs: []string{".env"},
-		ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
+		ReadOnlyBinds: map[string]string{cfg.GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
 	}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg, false).HostOptions(false, false)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), config, false).HostOptions(false, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -151,7 +151,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewVolume("ccbox"+s+"-tmp-cache-default", "/tmp"),
 		docker.NewVolume("ccbox"+s+"-node_modules", workspace+"/node_modules"),
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
-		docker.NewBind(filepath.Join(home, ".config", "git"), projectcfg.GitConfigMount).ReadOnly(),
+		docker.NewBind(filepath.Join(home, ".config", "git"), cfg.GitConfigMount).ReadOnly(),
 		docker.NewBind(filepath.Join(home, "fonts"), "/home/ccbox/fonts").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "agents", "codex", "AGENTS.md"), "/home/ccbox/.ccbox/tmp/agents/codex/AGENTS.md"),
 	}, hostOptions.Mounts)
@@ -164,10 +164,10 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("codex")}, false)
+	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg, false).HostOptions(false, true)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), config, false).HostOptions(false, true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -181,10 +181,10 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{CLIName: new("claude")}, false)
+	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), cfg, false).HostOptions(true, false)
+	hostOptions, clean, err := NewRunMap(t.TempDir(), config, false).HostOptions(true, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -198,8 +198,8 @@ func TestRunMap_Env(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("DISABLE_AUTOUPDATER", "0")
-	vnc := &projectcfg.VNC{GUIAppName: guiapp.App.Name}
-	rm := testRunMap(t, projectcfg.Config{
+	vnc := &cfg.VNC{GUIAppName: guiapp.App.Name}
+	rm := testRunMap(t, cfg.Config{
 		CLIName:    new("claude"),
 		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN", "DISABLE_AUTOUPDATER"},
 		VNC:        vnc,
@@ -226,7 +226,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 	t.Setenv("TERM", "")
 	t.Setenv("COLORTERM", "")
-	rm := testRunMap(t, projectcfg.Config{
+	rm := testRunMap(t, cfg.Config{
 		CLIName:    new("claude"),
 		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN"},
 	})
@@ -239,7 +239,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 }
 
 func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
-	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
+	rm := testRunMap(t, cfg.Config{CLIName: new("claude")})
 
 	env, err := rm.Env(false)
 	require.NoError(t, err)
@@ -247,7 +247,7 @@ func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 }
 
 func TestRunMap_Env_EmptyVNC(t *testing.T) {
-	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
+	rm := testRunMap(t, cfg.Config{CLIName: new("claude")})
 
 	env, err := rm.Env(true)
 	require.NoError(t, err)
@@ -255,7 +255,7 @@ func TestRunMap_Env_EmptyVNC(t *testing.T) {
 }
 
 func TestRunMap_Cmd(t *testing.T) {
-	rm := testRunMap(t, projectcfg.Config{CLIName: new("claude")})
+	rm := testRunMap(t, cfg.Config{CLIName: new("claude")})
 
 	assert.Equal(t, []string{"claude"}, rm.cmd(RunMode{}))
 	assert.Nil(t, rm.cmd(RunMode{Shell: true}), "bare run drops into the image's default shell")

@@ -8,11 +8,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
@@ -45,7 +45,7 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
-			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(projectcfg.ContainerHome, c.ConfigHomeMount)),
+			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(cfg.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
 		proxyAllowBinds(noProxy),
@@ -126,7 +126,7 @@ func cliDataBinds(userDir string, c cli.CLI) []docker.Mount {
 
 	dataBinds := make([]docker.Mount, 0, len(binds))
 	for _, host := range slices.Sorted(maps.Keys(binds)) {
-		dataBinds = append(dataBinds, docker.NewBind(host, path.Join(projectcfg.ContainerHome, binds[host])))
+		dataBinds = append(dataBinds, docker.NewBind(host, path.Join(cfg.ContainerHome, binds[host])))
 	}
 	return dataBinds
 }

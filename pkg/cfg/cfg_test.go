@@ -1,4 +1,4 @@
-package projectcfg
+package cfg
 
 import (
 	"fmt"
@@ -54,7 +54,7 @@ func writeConfig(t *testing.T, dir string, name string, body string) string {
 	return path
 }
 
-func loadProjectConfigYAML(t *testing.T, projectDir string) string {
+func loadConfigYAML(t *testing.T, projectDir string) string {
 	t.Helper()
 	c, err := Load(projectDir, Config{}, false)
 	require.NoError(t, err)
@@ -74,19 +74,19 @@ func copyFile(t *testing.T, src, dst string) {
 // configFiles lists the config files by level term and file name, in load order
 // (lowest precedence first)
 var configFiles = []struct {
-	term string // user, project, local
+	term string // user, project, projectLocal
 	name string
 }{
 	{"user", userConfigFileName},
 	{"project", projectConfigFileName},
-	{"local", localConfigFileName},
+	{"projectLocal", projectLocalConfigFileName},
 }
 
 // TestMain points home at a temp tree and seeds the user config — prod parity: the
 // user seed exists before Load runs — so tests don't read the developer's real
 // user-level config; useHome overrides per-test.
 func TestMain(m *testing.M) {
-	dir, err := os.MkdirTemp("", "projectcfg")
+	dir, err := os.MkdirTemp("", "cfg")
 	must.Do(err)
 	must.Do(os.Setenv("HOME", dir))
 	must.Do(SeedConfig(UserConfigFile(), "claude"))
@@ -163,8 +163,8 @@ func TestLoadedPaths(t *testing.T) {
 	}{
 		{"no files", nil},
 		{"project only", []string{projectConfigFileName}},
-		{"user and local", []string{userConfigFileName, localConfigFileName}},
-		{"all three", []string{userConfigFileName, projectConfigFileName, localConfigFileName}},
+		{"user and local", []string{userConfigFileName, projectLocalConfigFileName}},
+		{"all three", []string{userConfigFileName, projectConfigFileName, projectLocalConfigFileName}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -174,7 +174,7 @@ func TestLoadedPaths(t *testing.T) {
 				writeConfig(t, dir, name, "cli: claude\n")
 			}
 			var wantLoaded, wantNotLoaded []string
-			for _, name := range []string{userConfigFileName, projectConfigFileName, localConfigFileName} {
+			for _, name := range []string{userConfigFileName, projectConfigFileName, projectLocalConfigFileName} {
 				path := filepath.Join(dir, name)
 				if name == userConfigFileName {
 					path = UserConfigFile()
@@ -198,7 +198,7 @@ func TestLoadedPaths(t *testing.T) {
 
 		loaded, notLoaded := LoadedPaths(dir)
 		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, loaded)
-		assert.Equal(t, []string{UserConfigFile(), filepath.Join(dir, localConfigFileName)}, notLoaded)
+		assert.Equal(t, []string{UserConfigFile(), filepath.Join(dir, projectLocalConfigFileName)}, notLoaded)
 	})
 }
 
@@ -207,11 +207,11 @@ func TestInit_WritesLoadableDefault(t *testing.T) {
 	require.NoError(t, Init(projectDir))
 	configPath := filepath.Join(projectDir, projectConfigFileName)
 
-	cOut := loadProjectConfigYAML(t, projectDir)
+	cOut := loadConfigYAML(t, projectDir)
 
 	freshDir := t.TempDir()
 	copyFile(t, configPath, filepath.Join(freshDir, projectConfigFileName))
-	freshOut := loadProjectConfigYAML(t, freshDir)
+	freshOut := loadConfigYAML(t, freshDir)
 
 	assert.Equal(t, freshOut, cOut)
 }
@@ -264,7 +264,7 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			if cf.term == "local" { // empty project file so the error attributes to local
+			if cf.term == "projectLocal" { // empty project file so the error attributes to local
 				writeConfig(t, dir, projectConfigFileName, "")
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nread_only_binds:\n  fonts: enabled\n")
@@ -297,7 +297,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
 			"forward_env:\n  - FOO\n  - BAZ\nallowlist:\n  - ccbox-defaults\n",
-		"local": "cli: codex\ntmpfs_masks:\n  - cache\n" +
+		"projectLocal": "cli: codex\ntmpfs_masks:\n  - cache\n" +
 			"read_only_binds:\n  ~/certs: /mnt/certs\n" +
 			"forward_env:\n  - QUX\nallowlist:\n  - example.com\n",
 	}
@@ -449,7 +449,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			if cf.term == "local" { // empty project file so the error attributes to local
+			if cf.term == "projectLocal" { // empty project file so the error attributes to local
 				writeConfig(t, dir, projectConfigFileName, "")
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nbogus: true\n")
@@ -464,7 +464,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), osutil.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, localConfigFileName), []byte("cli: codex\n"), osutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectLocalConfigFileName), []byte("cli: codex\n"), osutil.File))
 
 	c, err := Load(dir, Config{CLIName: new("grok")}, false)
 	require.NoError(t, err)

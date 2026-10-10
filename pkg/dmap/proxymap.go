@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/diff"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -19,11 +19,11 @@ import (
 
 // ProxyMap maps the project config and the egress wall configs to the docker pkg proxy options
 type ProxyMap struct {
-	cfg *projectcfg.Config
+	cfg *cfg.Config
 }
 
 // NewProxyMap returns a new ProxyMap
-func NewProxyMap(cfg *projectcfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
+func NewProxyMap(cfg *cfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 
 // Options renders the egress wall's docker.ProxyOptions; foreground is the optional
 // stream — nil runs ride the session's log file only

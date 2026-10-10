@@ -3,7 +3,7 @@ package dmap
 import (
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
@@ -19,5 +19,5 @@ func proxyLogPath() string { return filepath.Join(userdir.Dir(), "proxy.log") }
 
 // workspaceMount is the in-container workspace path: the WorkingDir and bind target for the project dir.
 func workspaceMount(projectDir string) string {
-	return filepath.Join(projectcfg.ContainerHome, filepath.Base(projectDir))
+	return filepath.Join(cfg.ContainerHome, filepath.Base(projectDir))
 }

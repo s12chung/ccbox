@@ -19,12 +19,11 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
   - `toolsbuild/` — `go run` command that builds `dist/ccboxtools`
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
-  - `dmap/` — maps the `projectcfg.Config`, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
+  - `cfg/` — the `ccbox` Config as described in the README
+  - `dmap/` — maps the `cfg.Config`, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
   - `docker/` — the build/run/proxy lifecycle over the Docker SDK--manages DOCKER ONLY, knows nothing but docker lifecycle
   - `mise/` — related to mise configs
-  - `prompt/` — for ccbox specific prompts
-  - `projectcfg/` — related to `ccbox` Config as described in the README
-  - `models/` — the domain models projectcfg resolves names against
+  - `models/` — the domain models cfg resolves names against
     - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.ConfigDir()/clis` with the same format as the built-ins.
   - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
   - `util/` — std lib utility packages, notable: `klean`, `must`, `seed`, `term`, `mergeempty`, `slicex`

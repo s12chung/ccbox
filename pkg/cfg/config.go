@@ -1,4 +1,4 @@
-package projectcfg
+package cfg
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
 
+	"github.com/s12chung/ccbox/pkg/cfg/expand"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
@@ -22,7 +23,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/projectcfg/expand"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mapx"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"

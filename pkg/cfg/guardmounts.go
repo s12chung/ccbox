@@ -1,4 +1,4 @@
-package projectcfg
+package cfg
 
 import (
 	"slices"

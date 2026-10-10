@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -28,15 +28,15 @@ func TestTmpfsMasks(t *testing.T) {
 }
 
 // testRunMap builds a RunMap over a fresh temp home and a fresh temp project's config.
-func testRunMap(t *testing.T, flags projectcfg.Config) *RunMap {
+func testRunMap(t *testing.T, flags cfg.Config) *RunMap {
 	t.Helper()
 	testutil.Home(t)
 	if flags.CLIName == nil {
 		flags.CLIName = new("codex")
 	}
-	cfg, err := projectcfg.Load(t.TempDir(), flags, false)
+	config, err := cfg.Load(t.TempDir(), flags, false)
 	require.NoError(t, err)
-	return NewRunMap(t.TempDir(), cfg, false)
+	return NewRunMap(t.TempDir(), config, false)
 }
 
 func TestProxyAllowBinds(t *testing.T) {
@@ -94,27 +94,27 @@ func TestReadOnlyBinds(t *testing.T) {
 		home := testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 
-		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+		config, err := cfg.Load(t.TempDir(), cfg.Config{
 			CLIName:       new("codex"),
-			ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue},
+			ReadOnlyBinds: map[string]string{cfg.GitConfigKey: firmrule.EnabledValue},
 		}, false)
 		require.NoError(t, err)
 
 		assert.Equal(t, []docker.Mount{
-			docker.NewBind(filepath.Join(home, ".config", "git"), projectcfg.GitConfigMount).ReadOnly(),
-		}, readOnlyBinds(cfg.ReadOnlyBindsPresent()))
+			docker.NewBind(filepath.Join(home, ".config", "git"), cfg.GitConfigMount).ReadOnly(),
+		}, readOnlyBinds(config.ReadOnlyBindsPresent()))
 	})
 
 	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
 		testutil.Home(t)
 
-		cfg, err := projectcfg.Load(t.TempDir(), projectcfg.Config{
+		config, err := cfg.Load(t.TempDir(), cfg.Config{
 			CLIName:       new("codex"),
-			ReadOnlyBinds: map[string]string{projectcfg.GitConfigKey: firmrule.EnabledValue},
+			ReadOnlyBinds: map[string]string{cfg.GitConfigKey: firmrule.EnabledValue},
 		}, false)
 		require.NoError(t, err)
 
-		assert.Empty(t, readOnlyBinds(cfg.ReadOnlyBindsPresent()))
+		assert.Empty(t, readOnlyBinds(config.ReadOnlyBindsPresent()))
 	})
 }
 
@@ -128,14 +128,14 @@ func TestCLIDataBinds(t *testing.T) {
 		}}
 
 		assert.Equal(t, []docker.Mount{
-			docker.NewBind(filepath.Join(userDir, "data", "opencode", ".config-opencode"), path.Join(projectcfg.ContainerHome, ".config/opencode")),
+			docker.NewBind(filepath.Join(userDir, "data", "opencode", ".config-opencode"), path.Join(cfg.ContainerHome, ".config/opencode")),
 			docker.NewBind(
 				filepath.Join(userDir, "data", "opencode", ".local-share-opencode-auth.json"),
-				path.Join(projectcfg.ContainerHome, ".local/share/opencode/auth.json"),
+				path.Join(cfg.ContainerHome, ".local/share/opencode/auth.json"),
 			),
 			docker.NewBind(
 				filepath.Join(userDir, "data", "opencode", ".local-share-opencode-sessions.json"),
-				path.Join(projectcfg.ContainerHome, ".local/share/opencode/sessions.json"),
+				path.Join(cfg.ContainerHome, ".local/share/opencode/sessions.json"),
 			),
 		}, cliDataBinds(userDir, c))
 	})

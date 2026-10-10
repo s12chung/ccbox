@@ -1,4 +1,4 @@
-package projectcfg
+package cfg
 
 import (
 	"fmt"
@@ -65,13 +65,13 @@ func TestConfig_ValidateErrors(t *testing.T) {
 	require.NotEmpty(t, errMap)
 	// ShowValue appends the failing element, bindErr the failing mount, to each error
 	assert.Equal(t, strings.Join([]string{
-		`projectcfg.Config.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
+		`cfg.Config.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
 			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
-		`projectcfg.Config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
-		`projectcfg.Config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
-		`projectcfg.Config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
+		`cfg.Config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
+		`cfg.Config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
+		`cfg.Config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
 			`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$: "../escape"`,
-		`projectcfg.Config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
+		`cfg.Config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
 			`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$: "/etc"`,
 	}, ", "), errMap.Error())
 }
@@ -639,7 +639,7 @@ func TestVNC_InfoJSON(t *testing.T) {
 
 // TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
 // which `make lint` yq-checks as YAML. Regenerate with:
-// `UPDATE_FIXTURES=1 go test ./pkg/projectcfg/ -run TestConfig_renderTmpl`
+// `UPDATE_FIXTURES=1 go test ./pkg/cfg/ -run TestConfig_renderTmpl`
 func TestConfig_renderTmpl(t *testing.T) {
 	for _, tt := range []struct {
 		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml

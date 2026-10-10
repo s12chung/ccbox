@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/mise"
@@ -16,7 +17,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/util/flagptr"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -34,8 +34,8 @@ var (
 
 // loaded once together before any command runs
 var (
-	projectConfig *projectcfg.Config // layered config (user < project < local < flags)
-	tagByProject  bool               // whether the project carries its own mise config
+	config       *cfg.Config // layered config (user < project < local < flags)
+	tagByProject bool        // whether the project carries its own mise config
 )
 
 var rootCmd = &cobra.Command{
@@ -66,7 +66,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		provider.Load() // before cli.Load: AllowDomains's firm rule and expansion depends on loaded providers
-		cli.Load()      // before rootSeed's picker and projectcfg.Load, which read cli.Names()
+		cli.Load()      // before rootSeed's picker and cfg.Load, which read cli.Names()
 		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
 			return nil
 		}
@@ -75,12 +75,12 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 		var err error
-		projectConfig, err = projectcfg.Load(mustGetwd(), projectcfg.Config{CLIName: flagCLI}, runVNC)
+		config, err = cfg.Load(mustGetwd(), cfg.Config{CLIName: flagCLI}, runVNC)
 		if err != nil {
 			return err
 		}
-		tagByProject = osutil.Present(mise.ProjectConfigPath(projectConfig.ProjectDir()))
-		return prompt.ProjectDirSize(projectConfig.ProjectDir())
+		tagByProject = osutil.Present(mise.ProjectConfigPath(config.ProjectDir()))
+		return prompt.ProjectDirSize(config.ProjectDir())
 	},
 }
 
@@ -128,7 +128,7 @@ func rootSeed() error {
 
 // safeSeedUserConfig seeds the user-level config template if missing
 func safeSeedUserConfig() error {
-	path := projectcfg.UserConfigFile()
+	path := cfg.UserConfigFile()
 	if osutil.Present(path) {
 		return nil // the file already existed: no seed, so no prompt, no log
 	}
@@ -136,7 +136,7 @@ func safeSeedUserConfig() error {
 	if err != nil {
 		return err
 	}
-	return projectcfg.SeedConfig(path, cliName)
+	return cfg.SeedConfig(path, cliName)
 }
 
 func mustGetwd() string {

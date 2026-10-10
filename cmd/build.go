@@ -28,7 +28,7 @@ func init() {
 
 // build builds the image variant the mode asks for; `run` calls it too
 func build(ctx context.Context, serveVNC bool) error {
-	projectDir := projectConfig.ProjectDir()
+	projectDir := config.ProjectDir()
 	miseImageRef := must.Get(dockerfile.MiseImageRef())
 	for _, path := range []string{mise.ProjectConfigPath(projectDir), mise.UserConfigPath()} {
 		if err := mise.GenerateLock(ctx, miseImageRef, path); err != nil {

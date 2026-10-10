@@ -3,8 +3,8 @@ package dmap
 import (
 	"os"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -13,12 +13,12 @@ import (
 // RunMap maps one run's project config to the docker pkg options
 type RunMap struct {
 	userDir      string // the run's mounts sit under this ccbox per-user host dir
-	cfg          *projectcfg.Config
+	cfg          *cfg.Config
 	tagByProject bool
 }
 
 // NewRunMap returns a new RunMap
-func NewRunMap(userDir string, cfg *projectcfg.Config, tagByProject bool) *RunMap {
+func NewRunMap(userDir string, cfg *cfg.Config, tagByProject bool) *RunMap {
 	return &RunMap{userDir: userDir, cfg: cfg, tagByProject: tagByProject}
 }
 
@@ -77,9 +77,9 @@ func (rm *RunMap) HostOptions(serveVNC, noProxy bool) (docker.RunHostOptions, fu
 }
 
 // vncCfg returns the config's vnc section — an empty one when the config carries none
-func (rm *RunMap) vncCfg() *projectcfg.VNC {
+func (rm *RunMap) vncCfg() *cfg.VNC {
 	if rm.cfg.VNC == nil {
-		return &projectcfg.VNC{}
+		return &cfg.VNC{}
 	}
 	return rm.cfg.VNC
 }

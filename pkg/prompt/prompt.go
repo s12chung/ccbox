@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/size"
 	"github.com/s12chung/ccbox/pkg/util/term"
@@ -55,7 +55,7 @@ func HarnessCLI(cliNames []string) (string, error) {
 	name, err := selectFn(
 		"Select a harness CLI",
 		[]string{
-			fmt.Sprintf("(stored in %s)", userdir.Tilde(projectcfg.UserConfigFile())),
+			fmt.Sprintf("(stored in %s)", userdir.Tilde(cfg.UserConfigFile())),
 			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md"))),
 		},
 		cliNames)
@@ -63,7 +63,7 @@ func HarnessCLI(cliNames []string) (string, error) {
 		return "", err
 	}
 	if name == "" { // no terminal to show the picker
-		return "", fmt.Errorf("no harness CLI selected: rerun in a terminal to pick one, or set cli in %s", projectcfg.UserConfigFile())
+		return "", fmt.Errorf("no harness CLI selected: rerun in a terminal to pick one, or set cli in %s", cfg.UserConfigFile())
 	}
 	return name, nil
 }

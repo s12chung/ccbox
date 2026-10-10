@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
@@ -29,7 +29,7 @@ var configCmd = &cobra.Command{
 		if !confirmReadOnlyPaths() {
 			return nil
 		}
-		out, err := yaml.Marshal(projectConfig)
+		out, err := yaml.Marshal(config)
 		if err != nil {
 			return err
 		}
@@ -41,7 +41,7 @@ var configCmd = &cobra.Command{
 
 // printLoadedPaths lists the config files loaded and not loaded, in load order
 func printLoadedPaths() {
-	loaded, notLoaded := projectcfg.LoadedPaths(projectConfig.ProjectDir())
+	loaded, notLoaded := cfg.LoadedPaths(config.ProjectDir())
 	log.Info("\n# Config files, in load order:")
 	for _, path := range loaded {
 		log.Infof("#   %s", userdir.Tilde(path))
@@ -56,11 +56,11 @@ func printLoadedPaths() {
 // paths or more — a stray `ccbox config` at home or / globs into everywhere. Returns
 // whether to print.
 func confirmReadOnlyPaths() bool {
-	if !projectConfig.ManyReadOnlyMatches() {
+	if !config.ManyReadOnlyMatches() {
 		return true
 	}
 	question := fmt.Sprintf("read_only_globs matched %d+ paths in %s; print the config anyway?",
-		globkit.MatchLimit, userdir.Tilde(projectConfig.ProjectDir()))
+		globkit.MatchLimit, userdir.Tilde(config.ProjectDir()))
 	if term.Confirm(question) {
 		return true
 	}
@@ -71,10 +71,10 @@ func confirmReadOnlyPaths() bool {
 // printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs and bind
 // hosts are present-checked like any dir; globs can't be — their expansion shows what's armed instead.
 func printGuardMountWarnings() {
-	tmpfsMasks := projectConfig.TmpfsMasksAbsent()
-	volumeMasks := projectConfig.VolumeMasksAbsent()
-	globs := projectConfig.ReadOnlyGlobsExpanded()
-	binds := projectConfig.ReadOnlyBindsAbsent()
+	tmpfsMasks := config.TmpfsMasksAbsent()
+	volumeMasks := config.VolumeMasksAbsent()
+	globs := config.ReadOnlyGlobsExpanded()
+	binds := config.ReadOnlyBindsAbsent()
 	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 || len(globs) > 0 || len(binds) > 0 {
 		log.Info("")
 	}
@@ -96,8 +96,8 @@ var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Write a starter .ccbox.yaml template to fill in",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		path := projectConfig.ProjectDir()
-		if err := projectcfg.Init(path); err != nil {
+		path := config.ProjectDir()
+		if err := cfg.Init(path); err != nil {
 			return err
 		}
 		log.Infof("wrote %s", path)
@@ -125,24 +125,24 @@ type aliasField struct {
 
 // struct array keeps the order
 var aliasFields = []aliasField{
-	{"tmpfs_masks", projectcfg.TmpfsDefaults()},
-	{"volume_masks", projectcfg.VolumeDefaults()},
-	{"read_only_globs", projectcfg.ReadOnlyDefaults()},
-	{"allowlist", projectcfg.AllowlistDefaults()},
+	{"tmpfs_masks", cfg.TmpfsDefaults()},
+	{"volume_masks", cfg.VolumeDefaults()},
+	{"read_only_globs", cfg.ReadOnlyDefaults()},
+	{"allowlist", cfg.AllowlistDefaults()},
 }
 
 // aliasSections are `ccbox config defaults`' sections: every ccbox- alias's
 // expansion, in print order
 func aliasSections() []printutil.Section {
 	return slices.Concat(
-		[]printutil.Section{{Header: projectcfg.DefaultsAlias + ":"}},
+		[]printutil.Section{{Header: cfg.DefaultsAlias + ":"}},
 		slicex.Map(aliasFields, func(f aliasField) printutil.Section {
 			return printutil.Section{Header: f.fieldName + ":", Items: f.defaults, Depth: 1}
 		}),
 		[]printutil.Section{{
-			Header: projectcfg.SetHarnessAlias + " (cli " + *projectConfig.CLIName +
+			Header: cfg.SetHarnessAlias + " (cli " + *config.CLIName +
 				"; a --vnc load adds the desktop's GUI app):",
-			Items: projectConfig.SetHarnessDomains(),
+			Items: config.SetHarnessDomains(),
 		}},
 		slicex.Map(provider.All(), func(p provider.Provider) printutil.Section {
 			return printutil.Section{Header: p.Alias() + ":", Items: p.Domains}
@@ -157,7 +157,7 @@ var configUserCmd = &cobra.Command{
 	Use:   "user",
 	Short: "Print the user-level config's path",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		log.Info(userdir.Tilde(projectcfg.UserConfigFile()))
+		log.Info(userdir.Tilde(cfg.UserConfigFile()))
 		return nil
 	},
 }

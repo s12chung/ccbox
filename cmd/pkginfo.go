@@ -10,7 +10,7 @@ var pkginfoCmd = &cobra.Command{
 	Use:   "pkginfo",
 	Short: "Print the CLI_PKGINFO env JSON for the effective config",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		body, err := projectConfig.CLI().PkgInfoJSON()
+		body, err := config.CLI().PkgInfoJSON()
 		if err != nil {
 			return err
 		}

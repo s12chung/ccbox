@@ -5,7 +5,7 @@ import (
 	"io/fs"
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/pkg/projectcfg"
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/scratch"
@@ -28,6 +28,6 @@ func PersistDir(projectDir string) scratch.Binder {
 			Content:  scratch.Dir{SeedFS: seedFS()},
 			Sync:     scratch.Direct{},
 		},
-		BindPath: projectcfg.ContainerHome + "/.ccbox/persist",
+		BindPath: cfg.ContainerHome + "/.ccbox/persist",
 	}
 }
