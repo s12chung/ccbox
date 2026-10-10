@@ -6,10 +6,12 @@ import (
 	"path"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/cli"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -157,16 +159,22 @@ func globalVolumes(serveVNC bool) map[string]string {
 // cacheVolumeSuffix is the suffix for cacheVolumesMap in case of collisions
 const cacheVolumeSuffix = "-cache-default"
 
-// cacheVolumesMap maps suffix of volume name → container directory for cacheVolumeNames()
-var cacheVolumesMap = map[string]string{
-	"go":         "/home/ccbox/go",          // go mod tidy module cache + GOBIN
-	"cache":      "/home/ccbox/.cache",      // go-build + pip cache
-	"gem":        "/home/ccbox/.gem",        // bundler GEM_HOME
-	"npm":        "/home/ccbox/.npm",        // npm download cache
-	"npm-global": "/home/ccbox/.npm-global", // global npm packages
-	"local":      "/home/ccbox/.local",      // XDG data dir
-	"tmp":        "/tmp",                    // agent tmp workspace to try things out
+// sharedCacheVolumes are the generic volumes every project gets, runtime-independent
+var sharedCacheVolumes = map[string]string{
+	"cache": "/home/ccbox/.cache", // go-build + pip cache
+	"local": "/home/ccbox/.local", // XDG data dir
+	"tmp":   "/tmp",               // agent tmp workspace to try things out
 }
+
+var cacheVolumesMap = func() map[string]string {
+	volumes := maps.Clone(sharedCacheVolumes)
+	for _, r := range runtime.All() {
+		for _, dir := range r.CacheVolumes {
+			volumes[strings.TrimPrefix(path.Base(dir), ".")] = dir
+		}
+	}
+	return volumes
+}()
 
 // cacheVolumeNames maps volume name → container dir under the projectDir's slug
 func cacheVolumeNames(projectDir string) map[string]string {

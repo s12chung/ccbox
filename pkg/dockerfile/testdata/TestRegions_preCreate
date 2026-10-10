@@ -1,0 +1,3 @@
+RUN mkdir -p /home/ccbox/go /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.gem \
+             /home/ccbox/.cache /home/ccbox/.local /home/ccbox/.config /opt/ccbox/clis && \
+    git config --file /home/ccbox/.gitconfig --add safe.directory '*'

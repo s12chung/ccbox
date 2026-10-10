@@ -73,7 +73,7 @@ func TestSeedConfig(t *testing.T) {
 	// the seed is the pinned defaults' carrier
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
-	assert.Equal(t, string(defaultConfig), string(body))
+	assert.Equal(t, string(RenderConfig()), string(body))
 }
 
 func TestSeedConfig_SkipsExisting(t *testing.T) {
@@ -125,14 +125,13 @@ func TestBuildFS(t *testing.T) {
 		name       string
 		seedUser   bool
 		projectDir string
-		wantErr    string
 		wantConfig string
 		wantLock   string
 	}{
-		// rootSeed seeds the user level before any build: no config guards a seed
-		// gone missing, it's not a real flow
-		{name: "no config", projectDir: t.TempDir(), wantErr: "no mise config found"},
-		{name: "user", seedUser: true, projectDir: t.TempDir(), wantConfig: string(defaultConfig), wantLock: fixtureLock},
+		// rootSeed seeds the user level on every ccbox invocation, so no config is a
+		// robustness path: the render falls in, unlocked
+		{name: "no config", projectDir: t.TempDir(), wantConfig: string(RenderConfig())},
+		{name: "user", seedUser: true, projectDir: t.TempDir(), wantConfig: string(RenderConfig()), wantLock: fixtureLock},
 		// the user level is seeded here too: the project's own config wins
 		{name: "project", seedUser: true, projectDir: projectDir, wantConfig: fixtureConfig, wantLock: fixtureLock},
 	}
@@ -142,10 +141,6 @@ func TestBuildFS(t *testing.T) {
 				seedUser(t)
 			}
 			merged, err := BuildFS(embedFSFixture(), tt.projectDir)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-				return
-			}
 			require.NoError(t, err)
 
 			config, err := fs.ReadFile(merged, contextConfigPath)

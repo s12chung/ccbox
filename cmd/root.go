@@ -86,7 +86,6 @@ var rootCmd = &cobra.Command{
 // Execute runs the CLI
 func Execute(buildContext embed.FS) error {
 	embedBuildContext = buildContext
-	initMiseImage()
 	return rootCmd.Execute()
 }
 

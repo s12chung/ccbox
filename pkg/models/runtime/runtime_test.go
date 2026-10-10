@@ -1,7 +1,9 @@
 package runtime
 
 import (
+	"maps"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/s12chung/firm"
@@ -9,6 +11,9 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 )
+
+// containerHome is the image's user home the image state hangs off
+const containerHome = "/home/ccbox"
 
 func TestAliases(t *testing.T) {
 	aliases := Aliases()
@@ -49,6 +54,31 @@ func TestDomainsFor(t *testing.T) {
 			assert.Falsef(t, ok, "%q is no alias", alias)
 		}
 	})
+}
+
+// TestData_Corroborates cross-checks the image-state fields against each other:
+// the data is handwritten, so a stale dir should fail here, not the image build.
+func TestData_Corroborates(t *testing.T) {
+	for _, r := range All() {
+		t.Run(r.Name, func(t *testing.T) {
+			dirs := slices.Concat(r.CacheVolumes, r.BinEntries)
+
+			// every env'd path is a cache volume or PATH entry: the volumes seed what the env points at
+			for k, v := range r.EnvVars {
+				if !strings.HasPrefix(v, containerHome+"/") {
+					continue // not a path (NPM_CONFIG_UPDATE_NOTIFIER=false)
+				}
+				assert.Containsf(t, dirs, v, "%s points outside the runtime's dirs", k)
+			}
+
+			// PATH entries derive from the env: the value itself (GOBIN), or its bin dir (GEM_HOME, NPM_CONFIG_PREFIX)
+			values := slices.Collect(maps.Values(r.EnvVars))
+			for _, bin := range r.BinEntries {
+				derived := slices.ContainsFunc(values, func(v string) bool { return v == bin || v+"/bin" == bin })
+				assert.Truef(t, derived, "%s derives from no env var", bin)
+			}
+		})
+	}
 }
 
 func TestDomains_Valid(t *testing.T) {

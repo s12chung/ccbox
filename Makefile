@@ -8,7 +8,7 @@ build:
 	GOARCH=$(GOARCH) $(BIN) doctor tools
 
 lint: lint.terms
-	hadolint Dockerfile
+	hadolint pkg/dockerfile/testdata/TestRender.Dockerfile
 	shellcheck docker/desktop.sh docker/web-browser pkg/models/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/models/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
 	find pkg/projectcfg/testdata -name '*.yaml' -exec yq '.' {} + > /dev/null

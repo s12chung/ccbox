@@ -3,7 +3,6 @@ package mise
 
 import (
 	"context"
-	_ "embed"
 	"errors"
 	"io/fs"
 	"os"
@@ -106,16 +105,11 @@ const (
 	contextLockPath   = "docker/mise/mise.lock"
 )
 
-// defaultConfig is the seeded default config
-//
-//go:embed config.toml
-var defaultConfig []byte
-
 // SeedConfig safe-seeds the user-level mise config with the pinned defaults
-func SeedConfig(path string) error { return seed.SafeFile(path, defaultConfig) }
+func SeedConfig(path string) error { return seed.SafeFile(path, RenderConfig()) }
 
 // BuildFS is the build fs for the image's `mise install`: the embed with the
-// mise config injected where the Dockerfile COPYs it
+// mise config injected where the Dockerfile COPYs it.
 func BuildFS(embed fs.FS, projectDir string) (fs.FS, error) {
 	var hostConfigFS fs.FS
 	for _, configPath := range []string{UserConfigPath(), ProjectConfigPath(projectDir)} {
@@ -128,13 +122,13 @@ func BuildFS(embed fs.FS, projectDir string) (fs.FS, error) {
 			return nil, err
 		}
 	}
-	if hostConfigFS == nil {
-		return nil, errors.New("no mise config found")
-	}
 
 	merged, err := mfs.NewFS(embed)
 	if err != nil {
 		return nil, err
+	}
+	if hostConfigFS == nil {
+		hostConfigFS = mfs.MapFS{contextConfigPath: {Data: RenderConfig()}}
 	}
 	if err := merged.Merge(hostConfigFS); err != nil {
 		return nil, err

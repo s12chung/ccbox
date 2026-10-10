@@ -1,3 +1,6 @@
+# The devbox image's Dockerfile template: `ccbox build` renders it into the build
+# context (pkg/dockerfile) — the actions generate the runtime-owned statements
+# from pkg/models/runtime.
 FROM ghcr.io/jdx/mise:2026.6.9 AS mise
 
 FROM debian:trixie-slim AS base
@@ -6,14 +9,14 @@ FROM debian:trixie-slim AS base
 # - build toolchain
 # - TLS roots for mise downloads
 # - dev-workflow CLIs
-# - Ruby runtime libs
 # - Node runtime lib (V8 needs libatomic on arm64)
+# - Ruby runtime libs
 RUN apt-get update && apt-get install -y --no-install-recommends \
         build-essential \
         ca-certificates \
         git curl less procps pkg-config unzip bind9-dnsutils \
-        libssl3t64 libyaml-0-2 zlib1g libffi8 libreadline8t64 libgmp10 libzstd1 \
         libatomic1 \
+        libssl3t64 libyaml-0-2 zlib1g libffi8 libreadline8t64 libgmp10 libzstd1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
@@ -50,12 +53,12 @@ ENV DEVCONTAINER=true
 ENV TZ="America/New_York"
 
 # Let ccbox install packages in every ecosystem with no root
-ENV NPM_CONFIG_PREFIX=/home/ccbox/.npm-global
-ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 ENV GEM_HOME=/home/ccbox/.gem
 ENV GOBIN=/home/ccbox/go/bin
+ENV NPM_CONFIG_PREFIX=/home/ccbox/.npm-global
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 # The clis volume's bin dir leads: ccboxtools installs the coding CLI there at start
-ENV PATH=/opt/ccbox/clis/bin:/home/ccbox/.local/share/mise/shims:/home/ccbox/.local/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin:/home/ccbox/go/bin:$PATH
+ENV PATH=/opt/ccbox/clis/bin:/home/ccbox/.local/share/mise/shims:/home/ccbox/.local/bin:/home/ccbox/go/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin:$PATH
 
 # Two interactive-shell tweaks:
 # - Debian's /etc/profile resets PATH on login shells (bash -l), clearing the append above.
@@ -80,14 +83,12 @@ RUN rm -rf /root/.cache /root/.npm /tmp; mkdir -m 1777 /tmp; \
 USER ccbox
 
 # Pre-create **generic** mountpoints so named volumes inherit uid 1000 (else root-owned, unwritable)
-# - cacheVolumes - per-project caches mapped to pkg/dmap/mounts.go (/tmp is created above to keep 1777)
+# - cacheVolumes - per-project caches mapped from pkg/models/runtime via pkg/dmap/mounts.go (/tmp is created above to keep 1777)
 # - globalVolumes - global volumes mapped to pkg/dmap/mounts.go
 # - /home/ccbox/.config - opencode's config dir's parent
 # - git config ... - handles container user non-match repo owner problem - https://github.blog/open-source/git/git-security-vulnerability-announced/
-RUN mkdir -p /home/ccbox/go /home/ccbox/.cache /home/ccbox/.gem \
-             /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.local \
-             /opt/ccbox/clis \
-             /home/ccbox/.config && \
+RUN mkdir -p /home/ccbox/go /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.gem \
+             /home/ccbox/.cache /home/ccbox/.local /home/ccbox/.config /opt/ccbox/clis && \
     git config --file /home/ccbox/.gitconfig --add safe.directory '*'
 
 # data_bind_dirs is for pre-creating harness CLI mountpoints so named volumes inherit uid 1000 (else root-owned, unwritable)
@@ -142,5 +143,5 @@ RUN mkdir -p /opt/ccbox/apps && chown ccbox:ccbox /opt/ccbox/apps
 
 USER ccbox
 
-# The default target — a bare `docker build .` builds the headless base.
+# The default target
 FROM base

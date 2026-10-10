@@ -16,7 +16,7 @@ import (
 // that's checked at build time by `ccbox doctor tools`.
 // all: keeps the desktop home's dot-dirs (.config) embedded.
 //
-//go:embed all:Dockerfile all:docker/* dist/ccboxtools
+//go:embed all:docker/* dist/ccboxtools
 var embedBuildContext embed.FS
 
 func main() {

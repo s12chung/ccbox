@@ -1,0 +1,18 @@
+# System toolchain — shared by all users (COPY'd to /etc/mise/config.toml).
+
+[tools]
+{{runtimes}}
+
+# Dev-workflow CLIs
+ripgrep = "15.1.0"
+jq      = "1.8.1"
+yq      = "4.53.3"
+
+{{lintTools}}
+
+# Installs a lot of version independent apt-get packages
+[tools."npm:playwright"]
+version     = "latest"
+# Chromium system libs (no browser binaries) + the browser itself, into
+# PLAYWRIGHT_BROWSERS_PATH (see Dockerfile) so the whole image shares one copy
+postinstall = "playwright install-deps chromium && playwright install chromium"

@@ -4,6 +4,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/projectcfg"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -156,6 +158,29 @@ func TestCliScratchBind(t *testing.T) {
 	t.Run("no bind when scratchFile is empty (no scratch written)", func(t *testing.T) {
 		assert.Empty(t, cliScratchBind("", ""))
 	})
+}
+
+func TestCacheVolumesMap(t *testing.T) {
+	// today's literal names: existing host volumes keep matching
+	assert.Equal(t, map[string]string{
+		"cache":      "/home/ccbox/.cache",
+		"gem":        "/home/ccbox/.gem",
+		"go":         "/home/ccbox/go",
+		"local":      "/home/ccbox/.local",
+		"npm":        "/home/ccbox/.npm",
+		"npm-global": "/home/ccbox/.npm-global",
+		"tmp":        "/tmp",
+	}, cacheVolumesMap)
+
+	// a colliding suffix silently overwrites: every cache volume composes in
+	suffixes := map[string]bool{}
+	for _, r := range runtime.All() {
+		for _, dir := range r.CacheVolumes {
+			suffix := strings.TrimPrefix(path.Base(dir), ".")
+			assert.Falsef(t, suffixes[suffix], "suffix %q collides", suffix)
+			suffixes[suffix] = true
+		}
+	}
 }
 
 func TestCacheVolumeNames(t *testing.T) {
