@@ -125,6 +125,15 @@ func AllDomains() []string {
 	return domains
 }
 
+// AllCacheVolumes concatenates every runtime's cache volumes
+func AllCacheVolumes() []string {
+	var volumes []string
+	for _, r := range runtimes {
+		volumes = append(volumes, r.CacheVolumes...)
+	}
+	return volumes
+}
+
 // AllMiseTools flattens every runtime's tools in All's order — the mise config's
 // [tools] input
 func AllMiseTools() []mise.Tool {

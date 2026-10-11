@@ -13,12 +13,13 @@ import (
 // RunMap maps one run's project config to the docker pkg options
 type RunMap struct {
 	cfg          *cfg.Config
+	cacheVolumes []string
 	tagByProject bool
 }
 
 // NewRunMap returns a new RunMap
-func NewRunMap(cfg *cfg.Config, tagByProject bool) *RunMap {
-	return &RunMap{cfg: cfg, tagByProject: tagByProject}
+func NewRunMap(cfg *cfg.Config, cacheVolumes []string, tagByProject bool) *RunMap {
+	return &RunMap{cfg: cfg, cacheVolumes: cacheVolumes, tagByProject: tagByProject}
 }
 
 // RunMode is the run's selected mode, with Args carrying its args

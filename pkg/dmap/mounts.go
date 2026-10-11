@@ -12,7 +12,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/cli"
-	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
@@ -51,7 +50,7 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 		},
 		proxyAllowBinds(noProxy),
 		volumes(globalVolumes(serveVNC), true),
-		volumes(cacheVolumeNames(projectDir), false),
+		volumes(cacheVolumeNames(projectDir, rm.cacheVolumes), false),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
@@ -85,10 +84,9 @@ func volumes(nameDirs map[string]string, global bool) []docker.Mount {
 // per-project volume; ensured fresh, then chowned to the container user, so the run's
 // own content seeds it.
 func volumeMasks(projectDir string, relDirs []string) []docker.Mount {
-	workspace := workspaceMount(projectDir)
 	volumes := make([]docker.Mount, 0, len(relDirs))
 	for _, d := range relDirs {
-		volumes = append(volumes, docker.NewVolume(volumeName(projectDir, d), filepath.Join(workspace, d)))
+		volumes = append(volumes, docker.NewVolume(volumeName(projectDir, d), filepath.Join(workspaceMount(projectDir), d)))
 	}
 	return volumes
 }
@@ -167,21 +165,15 @@ var sharedCacheVolumes = map[string]string{
 	"tmp":   "/tmp",               // agent tmp workspace to try things out
 }
 
-var cacheVolumesMap = func() map[string]string {
-	volumes := maps.Clone(sharedCacheVolumes)
-	for _, r := range runtime.All() {
-		for _, dir := range r.CacheVolumes {
-			volumes[strings.TrimPrefix(path.Base(dir), ".")] = dir
-		}
-	}
-	return volumes
-}()
-
-// cacheVolumeNames maps volume name → container dir under the projectDir's slug
-func cacheVolumeNames(projectDir string) map[string]string {
-	volumes := make(map[string]string, len(cacheVolumesMap))
-	for suffix, dir := range cacheVolumesMap {
+// cacheVolumeNames maps volume name → container dir under the projectDir's slug: the
+// shared volumes plus each runtime's, keyed by path.Base minus its leading dot
+func cacheVolumeNames(projectDir string, cacheVolumes []string) map[string]string {
+	volumes := make(map[string]string, len(sharedCacheVolumes)+len(cacheVolumes))
+	for suffix, dir := range sharedCacheVolumes {
 		volumes[volumeName(projectDir, suffix)+cacheVolumeSuffix] = dir
+	}
+	for _, dir := range cacheVolumes {
+		volumes[volumeName(projectDir, strings.TrimPrefix(path.Base(dir), "."))+cacheVolumeSuffix] = dir
 	}
 	return volumes
 }

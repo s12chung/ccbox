@@ -36,7 +36,7 @@ func testRunMap(t *testing.T, flags cfg.Config) *RunMap {
 	}
 	config, err := cfg.Load(t.TempDir(), flags, false)
 	require.NoError(t, err)
-	return NewRunMap(config, false)
+	return NewRunMap(config, runtime.AllCacheVolumes(), false)
 }
 
 func TestProxyAllowBinds(t *testing.T) {
@@ -160,29 +160,6 @@ func TestCliScratchBind(t *testing.T) {
 	})
 }
 
-func TestCacheVolumesMap(t *testing.T) {
-	// today's literal names: existing host volumes keep matching
-	assert.Equal(t, map[string]string{
-		"cache":      "/home/ccbox/.cache",
-		"gem":        "/home/ccbox/.gem",
-		"go":         "/home/ccbox/go",
-		"local":      "/home/ccbox/.local",
-		"npm":        "/home/ccbox/.npm",
-		"npm-global": "/home/ccbox/.npm-global",
-		"tmp":        "/tmp",
-	}, cacheVolumesMap)
-
-	// a colliding suffix silently overwrites: every cache volume composes in
-	suffixes := map[string]bool{}
-	for _, r := range runtime.All() {
-		for _, dir := range r.CacheVolumes {
-			suffix := strings.TrimPrefix(path.Base(dir), ".")
-			assert.Falsef(t, suffixes[suffix], "suffix %q collides", suffix)
-			suffixes[suffix] = true
-		}
-	}
-}
-
 func TestCacheVolumeNames(t *testing.T) {
 	s := slug.Path("/Users/me/proj")
 	assert.Equal(t, map[string]string{
@@ -193,10 +170,20 @@ func TestCacheVolumeNames(t *testing.T) {
 		"ccbox" + s + "-npm-cache-default":         "/home/ccbox/.npm",
 		"ccbox" + s + "-npm--global-cache-default": "/home/ccbox/.npm-global",
 		"ccbox" + s + "-tmp-cache-default":         "/tmp",
-	}, cacheVolumeNames("/Users/me/proj"))
+	}, cacheVolumeNames("/Users/me/proj", runtime.AllCacheVolumes()))
 
 	// protect against mounts at "tmp"
-	assert.NotContains(t, cacheVolumeNames("/Users/me/proj"), volumeName("/Users/me/proj", "tmp"))
+	assert.NotContains(t, cacheVolumeNames("/Users/me/proj", runtime.AllCacheVolumes()), volumeName("/Users/me/proj", "tmp"))
+
+	// a colliding suffix silently overwrites: every cache volume composes in
+	suffixes := map[string]bool{}
+	for _, r := range runtime.All() {
+		for _, dir := range r.CacheVolumes {
+			suffix := strings.TrimPrefix(path.Base(dir), ".")
+			assert.Falsef(t, suffixes[suffix], "suffix %q collides", suffix)
+			suffixes[suffix] = true
+		}
+	}
 }
 
 func TestVolumeName(t *testing.T) {

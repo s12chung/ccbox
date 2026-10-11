@@ -35,6 +35,15 @@ func TestAll(t *testing.T) {
 	assert.True(t, slices.IsSorted(names))
 }
 
+func TestAllCacheVolumes(t *testing.T) {
+	var want []string
+	for _, r := range All() {
+		want = append(want, r.CacheVolumes...)
+	}
+	assert.NotEmpty(t, want)
+	assert.Equal(t, want, AllCacheVolumes())
+}
+
 func TestDomainsFor(t *testing.T) {
 	for _, runtime := range runtimes {
 		domains, ok := DomainsFor(runtime.Alias())

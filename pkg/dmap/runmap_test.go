@@ -14,6 +14,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
@@ -30,7 +31,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 		Allowlist: []string{cfg.DefaultsAlias, "example.com"},
 	}, false)
 	require.NoError(t, err)
-	rm := NewRunMap(config, false)
+	rm := NewRunMap(config, runtime.AllCacheVolumes(), false)
 
 	// the pieces RunOptions composes
 	hostOptions, hostClean, err := rm.HostOptions(false, false)
@@ -71,7 +72,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, false).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -96,7 +97,7 @@ func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, true).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), true).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -125,7 +126,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, false).HostOptions(false, false)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -166,7 +167,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, false).HostOptions(false, true)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -183,7 +184,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, false).HostOptions(true, false)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
