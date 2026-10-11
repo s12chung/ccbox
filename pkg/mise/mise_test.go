@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -64,29 +63,6 @@ func TestGenerateLock_UserConfig(t *testing.T) {
 	lock, err := os.ReadFile(LockPath(UserConfigPath()))
 	require.NoError(t, err)
 	assert.Equal(t, fixtureLock, string(lock), "a fresh lock is left untouched")
-}
-
-func TestSeedConfig(t *testing.T) {
-	testutil.Home(t)
-
-	require.NoError(t, SeedConfig(UserConfigPath(), nil))
-
-	// the seed is the pinned defaults' carrier
-	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
-	require.NoError(t, err)
-	assert.Equal(t, string(must.Get(renderConfig(nil))), string(body))
-}
-
-func TestSeedConfig_SkipsExisting(t *testing.T) {
-	testutil.Home(t)
-	require.NoError(t, os.MkdirAll(userdir.Dir(), osutil.Dir))
-	require.NoError(t, os.WriteFile(UserConfigPath(), []byte("custom"), osutil.File))
-
-	require.NoError(t, SeedConfig(UserConfigPath(), nil))
-
-	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own config path
-	require.NoError(t, err)
-	assert.Equal(t, "custom", string(body)) // the user's own file is never touched
 }
 
 // commitLock writes both lock artifacts for the config on disk — the state GenerateLock

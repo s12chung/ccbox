@@ -42,6 +42,30 @@ func TestDirs_Present(t *testing.T) {
 	}
 }
 
+func TestPickLayer(t *testing.T) {
+	dir := t.TempDir()
+	first := filepath.Join(dir, "first")
+	second := filepath.Join(dir, "second")
+	require.NoError(t, os.WriteFile(first, nil, File))
+	require.NoError(t, os.WriteFile(second, nil, File))
+
+	tests := []struct {
+		name  string
+		paths []string
+		want  string
+	}{
+		{"first present wins", []string{first, second}, first},
+		{"absent falls through", []string{filepath.Join(dir, "missing"), second}, second},
+		{"nothing present", []string{filepath.Join(dir, "missing"), filepath.Join(dir, "also-missing")}, ""},
+		{"no paths", nil, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, PickLayer(tt.paths...))
+		})
+	}
+}
+
 func TestIsSymlinkTo(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target")

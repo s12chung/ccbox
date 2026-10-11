@@ -14,6 +14,17 @@ func Minus[E comparable](a, b []E) []E {
 	return out
 }
 
+// Unique returns s's entries in order, repeats dropped.
+func Unique[E comparable](s []E) []E {
+	var out []E
+	for _, e := range s {
+		if !slices.Contains(out, e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // Map renders each element with f, keeping order.
 func Map[E, R any](s []E, f func(E) R) []R {
 	out := make([]R, len(s))

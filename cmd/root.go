@@ -18,6 +18,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/prompt"
+	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/flagptr"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -35,6 +36,7 @@ var (
 // loaded once together before any command runs
 var (
 	config       *cfg.Config // layered config (user < project < local < flags)
+	provSpec     *prov.Spec  // layered provisioning spec (user < project)
 	tagByProject bool        // whether the project carries its own mise config
 )
 
@@ -79,6 +81,10 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		provSpec, err = prov.Load(mustGetwd())
+		if err != nil {
+			return err
+		}
 		tagByProject = osutil.Present(mise.ProjectConfigPath(config.ProjectDir()))
 		return prompt.ProjectDirSize(config.ProjectDir())
 	},
@@ -120,10 +126,13 @@ func rootSeed() error {
 	if err := share.SafeSeedAgentsMd(); err != nil {
 		return err
 	}
-	if err := mise.SeedConfig(mise.UserConfigPath(), runtime.AllMiseTools()); err != nil {
+	if err := safeSeedUserConfig(); err != nil {
 		return err
 	}
-	return safeSeedUserConfig()
+	if err := prov.SeedConfig(); err != nil {
+		return err
+	}
+	return mise.SeedConfig(mise.UserConfigPath(), runtime.AllMiseTools())
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing

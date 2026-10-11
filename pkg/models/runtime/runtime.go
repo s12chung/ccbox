@@ -7,6 +7,7 @@ package runtime
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/s12chung/ccbox/pkg/mise"
 )
@@ -48,7 +49,8 @@ type Runtime struct {
 	EnvVars map[string]string
 }
 
-// runtimes is every known runtime, sorted by name.
+// runtimes is every selectable runtime, sorted by name — node is not selectable
+// (see node below).
 var runtimes = []Runtime{
 	// Go: vanity imports, module proxy, checksum db, toolchain mirror
 	{
@@ -59,19 +61,6 @@ var runtimes = []Runtime{
 		CacheVolumes:      []string{"/home/ccbox/go"}, // go mod tidy module cache + GOBIN
 		BinEntries:        []string{"/home/ccbox/go/bin"},
 		EnvVars:           map[string]string{"GOBIN": "/home/ccbox/go/bin"},
-	},
-	// Node: the npm + yarn registries and nodejs.org
-	{
-		Name:         "node",
-		Domains:      []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
-		MiseTool:     mise.Tool{Tool: "node", Version: "26.3.0"},
-		AptPkgs:      []string{"libatomic1"},                                  // V8 needs libatomic on arm64
-		CacheVolumes: []string{"/home/ccbox/.npm", "/home/ccbox/.npm-global"}, // npm download cache; global packages
-		BinEntries:   []string{"/home/ccbox/.npm-global/bin"},
-		EnvVars: map[string]string{
-			"NPM_CONFIG_PREFIX":          "/home/ccbox/.npm-global",
-			"NPM_CONFIG_UPDATE_NOTIFIER": "false",
-		},
 	},
 	// Python: the package index and its file host
 	{
@@ -97,19 +86,51 @@ var runtimes = []Runtime{
 	},
 }
 
+// node is installed by default — the devbox tooling depends on it.
+var node = Runtime{
+	Name:         "node",
+	Domains:      []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
+	MiseTool:     mise.Tool{Tool: "node", Version: "26.3.0"},
+	AptPkgs:      []string{"libatomic1"},                                  // V8 needs libatomic on arm64
+	CacheVolumes: []string{"/home/ccbox/.npm", "/home/ccbox/.npm-global"}, // npm download cache; global packages
+	BinEntries:   []string{"/home/ccbox/.npm-global/bin"},
+	EnvVars: map[string]string{
+		"NPM_CONFIG_PREFIX":          "/home/ccbox/.npm-global",
+		"NPM_CONFIG_UPDATE_NOTIFIER": "false",
+	},
+}
+
 // AllRuntimesAlias is the allowlist alias expanding to every runtime's domains
 const AllRuntimesAlias = "ccbox-all-runtimes"
 
-// All lists every known runtime, sorted by name
-func All() []Runtime { return slices.Clone(runtimes) }
+// All lists every runtime — node plus the selectable ones, sorted by name
+func All() []Runtime {
+	all := append(slices.Clone(runtimes), node)
+	slices.SortFunc(all, func(a, b Runtime) int { return strings.Compare(a.Name, b.Name) })
+	return all
+}
 
 // Alias is the runtime's allowlist alias: ccbox-<name>-runtime
 func (r Runtime) Alias() string { return "ccbox-" + r.Name + "-runtime" }
 
+// Node is the always-installed runtime: the prov spec's runtimes never list it.
+func Node() Runtime { return node }
+
+// Names lists every runtime's name — node included — sorted
+func Names() []string {
+	all := All()
+	names := make([]string, 0, len(all))
+	for _, r := range all {
+		names = append(names, r.Name)
+	}
+	return names
+}
+
 // Aliases lists every runtime's alias plus AllRuntimesAlias, sorted
 func Aliases() []string {
-	aliases := make([]string, 0, len(runtimes)+1)
-	for _, r := range runtimes {
+	all := All()
+	aliases := make([]string, 0, len(all)+1)
+	for _, r := range all {
 		aliases = append(aliases, r.Alias())
 	}
 	aliases = append(aliases, AllRuntimesAlias)
@@ -119,7 +140,7 @@ func Aliases() []string {
 // AllDomains concatenates every runtime's domains
 func AllDomains() []string {
 	var domains []string
-	for _, r := range runtimes {
+	for _, r := range All() {
 		domains = append(domains, r.Domains...)
 	}
 	return domains
@@ -128,7 +149,7 @@ func AllDomains() []string {
 // AllCacheVolumes concatenates every runtime's cache volumes
 func AllCacheVolumes() []string {
 	var volumes []string
-	for _, r := range runtimes {
+	for _, r := range All() {
 		volumes = append(volumes, r.CacheVolumes...)
 	}
 	return volumes
@@ -138,7 +159,7 @@ func AllCacheVolumes() []string {
 // [tools] input
 func AllMiseTools() []mise.Tool {
 	var tools []mise.Tool
-	for _, r := range runtimes {
+	for _, r := range All() {
 		tools = append(tools, r.MiseTool)
 		tools = append(tools, r.MiseToolsOptional...)
 	}
@@ -148,7 +169,7 @@ func AllMiseTools() []mise.Tool {
 // DomainsFor resolves an allowlist alias to its runtime's domains — every
 // runtime's for AllRuntimesAlias. ok is false for anything but an alias.
 func DomainsFor(alias string) ([]string, bool) {
-	for _, r := range runtimes {
+	for _, r := range All() {
 		if r.Alias() == alias {
 			return slices.Clone(r.Domains), true
 		}

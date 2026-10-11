@@ -9,7 +9,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/mise"
-	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
@@ -30,16 +29,21 @@ func init() {
 func build(ctx context.Context, serveVNC bool) error {
 	projectDir := config.ProjectDir()
 	miseImageRef := must.Get(dockerfile.MiseImageRef())
+	resolved := provSpec.Resolve()
+
+	if err := mise.SyncTools(projectDir, resolved.MiseTools()); err != nil {
+		return err
+	}
 	for _, path := range []string{mise.ProjectConfigPath(projectDir), mise.UserConfigPath()} {
 		if err := mise.GenerateLock(ctx, miseImageRef, path); err != nil {
 			return err
 		}
 	}
-	buildContext, err := mise.BuildFS(embedBuildContext, projectDir, runtime.AllMiseTools())
+	buildContext, err := mise.BuildFS(embedBuildContext, projectDir, resolved.MiseTools())
 	if err != nil {
 		return err
 	}
-	buildContext, err = dockerfile.PatchFS(buildContext)
+	buildContext, err = dockerfile.PatchFS(buildContext, resolved)
 	if err != nil {
 		return err
 	}

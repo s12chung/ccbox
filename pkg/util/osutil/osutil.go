@@ -29,6 +29,16 @@ func Missing(path string) bool {
 // Present returns whether path exists
 func Present(path string) bool { return !Missing(path) }
 
+// PickLayer returns the first present of paths, in the order given; "" when none is present
+func PickLayer(paths ...string) string {
+	for _, path := range paths {
+		if Present(path) {
+			return path
+		}
+	}
+	return ""
+}
+
 // SafeWriteFile writes body at path with File perms, creating its parent dir when missing
 func SafeWriteFile(path string, body []byte) error {
 	if err := os.MkdirAll(filepath.Dir(path), Dir); err != nil {

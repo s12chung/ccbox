@@ -16,7 +16,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
-	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -106,19 +105,11 @@ const (
 	contextLockPath   = "docker/mise/mise.lock"
 )
 
-// SeedConfig safe-seeds the user-level mise config: tools over the pinned defaults
-func SeedConfig(path string, tools []Tool) error {
-	return seed.SafeFile(path, must.Get(renderConfig(tools)))
-}
-
 // BuildFS is the build fs for the image's `mise install`: the embed with the
 // mise config injected where the Dockerfile COPYs it.
 func BuildFS(embed fs.FS, projectDir string, tools []Tool) (fs.FS, error) {
 	var hostConfigFS fs.FS
-	for _, configPath := range []string{UserConfigPath(), ProjectConfigPath(projectDir)} {
-		if !osutil.Present(configPath) {
-			continue
-		}
+	if configPath := osutil.PickLayer(ProjectConfigPath(projectDir), UserConfigPath()); configPath != "" {
 		var err error
 		hostConfigFS, err = configFS(configPath)
 		if err != nil {

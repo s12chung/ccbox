@@ -13,7 +13,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
+	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -69,9 +71,11 @@ func composedContext(t *testing.T) fs.FS {
 	testutil.Home(t) // keeps the test off the host's user level
 	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), runtime.AllMiseTools()))
 	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
-	src, err := mise.BuildFS(embedBuildContext, t.TempDir(), runtime.AllMiseTools())
+	provSpec := prov.Spec{Runtimes: slicex.Minus(runtime.Names(), []string{runtime.Node().Name})}
+	resolved := provSpec.Resolve()
+	src, err := mise.BuildFS(embedBuildContext, t.TempDir(), resolved.MiseTools())
 	require.NoError(t, err)
-	src, err = dockerfile.PatchFS(src)
+	src, err = dockerfile.PatchFS(src, resolved)
 	require.NoError(t, err)
 	return src
 }

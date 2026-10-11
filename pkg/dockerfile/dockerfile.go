@@ -13,54 +13,65 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
+	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 )
 
 var (
 	//go:embed Dockerfile.tmpl
 	tmplBody []byte
-	tmpl     = template.Must(template.New("Dockerfile.tmpl").Funcs(regions).Parse(string(tmplBody)))
+	tmpl     = template.Must(template.New("Dockerfile.tmpl").Parse(string(tmplBody)))
 )
 
-// regionFunc binds a region generator to all runtimes.
-func regionFunc(generate func([]runtime.Runtime) string) func() string {
-	return func() string { return generate(runtime.All()) }
+// regions is the tmpl's data; its exported methods are the tmpl's actions.
+type regions struct{ prov.Resolved }
+
+// RuntimeLibs renders the generated apt RUN's continuation row
+func (r regions) RuntimeLibs() string {
+	libs := append(r.collect(func(rt runtime.Runtime) []string { return rt.AptPkgs }), r.AptPackages...)
+	return "        " + strings.Join(libs, " ") + " \\"
 }
 
-// regions maps the tmpl's action names to their region generators, bound to
-// all runtimes.
-var regions = template.FuncMap{
-	// the generated apt RUN's one continuation row
-	"runtimeLibs": regionFunc(runtimeRegion{
-		prefix: "        ", sep: " ", suffix: " \\",
-		items: func(r runtime.Runtime) []string { return r.AptPkgs },
-	}.render),
-	// the from-source compile RUN's $buildDeps
-	"buildDeps": regionFunc(runtimeRegion{
-		sep:   " ",
-		items: func(r runtime.Runtime) []string { return r.AptBuildDeps },
-	}.render),
-	// the user PATH ENV's runtime segment
-	"PATHDirs": regionFunc(runtimeRegion{
-		sep:   ":",
-		items: func(r runtime.Runtime) []string { return r.BinEntries },
-	}.render),
-	// the runtimes' image env pairs
-	"envVars": regionFunc(runtimeRegion{
-		sep:   " ",
-		items: envVarRows,
-	}.render),
-	// the generated mkdir RUN's cache volume mountpoints
-	"cacheDirs": regionFunc(runtimeRegion{
-		sep:   " ",
-		items: func(r runtime.Runtime) []string { return r.CacheVolumes },
-	}.render),
+// BuildDeps renders the from-source compile RUN's $buildDeps
+func (r regions) BuildDeps() string {
+	return strings.Join(r.collect(func(rt runtime.Runtime) []string { return rt.AptBuildDeps }), " ")
+}
+
+// PATHDirs renders the user PATH ENV's runtime segment
+func (r regions) PATHDirs() string {
+	return strings.Join(r.collect(func(rt runtime.Runtime) []string { return rt.BinEntries }), ":")
+}
+
+// EnvVars renders the runtimes' image env pairs
+func (r regions) EnvVars() string {
+	var pairs []string
+	for _, rt := range r.Runtimes {
+		// Go map iteration is randomized
+		for _, k := range slices.Sorted(maps.Keys(rt.EnvVars)) {
+			pairs = append(pairs, k+"="+rt.EnvVars[k])
+		}
+	}
+	return strings.Join(pairs, " ")
+}
+
+// CacheDirs renders the generated mkdir RUN's cache volume mountpoints
+func (r regions) CacheDirs() string {
+	return strings.Join(r.collect(func(rt runtime.Runtime) []string { return rt.CacheVolumes }), " ")
+}
+
+// collect gathers field's items, keeping All()'s order
+func (r regions) collect(field func(runtime.Runtime) []string) []string {
+	items := make([]string, 0, len(r.Runtimes))
+	for _, rt := range r.Runtimes {
+		items = append(items, field(rt)...)
+	}
+	return items
 }
 
 // PatchFS renders the Dockerfile.tmpl and layers it over fsys as the context's
 // Dockerfile.
-func PatchFS(fsys fs.FS) (fs.FS, error) {
-	body, err := render()
+func PatchFS(fsys fs.FS, resolved prov.Resolved) (fs.FS, error) {
+	body, err := render(resolved)
 	if err != nil {
 		return nil, err
 	}
@@ -80,37 +91,10 @@ func MiseImageRef() (string, error) {
 	return mise.ImageRefFromDockerfile(tmplBody)
 }
 
-// render executes the tmpl: each action generates its region from all runtimes.
-func render() ([]byte, error) {
+func render(resolved prov.Resolved) ([]byte, error) {
 	var b bytes.Buffer
-	if err := tmpl.Execute(&b, nil); err != nil {
+	if err := tmpl.Execute(&b, regions{resolved}); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
-}
-
-// runtimeRegion renders all runtimes' items into one region.
-type runtimeRegion struct {
-	prefix string
-	sep    string
-	suffix string
-	items  func(runtime.Runtime) []string
-}
-
-func (rr runtimeRegion) render(runtimes []runtime.Runtime) string {
-	all := make([][]string, 0, len(runtimes))
-	for _, r := range runtimes {
-		all = append(all, rr.items(r))
-	}
-	return rr.prefix + strings.Join(slices.Concat(all...), rr.sep) + rr.suffix
-}
-
-// envVarRows renders one runtime's image env pairs, keys sorted
-func envVarRows(r runtime.Runtime) []string {
-	pairs := make([]string, 0, len(r.EnvVars))
-	// Go map iteration is randomized
-	for _, k := range slices.Sorted(maps.Keys(r.EnvVars)) {
-		pairs = append(pairs, k+"="+r.EnvVars[k])
-	}
-	return pairs
 }

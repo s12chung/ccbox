@@ -1,9 +1,11 @@
 package dmap
 
 import (
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
+	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -184,6 +187,24 @@ func TestCacheVolumeNames(t *testing.T) {
 			suffixes[suffix] = true
 		}
 	}
+}
+
+// TestCacheVolumeNames_Selection pins the per-project volumes following the
+// spec's selection.
+func TestCacheVolumeNames_Selection(t *testing.T) {
+	provSpec := prov.Spec{Runtimes: []string{"go", "node"}}
+	resolved := provSpec.Resolve()
+
+	names := cacheVolumeNames("/Users/me/proj", resolved.CacheVolumes())
+	assert.NotContains(t, names, "ccbox"+slug.Path("/Users/me/proj")+"-gem-cache-default")
+	assert.ElementsMatch(t, slices.Collect(maps.Keys(names)), []string{
+		"ccbox" + slug.Path("/Users/me/proj") + "-cache-cache-default", // sharedCacheVolumes ride every run
+		"ccbox" + slug.Path("/Users/me/proj") + "-local-cache-default",
+		"ccbox" + slug.Path("/Users/me/proj") + "-tmp-cache-default",
+		"ccbox" + slug.Path("/Users/me/proj") + "-go-cache-default",
+		"ccbox" + slug.Path("/Users/me/proj") + "-npm-cache-default",
+		"ccbox" + slug.Path("/Users/me/proj") + "-npm--global-cache-default",
+	})
 }
 
 func TestVolumeName(t *testing.T) {

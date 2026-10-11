@@ -10,7 +10,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/models/cli"
-	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
@@ -50,7 +49,7 @@ func run(ctx context.Context, mode dmap.RunMode) error {
 		return err
 	}
 
-	options, clean, err := dmap.NewRunMap(config, runtime.AllCacheVolumes(), tagByProject).RunOptions(flagTag, mode)
+	options, clean, err := dmap.NewRunMap(config, provSpec.Resolve().CacheVolumes(), tagByProject).RunOptions(flagTag, mode)
 	defer log.Defer("clean run files", clean)
 	if err != nil {
 		return err

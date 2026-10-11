@@ -29,6 +29,8 @@ var (
 	HomePath = rule.Match{Regexp: regexp.MustCompile(`^[^/].*$`)}
 	// HTTPSURL is an https endpoint; download templates may carry a literal $version
 	HTTPSURL = rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
+	// AptPkg is a Debian package name, e.g. libssl3t64, zlib1g
+	AptPkg = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9+.-]+$`)}
 	// bindPath is a read_only_binds host dir or container mount: absolute (/…) or
 	// home-relative (~/…), segmented like MaskDir to bar ".." traversal
 	bindPath = rule.Match{Regexp: regexp.MustCompile(
