@@ -118,7 +118,7 @@ func TestHarnessCLI(t *testing.T) {
 	// stubSelect pins selectFn's answer
 	stubSelect := func(t *testing.T, name string, err error) {
 		t.Helper()
-		selectFn = func(string, []string, []string) (string, error) { return name, err }
+		selectFn = func(string, []string, string, bool, []string) (string, error) { return name, err }
 		t.Cleanup(func() { selectFn = pick.Select })
 	}
 
@@ -136,5 +136,46 @@ func TestHarnessCLI(t *testing.T) {
 		_, err := HarnessCLI([]string{"claude", "pi"})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no harness CLI selected")
+	})
+}
+
+func TestRuntimes(t *testing.T) {
+	// stubMultiSelect pins multiSelectFn's checked names
+	stubMultiSelect := func(t *testing.T, picked []string, err error) {
+		t.Helper()
+		multiSelectFn = func(string, []string, string, bool, []string) ([]string, error) { return picked, err }
+		t.Cleanup(func() { multiSelectFn = pick.MultiSelect })
+	}
+
+	t.Run("checked runtimes are returned", func(t *testing.T) {
+		stubMultiSelect(t, []string{"python"}, nil)
+
+		picked, err := Runtimes([]string{"go", "python", "ruby"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"python"}, picked)
+	})
+
+	t.Run("an empty check set installs none", func(t *testing.T) {
+		stubMultiSelect(t, []string{}, nil)
+
+		picked, err := Runtimes([]string{"go", "python"})
+		require.NoError(t, err)
+		assert.Equal(t, []string{}, picked)
+	})
+
+	t.Run("no picker answer installs every runtime", func(t *testing.T) {
+		stubMultiSelect(t, nil, nil)
+
+		names := []string{"go", "python"}
+		picked, err := Runtimes(names)
+		require.NoError(t, err)
+		assert.Equal(t, names, picked)
+	})
+
+	t.Run("quitting the picker aborts", func(t *testing.T) {
+		stubMultiSelect(t, nil, pick.ErrCanceled)
+
+		_, err := Runtimes([]string{"go"})
+		require.ErrorIs(t, err, pick.ErrCanceled)
 	})
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
@@ -48,7 +49,7 @@ func TestLoad_MergesLayers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			useHome(t)
 			if tt.user != "" {
-				writeSpec(t, userConfigFile(), tt.user)
+				writeSpec(t, UserConfigFile(), tt.user)
 			}
 			projectDir := t.TempDir()
 			if tt.project != "" {
@@ -76,7 +77,7 @@ func TestLoad_Validation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			useHome(t)
-			writeSpec(t, userConfigFile(), tt.body)
+			writeSpec(t, UserConfigFile(), tt.body)
 
 			_, err := Load(t.TempDir())
 			require.Error(t, err)
@@ -87,11 +88,18 @@ func TestLoad_Validation(t *testing.T) {
 
 // TestResolve_All corroborates a full selection against the runtime table.
 func TestResolve_All(t *testing.T) {
-	provSpec := Spec{Runtimes: selectableRuntimes()}
+	provSpec := Spec{Runtimes: SelectableRuntimes()}
 	resolved := provSpec.Resolve()
 
 	assert.Equal(t, runtime.All(), resolved.Runtimes)
-	assert.Equal(t, runtime.AllMiseTools(), resolved.MiseTools())
+
+	var wantTools []mise.Tool
+	for _, rt := range runtime.All() {
+		wantTools = append(wantTools, rt.MiseTool)
+		wantTools = append(wantTools, rt.MiseToolsOptional...)
+	}
+	assert.Equal(t, wantTools, resolved.MiseTools())
+
 	assert.Equal(t, runtime.AllCacheVolumes(), resolved.CacheVolumes())
 }
 
@@ -122,10 +130,10 @@ func TestResolve(t *testing.T) {
 func TestSeedConfig(t *testing.T) {
 	useHome(t)
 
-	require.NoError(t, SeedConfig())
+	require.NoError(t, SeedConfig(SelectableRuntimes()))
 
 	// the seed is the pinned defaults' carrier
-	body, err := os.ReadFile(userConfigFile()) // #nosec G304 -- the test's own seeded path
+	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
 	golden, err := os.ReadFile(filepath.Join("testdata", "TestSeedConfig.yaml")) // #nosec G304 -- the test's own fixture
 	require.NoError(t, err)
@@ -134,11 +142,11 @@ func TestSeedConfig(t *testing.T) {
 
 func TestSeedConfig_SkipsExisting(t *testing.T) {
 	useHome(t)
-	writeSpec(t, userConfigFile(), "runtimes: [go]\n")
+	writeSpec(t, UserConfigFile(), "runtimes: [go]\n")
 
-	require.NoError(t, SeedConfig())
+	require.NoError(t, SeedConfig(SelectableRuntimes()))
 
-	body, err := os.ReadFile(userConfigFile()) // #nosec G304 -- the test's own seeded path
+	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
 	assert.Equal(t, "runtimes: [go]\n", string(body), "the user's own file is never touched")
 }
@@ -146,10 +154,10 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 // TestSeedConfig_Loads pins the seed round-tripping through Load.
 func TestSeedConfig_Loads(t *testing.T) {
 	useHome(t)
-	require.NoError(t, SeedConfig())
+	require.NoError(t, SeedConfig(SelectableRuntimes()))
 
 	provSpec, err := Load(t.TempDir())
 	require.NoError(t, err)
-	assert.Equal(t, selectableRuntimes(), provSpec.Runtimes)
+	assert.Equal(t, SelectableRuntimes(), provSpec.Runtimes)
 	assert.Empty(t, provSpec.AptPackages)
 }

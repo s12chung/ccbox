@@ -11,16 +11,16 @@ import (
 )
 
 // key sends a key press to m and returns the updated model
-func key(t *testing.T, m model, k tea.KeyType) model {
+func key[T tea.Model](t *testing.T, m T, k tea.KeyType) T {
 	t.Helper()
 	next, _ := m.Update(tea.KeyMsg{Type: k})
-	updated, ok := next.(model)
+	updated, ok := next.(T)
 	require.True(t, ok)
 	return updated
 }
 
 func TestModel_UpdateMovesCursor(t *testing.T) {
-	m := newModel("pick one", nil, []string{"claude", "codex", "grok"})
+	m := newModel("pick one", nil, "Save", false, []string{"claude", "codex", "grok"})
 	assert.Equal(t, 0, m.cursor)
 
 	m = key(t, m, tea.KeyDown)
@@ -28,32 +28,65 @@ func TestModel_UpdateMovesCursor(t *testing.T) {
 	m = key(t, m, tea.KeyUp)
 	assert.Equal(t, 0, m.cursor)
 
-	assert.Equal(t, 2, key(t, m, tea.KeyUp).cursor, "wraps up past the top")
-	assert.Equal(t, 2, key(t, key(t, m, tea.KeyDown), tea.KeyDown).cursor, "wraps down past the bottom")
+	assert.Equal(t, 3, key(t, m, tea.KeyUp).cursor, "wraps up onto the submit row")
+	assert.Equal(t, 0, key(t, key(t, key(t, key(t, m, tea.KeyDown), tea.KeyDown), tea.KeyDown), tea.KeyDown).cursor, "wraps down past the submit row")
 }
 
-func TestModel_UpdateEnterChooses(t *testing.T) {
-	m := newModel("pick one", nil, []string{"claude", "codex"})
+func TestModel_UpdateEnterSelects(t *testing.T) {
+	m := newModel("pick one", nil, "Save", false, []string{"claude", "codex"})
 	m.cursor = 1
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	updated, ok := next.(model)
 	require.True(t, ok)
-	assert.Equal(t, "codex", updated.choice)
-	assert.False(t, updated.canceled)
-	require.NotNil(t, cmd, "enter quits the program")
+	assert.Equal(t, 1, updated.selected)
+	assert.Nil(t, cmd, "marking doesn't quit; the submit row does")
+}
+
+func TestModel_UpdateEnterOnSubmitRow(t *testing.T) {
+	m := newModel("pick one", nil, "Save", false, []string{"claude", "codex"})
+	m.cursor = len(m.options) // the submit row
+	m.selected = 1
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, ok := next.(model)
+	require.True(t, ok)
+	assert.Equal(t, 1, updated.selected)
+	require.NotNil(t, cmd, "submitting quits the program")
+}
+
+func TestModel_UpdateSubmitNeedsSelection(t *testing.T) {
+	m := newModel("pick one", nil, "Save", true, []string{"claude", "codex"})
+	assert.False(t, m.submitOn())
+
+	// nothing marked: the gray submitLabel row is out of the cursor's path
+	m = key(t, key(t, m, tea.KeyDown), tea.KeyDown)
+	assert.Equal(t, 0, m.cursor)
+
+	m = key(t, m, tea.KeyEnter) // marking an option arms the submit row
+	assert.Equal(t, 0, m.selected)
+	assert.True(t, m.submitOn())
+
+	m = key(t, key(t, m, tea.KeyDown), tea.KeyDown)
+	assert.Equal(t, 2, m.cursor, "the submit row takes the cursor once an option is marked")
+
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	updated, ok := next.(model)
+	require.True(t, ok)
+	require.NotNil(t, cmd, "submitting quits the program")
+	assert.Equal(t, 0, updated.selected)
 }
 
 func TestModel_UpdateCancelKeys(t *testing.T) {
 	for _, k := range []tea.KeyType{tea.KeyEsc, tea.KeyCtrlC} {
-		m := key(t, newModel("pick one", nil, []string{"claude"}), k)
+		m := key(t, newModel("pick one", nil, "Save", false, []string{"claude"}), k)
 		assert.True(t, m.canceled, k)
-		assert.Empty(t, m.choice, k)
+		assert.Equal(t, -1, m.selected, k)
 	}
 }
 
 func TestModel_UpdateTracksWindowSize(t *testing.T) {
-	m := newModel("pick one", nil, []string{"claude"})
+	m := newModel("pick one", nil, "Save", false, []string{"claude"})
 	next, cmd := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	updated, ok := next.(model)
 	require.True(t, ok)
@@ -63,27 +96,32 @@ func TestModel_UpdateTracksWindowSize(t *testing.T) {
 }
 
 func TestModel_View(t *testing.T) {
-	m := newModel("Select a harness CLI", []string{"(set in ~/.ccbox/config/ccbox.yaml)"}, []string{"claude", "codex"})
-	m.cursor = 1
-	assert.Contains(t, m.View(), "Select a harness CLI")
-	assert.Contains(t, m.View(), "Select a harness CLI\n(set in ~/.ccbox/config/ccbox.yaml)\n\n  claude\n❯ codex\n")
+	header, subtext := "Select a harness CLI", "(set in ~/.ccbox/config/ccbox.yaml)"
+	submitLabel := "Save to ~/.ccbox/config/ccbox.yaml"
+
+	m := newModel(header, []string{subtext}, submitLabel, false, []string{"claude", "codex"})
+	m.cursor, m.selected = 1, 1
+	assert.Contains(t, m.View(), header)
+	assert.Contains(t, m.View(),
+		"Select a harness CLI\n(set in ~/.ccbox/config/ccbox.yaml)\n\n  ○ claude\n❯ ◉ codex\n\n  Save to ~/.ccbox/config/ccbox.yaml\n")
 
 	// no subtext: the header flows straight into the blank line before the options
-	m = newModel("Select a harness CLI", nil, []string{"claude", "codex"})
-	assert.Contains(t, m.View(), "Select a harness CLI\n\n❯ claude\n")
+	m = newModel(header, nil, submitLabel, false, []string{"claude", "codex"})
+	assert.Contains(t, m.View(), "Select a harness CLI\n\n❯ ○ claude\n")
 
 	// the block is placed in the terminal's size, each line centered on its own:
 	// floor((40-w)/2) left padding, plus each option's own 2-space indent
-	m = newModel("Select a harness CLI", []string{"(set in ~/.ccbox/config/ccbox.yaml)"}, []string{"claude", "codex"})
-	m.cursor = 1
+	m = newModel(header, []string{subtext}, submitLabel, false, []string{"claude", "codex"})
+	m.cursor, m.selected = 1, 1
 	m.width, m.height = 40, 10
 	view := m.View()
 	wantLeading := map[string]int{
 		"Select a harness CLI":                10,
 		"(set in ~/.ccbox/config/ccbox.yaml)": 2,
-		"claude":                              18, // 16 place + 2 option indent
-		"❯ codex":                             16,
-		"↑/↓ move • enter select • esc quit": 3,
+		"○ claude":                            17,
+		"❯ ◉ codex":                           15,
+		"Save to ~/.ccbox/config/ccbox.yaml":  4,
+		"↑/↓ move • enter select • esc quit":  3,
 	}
 	for line := range strings.SplitSeq(strings.TrimSuffix(view, "\n"), "\n") {
 		assert.Equal(t, 40, lipgloss.Width(line), "each line spans the placed width")
@@ -102,7 +140,7 @@ func TestModel_View(t *testing.T) {
 
 func TestSelectHeadless(t *testing.T) {
 	// go test pipes stdin/stdout: no terminal, no prompt, no error
-	choice, err := Select("pick one", nil, []string{"claude"})
+	choice, err := Select("pick one", nil, "Save", false, []string{"claude"})
 	require.NoError(t, err)
 	assert.Empty(t, choice)
 }

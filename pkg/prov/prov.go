@@ -30,8 +30,8 @@ const (
 	projectConfigFileName = ".ccbox-prov.yaml"
 )
 
-// userConfigFile is the user-level spec's path
-func userConfigFile() string { return filepath.Join(userdir.Dir(), userConfigFileName) }
+// UserConfigFile is the user-level spec's path
+func UserConfigFile() string { return filepath.Join(userdir.Dir(), userConfigFileName) }
 
 // projectConfigFile is dir's project-level spec path
 func projectConfigFile(dir string) string { return filepath.Join(dir, projectConfigFileName) }
@@ -47,12 +47,14 @@ type Spec struct {
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Spec]().
 		Validates(firm.RuleMap{
-			"Runtimes":    {firm.Elems[[]string](rule.ShowValue(rule.OneOf[string]{ValuesFunc: selectableRuntimes}))},
+			"Runtimes":    {firm.Elems[[]string](rule.ShowValue(rule.OneOf[string]{ValuesFunc: SelectableRuntimes}))},
 			"AptPackages": {firm.Elems[[]string](rule.ShowValue(firmrule.AptPkg))},
 		}))
 }
 
-func selectableRuntimes() []string {
+// SelectableRuntimes lists the runtimes a spec may name — node's absent: it
+// rides every resolution
+func SelectableRuntimes() []string {
 	return slicex.Minus(runtime.Names(), []string{runtime.Node().Name})
 }
 
@@ -77,7 +79,7 @@ func (s *Spec) Resolve() Resolved {
 
 // Load reads the spec layers in load order — user, project — and validates the merge
 func Load(projectDir string) (*Spec, error) {
-	layers, err := yamlutil.ReadLayers[Spec]([]string{userConfigFile(), projectConfigFile(projectDir)})
+	layers, err := yamlutil.ReadLayers[Spec]([]string{UserConfigFile(), projectConfigFile(projectDir)})
 	if err != nil {
 		return nil, err
 	}
@@ -124,12 +126,12 @@ var (
 	}).Parse(specTmplSrc))
 )
 
-// SeedConfig safe-seeds the user-level spec with ccbox's defaults
-func SeedConfig() error {
-	spec := Spec{Runtimes: selectableRuntimes(), AptPackages: []string{}}
+// SeedConfig safe-seeds the user-level spec with the selection
+func SeedConfig(runtimes []string) error {
+	spec := Spec{Runtimes: runtimes, AptPackages: []string{}}
 	var b bytes.Buffer
 	if err := specTmpl.Execute(&b, &spec); err != nil {
 		return fmt.Errorf("render Spec template: %w", err)
 	}
-	return seed.SafeFile(userConfigFile(), b.Bytes())
+	return seed.SafeFile(UserConfigFile(), b.Bytes())
 }

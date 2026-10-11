@@ -16,7 +16,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/provider"
-	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/flagptr"
@@ -126,13 +125,19 @@ func rootSeed() error {
 	if err := share.SafeSeedAgentsMd(); err != nil {
 		return err
 	}
+	return safeSeedUserState()
+}
+
+func safeSeedUserState() error {
 	if err := safeSeedUserConfig(); err != nil {
 		return err
 	}
-	if err := prov.SeedConfig(); err != nil {
+	runtimes, err := safeSeedProvConfig()
+	if err != nil {
 		return err
 	}
-	return mise.SeedConfig(mise.UserConfigPath(), runtime.AllMiseTools())
+	provSpec := prov.Spec{Runtimes: runtimes}
+	return mise.SeedConfig(mise.UserConfigPath(), provSpec.Resolve().MiseTools())
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing
@@ -146,6 +151,18 @@ func safeSeedUserConfig() error {
 		return err
 	}
 	return cfg.SeedConfig(path, cliName)
+}
+
+// safeSeedProvConfig seeds the user-level prov spec if missing
+func safeSeedProvConfig() ([]string, error) {
+	if osutil.Present(prov.UserConfigFile()) {
+		return prov.SelectableRuntimes(), nil
+	}
+	runtimes, err := prompt.Runtimes(prov.SelectableRuntimes())
+	if err != nil {
+		return nil, err
+	}
+	return runtimes, prov.SeedConfig(runtimes)
 }
 
 func mustGetwd() string {

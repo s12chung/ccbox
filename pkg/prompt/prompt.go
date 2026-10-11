@@ -11,6 +11,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
+	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/size"
 	"github.com/s12chung/ccbox/pkg/util/term"
@@ -20,8 +21,9 @@ import (
 const ProjectDirLimit = 1 << 30
 
 var (
-	selectFn = pick.Select  // indirected so tests can stub out the picker.
-	dirOver  = size.DirOver // indirected so tests can stub out the sizing.
+	selectFn      = pick.Select      // indirected so tests can stub out the picker.
+	multiSelectFn = pick.MultiSelect // indirected so tests can stub out the picker.
+	dirOver       = size.DirOver     // indirected so tests can stub out the sizing.
 )
 
 // ProjectDirSize gates projectDir when its size is over ProjectDirLimit. A recorded
@@ -54,10 +56,9 @@ func ProjectDirSize(projectDir string) error {
 func HarnessCLI(cliNames []string) (string, error) {
 	name, err := selectFn(
 		"Select a harness CLI",
-		[]string{
-			fmt.Sprintf("(stored in %s)", userdir.Tilde(cfg.UserConfigFile())),
-			fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md"))),
-		},
+		[]string{fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md")))},
+		"Save to "+userdir.Tilde(cfg.UserConfigFile()),
+		true,
 		cliNames)
 	if err != nil {
 		return "", err
@@ -66,4 +67,23 @@ func HarnessCLI(cliNames []string) (string, error) {
 		return "", fmt.Errorf("no harness CLI selected: rerun in a terminal to pick one, or set cli in %s", cfg.UserConfigFile())
 	}
 	return name, nil
+}
+
+// Runtimes asks which runtimes to install in the devbox, all in one checklist.
+func Runtimes(names []string) ([]string, error) {
+	picked, err := multiSelectFn(
+		"Select the runtimes to install",
+		[]string{"(node is included)"},
+		"Save to "+userdir.Tilde(prov.UserConfigFile()),
+		false,
+		names)
+	if err != nil {
+		return nil, err
+	}
+	// nil is the no-terminal read: the picker never showed, so every runtime keeps
+	// its default; an empty check set is a real answer and installs none
+	if picked == nil {
+		return names, nil
+	}
+	return picked, nil
 }

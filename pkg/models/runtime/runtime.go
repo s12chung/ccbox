@@ -155,17 +155,6 @@ func AllCacheVolumes() []string {
 	return volumes
 }
 
-// AllMiseTools flattens every runtime's tools in All's order — the mise config's
-// [tools] input
-func AllMiseTools() []mise.Tool {
-	var tools []mise.Tool
-	for _, r := range All() {
-		tools = append(tools, r.MiseTool)
-		tools = append(tools, r.MiseToolsOptional...)
-	}
-	return tools
-}
-
 // DomainsFor resolves an allowlist alias to its runtime's domains — every
 // runtime's for AllRuntimesAlias. ok is false for anything but an alias.
 func DomainsFor(alias string) ([]string, bool) {

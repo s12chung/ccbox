@@ -38,7 +38,7 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 	assert.Equal(t, "custom", string(body)) // the user's own file is never touched
 }
 
-// testTools is the fixture render's stand-in for runtime.AllMiseTools(): one plain
+// testTools is the fixture render's stand-in for a full prov resolution: one plain
 // binding and one with a postinstall — the two shapes row renders
 var testTools = []Tool{
 	{Tool: "go", Version: "1.26"},

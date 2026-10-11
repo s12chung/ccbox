@@ -69,10 +69,10 @@ func TestBuildContext_Golden(t *testing.T) {
 func composedContext(t *testing.T) fs.FS {
 	t.Helper()
 	testutil.Home(t) // keeps the test off the host's user level
-	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), runtime.AllMiseTools()))
-	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
 	provSpec := prov.Spec{Runtimes: slicex.Minus(runtime.Names(), []string{runtime.Node().Name})}
 	resolved := provSpec.Resolve()
+	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), resolved.MiseTools()))
+	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
 	src, err := mise.BuildFS(embedBuildContext, t.TempDir(), resolved.MiseTools())
 	require.NoError(t, err)
 	src, err = dockerfile.PatchFS(src, resolved)

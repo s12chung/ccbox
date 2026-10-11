@@ -12,6 +12,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
+	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -20,7 +21,8 @@ import (
 // TestRenderConfig_AllRuntimes pins the seed a fresh host gets: every runtime's
 // real tools riding the render
 func TestRenderConfig_AllRuntimes(t *testing.T) {
-	assert.Equal(t, golden(t, "TestRenderConfig_AllRuntimes.toml"), seedRender(t, runtime.AllMiseTools()))
+	all := prov.Resolved{Runtimes: runtime.All()}
+	assert.Equal(t, golden(t, "TestRenderConfig_AllRuntimes.toml"), seedRender(t, all.MiseTools()))
 }
 
 // seedRender seeds the user-level config with tools, returning the seeded body
