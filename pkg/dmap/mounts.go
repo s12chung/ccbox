@@ -13,6 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
@@ -54,7 +55,7 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
-		cliDataBinds(rm.userDir, c),
+		cliDataBinds(userdir.Dir(), c),
 		cliScratchBind(scratchBind.HostPath, scratchBind.ContainerPath),
 	), clean, nil
 }

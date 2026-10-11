@@ -45,12 +45,11 @@ func run(ctx context.Context, mode dmap.RunMode) error {
 	presentPathsSnapshot := config.ReadOnlyPathsPresent()
 	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
-	userDir := userdir.Dir()
-	if err := seedRunMounts(userDir); err != nil {
+	if err := seedRunMounts(userdir.Dir()); err != nil {
 		return err
 	}
 
-	options, clean, err := dmap.NewRunMap(userDir, config, tagByProject).RunOptions(flagTag, mode)
+	options, clean, err := dmap.NewRunMap(config, tagByProject).RunOptions(flagTag, mode)
 	defer log.Defer("clean run files", clean)
 	if err != nil {
 		return err

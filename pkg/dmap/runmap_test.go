@@ -30,8 +30,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 		Allowlist: []string{cfg.DefaultsAlias, "example.com"},
 	}, false)
 	require.NoError(t, err)
-	userDir := t.TempDir()
-	rm := NewRunMap(userDir, config, false)
+	rm := NewRunMap(config, false)
 
 	// the pieces RunOptions composes
 	hostOptions, hostClean, err := rm.HostOptions(false, false)
@@ -72,7 +71,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(t.TempDir(), config, false).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(config, false).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -97,7 +96,7 @@ func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(t.TempDir(), config, true).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(config, true).RunOptions("dev:tag", RunMode{})
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -126,7 +125,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), config, false).HostOptions(false, false)
+	hostOptions, clean, err := NewRunMap(config, false).HostOptions(false, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -167,7 +166,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), config, false).HostOptions(false, true)
+	hostOptions, clean, err := NewRunMap(config, false).HostOptions(false, true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -184,7 +183,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(t.TempDir(), config, false).HostOptions(true, false)
+	hostOptions, clean, err := NewRunMap(config, false).HostOptions(true, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
