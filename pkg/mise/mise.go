@@ -69,11 +69,8 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 		return nil
 	}
 
-	outDir, err := os.MkdirTemp("", "ccbox-mise-lock-")
-	if err != nil {
-		return err
-	}
-	defer log.Defer("clean mise lock dir", func() error { return os.RemoveAll(outDir) })
+	lockPath := LockPath(configPath)
+	log.Infof("generating mise lock %s", lockPath)
 	ctxD, err := dock.NewCtxD(ctx)
 	if err != nil {
 		return err
@@ -82,8 +79,6 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 	lock, err := docker.GenerateMiseLock(ctxD, docker.MiseLockOptions{
 		Image:      imageRef,
 		ConfigPath: configPath,
-		OutDir:     outDir,
-		UID:        os.Getuid(),
 	})
 	if err != nil {
 		return err
@@ -93,7 +88,7 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 	if err := expander.Expand(lock); err != nil {
 		return err
 	}
-	log.Infof("locked %s", LockPath(configPath))
+	log.Infof("locked %s", lockPath)
 	return nil
 }
 

@@ -1,4 +1,4 @@
-FROM ghcr.io/jdx/mise:2026.6.9 AS mise
+FROM ghcr.io/jdx/mise:2026.9.6 AS mise
 
 FROM debian:trixie-slim AS base
 

@@ -3,6 +3,7 @@
 package dock
 
 import (
+	"archive/tar"
 	"bytes"
 	"context"
 	"fmt"
@@ -146,6 +147,9 @@ func FollowLogs(ctxD *CtxD, id string) (io.ReadCloser, error) {
 // RunOnce runs a created container to exit, copying its combined follow stream into w —
 // the copy doubles as the wait — and fails on a non-zero exit. Callers report their own output.
 func RunOnce(ctxD *CtxD, id string, w io.Writer) error {
+	if err := ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
+		return err
+	}
 	logs, err := FollowLogs(ctxD, id)
 	if err != nil {
 		return err
@@ -227,4 +231,19 @@ func RunInteractive(ctxD *CtxD, id string) error {
 	case st := <-statusCh:
 		return errs.Exit(int(st.StatusCode))
 	}
+}
+
+// CopyFileFrom copies the container's file at path into memory. CopyFrom tars single
+// files under their basename, so the stream holds the one entry to read out.
+func CopyFileFrom(ctxD *CtxD, id, path string) ([]byte, error) {
+	stream, _, err := ctxD.D.CopyFromContainer(ctxD.Ctx, id, path)
+	if err != nil {
+		return nil, err
+	}
+	defer log.Defer("close copy stream", stream.Close)
+	tr := tar.NewReader(stream)
+	if _, err := tr.Next(); err != nil {
+		return nil, err
+	}
+	return io.ReadAll(tr)
 }

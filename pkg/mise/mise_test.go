@@ -22,14 +22,14 @@ const (
 )
 
 func TestImageRefFromDockerfile(t *testing.T) {
-	dockerfile := "FROM debian:trixie-slim AS base\n\nFROM ghcr.io/jdx/mise:2026.6.9 AS mise\n\nFROM base\n"
+	dockerfile := "FROM debian:trixie-slim AS base\n\nFROM ghcr.io/jdx/mise:2026.9.6 AS mise\n\nFROM base\n"
 	imageRef, err := ImageRefFromDockerfile([]byte(dockerfile))
 	require.NoError(t, err)
-	assert.Equal(t, "ghcr.io/jdx/mise:2026.6.9", imageRef)
+	assert.Equal(t, "ghcr.io/jdx/mise:2026.9.6", imageRef)
 }
 
 func TestImageRefFromDockerfile_MissingFrom(t *testing.T) {
-	dockerfile := "FROM debian:trixie-slim AS base\nFROM ghcr.io/jdx/mise:2026.6.9\n"
+	dockerfile := "FROM debian:trixie-slim AS base\nFROM ghcr.io/jdx/mise:2026.9.6\n"
 	_, err := ImageRefFromDockerfile([]byte(dockerfile))
 	assert.ErrorContains(t, err, "no `FROM <image> AS mise`")
 }
