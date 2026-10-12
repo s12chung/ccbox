@@ -21,9 +21,9 @@ import (
 const ProjectDirLimit = 1 << 30
 
 var (
-	selectFn      = pick.Select      // indirected so tests can stub out the picker.
-	multiSelectFn = pick.MultiSelect // indirected so tests can stub out the picker.
-	dirOver       = size.DirOver     // indirected so tests can stub out the sizing.
+	selectFn      = pick.RunWithResponse[string]   // indirected so tests can stub out the picker.
+	multiSelectFn = pick.RunWithResponse[[]string] // indirected so tests can stub out the picker.
+	dirOver       = size.DirOver                   // indirected so tests can stub out the sizing.
 )
 
 // ProjectDirSize gates projectDir when its size is over ProjectDirLimit. A recorded
@@ -54,12 +54,11 @@ func ProjectDirSize(projectDir string) error {
 // HarnessCLI asks which harness CLI to seed the user config with. No terminal to
 // show the picker errors out — a CLI has no default to keep.
 func HarnessCLI(cliNames []string) (string, error) {
-	name, err := selectFn(
-		"Select a harness CLI",
+	name, err := selectFn(pick.NewSelect("Select a harness CLI",
 		[]string{fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md")))},
 		"Save to "+userdir.Tilde(cfg.UserConfigFile()),
 		true,
-		cliNames)
+		cliNames))
 	if err != nil {
 		return "", err
 	}
@@ -71,12 +70,11 @@ func HarnessCLI(cliNames []string) (string, error) {
 
 // Runtimes asks which runtimes to install in the devbox, all in one checklist.
 func Runtimes(names []string) ([]string, error) {
-	picked, err := multiSelectFn(
-		"Select the runtimes to install",
+	picked, err := multiSelectFn(pick.NewMultiSelect("Select the runtimes to install",
 		[]string{"(node is included)"},
 		"Save to "+userdir.Tilde(prov.UserConfigFile()),
 		false,
-		names)
+		names))
 	if err != nil {
 		return nil, err
 	}

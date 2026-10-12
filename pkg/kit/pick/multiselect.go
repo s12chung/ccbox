@@ -6,21 +6,11 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// MultiSelect runs a TUI checklist under a header and subtext lines, returning
-// the checked entries in the options' order. The headless read is nil, so an
-// empty check set returns an empty, non-nil slice. Quitting aborts with ErrCanceled.
-func MultiSelect(header string, subtext []string, submitLabel string, requireSelected bool, options []string) ([]string, error) {
-	if noprompt(options) {
-		return nil, nil
-	}
-	m, err := run(multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))})
-	if err != nil {
-		return nil, err
-	}
-	if m.canceled {
-		return nil, ErrCanceled
-	}
-	return m.picked(), nil
+// NewMultiSelect returns the checklist model for choosing several entries from
+// options under a header and subtext lines, submitLabel on the submit row. No
+// options panics.
+func NewMultiSelect(header string, subtext []string, submitLabel string, requireSelected bool, options []string) ResponseModel[[]string] {
+	return &multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))}
 }
 
 // multiModel is the checklist TUI: the picker chrome plus each option's check
@@ -30,7 +20,8 @@ type multiModel struct {
 	checked []bool
 }
 
-func (m multiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update toggles the cursor's check on enter; the submit row and cancel keys quit
+func (m *multiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -51,23 +42,27 @@ func (m multiModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // submitOn reports the submit row takes the cursor and enter
-func (m multiModel) submitOn() bool {
+func (m *multiModel) submitOn() bool {
 	return !m.requireSelected || slices.Contains(m.checked, true)
 }
 
-// picked stays non-nil on an empty check set, so callers can tell it from the
-// nil no-terminal read
-func (m multiModel) picked() []string {
+// Response stays non-nil on an empty check set, so callers can tell it from the
+// nil non-terminal read
+func (m *multiModel) Response() ([]string, error) {
+	if m.canceled {
+		return nil, ErrCanceled
+	}
 	picked := make([]string, 0, len(m.options))
 	for i, opt := range m.options {
 		if m.checked[i] {
 			picked = append(picked, opt)
 		}
 	}
-	return picked
+	return picked, nil
 }
 
-func (m multiModel) View() string {
+// View renders the prompt, each line centered in the terminal
+func (m *multiModel) View() string {
 	body := []string{""}
 	for i, opt := range m.options {
 		box, style := "[ ]", slateStyle

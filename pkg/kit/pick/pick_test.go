@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// newModel builds the single-pick model for the tests; NewSelect inlines the literal
+func newModel(header string, subtext []string, submitLabel string, requireSelected bool, options []string) *model {
+	return &model{picker: newPicker(header, subtext, submitLabel, requireSelected, options), selected: -1}
+}
+
 // key sends a key press to m and returns the updated model
 func key[T tea.Model](t *testing.T, m T, k tea.KeyType) T {
 	t.Helper()
@@ -28,8 +33,14 @@ func TestModel_UpdateMovesCursor(t *testing.T) {
 	m = key(t, m, tea.KeyUp)
 	assert.Equal(t, 0, m.cursor)
 
-	assert.Equal(t, 3, key(t, m, tea.KeyUp).cursor, "wraps up onto the submit row")
-	assert.Equal(t, 0, key(t, key(t, key(t, key(t, m, tea.KeyDown), tea.KeyDown), tea.KeyDown), tea.KeyDown).cursor, "wraps down past the submit row")
+	m = key(t, m, tea.KeyUp)
+	assert.Equal(t, 3, m.cursor, "wraps up onto the submit row")
+
+	m = newModel("pick one", nil, "Save", false, []string{"claude", "codex", "grok"})
+	for range 4 {
+		m = key(t, m, tea.KeyDown)
+	}
+	assert.Equal(t, 0, m.cursor, "wraps down past the submit row")
 }
 
 func TestModel_UpdateEnterSelects(t *testing.T) {
@@ -37,7 +48,7 @@ func TestModel_UpdateEnterSelects(t *testing.T) {
 	m.cursor = 1
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated, ok := next.(model)
+	updated, ok := next.(*model)
 	require.True(t, ok)
 	assert.Equal(t, 1, updated.selected)
 	assert.Nil(t, cmd, "marking doesn't quit; the submit row does")
@@ -49,7 +60,7 @@ func TestModel_UpdateEnterOnSubmitRow(t *testing.T) {
 	m.selected = 1
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated, ok := next.(model)
+	updated, ok := next.(*model)
 	require.True(t, ok)
 	assert.Equal(t, 1, updated.selected)
 	require.NotNil(t, cmd, "submitting quits the program")
@@ -71,7 +82,7 @@ func TestModel_UpdateSubmitNeedsSelection(t *testing.T) {
 	assert.Equal(t, 2, m.cursor, "the submit row takes the cursor once an option is marked")
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated, ok := next.(model)
+	updated, ok := next.(*model)
 	require.True(t, ok)
 	require.NotNil(t, cmd, "submitting quits the program")
 	assert.Equal(t, 0, updated.selected)
@@ -82,13 +93,16 @@ func TestModel_UpdateCancelKeys(t *testing.T) {
 		m := key(t, newModel("pick one", nil, "Save", false, []string{"claude"}), k)
 		assert.True(t, m.canceled, k)
 		assert.Equal(t, -1, m.selected, k)
+
+		_, err := m.Response()
+		assert.ErrorIs(t, err, ErrCanceled, k)
 	}
 }
 
 func TestModel_UpdateTracksWindowSize(t *testing.T) {
 	m := newModel("pick one", nil, "Save", false, []string{"claude"})
 	next, cmd := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
-	updated, ok := next.(model)
+	updated, ok := next.(*model)
 	require.True(t, ok)
 	assert.Equal(t, 100, updated.width)
 	assert.Equal(t, 30, updated.height)
@@ -138,9 +152,19 @@ func TestModel_View(t *testing.T) {
 	assert.Empty(t, wantLeading, "every placed line was checked")
 }
 
+func TestNewSelect_NoOptions(t *testing.T) {
+	assert.Panics(t, func() { NewSelect("pick one", nil, "Save", false, nil) })
+	assert.Panics(t, func() { NewSelect("pick one", nil, "Save", false, []string{}) })
+}
+
+func TestRunHeadless(t *testing.T) {
+	// go test pipes stdin/stdout: no terminal, no prompt, no error
+	assert.NoError(t, Run(newModel("pick one", nil, "Save", false, []string{"claude"})))
+}
+
 func TestSelectHeadless(t *testing.T) {
 	// go test pipes stdin/stdout: no terminal, no prompt, no error
-	choice, err := Select("pick one", nil, "Save", false, []string{"claude"})
+	choice, err := RunWithResponse(NewSelect("pick one", nil, "Save", false, []string{"claude"}))
 	require.NoError(t, err)
 	assert.Empty(t, choice)
 }

@@ -118,8 +118,8 @@ func TestHarnessCLI(t *testing.T) {
 	// stubSelect pins selectFn's answer
 	stubSelect := func(t *testing.T, name string, err error) {
 		t.Helper()
-		selectFn = func(string, []string, string, bool, []string) (string, error) { return name, err }
-		t.Cleanup(func() { selectFn = pick.Select })
+		selectFn = func(pick.ResponseModel[string]) (string, error) { return name, err }
+		t.Cleanup(func() { selectFn = pick.RunWithResponse[string] })
 	}
 
 	t.Run("picked name is returned", func(t *testing.T) {
@@ -143,8 +143,8 @@ func TestRuntimes(t *testing.T) {
 	// stubMultiSelect pins multiSelectFn's checked names
 	stubMultiSelect := func(t *testing.T, picked []string, err error) {
 		t.Helper()
-		multiSelectFn = func(string, []string, string, bool, []string) ([]string, error) { return picked, err }
-		t.Cleanup(func() { multiSelectFn = pick.MultiSelect })
+		multiSelectFn = func(pick.ResponseModel[[]string]) ([]string, error) { return picked, err }
+		t.Cleanup(func() { multiSelectFn = pick.RunWithResponse[[]string] })
 	}
 
 	t.Run("checked runtimes are returned", func(t *testing.T) {

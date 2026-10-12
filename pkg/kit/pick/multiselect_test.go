@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// newMultiModel builds the checklist model for the tests; MultiSelect inlines
+// newMultiModel builds the checklist model for the tests; NewMultiSelect inlines
 // the literal
-func newMultiModel(header string, subtext []string, submitLabel string, requireSelected bool, options []string) multiModel {
-	return multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))}
+func newMultiModel(header string, subtext []string, submitLabel string, requireSelected bool, options []string) *multiModel {
+	return &multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))}
 }
 
 func TestMultiModel_UpdateEnterToggles(t *testing.T) {
@@ -32,10 +32,12 @@ func TestMultiModel_UpdateEnterOnSubmitRow(t *testing.T) {
 	m.cursor = len(m.options) // the submit row
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	updated, ok := next.(multiModel)
+	updated, ok := next.(*multiModel)
 	require.True(t, ok)
 	require.NotNil(t, cmd, "submitting quits the program")
-	assert.Empty(t, updated.picked())
+	picked, err := updated.Response()
+	require.NoError(t, err)
+	assert.Empty(t, picked)
 }
 
 func TestMultiModel_UpdateSubmitNeedsCheck(t *testing.T) {
@@ -55,11 +57,15 @@ func TestMultiModel_UpdateSubmitNeedsCheck(t *testing.T) {
 
 func TestMultiModel_Picked(t *testing.T) {
 	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python", "ruby"})
-	assert.NotNil(t, m.picked(), "an empty check set stays distinct from the nil no-terminal read")
-	assert.Empty(t, m.picked())
+	picked, err := m.Response()
+	require.NoError(t, err)
+	assert.NotNil(t, picked, "an empty check set stays distinct from the nil non-terminal read")
+	assert.Empty(t, picked)
 
 	m.checked[2], m.checked[0] = true, true
-	assert.Equal(t, []string{"go", "ruby"}, m.picked(), "picked follows the options' order")
+	picked, err = m.Response()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"go", "ruby"}, picked, "picked follows the options' order")
 }
 
 func TestMultiModel_View(t *testing.T) {
@@ -75,9 +81,14 @@ func TestMultiModel_View(t *testing.T) {
 	assert.Contains(t, view, "↑/↓ move • enter check • esc quit")
 }
 
+func TestNewMultiSelect_NoOptions(t *testing.T) {
+	assert.Panics(t, func() { NewMultiSelect("pick some", nil, "Save", false, nil) })
+	assert.Panics(t, func() { NewMultiSelect("pick some", nil, "Save", false, []string{}) })
+}
+
 func TestMultiSelectHeadless(t *testing.T) {
 	// go test pipes stdin/stdout: no terminal, no prompt, no error
-	picked, err := MultiSelect("pick some", nil, "Save", false, []string{"go"})
+	picked, err := RunWithResponse(NewMultiSelect("pick some", nil, "Save", false, []string{"go"}))
 	require.NoError(t, err)
 	assert.Nil(t, picked)
 }

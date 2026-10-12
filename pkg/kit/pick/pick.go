@@ -22,46 +22,45 @@ var (
 	grayStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#616161"))
 )
 
-// Select runs a TUI list of options under a header and subtext lines, returning the
-// chosen entry. The headless read is "" — callers keep their default. Quitting
-// aborts with ErrCanceled.
-func Select(header string, subtext []string, submitLabel string, requireSelected bool, options []string) (string, error) {
-	if noprompt(options) {
-		return "", nil
-	}
-	m, err := run(newModel(header, subtext, submitLabel, requireSelected, options))
-	if err != nil {
-		return "", err
-	}
-	if m.canceled {
-		return "", ErrCanceled
-	}
-	if m.selected < 0 {
-		return "", nil
-	}
-	return m.options[m.selected], nil
+// NewSelect returns the single-pick model for choosing one entry from options
+// under a header and subtext lines, submitLabel on the submit row. No options
+// panics.
+func NewSelect(header string, subtext []string, submitLabel string, requireSelected bool, options []string) ResponseModel[string] {
+	return &model{picker: newPicker(header, subtext, submitLabel, requireSelected, options), selected: -1}
 }
 
-// noprompt reports the prompt can't show: a non-terminal stdin/stdout, or no
-// options to pick from
-func noprompt(options []string) bool {
-	return !isTerminal(os.Stdin) || !isTerminal(os.Stdout) || len(options) == 0
+// ResponseModel is either picker TUI, ready to Run
+type ResponseModel[A any] interface {
+	tea.Model
+
+	// Response returns the prompt's read; quitting the prompt reads ErrCanceled
+	Response() (A, error)
 }
 
-// run shows m's TUI on the alt screen and returns its final state
-func run[T tea.Model](m T) (T, error) {
-	final, err := tea.NewProgram(m, tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout), tea.WithAltScreen()).Run()
-	if err != nil {
-		var zero T
+// Run shows m's TUI on the alt screen. A non-terminal stdin/stdout is a no-op.
+func Run(m tea.Model) error {
+	if !interactive() {
+		return nil
+	}
+	_, err := tea.NewProgram(m, tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout), tea.WithAltScreen()).Run()
+	return err
+}
+
+// RunWithResponse asks m's prompt: Run, then Response. The non-terminal read is
+// the zero answer; quitting aborts with ErrCanceled.
+func RunWithResponse[A any](m ResponseModel[A]) (A, error) {
+	if !interactive() {
+		var zero A
+		return zero, nil
+	}
+	if err := Run(m); err != nil {
+		var zero A
 		return zero, err
 	}
-	updated, ok := final.(T)
-	if !ok {
-		var zero T
-		return zero, errors.New("pick: unexpected program result")
-	}
-	return updated, nil
+	return m.Response()
 }
+
+func interactive() bool { return isTerminal(os.Stdin) && isTerminal(os.Stdout) }
 
 func isTerminal(f *os.File) bool {
 	fd, _ := term.GetFdInfo(f)
@@ -83,6 +82,9 @@ type picker struct {
 }
 
 func newPicker(header string, subtext []string, submitLabel string, requireSelected bool, options []string) picker {
+	if len(options) == 0 {
+		panic("pick: no options to pick from")
+	}
 	return picker{header: header, subtext: subtext, options: options, submitLabel: submitLabel, requireSelected: requireSelected}
 }
 
@@ -141,16 +143,21 @@ type model struct {
 	selected int // -1 is nothing marked yet
 }
 
-func newModel(header string, subtext []string, submitLabel string, requireSelected bool, options []string) model {
-	return model{picker: newPicker(header, subtext, submitLabel, requireSelected, options), selected: -1}
+func (m *model) Response() (string, error) {
+	if m.canceled {
+		return "", ErrCanceled
+	}
+	if m.selected < 0 {
+		return "", nil
+	}
+	return m.options[m.selected], nil
 }
 
 // submitOn reports the submit row takes the cursor and enter
-func (m model) submitOn() bool {
-	return !m.requireSelected || m.selected >= 0
-}
+func (m *model) submitOn() bool { return !m.requireSelected || m.selected >= 0 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+// Update marks the cursor's option on enter; the submit row and cancel keys quit
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		m.width, m.height = msg.Width, msg.Height
@@ -170,7 +177,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() string {
+// View renders the prompt, each line centered in the terminal
+func (m *model) View() string {
 	body := []string{""}
 	for i, opt := range m.options {
 		circle, style := "○", slateStyle
