@@ -13,6 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/size"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/pkg/util/term"
 )
 
@@ -20,9 +21,8 @@ import (
 const ProjectDirLimit = 1 << 30
 
 var (
-	selectFn      = pick.RunWithResponse[string]   // indirected so tests can stub out the picker.
-	multiSelectFn = pick.RunWithResponse[[]string] // indirected so tests can stub out the picker.
-	dirOver       = size.DirOver                   // indirected so tests can stub out the sizing.
+	runFn   = pick.Runner.Run // indirected so tests can stub out the prompt run.
+	dirOver = size.DirOver    // indirected so tests can stub out the sizing.
 )
 
 // ProjectDirSize gates projectDir when its size is over ProjectDirLimit. A recorded
@@ -53,11 +53,13 @@ func ProjectDirSize(projectDir string) error {
 // HarnessCLI asks which harness CLI to seed the user config with. No terminal to
 // show the picker errors out — a CLI has no default to keep.
 func HarnessCLI(cliNames []string) (string, error) {
-	name, err := selectFn(pick.NewSelect("Select a harness CLI",
-		[]string{fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md")))},
-		"Save to "+userdir.Tilde(cfg.UserConfigFile()),
-		true,
-		cliNames))
+	var name string
+	err := runFn(pick.NewRunner(pick.RunnerOptions{
+		Header:          "Select a harness CLI",
+		Subtext:         []string{fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md")))},
+		SubmitLabel:     "Save to " + userdir.Tilde(cfg.UserConfigFile()),
+		RequireSelected: true,
+	}, pick.NewPicker(cliNames)), &name)
 	if err != nil {
 		return "", err
 	}
@@ -70,11 +72,13 @@ func HarnessCLI(cliNames []string) (string, error) {
 // Runtimes asks which runtimes to install in the devbox, all in one checklist;
 // checked pre-checks it — the mise config's current selection
 func Runtimes(savePath string, names, checked []string) ([]string, error) {
-	picked, err := multiSelectFn(pick.NewMultiSelect("Select the runtimes to install",
-		[]string{"(node is included)"},
-		"Save to "+userdir.Tilde(savePath),
-		false,
-		names, checked))
+	items := slicex.Map(names, func(name string) pick.Item { return pick.Item{Name: name} })
+	var picked []string
+	err := runFn(pick.NewRunner(pick.RunnerOptions{
+		Header:      "Select the runtimes to install",
+		Subtext:     []string{"(node is included)"},
+		SubmitLabel: "Save to " + userdir.Tilde(savePath),
+	}, pick.NewMultiPicker(items, checked)), &picked)
 	if err != nil {
 		return nil, err
 	}

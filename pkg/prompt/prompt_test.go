@@ -115,15 +115,8 @@ func TestProjectDirSize(t *testing.T) {
 }
 
 func TestHarnessCLI(t *testing.T) {
-	// stubSelect pins selectFn's answer
-	stubSelect := func(t *testing.T, name string, err error) {
-		t.Helper()
-		selectFn = func(pick.ResponseModel[string]) (string, error) { return name, err }
-		t.Cleanup(func() { selectFn = pick.RunWithResponse[string] })
-	}
-
 	t.Run("picked name is returned", func(t *testing.T) {
-		stubSelect(t, "pi", nil)
+		stubRun(t, "pi", nil)
 
 		name, err := HarnessCLI([]string{"claude", "pi"})
 		require.NoError(t, err)
@@ -131,7 +124,7 @@ func TestHarnessCLI(t *testing.T) {
 	})
 
 	t.Run("no picker answer errors", func(t *testing.T) {
-		stubSelect(t, "", nil)
+		stubRun(t, "", nil)
 
 		_, err := HarnessCLI([]string{"claude", "pi"})
 		require.Error(t, err)
@@ -140,15 +133,8 @@ func TestHarnessCLI(t *testing.T) {
 }
 
 func TestRuntimes(t *testing.T) {
-	// stubMultiSelect pins multiSelectFn's checked names
-	stubMultiSelect := func(t *testing.T, picked []string, err error) {
-		t.Helper()
-		multiSelectFn = func(pick.ResponseModel[[]string]) ([]string, error) { return picked, err }
-		t.Cleanup(func() { multiSelectFn = pick.RunWithResponse[[]string] })
-	}
-
 	t.Run("checked runtimes are returned", func(t *testing.T) {
-		stubMultiSelect(t, []string{"python"}, nil)
+		stubRun(t, []string{"python"}, nil)
 
 		picked, err := Runtimes("~/.ccbox/mise.toml", []string{"go", "python", "ruby"}, nil)
 		require.NoError(t, err)
@@ -156,7 +142,7 @@ func TestRuntimes(t *testing.T) {
 	})
 
 	t.Run("an empty check set installs none", func(t *testing.T) {
-		stubMultiSelect(t, []string{}, nil)
+		stubRun(t, []string{}, nil)
 
 		picked, err := Runtimes("~/.ccbox/mise.toml", []string{"go", "python"}, []string{"go"})
 		require.NoError(t, err)
@@ -164,7 +150,7 @@ func TestRuntimes(t *testing.T) {
 	})
 
 	t.Run("no picker answer errors", func(t *testing.T) {
-		stubMultiSelect(t, nil, nil)
+		stubRun[[]string](t, nil, nil)
 
 		_, err := Runtimes("~/.ccbox/mise.toml", []string{"go", "python"}, nil)
 		require.Error(t, err)
@@ -172,9 +158,21 @@ func TestRuntimes(t *testing.T) {
 	})
 
 	t.Run("quitting the picker aborts", func(t *testing.T) {
-		stubMultiSelect(t, nil, pick.ErrCanceled)
+		stubRun[[]string](t, nil, pick.ErrCanceled)
 
 		_, err := Runtimes("~/.ccbox/mise.toml", []string{"go"}, nil)
 		require.ErrorIs(t, err, pick.ErrCanceled)
 	})
+}
+
+// stubRun pins runFn's answer into its one response pointer
+func stubRun[A any](t *testing.T, answer A, err error) {
+	t.Helper()
+	runFn = func(_ pick.Runner, ptrs ...any) error {
+		p, ok := ptrs[0].(*A)
+		require.True(t, ok)
+		*p = answer
+		return err
+	}
+	t.Cleanup(func() { runFn = pick.Runner.Run })
 }

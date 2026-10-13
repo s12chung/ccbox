@@ -1,9 +1,10 @@
-// Package pick shows bubbletea prompts for choosing: one entry from options,
-// several entries, or yes/no.
+// Package pick provides a composable framework separating the bubbletea
+// chrome from stackable Pickers.
 package pick
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -15,182 +16,252 @@ import (
 // ErrCanceled is returned when the user quits the prompt instead of choosing (esc/ctrl+c).
 var ErrCanceled = errors.New("selection canceled")
 
-// the prompt's palette: white header/cursor/marked option, slate options, gray help
 var (
-	whiteStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
-	slateStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7599B4"))
-	grayStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#616161"))
+	defaultStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#7599B4")) // slate
+	strongStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")) // white
+	lightStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("#616161")) // gray
 )
 
-// NewSelect returns the single-pick model for choosing one entry from options
-// under a header and subtext lines, submitLabel on the submit row. No options
-// panics.
-func NewSelect(header string, subtext []string, submitLabel string, requireSelected bool, options []string) ResponseModel[string] {
-	return &model{picker: newPicker(header, subtext, submitLabel, requireSelected, options), selected: -1}
+// RunnerOptions is the chrome a Runner renders: a header, subtext lines, and
+// the label of the run's one submit row
+type RunnerOptions struct {
+	Header      string
+	Subtext     []string
+	SubmitLabel string
+
+	// the submit row stays gray and out of the cursor's path until every
+	// picker has its pick
+	RequireSelected bool
 }
 
-// ResponseModel is either picker TUI, ready to Run
-type ResponseModel[A any] interface {
-	tea.Model
-
-	// Response returns the prompt's read; quitting the prompt reads ErrCanceled
-	Response() (A, error)
+// Runner is the prompt chrome over the stacked pickers, closed by the one
+// submit row
+type Runner struct {
+	opts    RunnerOptions
+	pickers []*pickerModel
 }
 
-// Run shows m's TUI on the alt screen. A non-terminal stdin/stdout is a no-op.
-func Run(m tea.Model) error {
-	if !interactive() {
+// NewRunner is the chrome over the pickers, asked in order
+func NewRunner(opts RunnerOptions, pickers ...Picker) Runner {
+	r := Runner{opts: opts, pickers: make([]*pickerModel, len(pickers))}
+	for i, pk := range pickers {
+		r.pickers[i] = &pickerModel{Picker: pk}
+	}
+	return r
+}
+
+// Run asks the stacked pickers in one TUI read, filling each pointer with its
+// picker's read in the Runner's order. The non-terminal read is the zero
+// answers; quitting aborts with ErrCanceled.
+func (r Runner) Run(ptrs ...any) error {
+	if len(ptrs) != len(r.pickers) {
+		return fmt.Errorf("pick: response pointer count (%d) does not match picker count (%d)", len(ptrs), len(r.pickers))
+	}
+	if len(r.pickers) == 0 {
+		return errors.New("pick: no pickers to ask")
+	}
+	if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) { // check if interactive terminal
 		return nil
 	}
-	_, err := tea.NewProgram(m, tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout), tea.WithAltScreen()).Run()
-	return err
+	s := &stackModel{opts: r.opts, models: r.pickers, done: make(chan struct{}, 1)}
+	p := tea.NewProgram(s, tea.WithInput(os.Stdin), tea.WithOutput(os.Stdout), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		return err
+	}
+	select {
+	case <-s.done:
+		return ErrCanceled
+	default: // a run closed without canceling — a gone terminal — reads submitted
+	}
+	for i, pm := range r.pickers {
+		if err := pm.respond(ptrs[i]); err != nil { // #nosec G602 -- the counts were checked equal above
+			return err
+		}
+	}
+	return nil
 }
 
-// RunWithResponse asks m's prompt: Run, then Response. The non-terminal read is
-// the zero answer; quitting aborts with ErrCanceled.
-func RunWithResponse[A any](m ResponseModel[A]) (A, error) {
-	if !interactive() {
-		var zero A
-		return zero, nil
-	}
-	if err := Run(m); err != nil {
-		var zero A
-		return zero, err
-	}
-	return m.Response()
+// Picker is one question the Runner asks: its rows under the cursor, what
+// enter does on the cursor's row, whether it has its pick, and the read it
+// writes into the caller's pointer
+type Picker interface {
+	// rows counts the body's rows — the cursor's bounds ride the count: rows
+	// can exceed the options with revealed rows
+	rows() int
+
+	// render draws the body's rows — the cursor's mark rides the focused prompt
+	render(cursor int, focused bool) []string
+
+	// enter answers enter on the cursor's row
+	enter(cursor int)
+
+	// picked reports the picker has a pick: the single picker's mark, the
+	// checklist's checks
+	picked() bool
+
+	// respond writes the picker's read into the caller's pointer
+	respond(ptr any) error
 }
 
-func interactive() bool { return isTerminal(os.Stdin) && isTerminal(os.Stdout) }
+// pickerModel is a picker as the Runner renders it: the picker's rows under
+// the run's cursor
+type pickerModel struct {
+	Picker
+
+	cursor int
+}
+
+// stackModel is the one model a Runner shows: its pickers stacked under the
+// chrome, closed by the one submit row
+type stackModel struct {
+	opts   RunnerOptions
+	models []*pickerModel
+	focus  int           // the picker taking the cursor; -1 is the submit row
+	done   chan struct{} // carries a cancel back to Run; cap 1 so the send never blocks
+	width  int
+	height int
+}
+
+func (s *stackModel) Init() tea.Cmd { return nil }
+
+// Update sizes the placed view, answers the keys through key, and quits on quitMsg
+func (s *stackModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		s.width, s.height = msg.Width, msg.Height
+	case quitMsg:
+		return s, tea.Quit
+	case tea.KeyMsg:
+		if cmd := s.key(msg); cmd != nil {
+			return s, cmd
+		}
+	}
+	return s, nil
+}
+
+// key handles the run's keys; its cmd closes the run, nil keeps it open
+func (s *stackModel) key(msg tea.KeyMsg) tea.Cmd {
+	switch msg.String() {
+	case "esc", "ctrl+c":
+		return s.cancel()
+	case "up", "k":
+		s.move(-1)
+	case "down", "j":
+		s.move(1)
+	case "enter":
+		if s.isSubmitFocused() {
+			return tea.Quit
+		}
+		m := s.models[s.focus]
+		m.enter(m.cursor)
+	}
+	return nil
+}
+
+// quitMsg closes the run once its cancel reached Run
+type quitMsg struct{}
+
+// cancel quits the run as canceled, the cancel riding the cmd back to Run
+func (s *stackModel) cancel() tea.Cmd {
+	return func() tea.Msg {
+		s.done <- struct{}{}
+		return quitMsg{}
+	}
+}
+
+// move steps the cursor one row in step's direction — within the focused
+// picker, or off its edge onto the run's next slot. The submit row's focus
+// -1 needs no case of its own: cross's wrap lands it right
+func (s *stackModel) move(step int) {
+	if !s.isSubmitFocused() {
+		m := s.models[s.focus]
+		if next := m.cursor + step; next >= 0 && next < m.rows() {
+			m.cursor = next
+			return
+		}
+	}
+	s.cross(s.focus+step, step)
+}
+
+// cross lands the cursor on the run's slot i
+func (s *stackModel) cross(i int, step int) {
+	if slots := len(s.models) + 1; i < 0 || i >= slots { // +1 for the submit row
+		i = (i + slots) % slots
+	}
+	if i == len(s.models) { // the submit row
+		if s.isSubmitFocusable() {
+			s.focus = -1
+			return
+		}
+		s.cross(i+step, step) // a gray submit row: recurse to the slot beyond
+		return
+	}
+	s.focus = i
+	if m := s.models[i]; step > 0 {
+		m.cursor = 0
+	} else {
+		m.cursor = m.rows() - 1
+	}
+}
+
+// isSubmitFocusable reports the submit row takes the cursor and enter — every picker
+// has its pick, unless RequireSelected is off
+func (s *stackModel) isSubmitFocusable() bool {
+	if !s.opts.RequireSelected {
+		return true
+	}
+	for _, m := range s.models {
+		if !m.picked() {
+			return false
+		}
+	}
+	return true
+}
+
+// isSubmitFocused reports the cursor sits on the run's one submit row
+func (s *stackModel) isSubmitFocused() bool { return s.focus < 0 }
+
+// submitRow renders the run's one submit row; a disabled one is gray
+func (s *stackModel) submitRow() string {
+	if !s.isSubmitFocusable() {
+		return "  " + lightStyle.Render(s.opts.SubmitLabel)
+	}
+	if s.isSubmitFocused() {
+		return strongStyle.Render("❯ " + s.opts.SubmitLabel)
+	}
+	return "  " + defaultStyle.Render(s.opts.SubmitLabel)
+}
+
+// View renders the pickers under the chrome — the header and subtext over
+// them, the submit and help rows below — all centered in the terminal
+func (s *stackModel) View() string {
+	lines := make([]string, 0, 2+len(s.opts.Subtext))
+	lines = append(lines, strongStyle.Render(s.opts.Header))
+	// render each line separately: a multi-line render pads its lines to one
+	// width, so Place would center the block instead of each line
+	for _, line := range s.opts.Subtext {
+		lines = append(lines, lightStyle.Render(line))
+	}
+	lines = append(lines, "")
+	for i, m := range s.models {
+		lines = append(lines, m.render(m.cursor, i == s.focus)...)
+	}
+	body := strings.Join(lines, "\n") + "\n\n" + s.submitRow() + "\n\n" +
+		lightStyle.Render("↑/↓ move • enter select • esc quit")
+	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, body)
+}
 
 func isTerminal(f *os.File) bool {
 	fd, _ := term.GetFdInfo(f)
 	return term.IsTerminal(fd)
 }
 
-// picker is the chrome both pickers share: a header, subtext lines, a cursor over
-// the options plus a final submit row, and a help line, all centered in the terminal
-type picker struct {
-	header          string
-	subtext         []string
-	options         []string
-	submitLabel     string // the final row's label; enter on it confirms the prompt
-	requireSelected bool   // the submit row stays gray and out of the cursor's path until a selection
-	cursor          int
-	canceled        bool
-	width           int
-	height          int
-}
-
-func newPicker(header string, subtext []string, submitLabel string, requireSelected bool, options []string) picker {
-	if len(options) == 0 {
-		panic("pick: no options to pick from")
+// fill writes a picker's read into the caller's pointer
+func fill[A any](ptr any, a A) error {
+	p, ok := ptr.(*A)
+	if !ok {
+		return fmt.Errorf("pick: response pointer is %T, want %T", ptr, p)
 	}
-	return picker{header: header, subtext: subtext, options: options, submitLabel: submitLabel, requireSelected: requireSelected}
-}
-
-func (p picker) Init() tea.Cmd { return nil }
-
-// key handles the keys both pickers share: moving the cursor and quitting on
-// esc/ctrl+c. The submit row joins the cursor's path only when submitOn. quit
-// reports the prompt should close.
-func (p picker) key(msg tea.KeyMsg, submitOn bool) (picker, bool) {
-	rows := len(p.options)
-	if submitOn {
-		rows++ // the submit row
-	}
-	switch msg.String() {
-	case "up", "k":
-		p.cursor = (p.cursor - 1 + rows) % rows
-	case "down", "j":
-		p.cursor = (p.cursor + 1) % rows
-	case "esc", "ctrl+c":
-		p.canceled = true
-		return p, true
-	}
-	return p, false
-}
-
-// submitRow renders the final row: enter on it confirms the prompt. A disabled
-// submit is gray — nothing chosen yet, so it's out of the cursor's path too
-func (p picker) submitRow(enabled bool) string {
-	if !enabled {
-		return "  " + grayStyle.Render(p.submitLabel)
-	}
-	if p.cursor == len(p.options) {
-		return whiteStyle.Render("❯ " + p.submitLabel)
-	}
-	return "  " + slateStyle.Render(p.submitLabel)
-}
-
-// place centers the prompt in the terminal, each line centered on its own: the
-// header, the subtext, then the body lines
-func (p picker) place(body []string) string {
-	lines := make([]string, 0, 1+len(p.subtext)+len(body))
-	lines = append(lines, whiteStyle.Render(p.header))
-	// the subtext renders per line: a style render pads a multi-line string to one
-	// block width, which Place would then center as a unit instead of centering each line
-	for _, line := range p.subtext {
-		lines = append(lines, grayStyle.Render(line))
-	}
-	return lipgloss.Place(p.width, p.height, lipgloss.Center, lipgloss.Center, strings.Join(append(lines, body...), "\n"))
-}
-
-// model is the single-pick TUI: the picker chrome plus the option marked with
-// the circle
-type model struct {
-	picker
-
-	selected int // -1 is nothing marked yet
-}
-
-func (m *model) Response() (string, error) {
-	if m.canceled {
-		return "", ErrCanceled
-	}
-	if m.selected < 0 {
-		return "", nil
-	}
-	return m.options[m.selected], nil
-}
-
-// submitOn reports the submit row takes the cursor and enter
-func (m *model) submitOn() bool { return !m.requireSelected || m.selected >= 0 }
-
-// Update marks the cursor's option on enter; the submit row and cancel keys quit
-func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		m.width, m.height = msg.Width, msg.Height
-	case tea.KeyMsg:
-		p, quit := m.key(msg, m.submitOn())
-		m.picker = p
-		if quit {
-			return m, tea.Quit
-		}
-		if msg.String() == "enter" {
-			if m.cursor == len(m.options) { // the submit row
-				return m, tea.Quit
-			}
-			m.selected = m.cursor
-		}
-	}
-	return m, nil
-}
-
-// View renders the prompt, each line centered in the terminal
-func (m *model) View() string {
-	body := []string{""}
-	for i, opt := range m.options {
-		circle, style := "○", slateStyle
-		if i == m.selected {
-			circle, style = "◉", whiteStyle
-		}
-		cursor := "  "
-		if i == m.cursor {
-			cursor = whiteStyle.Render("❯ ")
-		}
-		body = append(body, cursor+circle+" "+style.Render(opt))
-	}
-	body = append(body, "", m.submitRow(m.submitOn()))
-	return m.place(append(body, "", grayStyle.Render("↑/↓ move • enter select • esc quit")))
+	*p = a
+	return nil
 }
