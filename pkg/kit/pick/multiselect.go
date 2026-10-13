@@ -7,10 +7,16 @@ import (
 )
 
 // NewMultiSelect returns the checklist model for choosing several entries from
-// options under a header and subtext lines, submitLabel on the submit row. No
-// options panics.
-func NewMultiSelect(header string, subtext []string, submitLabel string, requireSelected bool, options []string) ResponseModel[[]string] {
-	return &multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))}
+// options under a header and subtext lines, submitLabel on the submit row,
+// checked pre-checking the named options. No options panics.
+func NewMultiSelect(header string, subtext []string, submitLabel string, requireSelected bool, options, checked []string) ResponseModel[[]string] {
+	m := &multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))}
+	for _, opt := range checked {
+		if i := slices.Index(m.options, opt); i >= 0 {
+			m.checked[i] = true
+		}
+	}
+	return m
 }
 
 // multiModel is the checklist TUI: the picker chrome plus each option's check

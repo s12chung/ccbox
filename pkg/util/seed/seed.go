@@ -42,23 +42,32 @@ func SafeFile(path string, body []byte) error { return errs.Swallow(File(path, b
 // matched its source, so nothing was written or backed up.
 var ErrNoChanges = errors.New("seed: all files identical")
 
-// FS seeds fsys's tree onto destDir (creating it), preserving the tree.
-// A destination already matching the source is left untouched. Other existing
-// destination files are moved aside to <base>.old<ext> before being overwritten; the
-// aside paths are returned. A pre-existing aside is never clobbered — it's a hard error.
-// When every file is left untouched, ErrNoChanges is returned.
+// FS seeds fsys's tree onto destDir (creating it): each differing dest file is
+// first infixed to <base>.old<ext>; the infixed paths return, ErrNoChanges when
+// none differ.
 func FS(fsys fs.FS, destDir string) ([]string, error) {
-	asides, changed, err := sync(fsys, destDir, "old")
+	infixed, changed, err := sync(fsys, destDir, "old")
 	if err == nil && !changed {
-		return asides, ErrNoChanges
+		return infixed, ErrNoChanges
 	}
-	return asides, err
+	return infixed, err
 }
 
-// Merge moves srcDir's changes into dstDir, creating dstDir when missing: files
-// dstDir lacks are written in as-is, identical files are dropped, and differing
-// files land in dstDir with dstDir's copies moved aside as <base>.<infix>.<ext> —
-// one merge's asides sharing one infix. The aside paths are returned.
+// IfNotExist is FS gated to a missing destDir: a first-run seed, an existing
+// dir is never touched.
+func IfNotExist(fsys fs.FS, destDir string) error {
+	switch _, err := os.Stat(destDir); {
+	case err == nil:
+		return nil
+	case !errors.Is(err, fs.ErrNotExist):
+		return err
+	}
+	_, err := FS(fsys, destDir)
+	return errs.Swallow(err, ErrNoChanges)
+}
+
+// Merge moves srcDir's changes into dstDir (creating it): each differing dst
+// file is first infixed to <base>.<infix><ext>; the infixed paths return.
 func Merge(srcDir, dstDir, infix string) ([]string, error) {
 	switch _, err := os.Stat(dstDir); {
 	case errors.Is(err, fs.ErrNotExist):
@@ -69,17 +78,14 @@ func Merge(srcDir, dstDir, infix string) ([]string, error) {
 	case err != nil:
 		return nil, err
 	}
-	asides, _, err := sync(os.DirFS(srcDir), dstDir, infix)
-	return asides, err
+	infixed, _, err := sync(os.DirFS(srcDir), dstDir, infix)
+	return infixed, err
 }
 
-// sync writes fsys's tree onto destDir (creating it), preserving the tree: a
-// destination matching its source is left untouched; every other file is written
-// over, its differing copy moved aside to <base>.<infix><ext> first — a pre-existing
-// aside is never clobbered, it's a hard error. Empty dirs are created as-is. The second
-// return reports that any file was written.
+// sync is FS's walk: a differing dest file is infixed before it's overwritten,
+// empty dirs are created as-is; the second return reports that any file was written.
 func sync(fsys fs.FS, destDir, infix string) ([]string, bool, error) {
-	var asides []string
+	var infixed []string
 	var changed bool
 	err := fs.WalkDir(fsys, ".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -101,32 +107,32 @@ func sync(fsys fs.FS, destDir, infix string) ([]string, bool, error) {
 			if bytes.Equal(existing, body) {
 				return nil
 			}
-			aside, err := asideDest(dest, infix)
+			path, err := infixedDest(dest, infix)
 			if err != nil {
 				return err
 			}
-			asides = append(asides, aside)
+			infixed = append(infixed, path)
 		} else if !errors.Is(err, fs.ErrNotExist) {
 			return err
 		}
 		changed = true
 		return os.WriteFile(dest, body, fileMode(dest))
 	})
-	return asides, changed, err
+	return infixed, changed, err
 }
 
-// asideDest moves dest aside to <base>.<infix><ext>, refusing to clobber a
-// pre-existing aside
-func asideDest(dest, infix string) (string, error) {
+// infixedDest moves dest to <base>.<infix><ext>, refusing to clobber a pre-existing
+// infixed file
+func infixedDest(dest, infix string) (string, error) {
 	ext := filepath.Ext(dest)
-	aside := strings.TrimSuffix(dest, ext) + "." + infix + ext
-	switch _, err := os.Stat(aside); {
+	path := strings.TrimSuffix(dest, ext) + "." + infix + ext
+	switch _, err := os.Stat(path); {
 	case err == nil:
-		return "", fmt.Errorf("seed: aside already exists, refusing to overwrite: %s", aside)
+		return "", fmt.Errorf("seed: infixed file already exists, refusing to overwrite: %s", path)
 	case !errors.Is(err, fs.ErrNotExist):
 		return "", err
 	}
-	return aside, os.Rename(dest, aside)
+	return path, os.Rename(dest, path)
 }
 
 // fileMode makes shell scripts executable; everything else is a regular file.

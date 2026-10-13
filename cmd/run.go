@@ -10,6 +10,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/models/cli"
+	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
@@ -49,7 +50,7 @@ func run(ctx context.Context, mode dmap.RunMode) error {
 		return err
 	}
 
-	options, clean, err := dmap.NewRunMap(config, provSpec.Resolve().CacheVolumes(), tagByProject).RunOptions(flagTag, mode)
+	options, clean, err := dmap.NewRunMap(config, miseRuntimes.CacheVolumes(), tagByProject).RunOptions(flagTag, mode)
 	defer log.Defer("clean run files", clean)
 	if err != nil {
 		return err
@@ -70,10 +71,11 @@ func init() {
 
 // seedRunMounts seeds the run mounts in userDir
 func seedRunMounts(userDir string) error {
-	if err := safeSeedCLIConfig(*config.CLIName, false); err != nil {
+	c := config.CLI()
+	if err := seed.IfNotExist(clitmpl.UserCLIConfigSeedFS(c.Name, c.IsUserDefined()), cli.UserConfigDir(c.Name)); err != nil {
 		return err
 	}
-	return safeSeedCLIDataBinds(userDir, config.CLI())
+	return safeSeedCLIDataBinds(userDir, c)
 }
 
 // safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>

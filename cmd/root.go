@@ -16,11 +16,12 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/provider"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/prompt"
-	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/flagptr"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 // Injected from main (package main can't be imported, so the embed FS comes in here).
@@ -34,9 +35,9 @@ var (
 
 // loaded once together before any command runs
 var (
-	config       *cfg.Config // layered config (user < project < local < flags)
-	provSpec     *prov.Spec  // layered provisioning spec (user < project)
-	tagByProject bool        // whether the project carries its own mise config
+	config       *cfg.Config          // layered config (user < project < local < flags)
+	miseRuntimes runtime.MiseRuntimes // the picked mise config's runtime selection
+	tagByProject bool                 // whether the project carries its own mise config
 )
 
 var rootCmd = &cobra.Command{
@@ -80,10 +81,11 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		provSpec, err = prov.Load(mustGetwd())
+		toolNames, err := mise.ToolNames(config.ProjectDir())
 		if err != nil {
 			return err
 		}
+		miseRuntimes = runtime.FromMiseToolNames(toolNames)
 		tagByProject = osutil.Present(mise.ProjectConfigPath(config.ProjectDir()))
 		return prompt.ProjectDirSize(config.ProjectDir())
 	},
@@ -111,33 +113,25 @@ func init() {
 		return cli.Names(), cobra.ShellCompDirectiveNoFileComp
 	}))
 
-	rootCmd.AddCommand(runCmd, buildCmd, pkginfoCmd, proxyCmd, reseedCmd, cleanCmd, configCmd, doctorCmd)
+	rootCmd.AddCommand(runCmd, buildCmd, pkginfoCmd, proxyCmd, cleanCmd, configCmd, doctorCmd, miseCmd)
 }
 
 // rootSeed seeds the user-level harness state if missing
 func rootSeed() error {
-	if err := safeSeed(clitmpl.UserSeedFS(), clitmpl.UserDir(), false); err != nil {
+	if err := seed.IfNotExist(clitmpl.UserSeedFS(), clitmpl.UserDir()); err != nil {
 		return err
 	}
-	if err := safeSeed(provider.UserSeedFS(), provider.UserDir(), false); err != nil {
+	if err := seed.IfNotExist(provider.UserSeedFS(), provider.UserDir()); err != nil {
 		return err
 	}
 	if err := share.SafeSeedAgentsMd(); err != nil {
 		return err
 	}
-	return safeSeedUserState()
-}
-
-func safeSeedUserState() error {
 	if err := safeSeedUserConfig(); err != nil {
 		return err
 	}
-	runtimes, err := safeSeedProvConfig()
-	if err != nil {
-		return err
-	}
-	provSpec := prov.Spec{Runtimes: runtimes}
-	return mise.SeedConfig(mise.UserConfigPath(), provSpec.Resolve().MiseTools())
+	_, err := seedMiseConfig(mise.UserConfigPath())
+	return err
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing
@@ -151,18 +145,6 @@ func safeSeedUserConfig() error {
 		return err
 	}
 	return cfg.SeedConfig(path, cliName)
-}
-
-// safeSeedProvConfig seeds the user-level prov spec if missing
-func safeSeedProvConfig() ([]string, error) {
-	if osutil.Present(prov.UserConfigFile()) {
-		return prov.SelectableRuntimes(), nil
-	}
-	runtimes, err := prompt.Runtimes(prov.SelectableRuntimes())
-	if err != nil {
-		return nil, err
-	}
-	return runtimes, prov.SeedConfig(runtimes)
 }
 
 func mustGetwd() string {

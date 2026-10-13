@@ -183,12 +183,12 @@ func (d Dir) IsChanged(bind string) (bool, error) {
 
 // Promote merges the run's tree into realPath, moving its differing copies aside
 func (d Dir) Promote(bind, realPath string) error {
-	asides, err := seed.Merge(bind, realPath, "run-"+runid.New())
+	infixed, err := seed.Merge(bind, realPath, "run-"+runid.New())
 	if err != nil {
 		return err
 	}
-	for _, aside := range asides {
-		log.Warnf("due to duplicate, run files saved as %s", userdir.Tilde(aside))
+	for _, path := range infixed {
+		log.Warnf("due to duplicate, run files saved as %s", userdir.Tilde(path))
 	}
 	return nil
 }

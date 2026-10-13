@@ -4,11 +4,16 @@ package mise
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+
+	"github.com/pelletier/go-toml/v2"
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
@@ -37,6 +42,34 @@ func UserConfigPath() string { return filepath.Join(userdir.Dir(), UserConfigNam
 // LockPath is the config's committed lockfile path, beside it
 func LockPath(configPath string) string {
 	return strings.TrimSuffix(configPath, filepath.Ext(configPath)) + LockExt
+}
+
+// PickedConfigPath is the config the build picks — the project config over the
+// user's; "" when neither is present
+func PickedConfigPath(projectDir string) string {
+	return osutil.PickLayer(ProjectConfigPath(projectDir), UserConfigPath())
+}
+
+// ToolNames reads the picked config's [tools] names, sorted — the mise config is
+// the runtime selection's source of truth: the update prompt's pre-fill and the
+// image state's input
+func ToolNames(projectDir string) ([]string, error) {
+	path := PickedConfigPath(projectDir)
+	if path == "" {
+		return nil, fmt.Errorf("mise: no mise config to read — expected a project config at %s or the user config at %s",
+			ProjectConfigPath(projectDir), UserConfigPath())
+	}
+	body, err := os.ReadFile(path) // #nosec G304 -- the config's own path
+	if err != nil {
+		return nil, err
+	}
+	var file struct {
+		Tools map[string]any `toml:"tools"`
+	}
+	if err := toml.Unmarshal(body, &file); err != nil {
+		return nil, fmt.Errorf("mise: %s: %w", path, err)
+	}
+	return slices.Sorted(maps.Keys(file.Tools)), nil
 }
 
 // miseImageRe matches the Dockerfile's pure-mise FROM — the lock container must run
@@ -104,7 +137,7 @@ const (
 // mise config injected where the Dockerfile COPYs it.
 func BuildFS(embed fs.FS, projectDir string, tools []Tool) (fs.FS, error) {
 	var hostConfigFS fs.FS
-	if configPath := osutil.PickLayer(ProjectConfigPath(projectDir), UserConfigPath()); configPath != "" {
+	if configPath := PickedConfigPath(projectDir); configPath != "" {
 		var err error
 		hostConfigFS, err = configFS(configPath)
 		if err != nil {

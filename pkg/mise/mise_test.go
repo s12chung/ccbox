@@ -137,3 +137,52 @@ func TestBuildFS(t *testing.T) {
 		})
 	}
 }
+
+// toolsConfig is the fixture config: plain bindings, an inline table and a
+// sub-table — the shapes a [tools] table carries
+const toolsConfig = `[tools]
+go = "1.26"
+ruby = { version = "3.4" }
+
+[tools."npm:playwright"]
+version = "latest"
+`
+
+func TestToolNames(t *testing.T) {
+	testutil.Home(t)
+	projectDir := t.TempDir()
+	require.NoError(t, os.WriteFile(ProjectConfigPath(projectDir), []byte(toolsConfig), osutil.File))
+
+	names, err := ToolNames(projectDir)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"go", "npm:playwright", "ruby"}, names, "the [tools] table's names, sub-tables included")
+}
+
+func TestToolNames_UserFallback(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, SeedConfig(UserConfigPath(), []Tool{{Tool: "node", Version: "26"}}))
+
+	names, err := ToolNames(t.TempDir())
+	require.NoError(t, err)
+	assert.Contains(t, names, "node", "the user config's [tools] names")
+}
+
+func TestToolNames_Errors(t *testing.T) {
+	t.Run("no config", func(t *testing.T) {
+		testutil.Home(t)
+
+		_, err := ToolNames(t.TempDir())
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "no mise config to read")
+	})
+
+	t.Run("broken toml", func(t *testing.T) {
+		testutil.Home(t)
+		configPath := ProjectConfigPath(t.TempDir())
+		require.NoError(t, os.WriteFile(configPath, []byte("[tools\n"), osutil.File))
+
+		_, err := ToolNames(t.TempDir())
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "mise:")
+	})
+}

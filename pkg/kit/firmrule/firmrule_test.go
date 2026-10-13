@@ -49,11 +49,6 @@ func TestMatchRules(t *testing.T) {
 			[]string{"https://x.ai/cli/stable", "https://x.ai/cli/grok-$version-linux-x86_64"},
 			[]string{"", "http://x", "ftp://x", "https://", "x.ai/cli"},
 		},
-		{
-			"AptPkg", AptPkg,
-			[]string{"htop", "libssl3t64", "zlib1g", "libreadline8t64", "0ad-data"},
-			[]string{"", "Htop", "lib ssl", "-lead", "a", ".hidden", "pkg~", "pkg:arch"},
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -89,7 +89,7 @@ func (t Tool) row() string {
 // SyncTools syncs the generated tools region of the config the build picks —
 // project over user; with neither, there's nothing to sync and it errors.
 func SyncTools(projectDir string, tools []Tool) error {
-	path := osutil.PickLayer(ProjectConfigPath(projectDir), UserConfigPath())
+	path := PickedConfigPath(projectDir)
 	if path == "" {
 		return fmt.Errorf("mise: no mise config to sync — expected a project config at %s or the user config at %s",
 			ProjectConfigPath(projectDir), UserConfigPath())

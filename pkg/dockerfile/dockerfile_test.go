@@ -11,16 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
-// allSelection resolves every runtime: the render matches the pre-spec image,
+// allSelection selects every runtime: the render matches the all-runtimes image,
 // byte for byte.
-func allSelection(t *testing.T) prov.Resolved {
+func allSelection(t *testing.T) []runtime.Runtime {
 	t.Helper()
-	provSpec := prov.Spec{Runtimes: slicex.Minus(runtime.Names(), []string{runtime.Node().Name})}
-	return provSpec.Resolve()
+	return runtime.FromMiseToolNames(slicex.Minus(runtime.Names(), []string{runtime.Node().Name})).Runtimes
 }
 
 // TestRegions pins each generated region's render.
@@ -41,23 +39,21 @@ func TestRegions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.render(regions{allSelection(t)}))
+			assert.Equal(t, tt.want, tt.render(regions{runtimes: allSelection(t)}))
 		})
 	}
 }
 
-// TestRegions_Selection pins the regions narrowing to a subset selection,
-// extras riding the libs row.
+// TestRegions_Selection pins the regions narrowing to a subset selection.
 func TestRegions_Selection(t *testing.T) {
-	provSpec := prov.Spec{Runtimes: []string{"go", "node"}, AptPackages: []string{"htop", "jq"}}
-	resolved := provSpec.Resolve()
+	selected := runtime.FromMiseToolNames([]string{"go"}).Runtimes
 
 	tests := []struct {
 		name   string
 		render func(regions) string
 		want   string
 	}{
-		{"runtimeLibs", regions.RuntimeLibs, "        libatomic1 htop jq \\"},
+		{"runtimeLibs", regions.RuntimeLibs, "        libatomic1 \\"},
 		{"buildDeps", regions.BuildDeps, ""},
 		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin"},
 		{"envVars", regions.EnvVars, "GOBIN=/home/ccbox/go/bin NPM_CONFIG_PREFIX=/home/ccbox/.npm-global NPM_CONFIG_UPDATE_NOTIFIER=false"},
@@ -65,7 +61,7 @@ func TestRegions_Selection(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.render(regions{resolved}))
+			assert.Equal(t, tt.want, tt.render(regions{runtimes: selected}))
 		})
 	}
 }
@@ -84,8 +80,7 @@ func TestRender_SubsetSelection(t *testing.T) {
 	golden, err := os.ReadFile(filepath.Join("testdata", "TestRender_SubsetSelection.Dockerfile")) // #nosec G304 -- the test's own fixture
 	require.NoError(t, err)
 
-	provSpec := prov.Spec{Runtimes: []string{"go", "node"}, AptPackages: []string{"htop", "jq"}}
-	composed, err := render(provSpec.Resolve())
+	composed, err := render(runtime.FromMiseToolNames([]string{"go"}).Runtimes)
 	require.NoError(t, err)
 	assert.Equal(t, string(golden), string(composed))
 }

@@ -13,7 +13,6 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 )
 
@@ -24,11 +23,11 @@ var (
 )
 
 // regions is the tmpl's data; its exported methods are the tmpl's actions.
-type regions struct{ prov.Resolved }
+type regions struct{ runtimes []runtime.Runtime }
 
 // RuntimeLibs renders the generated apt RUN's continuation row
 func (r regions) RuntimeLibs() string {
-	libs := append(r.collect(func(rt runtime.Runtime) []string { return rt.AptPkgs }), r.AptPackages...)
+	libs := r.collect(func(rt runtime.Runtime) []string { return rt.AptPkgs })
 	return "        " + strings.Join(libs, " ") + " \\"
 }
 
@@ -45,7 +44,7 @@ func (r regions) PATHDirs() string {
 // EnvVars renders the runtimes' image env pairs
 func (r regions) EnvVars() string {
 	var pairs []string
-	for _, rt := range r.Runtimes {
+	for _, rt := range r.runtimes {
 		// Go map iteration is randomized
 		for _, k := range slices.Sorted(maps.Keys(rt.EnvVars)) {
 			pairs = append(pairs, k+"="+rt.EnvVars[k])
@@ -61,8 +60,8 @@ func (r regions) CacheDirs() string {
 
 // collect gathers field's items, keeping All()'s order
 func (r regions) collect(field func(runtime.Runtime) []string) []string {
-	items := make([]string, 0, len(r.Runtimes))
-	for _, rt := range r.Runtimes {
+	items := make([]string, 0, len(r.runtimes))
+	for _, rt := range r.runtimes {
 		items = append(items, field(rt)...)
 	}
 	return items
@@ -70,8 +69,8 @@ func (r regions) collect(field func(runtime.Runtime) []string) []string {
 
 // PatchFS renders the Dockerfile.tmpl and layers it over fsys as the context's
 // Dockerfile.
-func PatchFS(fsys fs.FS, resolved prov.Resolved) (fs.FS, error) {
-	body, err := render(resolved)
+func PatchFS(fsys fs.FS, runtimes []runtime.Runtime) (fs.FS, error) {
+	body, err := render(runtimes)
 	if err != nil {
 		return nil, err
 	}
@@ -91,9 +90,9 @@ func MiseImageRef() (string, error) {
 	return mise.ImageRefFromDockerfile(tmplBody)
 }
 
-func render(resolved prov.Resolved) ([]byte, error) {
+func render(runtimes []runtime.Runtime) ([]byte, error) {
 	var b bytes.Buffer
-	if err := tmpl.Execute(&b, regions{resolved}); err != nil {
+	if err := tmpl.Execute(&b, regions{runtimes: runtimes}); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil

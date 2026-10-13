@@ -11,7 +11,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
-	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/size"
 	"github.com/s12chung/ccbox/pkg/util/term"
@@ -68,20 +67,19 @@ func HarnessCLI(cliNames []string) (string, error) {
 	return name, nil
 }
 
-// Runtimes asks which runtimes to install in the devbox, all in one checklist.
-func Runtimes(names []string) ([]string, error) {
+// Runtimes asks which runtimes to install in the devbox, all in one checklist;
+// checked pre-checks it — the mise config's current selection
+func Runtimes(savePath string, names, checked []string) ([]string, error) {
 	picked, err := multiSelectFn(pick.NewMultiSelect("Select the runtimes to install",
 		[]string{"(node is included)"},
-		"Save to "+userdir.Tilde(prov.UserConfigFile()),
+		"Save to "+userdir.Tilde(savePath),
 		false,
-		names))
+		names, checked))
 	if err != nil {
 		return nil, err
 	}
-	// nil is the no-terminal read: the picker never showed, so every runtime keeps
-	// its default; an empty check set is a real answer and installs none
-	if picked == nil {
-		return names, nil
+	if picked == nil { // no terminal to show the picker
+		return nil, fmt.Errorf("no runtimes selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
 	}
 	return picked, nil
 }

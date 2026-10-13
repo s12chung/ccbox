@@ -13,6 +13,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/moby/buildkit v0.31.0
 	github.com/moby/term v0.5.2
+	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/s12chung/ccbox/tools/ccboxtools v0.0.0-00010101000000-000000000000
 	github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae
 	github.com/spf13/cobra v1.10.2
@@ -154,7 +155,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/package-url/packageurl-go v0.1.1 // indirect
-	github.com/pelletier/go-toml/v2 v2.3.1 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect

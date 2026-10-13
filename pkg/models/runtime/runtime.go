@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/s12chung/ccbox/pkg/mise"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
 // Runtime is a language runtime and everything the image knows about it: the
@@ -125,6 +126,10 @@ func Names() []string {
 	}
 	return names
 }
+
+// SelectableNames lists the selectable runtimes' names — node's absent: it rides
+// every resolution
+func SelectableNames() []string { return slicex.Minus(Names(), []string{Node().Name}) }
 
 // Aliases lists every runtime's alias plus AllRuntimesAlias, sorted
 func Aliases() []string {

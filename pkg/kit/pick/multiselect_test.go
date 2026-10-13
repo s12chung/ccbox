@@ -1,6 +1,7 @@
 package pick
 
 import (
+	"slices"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,12 +11,18 @@ import (
 
 // newMultiModel builds the checklist model for the tests; NewMultiSelect inlines
 // the literal
-func newMultiModel(header string, subtext []string, submitLabel string, requireSelected bool, options []string) *multiModel {
-	return &multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))}
+func newMultiModel(header string, subtext []string, submitLabel string, requireSelected bool, options, checked []string) *multiModel {
+	m := &multiModel{picker: newPicker(header, subtext, submitLabel, requireSelected, options), checked: make([]bool, len(options))}
+	for _, opt := range checked {
+		if i := slices.Index(m.options, opt); i >= 0 {
+			m.checked[i] = true
+		}
+	}
+	return m
 }
 
 func TestMultiModel_UpdateEnterToggles(t *testing.T) {
-	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python", "ruby"})
+	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python", "ruby"}, nil)
 
 	m = key(t, m, tea.KeyEnter)
 	assert.Equal(t, []bool{true, false, false}, m.checked)
@@ -28,7 +35,7 @@ func TestMultiModel_UpdateEnterToggles(t *testing.T) {
 }
 
 func TestMultiModel_UpdateEnterOnSubmitRow(t *testing.T) {
-	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python"})
+	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python"}, nil)
 	m.cursor = len(m.options) // the submit row
 
 	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -41,7 +48,7 @@ func TestMultiModel_UpdateEnterOnSubmitRow(t *testing.T) {
 }
 
 func TestMultiModel_UpdateSubmitNeedsCheck(t *testing.T) {
-	m := newMultiModel("pick some", nil, "Save", true, []string{"go", "python"})
+	m := newMultiModel("pick some", nil, "Save", true, []string{"go", "python"}, nil)
 	assert.False(t, m.submitOn())
 
 	// nothing checked: the gray submitLabel row is out of the cursor's path
@@ -56,7 +63,7 @@ func TestMultiModel_UpdateSubmitNeedsCheck(t *testing.T) {
 }
 
 func TestMultiModel_Picked(t *testing.T) {
-	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python", "ruby"})
+	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python", "ruby"}, nil)
 	picked, err := m.Response()
 	require.NoError(t, err)
 	assert.NotNil(t, picked, "an empty check set stays distinct from the nil non-terminal read")
@@ -68,27 +75,34 @@ func TestMultiModel_Picked(t *testing.T) {
 	assert.Equal(t, []string{"go", "ruby"}, picked, "picked follows the options' order")
 }
 
+func TestNewMultiSelect_Checked(t *testing.T) {
+	m := newMultiModel("pick some", nil, "Save", false, []string{"go", "python", "ruby"}, []string{"ruby", "bogus"})
+	assert.Equal(t, []bool{false, false, true}, m.checked, "the named options pre-check, unknown names drop")
+}
+
 func TestMultiModel_View(t *testing.T) {
-	header, subtext := "Select the runtimes to install", "(set in ~/.ccbox/config/prov.yaml)"
-	submitLabel := "Save to ~/.ccbox/config/prov.yaml"
-	m := newMultiModel(header, []string{subtext}, submitLabel, false, []string{"go", "python", "ruby"})
+	header, subtext := "Select the runtimes to install", "(set in ~/.ccbox/config/ccbox-mise.toml)"
+	submitLabel := "Save to ~/.ccbox/config/ccbox-mise.toml"
+	m := newMultiModel(header, []string{subtext}, submitLabel, false, []string{"go", "python", "ruby"}, nil)
 	m.checked[0] = true
 	m.cursor = 2
 
 	view := m.View()
-	assert.Contains(t, view,
-		"Select the runtimes to install\n(set in ~/.ccbox/config/prov.yaml)\n\n  [x] go\n  [ ] python\n❯ [ ] ruby\n\n  Save to ~/.ccbox/config/prov.yaml\n")
+	want := "Select the runtimes to install\n(set in ~/.ccbox/config/ccbox-mise.toml)\n\n" +
+		"  [x] go\n  [ ] python\n❯ [ ] ruby\n\n" +
+		"  Save to ~/.ccbox/config/ccbox-mise.toml\n"
+	assert.Contains(t, view, want)
 	assert.Contains(t, view, "↑/↓ move • enter check • esc quit")
 }
 
 func TestNewMultiSelect_NoOptions(t *testing.T) {
-	assert.Panics(t, func() { NewMultiSelect("pick some", nil, "Save", false, nil) })
-	assert.Panics(t, func() { NewMultiSelect("pick some", nil, "Save", false, []string{}) })
+	assert.Panics(t, func() { NewMultiSelect("pick some", nil, "Save", false, nil, nil) })
+	assert.Panics(t, func() { NewMultiSelect("pick some", nil, "Save", false, []string{}, nil) })
 }
 
 func TestMultiSelectHeadless(t *testing.T) {
 	// go test pipes stdin/stdout: no terminal, no prompt, no error
-	picked, err := RunWithResponse(NewMultiSelect("pick some", nil, "Save", false, []string{"go"}))
+	picked, err := RunWithResponse(NewMultiSelect("pick some", nil, "Save", false, []string{"go"}, nil))
 	require.NoError(t, err)
 	assert.Nil(t, picked)
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -69,13 +68,12 @@ func TestBuildContext_Golden(t *testing.T) {
 func composedContext(t *testing.T) fs.FS {
 	t.Helper()
 	testutil.Home(t) // keeps the test off the host's user level
-	provSpec := prov.Spec{Runtimes: slicex.Minus(runtime.Names(), []string{runtime.Node().Name})}
-	resolved := provSpec.Resolve()
-	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), resolved.MiseTools()))
+	miseRuntimes := runtime.FromMiseToolNames(slicex.Minus(runtime.Names(), []string{runtime.Node().Name}))
+	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), miseRuntimes.Tools()))
 	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
-	src, err := mise.BuildFS(embedBuildContext, t.TempDir(), resolved.MiseTools())
+	src, err := mise.BuildFS(embedBuildContext, t.TempDir(), miseRuntimes.Tools())
 	require.NoError(t, err)
-	src, err = dockerfile.PatchFS(src, resolved)
+	src, err = dockerfile.PatchFS(src, miseRuntimes.Runtimes)
 	require.NoError(t, err)
 	return src
 }

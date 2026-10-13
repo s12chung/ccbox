@@ -14,6 +14,17 @@ func Minus[E comparable](a, b []E) []E {
 	return out
 }
 
+// Intersect returns a's entries also in b, keeping order.
+func Intersect[E comparable](a, b []E) []E {
+	var out []E
+	for _, e := range a {
+		if slices.Contains(b, e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // Unique returns s's entries in order, repeats dropped.
 func Unique[E comparable](s []E) []E {
 	var out []E

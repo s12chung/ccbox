@@ -23,9 +23,9 @@ func srcFS() fstest.MapFS {
 func TestFS_Fresh(t *testing.T) {
 	dest := t.TempDir()
 
-	renamed, err := FS(srcFS(), dest)
+	infixed, err := FS(srcFS(), dest)
 	require.NoError(t, err)
-	assert.Empty(t, renamed, "fresh seed should back up nothing")
+	assert.Empty(t, infixed, "fresh seed should infix nothing")
 
 	// Nested file preserved; modes set by extension.
 	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
@@ -41,13 +41,13 @@ func TestFS_BacksUpExisting(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "old agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := FS(srcFS(), dest)
+	infixed, err := FS(srcFS(), dest)
 	require.NoError(t, err)
 
 	assert.ElementsMatch(t, []string{
 		filepath.Join(dest, "AGENTS.old.md"),
 		filepath.Join(dest, "settings.old.json"),
-	}, renamed)
+	}, infixed)
 
 	// Backups hold old contents; new contents are in place.
 	assertFile(t, filepath.Join(dest, "AGENTS.old.md"), "old agents")
@@ -68,9 +68,9 @@ func TestFS_SkipsIdentical(t *testing.T) {
 	mkdirAll(t, filepath.Join(dest, "hooks"))
 	writeFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
 
-	renamed, err := FS(srcFS(), dest)
+	infixed, err := FS(srcFS(), dest)
 	require.ErrorIs(t, err, ErrNoChanges)
-	assert.Empty(t, renamed, "identical files should back up nothing")
+	assert.Empty(t, infixed, "identical files should infix nothing")
 
 	// Untouched: contents stay, no backups created.
 	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
@@ -86,9 +86,9 @@ func TestFS_PartiallyIdentical(t *testing.T) {
 	writeFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	writeFile(t, filepath.Join(dest, "settings.json"), "old settings")
 
-	renamed, err := FS(srcFS(), dest)
+	infixed, err := FS(srcFS(), dest)
 	require.NoError(t, err, "a change alongside identical files is not ErrNoChanges")
-	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, renamed)
+	assert.Equal(t, []string{filepath.Join(dest, "settings.old.json")}, infixed)
 
 	assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
 	assertFile(t, filepath.Join(dest, "settings.json"), "new settings")
@@ -109,6 +109,32 @@ func TestFS_BackupExistsErrors(t *testing.T) {
 	assertFile(t, filepath.Join(dest, "AGENTS.old.md"), "stale backup")
 }
 
+func TestIfNotExist(t *testing.T) {
+	t.Run("a missing dir seeds", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "cfg")
+
+		require.NoError(t, IfNotExist(srcFS(), dest))
+
+		assertFile(t, filepath.Join(dest, "AGENTS.md"), "new agents")
+		assertFile(t, filepath.Join(dest, "hooks/tripwire.sh"), "new hook")
+	})
+
+	t.Run("an existing dir is never touched", func(t *testing.T) {
+		dest := filepath.Join(t.TempDir(), "cfg")
+		require.NoError(t, os.MkdirAll(dest, osutil.Dir))
+		writeFile(t, filepath.Join(dest, "AGENTS.md"), "keep")
+
+		require.NoError(t, IfNotExist(srcFS(), dest))
+
+		assertFile(t, filepath.Join(dest, "AGENTS.md"), "keep")
+		assertNotExist(t, filepath.Join(dest, "settings.json"))
+	})
+
+	t.Run("an empty seed is no error", func(t *testing.T) {
+		require.NoError(t, IfNotExist(fstest.MapFS{}, filepath.Join(t.TempDir(), "cfg")))
+	})
+}
+
 func TestMerge_Fresh(t *testing.T) {
 	parent := t.TempDir()
 	src, dst := filepath.Join(parent, "src"), filepath.Join(parent, "dst") // dst absent
@@ -117,9 +143,9 @@ func TestMerge_Fresh(t *testing.T) {
 	mkdirAll(t, filepath.Join(src, "hooks"))
 	writeFile(t, filepath.Join(src, "hooks/tripwire.sh"), "new hook")
 
-	asides, err := Merge(src, dst, "run-test")
+	infixed, err := Merge(src, dst, "run-test")
 	require.NoError(t, err)
-	assert.Empty(t, asides, "a fresh dst moves nothing aside")
+	assert.Empty(t, infixed, "a fresh dst infixes nothing")
 
 	// the whole src dir moved in
 	assertFile(t, filepath.Join(dst, "AGENTS.md"), "new agents")
@@ -137,9 +163,9 @@ func TestMerge_NewAndIdentical(t *testing.T) {
 	mkdirAll(t, dst)
 	writeFile(t, filepath.Join(dst, "same.txt"), "same")
 
-	asides, err := Merge(src, dst, "run-test")
+	infixed, err := Merge(src, dst, "run-test")
 	require.NoError(t, err)
-	assert.Empty(t, asides)
+	assert.Empty(t, infixed)
 
 	// the new file is written in; src keeps everything: its caller drops it wholesale
 	assertFile(t, filepath.Join(dst, "notes/new.txt"), "new")
@@ -157,13 +183,13 @@ func TestMerge_AllIdentical(t *testing.T) {
 	writeFile(t, filepath.Join(dst, "same.txt"), "same")
 
 	// unlike FS, an unchanged merge is no error: Merge has no ErrNoChanges
-	asides, err := Merge(src, dst, "run-test")
+	infixed, err := Merge(src, dst, "run-test")
 	require.NoError(t, err)
-	assert.Empty(t, asides)
+	assert.Empty(t, infixed)
 	assertFile(t, filepath.Join(dst, "same.txt"), "same")
 }
 
-func TestMerge_ChangedAsideDst(t *testing.T) {
+func TestMerge_ChangedInfixedDst(t *testing.T) {
 	parent := t.TempDir()
 	src, dst := filepath.Join(parent, "src"), filepath.Join(parent, "dst")
 	mkdirAll(t, src)
@@ -172,11 +198,11 @@ func TestMerge_ChangedAsideDst(t *testing.T) {
 	writeFile(t, filepath.Join(dst, "README.md"), "dir's edit")
 	writeFile(t, filepath.Join(dst, "notes/keep.txt"), "keep")
 
-	asides, err := Merge(src, dst, "run-test")
+	infixed, err := Merge(src, dst, "run-test")
 	require.NoError(t, err)
-	assert.Equal(t, []string{filepath.Join(dst, "README.run-test.md")}, asides)
+	assert.Equal(t, []string{filepath.Join(dst, "README.run-test.md")}, infixed)
 
-	// the run's copy lands in dst; dst's copy moved aside; the dst-only file is untouched
+	// the run's copy lands in dst; dst's copy infixed; the dst-only file is untouched
 	assertFile(t, filepath.Join(dst, "README.md"), "run's edit")
 	assertFile(t, filepath.Join(dst, "README.run-test.md"), "dir's edit")
 	assertFile(t, filepath.Join(dst, "notes/keep.txt"), "keep")

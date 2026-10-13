@@ -18,7 +18,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/prov"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -190,12 +189,11 @@ func TestCacheVolumeNames(t *testing.T) {
 }
 
 // TestCacheVolumeNames_Selection pins the per-project volumes following the
-// spec's selection.
+// mise config's selection.
 func TestCacheVolumeNames_Selection(t *testing.T) {
-	provSpec := prov.Spec{Runtimes: []string{"go", "node"}}
-	resolved := provSpec.Resolve()
+	selected := runtime.FromMiseToolNames([]string{"go"})
 
-	names := cacheVolumeNames("/Users/me/proj", resolved.CacheVolumes())
+	names := cacheVolumeNames("/Users/me/proj", selected.CacheVolumes())
 	assert.NotContains(t, names, "ccbox"+slug.Path("/Users/me/proj")+"-gem-cache-default")
 	assert.ElementsMatch(t, slices.Collect(maps.Keys(names)), []string{
 		"ccbox" + slug.Path("/Users/me/proj") + "-cache-cache-default", // sharedCacheVolumes ride every run

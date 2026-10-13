@@ -150,7 +150,7 @@ func TestRuntimes(t *testing.T) {
 	t.Run("checked runtimes are returned", func(t *testing.T) {
 		stubMultiSelect(t, []string{"python"}, nil)
 
-		picked, err := Runtimes([]string{"go", "python", "ruby"})
+		picked, err := Runtimes("~/.ccbox/config/ccbox-mise.toml", []string{"go", "python", "ruby"}, nil)
 		require.NoError(t, err)
 		assert.Equal(t, []string{"python"}, picked)
 	})
@@ -158,24 +158,23 @@ func TestRuntimes(t *testing.T) {
 	t.Run("an empty check set installs none", func(t *testing.T) {
 		stubMultiSelect(t, []string{}, nil)
 
-		picked, err := Runtimes([]string{"go", "python"})
+		picked, err := Runtimes("~/.ccbox/config/ccbox-mise.toml", []string{"go", "python"}, []string{"go"})
 		require.NoError(t, err)
 		assert.Equal(t, []string{}, picked)
 	})
 
-	t.Run("no picker answer installs every runtime", func(t *testing.T) {
+	t.Run("no picker answer errors", func(t *testing.T) {
 		stubMultiSelect(t, nil, nil)
 
-		names := []string{"go", "python"}
-		picked, err := Runtimes(names)
-		require.NoError(t, err)
-		assert.Equal(t, names, picked)
+		_, err := Runtimes("~/.ccbox/config/ccbox-mise.toml", []string{"go", "python"}, nil)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "no runtimes selected")
 	})
 
 	t.Run("quitting the picker aborts", func(t *testing.T) {
 		stubMultiSelect(t, nil, pick.ErrCanceled)
 
-		_, err := Runtimes([]string{"go"})
+		_, err := Runtimes("~/.ccbox/config/ccbox-mise.toml", []string{"go"}, nil)
 		require.ErrorIs(t, err, pick.ErrCanceled)
 	})
 }
