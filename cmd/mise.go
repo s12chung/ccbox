@@ -24,7 +24,7 @@ var miseUpdateCmd = &cobra.Command{
 
 var miseInitCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Write a starter .ccbox-mise.toml picking the project's runtimes",
+	Short: "Write a starter mise.toml picking the project's runtimes",
 	RunE: func(_ *cobra.Command, _ []string) error {
 		path := mise.ProjectConfigPath(config.ProjectDir())
 		seeded, err := seedMiseConfig(path)

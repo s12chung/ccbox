@@ -25,10 +25,9 @@ import (
 )
 
 const (
-	// ConfigName is the project mise config's name at the project root
-	ConfigName = ".ccbox-mise.toml"
-	// UserConfigName is the user-level mise config's name at userdir.Dir()
-	UserConfigName = "ccbox-mise.toml"
+	// ConfigName is the mise config's name — the project's at the project root,
+	// the user's at userdir.Dir()
+	ConfigName = "mise.toml"
 	// LockExt is a committed lockfile's ext — mise's own is mise.lock
 	LockExt = ".lock"
 )
@@ -37,7 +36,7 @@ const (
 func ProjectConfigPath(projectDir string) string { return filepath.Join(projectDir, ConfigName) }
 
 // UserConfigPath is the user-level mise config's path, seeded by SeedConfig
-func UserConfigPath() string { return filepath.Join(userdir.Dir(), UserConfigName) }
+func UserConfigPath() string { return filepath.Join(userdir.Dir(), ConfigName) }
 
 // LockPath is the config's committed lockfile path, beside it
 func LockPath(configPath string) string {

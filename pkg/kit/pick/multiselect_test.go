@@ -81,16 +81,16 @@ func TestNewMultiSelect_Checked(t *testing.T) {
 }
 
 func TestMultiModel_View(t *testing.T) {
-	header, subtext := "Select the runtimes to install", "(set in ~/.ccbox/config/ccbox-mise.toml)"
-	submitLabel := "Save to ~/.ccbox/config/ccbox-mise.toml"
+	header, subtext := "Select the runtimes to install", "(set in ~/.ccbox/mise.toml)"
+	submitLabel := "Save to ~/.ccbox/mise.toml"
 	m := newMultiModel(header, []string{subtext}, submitLabel, false, []string{"go", "python", "ruby"}, nil)
 	m.checked[0] = true
 	m.cursor = 2
 
 	view := m.View()
-	want := "Select the runtimes to install\n(set in ~/.ccbox/config/ccbox-mise.toml)\n\n" +
+	want := "Select the runtimes to install\n(set in ~/.ccbox/mise.toml)\n\n" +
 		"  [x] go\n  [ ] python\n❯ [ ] ruby\n\n" +
-		"  Save to ~/.ccbox/config/ccbox-mise.toml\n"
+		"  Save to ~/.ccbox/mise.toml\n"
 	assert.Contains(t, view, want)
 	assert.Contains(t, view, "↑/↓ move • enter check • esc quit")
 }
