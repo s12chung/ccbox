@@ -12,6 +12,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -151,7 +152,11 @@ bats = "1.13.0"
 
 		require.NoError(t, SyncTools(t.TempDir(), narrowedTools))
 
-		expander := osutil.Expander{Source: UserConfigPath(), Expansion: LockPath(UserConfigPath())}
+		expander := osutil.Expander{
+			Source:    UserConfigPath(),
+			Expansion: LockPath(UserConfigPath()),
+			SHAPath:   filepath.Join(userdir.Tmp(), "misesha", slug.Path(UserConfigPath())+".sha256"),
+		}
 		isStale, err := expander.IsStale()
 		require.NoError(t, err)
 		assert.True(t, isStale, "the lock must regenerate after the sync")

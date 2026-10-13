@@ -21,6 +21,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -92,7 +93,10 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 		return nil
 	}
 
-	expander := osutil.Expander{Source: configPath, Expansion: LockPath(configPath)}
+	expander := osutil.Expander{
+		Source: configPath, Expansion: LockPath(configPath),
+		SHAPath: filepath.Join(userdir.Tmp(), "misesha", slug.Path(configPath)+".sha256"),
+	}
 	isStale, err := expander.IsStale()
 	if err != nil {
 		return err
@@ -102,7 +106,7 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 	}
 
 	lockPath := LockPath(configPath)
-	log.Infof("generating mise lock %s", lockPath)
+	log.Infof("generating %s", lockPath)
 	ctxD, err := dock.NewCtxD(ctx)
 	if err != nil {
 		return err

@@ -66,6 +66,24 @@ func TestExpander_IsStale(t *testing.T) {
 		require.NoError(t, err)
 		assert.False(t, stale)
 	})
+
+	t.Run("sha outside the source's dir still guards", func(t *testing.T) {
+		e := testExpander(t)
+		e.SHAPath = filepath.Join(t.TempDir(), "misesha", "source.toml.sha256")
+		expand(t, e)
+
+		stale, err := e.IsStale()
+		require.NoError(t, err)
+		assert.False(t, stale)
+	})
+}
+
+func TestExpander_SHA256Path(t *testing.T) {
+	e := Expander{Source: "/dir/source.toml"}
+	assert.Equal(t, "/dir/source.toml.sha256", e.SHA256Path())
+
+	e.SHAPath = "/tmp/misesha/-dir-source.toml.sha256"
+	assert.Equal(t, "/tmp/misesha/-dir-source.toml.sha256", e.SHA256Path())
 }
 
 func TestExpander_Expand(t *testing.T) {

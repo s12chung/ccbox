@@ -12,6 +12,7 @@ import (
 type Expander struct {
 	Source    string // the source file the expansion is generated from
 	Expansion string // the generated file's path
+	SHAPath   string // the sha256 file's path; beside Source when empty
 }
 
 // IsStale reports whether the expansion is missing or was generated from a different
@@ -55,5 +56,10 @@ func (e Expander) sha256() (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// SHA256Path is the guard's path, beside Source: its name carries Source's sha256
-func (e Expander) SHA256Path() string { return e.Source + ".sha256" }
+// SHA256Path is the guard's path: SHAPath, or beside Source carrying Source's sha256
+func (e Expander) SHA256Path() string {
+	if e.SHAPath != "" {
+		return e.SHAPath
+	}
+	return e.Source + ".sha256"
+}

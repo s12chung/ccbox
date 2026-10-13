@@ -3,14 +3,17 @@ package mise
 import (
 	"io/fs"
 	"os"
+	"path/filepath"
 	"testing"
 	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -55,6 +58,18 @@ func TestGenerateLock_FreshLock(t *testing.T) {
 	assert.Equal(t, fixtureLock, string(lock), "a fresh lock is left untouched")
 }
 
+func TestGenerateLock_SHAUnderTmp(t *testing.T) {
+	testutil.Home(t)
+	configPath := ProjectConfigPath(t.TempDir())
+	require.NoError(t, os.WriteFile(configPath, []byte(fixtureConfig), osutil.File))
+	require.NoError(t, commitLock(t, configPath))
+
+	shaPath := filepath.Join(userdir.Tmp(), "misesha", slug.Path(configPath)+".sha256")
+	require.FileExists(t, shaPath, "the sha rides under userdir's tmp")
+	_, err := os.Stat(configPath + ".sha256")
+	require.ErrorIs(t, err, os.ErrNotExist, "the config's dir carries no sha")
+}
+
 func TestGenerateLock_UserConfig(t *testing.T) {
 	seedUser(t)
 
@@ -69,10 +84,12 @@ func TestGenerateLock_UserConfig(t *testing.T) {
 // leaves behind, without the docker run its test can't make.
 func commitLock(t *testing.T, configPath string) error {
 	t.Helper()
-	return osutil.Expander{
+	expander := osutil.Expander{
 		Source:    configPath,
 		Expansion: LockPath(configPath),
-	}.Expand([]byte(fixtureLock))
+		SHAPath:   filepath.Join(userdir.Tmp(), "misesha", slug.Path(configPath)+".sha256"),
+	}
+	return expander.Expand([]byte(fixtureLock))
 }
 
 // seedUser seeds the user-level config and commits its lock
