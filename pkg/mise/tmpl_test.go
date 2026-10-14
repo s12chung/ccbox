@@ -1,6 +1,7 @@
 package mise
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -172,4 +173,13 @@ func seedRender(t *testing.T, tools []Tool) string {
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
 	return string(body)
+}
+
+// renderConfig executes the tmpl for tools — SeedConfig's content
+func renderConfig(tools []Tool) ([]byte, error) {
+	var b bytes.Buffer
+	if err := configTmpl.Execute(&b, tools); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }

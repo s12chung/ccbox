@@ -8,76 +8,26 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/s12chung/ccbox/pkg/kit/tomlutil"
-	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
-//go:embed config.tmpl
-var configTmplBody []byte
-
-// Tool is one entry of the mise config's [tools] table
-type Tool struct {
-	Tool        string
-	Version     string
-	PostInstall string // runs after the install
-
-	Comment string // renders above the row when the tool needs a why
-	Hint    string // the mise tools picker's gray note after the name
-}
-
-// row renders one [tools] entry: the comment line when the tool carries one,
-// then a plain version binding, or the inline table when it carries a postinstall
-func (t Tool) row() string {
-	var b strings.Builder
-	if t.Comment != "" {
-		fmt.Fprintln(&b, t.Comment)
-	}
-	if t.PostInstall == "" {
-		fmt.Fprintf(&b, "%s = %q\n", tomlutil.Key(t.Tool), t.Version)
-	} else {
-		fmt.Fprintf(&b, "%s = { version = %q, postinstall = %q }\n", tomlutil.Key(t.Tool), t.Version, t.PostInstall)
-	}
-	return b.String()
-}
-
 // SeedConfig safe-seeds the user-level mise config: the tools rendered into
 // the config's marked region
 func SeedConfig(path string, tools []Tool) error {
-	return seed.SafeFile(path, must.Get(renderConfig(tools)))
-}
-
-// The mise config's marked generated region — the only span ccbox rewrites.
-const (
-	toolsBegin = "# ccbox:tools-begin"
-	toolsEnd   = "# ccbox:tools-end"
-)
-
-// renderTools renders the marked region's content — the tmpl and the sync
-// share it
-func renderTools(tools []Tool) string {
-	rows := make([]string, 0, len(tools))
-	for _, t := range tools {
-		rows = append(rows, t.row())
+	var b bytes.Buffer
+	if err := configTmpl.Execute(&b, tools); err != nil {
+		return err
 	}
-	return strings.TrimSuffix(strings.Join(rows, ""), "\n")
+	return seed.SafeFile(path, b.Bytes())
 }
 
 var (
-	configTmpl = template.Must(template.New("config.tmpl").Funcs(sections).Parse(string(configTmplBody)))
-	sections   = template.FuncMap{"miseTools": renderTools}
+	//go:embed config.tmpl
+	configTmplBody []byte
+	configTmpl     = template.Must(template.New("config.tmpl").Funcs(sections).Parse(string(configTmplBody)))
+	sections       = template.FuncMap{"miseTools": renderTools}
 )
-
-// renderConfig renders the mise config for tools — SeedConfig's content. It
-// executes the tmpl: each action renders its [tools] section.
-func renderConfig(tools []Tool) ([]byte, error) {
-	var b bytes.Buffer
-	if err := configTmpl.Execute(&b, tools); err != nil {
-		return nil, err
-	}
-	return b.Bytes(), nil
-}
 
 // SyncTools syncs the generated tools region of the config the build picks —
 // project over user; with neither, there's nothing to sync and it errors.
@@ -102,6 +52,12 @@ func syncTools(path string, tools []Tool) error {
 	}
 	return osutil.AtomicWriteFile(path, []byte(synced))
 }
+
+// The mise config's marked generated region — the only span ccbox rewrites.
+const (
+	toolsBegin = "# ccbox:tools-begin"
+	toolsEnd   = "# ccbox:tools-end"
+)
 
 // setToolsRegion replaces body's marked region with toolsRegion, everything
 // outside byte-for-byte.
