@@ -21,7 +21,7 @@ func TestSeedConfig(t *testing.T) {
 
 	require.NoError(t, SeedConfig(UserConfigPath(), nil))
 
-	// the seed is the pinned defaults' carrier
+	// the seed is the given tools' carrier — nil renders an empty region
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
 	assert.Equal(t, string(must.Get(renderConfig(nil))), string(body))
@@ -51,28 +51,14 @@ func TestRenderConfig(t *testing.T) {
 	assert.Equal(t, golden(t, "TestRenderConfig.toml"), seedRender(t, testTools))
 }
 
-// seedRender seeds the user-level config with tools, returning the seeded body
-func seedRender(t *testing.T, tools []Tool) string {
-	t.Helper()
-	testutil.Home(t)
-	require.NoError(t, os.MkdirAll(userdir.Dir(), osutil.Dir))
-	require.NoError(t, SeedConfig(UserConfigPath(), tools))
-	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
-	require.NoError(t, err)
-	return string(body)
-}
-
-// golden reads a render's testdata fixture
-func golden(t *testing.T, name string) string {
-	t.Helper()
-	body, err := os.ReadFile(filepath.Join("testdata", name)) // #nosec G304 -- the test's own fixture
-	require.NoError(t, err)
-	return string(body)
+// TestRenderConfig_IndependentTools pins the render when the picker's whole
+// second checklist rides the seed
+func TestRenderConfig_IndependentTools(t *testing.T) {
+	assert.Equal(t, golden(t, "TestRenderConfig_IndependentTools.toml"), seedRender(t, independentTools))
 }
 
 func TestSyncTools(t *testing.T) {
-	// narrowedTools trims the tools like a spec selection — the region keeps its
-	// pinned optional tools
+	// narrowedTools trims the tools like a spec selection
 	narrowedTools := []Tool{
 		{Tool: "go", Version: "1.26"},
 		{Tool: "golangci-lint", Version: "2.13.1"},
@@ -82,8 +68,6 @@ func TestSyncTools(t *testing.T) {
 	// every case syncs narrowedTools
 	const syncedRegion = `go = "1.26"
 golangci-lint = "2.13.1"
-hadolint = "2.14.0"
-bats = "1.13.0"
 `
 
 	t.Run("replaces only the marked region", func(t *testing.T) {
@@ -167,6 +151,25 @@ bats = "1.13.0"
 func userBody(t *testing.T) string {
 	t.Helper()
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own config path
+	require.NoError(t, err)
+	return string(body)
+}
+
+// golden reads a render's testdata fixture
+func golden(t *testing.T, name string) string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", name)) // #nosec G304 -- the test's own fixture
+	require.NoError(t, err)
+	return string(body)
+}
+
+// seedRender seeds the user-level config with tools, returning the seeded body
+func seedRender(t *testing.T, tools []Tool) string {
+	t.Helper()
+	testutil.Home(t)
+	require.NoError(t, os.MkdirAll(userdir.Dir(), osutil.Dir))
+	require.NoError(t, SeedConfig(UserConfigPath(), tools))
+	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
 	return string(body)
 }

@@ -125,11 +125,12 @@ func TestStackModel_UpdateTracksWindowSize(t *testing.T) {
 }
 
 func TestStackModel_View(t *testing.T) {
-	p1 := NewPicker([]string{"claude"})
+	p1 := NewPicker([]string{"claude", "codex"})
 	p2 := NewPicker([]string{"pi"})
 	view := stack(RunnerOptions{Header: "pick two", SubmitLabel: "save"}, p1, p2).View()
 
-	// one chrome opens the run — the header over both pickers — and one submit row closes it
-	assert.Contains(t, view, "pick two\n\n❯ ○ claude\n  ○ pi\n\n  save")
+	// one chrome opens the run — the header over both pickers, a blank line
+	// between them — and one submit row closes it
+	assert.Contains(t, view, "pick two\n\n❯ ○ claude\n  ○ codex\n\n  ○ pi\n\n  save")
 	assert.Contains(t, view, "save\n\n↑/↓ move • enter select • esc quit")
 }

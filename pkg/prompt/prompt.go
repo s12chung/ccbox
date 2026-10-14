@@ -10,7 +10,9 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
+	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/size"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
@@ -69,21 +71,68 @@ func HarnessCLI(cliNames []string) (string, error) {
 	return name, nil
 }
 
-// Runtimes asks which runtimes to install in the devbox, all in one checklist;
-// checked pre-checks it — the mise config's current selection
-func Runtimes(savePath string, names, checked []string) ([]string, error) {
-	items := slicex.Map(names, func(name string) pick.Item { return pick.Item{Name: name} })
-	var picked []string
+// MiseTools asks which mise tools to install in the devbox; the answer is the
+// mise config's [tools] region's tools — node rides every answer.
+func MiseTools(savePath string, checked []string) ([]mise.Tool, error) {
+	var pickedRuntimes, pickedIndependent []string
 	err := runFn(pick.NewRunner(pick.RunnerOptions{
-		Header:      "Select the runtimes to install",
+		Header:      "Select the tools to install",
 		Subtext:     []string{"(node is included)"},
 		SubmitLabel: "Save to " + userdir.Tilde(savePath),
-	}, pick.NewMultiPicker(items, checked)), &picked)
+	},
+		pick.NewMultiPicker(runtimeItems(), checked),
+		pick.NewMultiPicker(independentToolItems(), checked),
+	), &pickedRuntimes, &pickedIndependent)
 	if err != nil {
 		return nil, err
 	}
-	if picked == nil { // no terminal to show the picker
-		return nil, fmt.Errorf("no runtimes selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
+	if pickedRuntimes == nil { // no terminal to show the picker
+		return nil, fmt.Errorf("no tools selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
 	}
-	return picked, nil
+	return resolveTools(slices.Concat(pickedRuntimes, pickedIndependent)), nil
+}
+
+func runtimeItems() []pick.Item {
+	rts := runtime.Selectable()
+	items := make([]pick.Item, 0, len(rts))
+	for _, rt := range rts {
+		children := make([]string, 0, len(rt.MiseToolsOptional))
+		for _, t := range rt.MiseToolsOptional {
+			children = append(children, t.Tool)
+		}
+		items = append(items, pick.Item{Name: rt.Name, Children: children})
+	}
+	return items
+}
+
+func independentToolItems() []pick.Item {
+	return slicex.Map(mise.IndependentTools(), func(t mise.Tool) pick.Item {
+		return pick.Item{Name: t.Tool, Hint: t.Hint}
+	})
+}
+
+func resolveTools(picked []string) []mise.Tool {
+	chosen := make(map[string]bool, len(picked)+1)
+	for _, name := range picked {
+		chosen[name] = true
+	}
+	chosen[runtime.Node().Name] = true // node rides every resolution — the npm-installed harness CLIs run through it
+	var tools []mise.Tool
+	for _, rt := range runtime.All() {
+		if !chosen[rt.Name] {
+			continue
+		}
+		tools = append(tools, rt.MiseTool)
+		for _, t := range rt.MiseToolsOptional {
+			if chosen[t.Tool] {
+				tools = append(tools, t)
+			}
+		}
+	}
+	for _, t := range mise.IndependentTools() {
+		if chosen[t.Tool] {
+			tools = append(tools, t)
+		}
+	}
+	return tools
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/kit/pick"
+	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/size"
@@ -132,37 +133,97 @@ func TestHarnessCLI(t *testing.T) {
 	})
 }
 
-func TestRuntimes(t *testing.T) {
-	t.Run("checked runtimes are returned", func(t *testing.T) {
-		stubRun(t, []string{"python"}, nil)
+func TestMiseTools(t *testing.T) {
+	t.Run("picked runtimes resolve to their tools, node riding", func(t *testing.T) {
+		stubRunTools(t, []string{"python"}, nil, nil)
 
-		picked, err := Runtimes("~/.ccbox/mise.toml", []string{"go", "python", "ruby"}, nil)
+		tools, err := MiseTools("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
-		assert.Equal(t, []string{"python"}, picked)
+		assert.Equal(t, []mise.Tool{
+			{Tool: "node", Version: "26.3.0"},
+			{
+				Tool:        "python",
+				Version:     "3.13",
+				PostInstall: "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0",
+			},
+		}, tools)
 	})
 
-	t.Run("an empty check set installs none", func(t *testing.T) {
-		stubRun(t, []string{}, nil)
+	t.Run("a checked child rides its runtime, an unchecked one drops", func(t *testing.T) {
+		stubRunTools(t, []string{"go", "golangci-lint"}, nil, nil)
 
-		picked, err := Runtimes("~/.ccbox/mise.toml", []string{"go", "python"}, []string{"go"})
+		tools, err := MiseTools("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
-		assert.Equal(t, []string{}, picked)
+		assert.Equal(t, []mise.Tool{
+			{Tool: "go", Version: "1.26"},
+			{Tool: "golangci-lint", Version: "2.13.1"},
+			{Tool: "node", Version: "26.3.0"},
+		}, tools)
+
+		stubRunTools(t, []string{"go"}, nil, nil)
+
+		tools, err = MiseTools("~/.ccbox/mise.toml", nil)
+		require.NoError(t, err)
+		assert.Equal(t, []mise.Tool{{Tool: "go", Version: "1.26"}, {Tool: "node", Version: "26.3.0"}}, tools)
+	})
+
+	t.Run("the independent tools' picks ride the runtimes'", func(t *testing.T) {
+		stubRunTools(t, []string{"go"}, []string{"hadolint", "npm:playwright"}, nil)
+
+		tools, err := MiseTools("~/.ccbox/mise.toml", nil)
+		require.NoError(t, err)
+		assert.Equal(t, []mise.Tool{
+			{Tool: "go", Version: "1.26"},
+			{Tool: "node", Version: "26.3.0"},
+			{Tool: "hadolint", Version: "2.14.0"},
+			{
+				Tool:        "npm:playwright",
+				Version:     "latest",
+				PostInstall: "playwright install-deps chromium && playwright install chromium",
+				Comment:     "# --vnc flag uses this chromium as a browser",
+				Hint:        "with chrome, needed for --vnc",
+			},
+		}, tools)
+	})
+
+	t.Run("an empty check set still rides node", func(t *testing.T) {
+		stubRunTools(t, []string{}, []string{}, nil)
+
+		tools, err := MiseTools("~/.ccbox/mise.toml", []string{"go"})
+		require.NoError(t, err)
+		assert.Equal(t, []mise.Tool{{Tool: "node", Version: "26.3.0"}}, tools)
 	})
 
 	t.Run("no picker answer errors", func(t *testing.T) {
-		stubRun[[]string](t, nil, nil)
+		stubRunTools(t, nil, nil, nil)
 
-		_, err := Runtimes("~/.ccbox/mise.toml", []string{"go", "python"}, nil)
+		_, err := MiseTools("~/.ccbox/mise.toml", nil)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "no runtimes selected")
+		assert.Contains(t, err.Error(), "no tools selected")
 	})
 
 	t.Run("quitting the picker aborts", func(t *testing.T) {
-		stubRun[[]string](t, nil, pick.ErrCanceled)
+		stubRunTools(t, nil, nil, pick.ErrCanceled)
 
-		_, err := Runtimes("~/.ccbox/mise.toml", []string{"go"}, nil)
+		_, err := MiseTools("~/.ccbox/mise.toml", nil)
 		require.ErrorIs(t, err, pick.ErrCanceled)
 	})
+}
+
+// stubRunTools pins runFn's two answers — the runtimes' checklist's, then the
+// independent tools'
+func stubRunTools(t *testing.T, rts, independentTools []string, err error) {
+	t.Helper()
+	runFn = func(_ pick.Runner, ptrs ...any) error {
+		require.Len(t, ptrs, 2)
+		rtsPtr, ok := ptrs[0].(*[]string)
+		require.True(t, ok)
+		toolsPtr, ok := ptrs[1].(*[]string)
+		require.True(t, ok)
+		*rtsPtr, *toolsPtr = rts, independentTools
+		return err
+	}
+	t.Cleanup(func() { runFn = pick.Runner.Run })
 }
 
 // stubRun pins runFn's answer into its one response pointer

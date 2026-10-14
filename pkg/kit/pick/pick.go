@@ -244,6 +244,9 @@ func (s *stackModel) View() string {
 	}
 	lines = append(lines, "")
 	for i, m := range s.models {
+		if i > 0 { // a blank line separates the stacked pickers
+			lines = append(lines, "")
+		}
 		lines = append(lines, m.render(m.cursor, i == s.focus)...)
 	}
 	body := strings.Join(lines, "\n") + "\n\n" + s.submitRow() + "\n\n" +

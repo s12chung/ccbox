@@ -17,37 +17,18 @@ import (
 // egress wall domains its toolchain talks to, and the image state the build
 // composes from.
 type Runtime struct {
-	// Name names the runtime; its alias derives from it
-	Name string
+	Name    string   // the alias derives from it
+	Domains []string // the egress wall domains
 
-	// Domains are the runtime's egress wall domains
-	Domains []string
+	MiseTool          mise.Tool   // the runtime itself, as the mise config installs it
+	MiseToolsOptional []mise.Tool // the ecosystem tooling riding the install
 
-	// MiseTool is the runtime itself, as the mise config installs it
-	MiseTool mise.Tool
+	AptPkgs      []string // shared libs kept in the image — not always exclusively (libssl3t64, zlib1g also serve libcurl)
+	AptBuildDeps []string // the from-source compile's headers, purged right after
 
-	// MiseToolsOptional groups the ecosystem tooling riding the runtime's install —
-	// a grouping, not a condition: every entry installs with the rest
-	MiseToolsOptional []mise.Tool
-
-	// AptPkgs are the runtime's shared libs kept in the image — present because of
-	// this runtime, not always exclusively (libssl3t64, zlib1g also serve libcurl)
-	AptPkgs []string
-
-	// AptBuildDeps are build headers for the mise install's from-source compile,
-	// purged right after
-	AptBuildDeps []string
-
-	// CacheVolumes are the container dirs dmap maps per-project cache volumes to;
-	// the volume name's suffix is path.Base minus its leading dot
-	CacheVolumes []string
-
-	// BinEntries are the runtime's container PATH additions
-	BinEntries []string
-
-	// EnvVars are the runtime's image env (GOBIN, GEM_HOME, NPM_CONFIG_*). Go map
-	// iteration is randomized — consumers sort the keys.
-	EnvVars map[string]string
+	CacheVolumes []string          // the container dirs dmap maps per-project cache volumes to; the name's suffix is path.Base minus its leading dot
+	BinEntries   []string          // the container PATH additions
+	EnvVars      map[string]string // the image env (GOBIN, GEM_HOME, NPM_CONFIG_*) — consumers sort the keys
 }
 
 // runtimes is every selectable runtime, sorted by name — node is not selectable
@@ -125,6 +106,18 @@ func Names() []string {
 		names = append(names, r.Name)
 	}
 	return names
+}
+
+// Selectable lists the selectable runtimes — node's absent: it rides every
+// resolution
+func Selectable() []Runtime {
+	var selectable []Runtime
+	for _, r := range All() {
+		if r.Name != Node().Name {
+			selectable = append(selectable, r)
+		}
+	}
+	return selectable
 }
 
 // SelectableNames lists the selectable runtimes' names — node's absent: it rides

@@ -9,6 +9,14 @@ import (
 	"github.com/s12chung/ccbox/pkg/mise"
 )
 
+func TestSelectable(t *testing.T) {
+	names := make([]string, 0, len(Selectable()))
+	for _, rt := range Selectable() {
+		names = append(names, rt.Name)
+	}
+	assert.Equal(t, SelectableNames(), names)
+}
+
 func TestSelectableNames(t *testing.T) {
 	names := SelectableNames()
 

@@ -108,6 +108,15 @@ func embedFSFixture() fs.FS {
 	}
 }
 
+func TestIndependentTools(t *testing.T) {
+	assert.Equal(t, independentTools, IndependentTools())
+
+	// a clone: mutating the answer doesn't leak into the next call
+	tools := IndependentTools()
+	tools[0] = Tool{Tool: "bogus"}
+	assert.Equal(t, independentTools, IndependentTools())
+}
+
 func TestBuildFS(t *testing.T) {
 	testutil.Home(t) // the user level starts empty, like a fresh host
 
@@ -119,12 +128,13 @@ func TestBuildFS(t *testing.T) {
 		name       string
 		seedUser   bool
 		projectDir string
+		wantErr    bool
 		wantConfig string
 		wantLock   string
 	}{
-		// rootSeed seeds the user level on every ccbox invocation, so no config is a
-		// robustness path: the render falls in, unlocked
-		{name: "no config", projectDir: t.TempDir(), wantConfig: string(must.Get(renderConfig(nil)))},
+		// rootSeed seeds the user level on every ccbox invocation, so no config is
+		// an error: there is nothing to build from
+		{name: "no config", projectDir: t.TempDir(), wantErr: true},
 		{name: "user", seedUser: true, projectDir: t.TempDir(), wantConfig: string(must.Get(renderConfig(nil))), wantLock: fixtureLock},
 		// the user level is seeded here too: the project's own config wins
 		{name: "project", seedUser: true, projectDir: projectDir, wantConfig: fixtureConfig, wantLock: fixtureLock},
@@ -134,7 +144,11 @@ func TestBuildFS(t *testing.T) {
 			if tt.seedUser {
 				seedUser(t)
 			}
-			merged, err := BuildFS(embedFSFixture(), tt.projectDir, nil)
+			merged, err := BuildFS(embedFSFixture(), tt.projectDir)
+			if tt.wantErr {
+				require.ErrorContains(t, err, "no mise config to build from")
+				return
+			}
 			require.NoError(t, err)
 
 			config, err := fs.ReadFile(merged, contextConfigPath)

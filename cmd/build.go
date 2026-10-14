@@ -35,7 +35,7 @@ func build(ctx context.Context, serveVNC bool) error {
 			return err
 		}
 	}
-	buildContext, err := mise.BuildFS(embedBuildContext, projectDir, miseRuntimes.Tools())
+	buildContext, err := mise.BuildFS(embedBuildContext, projectDir)
 	if err != nil {
 		return err
 	}

@@ -19,7 +19,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
-	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
@@ -136,24 +135,39 @@ const (
 	contextLockPath   = "docker/mise/mise.lock"
 )
 
+// independentTools is the image's tools independent of the runtime selection —
+// the mise tools picker's second checklist
+var independentTools = []Tool{
+	{Tool: "bats", Version: "1.13.0"},
+	{Tool: "hadolint", Version: "2.14.0"},
+	{
+		Tool:        "npm:playwright",
+		Version:     "latest",
+		PostInstall: "playwright install-deps chromium && playwright install chromium",
+		Comment:     "# --vnc flag uses this chromium as a browser",
+		Hint:        "with chrome, needed for --vnc",
+	},
+}
+
+// IndependentTools is the image's independent tools, in render order
+func IndependentTools() []Tool { return slices.Clone(independentTools) }
+
 // BuildFS is the build fs for the image's `mise install`: the embed with the
 // mise config injected where the Dockerfile COPYs it.
-func BuildFS(embed fs.FS, projectDir string, tools []Tool) (fs.FS, error) {
-	var hostConfigFS fs.FS
-	if configPath := PickedConfigPath(projectDir); configPath != "" {
-		var err error
-		hostConfigFS, err = configFS(configPath)
-		if err != nil {
-			return nil, err
-		}
+func BuildFS(embed fs.FS, projectDir string) (fs.FS, error) {
+	configPath := PickedConfigPath(projectDir)
+	if configPath == "" {
+		return nil, fmt.Errorf("mise: no mise config to build from — expected a project config at %s or the user config at %s",
+			ProjectConfigPath(projectDir), UserConfigPath())
+	}
+	hostConfigFS, err := configFS(configPath)
+	if err != nil {
+		return nil, err
 	}
 
 	merged, err := mfs.NewFS(embed)
 	if err != nil {
 		return nil, err
-	}
-	if hostConfigFS == nil {
-		hostConfigFS = mfs.MapFS{contextConfigPath: {Data: must.Get(renderConfig(tools))}}
 	}
 	if err := merged.Merge(hostConfigFS); err != nil {
 		return nil, err

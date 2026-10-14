@@ -4,10 +4,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/mise"
-	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
-	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -38,17 +36,17 @@ var miseInitCmd = &cobra.Command{
 	},
 }
 
-// seedMiseConfig seeds path with the runtime picker's pick when path is missing —
-// an existing config is never touched. Reports whether it seeded.
+// seedMiseConfig seeds path with the mise tools picker's pick when path is
+// missing — an existing config is never touched. Reports whether it seeded.
 func seedMiseConfig(path string) (bool, error) {
 	if osutil.Present(path) {
 		return false, nil
 	}
-	picked, err := prompt.Runtimes(path, runtime.SelectableNames(), nil)
+	tools, err := prompt.MiseTools(path, nil)
 	if err != nil {
 		return false, err
 	}
-	if err := mise.SeedConfig(path, runtime.FromMiseToolNames(picked).Tools()); err != nil {
+	if err := mise.SeedConfig(path, tools); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -56,7 +54,7 @@ func seedMiseConfig(path string) (bool, error) {
 
 func init() { miseCmd.AddCommand(miseInitCmd, miseUpdateCmd) }
 
-// miseUpdate re-picks the picked mise config's runtimes — the config's current
+// miseUpdate re-picks the picked mise config's tools — the config's current
 // selection pre-filled — and syncs the pick into the config's tools region
 func miseUpdate() error {
 	projectDir := config.ProjectDir()
@@ -64,10 +62,9 @@ func miseUpdate() error {
 	if err != nil {
 		return err
 	}
-	options := runtime.SelectableNames()
-	picked, err := prompt.Runtimes(mise.PickedConfigPath(projectDir), options, slicex.Intersect(options, toolNames))
+	tools, err := prompt.MiseTools(mise.PickedConfigPath(projectDir), toolNames)
 	if err != nil {
 		return err
 	}
-	return mise.SyncTools(projectDir, runtime.FromMiseToolNames(picked).Tools())
+	return mise.SyncTools(projectDir, tools)
 }

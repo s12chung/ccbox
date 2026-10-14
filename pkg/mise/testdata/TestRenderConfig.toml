@@ -5,8 +5,6 @@
 # ccbox:tools-begin
 go = "1.26"
 python = { version = "3.13", postinstall = "python -m pip install setuptools==82.0.1 wheel==0.47.0" }
-hadolint = "2.14.0"
-bats = "1.13.0"
 # ccbox:tools-end
 
 # Dev-workflow CLIs
@@ -14,9 +12,3 @@ ripgrep    = "15.1.0"
 jq         = "1.8.1"
 yq         = "4.53.3"
 shellcheck = "0.11.0"
-
-[tools."npm:playwright"]
-version     = "latest"
-# Chromium system libs (no browser binaries) + the browser itself, into
-# PLAYWRIGHT_BROWSERS_PATH (see Dockerfile) so the whole image shares one copy
-postinstall = "playwright install-deps chromium && playwright install chromium"

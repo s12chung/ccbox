@@ -71,7 +71,7 @@ func composedContext(t *testing.T) fs.FS {
 	miseRuntimes := runtime.FromMiseToolNames(slicex.Minus(runtime.Names(), []string{runtime.Node().Name}))
 	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), miseRuntimes.Tools()))
 	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
-	src, err := mise.BuildFS(embedBuildContext, t.TempDir(), miseRuntimes.Tools())
+	src, err := mise.BuildFS(embedBuildContext, t.TempDir())
 	require.NoError(t, err)
 	src, err = dockerfile.PatchFS(src, miseRuntimes.Runtimes)
 	require.NoError(t, err)

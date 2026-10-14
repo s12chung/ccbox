@@ -7,8 +7,8 @@ import (
 )
 
 // FromMiseToolNames resolves a mise config's [tools] names to the runtimes they
-// select — node rides every resolution; non-runtime tools (the dev CLIs, mise's
-// optional tooling) drop
+// select — node rides every resolution; non-runtime tools (the dev CLIs, the
+// image's independent tools) drop
 func FromMiseToolNames(toolNames []string) MiseRuntimes {
 	names := append([]string{Node().Name}, toolNames...) // node rides every resolution
 	var runtimes []Runtime
