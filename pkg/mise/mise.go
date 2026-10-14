@@ -145,7 +145,7 @@ var independentTools = []Tool{
 		Version:     "latest",
 		PostInstall: "playwright install-deps chromium && playwright install chromium",
 		Comment:     "# --vnc flag uses this chromium as a browser",
-		Hint:        "with chrome, needed for --vnc",
+		Hint:        "with chrome",
 	},
 }
 

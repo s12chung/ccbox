@@ -12,8 +12,8 @@ func AllowlistDefaults() []string { return slices.Clone(sharedAllowlistDefaults)
 // their own aliases.
 var sharedAllowlistDefaults = []string{
 	// mise (tool version manager): version lists + release metadata
+	"jdx.dev",
 	"mise.en.dev",
-	"mise-versions.jdx.dev",
 	"tuf-repo-cdn.sigstore.dev",
 
 	// Playwright browser binaries (image bakes the system libs; browsers fetched per-project)
