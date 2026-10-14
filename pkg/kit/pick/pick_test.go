@@ -1,6 +1,7 @@
 package pick
 
 import (
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -130,7 +131,27 @@ func TestStackModel_View(t *testing.T) {
 	view := stack(RunnerOptions{Header: "pick two", SubmitLabel: "save"}, p1, p2).View()
 
 	// one chrome opens the run — the header over both pickers, a blank line
-	// between them — and one submit row closes it
-	assert.Contains(t, view, "pick two\n\n❯ ○ claude\n  ○ codex\n\n  ○ pi\n\n  save")
-	assert.Contains(t, view, "save\n\n↑/↓ move • enter select • esc quit")
+	// between them — and one submit row closes it; every row rides the run's
+	// 2-space left padding
+	assert.Equal(t, []string{
+		"  pick two",
+		"",
+		"  ❯ ○ claude",
+		"    ○ codex",
+		"",
+		"    ○ pi",
+		"",
+		"    save",
+		"",
+		"  ↑/↓ move • enter select • esc quit",
+	}, trimmedLines(view))
+}
+
+// trimmedLines splits a placed view's lines, right-trimming the placed width
+func trimmedLines(view string) []string {
+	lines := strings.Split(strings.TrimSuffix(view, "\n"), "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " ")
+	}
+	return lines
 }

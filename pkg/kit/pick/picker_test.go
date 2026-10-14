@@ -93,17 +93,34 @@ func TestPicker_View(t *testing.T) {
 	s.models[0].cursor = 1
 
 	key(t, s, tea.KeyEnter) // mark codex
-	assert.Contains(t, s.View(), header)
-	assert.Contains(t, s.View(),
-		"Select a harness CLI\n(set in ~/.ccbox/config/ccbox.yaml)\n\n  ○ claude\n❯ ◉ codex\n\n  Save to ~/.ccbox/config/ccbox.yaml\n")
+	assert.Equal(t, []string{
+		"  Select a harness CLI",
+		"  (set in ~/.ccbox/config/ccbox.yaml)",
+		"",
+		"    ○ claude",
+		"  ❯ ◉ codex",
+		"",
+		"    Save to ~/.ccbox/config/ccbox.yaml",
+		"",
+		"  ↑/↓ move • enter select • esc quit",
+	}, trimmedLines(s.View()))
 
 	// no subtext: the header flows straight into the blank line before the items
 	p = NewPicker([]string{"claude", "codex"})
-	assert.Contains(t, stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View(),
-		"Select a harness CLI\n\n❯ ○ claude\n")
+	assert.Equal(t, []string{
+		"  Select a harness CLI",
+		"",
+		"  ❯ ○ claude",
+		"    ○ codex",
+		"",
+		"    Save to ~/.ccbox/config/ccbox.yaml",
+		"",
+		"  ↑/↓ move • enter select • esc quit",
+	}, trimmedLines(stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View()))
 
-	// the block is placed in the terminal's size, each line centered on its own:
-	// floor((40-w)/2) left padding, plus each item's own 2-space indent
+	// the block is placed in the terminal's size, left-aligned: the run's
+	// 2-space padding rides every line's own indent — the rows' 2-space mark
+	// column, the submit row's 2
 	p = NewPicker([]string{"claude", "codex"})
 	s = stack(opts, p)
 	s.models[0].cursor = 1
@@ -111,12 +128,12 @@ func TestPicker_View(t *testing.T) {
 	s.width, s.height = 40, 10
 	view := s.View()
 	wantLeading := map[string]int{
-		"Select a harness CLI":                10,
+		"Select a harness CLI":                2,
 		"(set in ~/.ccbox/config/ccbox.yaml)": 2,
-		"○ claude":                            17,
-		"❯ ◉ codex":                           15,
+		"○ claude":                            4,
+		"❯ ◉ codex":                           2,
 		"Save to ~/.ccbox/config/ccbox.yaml":  4,
-		"↑/↓ move • enter select • esc quit":  3,
+		"↑/↓ move • enter select • esc quit":  2,
 	}
 	for line := range strings.SplitSeq(strings.TrimSuffix(view, "\n"), "\n") {
 		assert.Equal(t, 40, lipgloss.Width(line), "each line spans the placed width")
@@ -126,7 +143,7 @@ func TestPicker_View(t *testing.T) {
 		}
 		content := strings.TrimLeft(line, " ")
 		if assert.Contains(t, wantLeading, content) {
-			assert.Equal(t, wantLeading[content], lipgloss.Width(line)-lipgloss.Width(content), "line %q is centered", content)
+			assert.Equal(t, wantLeading[content], lipgloss.Width(line)-lipgloss.Width(content), "line %q is left-aligned", content)
 			delete(wantLeading, content)
 		}
 	}

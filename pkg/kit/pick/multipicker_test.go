@@ -139,12 +139,20 @@ func TestMultiPicker_View(t *testing.T) {
 	s := stack(opts, m)
 	s.models[0].cursor = 2 // python, past go's revealed child
 
-	view := s.View()
-	want := "Select the runtimes to install\n(set in ~/.ccbox/mise.toml)\n\n" +
-		"  [x] go\n    [x] golangci-lint\n❯ [ ] python\n  [ ] ruby (from-source build)\n\n" +
-		"  Save to ~/.ccbox/mise.toml\n"
-	assert.Contains(t, view, want)
-	assert.Contains(t, view, "↑/↓ move • enter select • esc quit")
+	// every row rides the run's 2-space left padding, over the rows' own indents
+	assert.Equal(t, []string{
+		"  Select the runtimes to install",
+		"  (set in ~/.ccbox/mise.toml)",
+		"",
+		"    [x] go",
+		"      [x] golangci-lint",
+		"  ❯ [ ] python",
+		"    [ ] ruby (from-source build)",
+		"",
+		"    Save to ~/.ccbox/mise.toml",
+		"",
+		"  ↑/↓ move • enter select • esc quit",
+	}, trimmedLines(s.View()))
 }
 
 func TestMultiPickerHeadless(t *testing.T) {

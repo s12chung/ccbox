@@ -233,14 +233,13 @@ func (s *stackModel) submitRow() string {
 }
 
 // View renders the pickers under the chrome — the header and subtext over
-// them, the submit and help rows below — all centered in the terminal
+// them, the submit and help rows below — indented 2 spaces, left-aligned and
+// vertically centered in the terminal
 func (s *stackModel) View() string {
 	lines := make([]string, 0, 2+len(s.opts.Subtext))
 	lines = append(lines, strongStyle.Render(s.opts.Header))
-	// render each line separately: a multi-line render pads its lines to one
-	// width, so Place would center the block instead of each line
-	for _, line := range s.opts.Subtext {
-		lines = append(lines, lightStyle.Render(line))
+	if len(s.opts.Subtext) > 0 {
+		lines = append(lines, lightStyle.Render(strings.Join(s.opts.Subtext, "\n")))
 	}
 	lines = append(lines, "")
 	for i, m := range s.models {
@@ -251,7 +250,8 @@ func (s *stackModel) View() string {
 	}
 	body := strings.Join(lines, "\n") + "\n\n" + s.submitRow() + "\n\n" +
 		lightStyle.Render("↑/↓ move • enter select • esc quit")
-	return lipgloss.Place(s.width, s.height, lipgloss.Center, lipgloss.Center, body)
+	body = lipgloss.NewStyle().PaddingLeft(2).Render(body)
+	return lipgloss.Place(s.width, s.height, lipgloss.Left, lipgloss.Center, body)
 }
 
 func isTerminal(f *os.File) bool {
