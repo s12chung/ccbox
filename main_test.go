@@ -104,6 +104,7 @@ docker/desktop/home/.config/mimeapps.list
 docker/desktop/home/.config/xfce4/helpers.rc
 docker/desktop/home/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-desktop.xml
 docker/desktop/home/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
+docker/desktop/policies/etc/opt/chrome_for_testing/policies/managed/ccbox.json
 docker/desktop/share/applications/web-browser.desktop
 docker/desktop/share/xfce4/helpers/web-browser.desktop
 docker/desktop.sh

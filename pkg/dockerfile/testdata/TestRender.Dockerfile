@@ -126,6 +126,9 @@ COPY docker/desktop/share/ /usr/local/share/
 # The session's default browser — the baked mimeapps + xfce helpers reference
 # it by absolute path; root-owned. Execs the base's shared playwright chromium.
 COPY --chmod=755 docker/web-browser /usr/local/bin/web-browser
+# Managed-browser policy: the password manager is off. The playwright browser
+# is chrome-for-testing branded — this is the policy path its binary reads.
+COPY docker/desktop/policies/ /
 
 # The GUI app's volume mountpoint, ccbox-owned so the named volume seeds uid 1000
 RUN mkdir -p /opt/ccbox/apps && chown ccbox:ccbox /opt/ccbox/apps
