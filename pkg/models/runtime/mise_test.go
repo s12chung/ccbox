@@ -24,11 +24,11 @@ func TestSelectableNames(t *testing.T) {
 	assert.NotContains(t, names, Node().Name, "node rides every resolution, it's not selectable")
 }
 
-func TestFromMiseToolNames(t *testing.T) {
+func TestFromNames(t *testing.T) {
 	tests := []struct {
-		name      string
-		toolNames []string
-		want      []string
+		name         string
+		runtimeNames []string
+		want         []string
 	}{
 		{"no tools is node alone", nil, []string{"node"}},
 		{"the selection rides node, in All()'s order", []string{"ruby", "go"}, []string{"go", "node", "ruby"}},
@@ -37,7 +37,7 @@ func TestFromMiseToolNames(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			names := make([]string, 0, len(tt.want))
-			for _, rt := range FromMiseToolNames(tt.toolNames).Runtimes {
+			for _, rt := range FromNames(tt.runtimeNames).Runtimes {
 				names = append(names, rt.Name)
 			}
 			assert.Equal(t, tt.want, names)
@@ -70,5 +70,5 @@ func TestMiseRuntimes_Packages(t *testing.T) {
 
 func TestMiseRuntimes_CacheVolumes(t *testing.T) {
 	assert.Equal(t, AllCacheVolumes(), MiseRuntimes{Runtimes: All()}.CacheVolumes())
-	assert.Equal(t, Node().CacheVolumes, FromMiseToolNames(nil).CacheVolumes(), "node's volumes ride every resolution")
+	assert.Equal(t, Node().CacheVolumes, FromNames(nil).CacheVolumes(), "node's volumes ride every resolution")
 }

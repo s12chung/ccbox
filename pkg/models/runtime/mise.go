@@ -7,11 +7,11 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
-// FromMiseToolNames resolves a mise config's [tools] names to the runtimes they
-// select — node rides every resolution; non-runtime tools (the dev CLIs, the
-// image's independent tools) drop
-func FromMiseToolNames(toolNames []string) MiseRuntimes {
-	names := append([]string{Node().Name}, toolNames...) // node rides every resolution
+// FromNames resolves the given names to the runtimes they select — node rides
+// every resolution; non-runtime tools (the dev CLIs, the image's independent
+// tools) drop
+func FromNames(runtimeNames []string) MiseRuntimes {
+	names := append([]string{Node().Name}, runtimeNames...) // node rides every resolution
 	var runtimes []Runtime
 	for _, rt := range All() {
 		if slices.Contains(names, rt.Name) {

@@ -191,7 +191,7 @@ func TestCacheVolumeNames(t *testing.T) {
 // TestCacheVolumeNames_Selection pins the per-project volumes following the
 // mise config's selection.
 func TestCacheVolumeNames_Selection(t *testing.T) {
-	selected := runtime.FromMiseToolNames([]string{"go"})
+	selected := runtime.FromNames([]string{"go"})
 
 	names := cacheVolumeNames("/Users/me/proj", selected.CacheVolumes())
 	assert.NotContains(t, names, "ccbox"+slug.Path("/Users/me/proj")+"-gem-cache-default")

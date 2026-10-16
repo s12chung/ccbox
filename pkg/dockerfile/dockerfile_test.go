@@ -18,7 +18,7 @@ import (
 // byte for byte.
 func allSelection(t *testing.T) []runtime.Runtime {
 	t.Helper()
-	return runtime.FromMiseToolNames(slicex.Minus(runtime.Names(), []string{runtime.Node().Name})).Runtimes
+	return runtime.FromNames(slicex.Minus(runtime.Names(), []string{runtime.Node().Name})).Runtimes
 }
 
 // TestRegions pins each generated region's render.
@@ -45,7 +45,7 @@ func TestRegions(t *testing.T) {
 
 // TestRegions_Selection pins the regions narrowing to a subset selection.
 func TestRegions_Selection(t *testing.T) {
-	selected := runtime.FromMiseToolNames([]string{"go"}).Runtimes
+	selected := runtime.FromNames([]string{"go"}).Runtimes
 
 	tests := []struct {
 		name   string
@@ -78,7 +78,7 @@ func TestRender_SubsetSelection(t *testing.T) {
 	golden, err := os.ReadFile(filepath.Join("testdata", "TestRender_SubsetSelection.Dockerfile")) // #nosec G304 -- the test's own fixture
 	require.NoError(t, err)
 
-	composed, err := render(runtime.FromMiseToolNames([]string{"go"}).Runtimes)
+	composed, err := render(runtime.FromNames([]string{"go"}).Runtimes)
 	require.NoError(t, err)
 	assert.Equal(t, string(golden), string(composed))
 }

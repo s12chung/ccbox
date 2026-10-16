@@ -85,7 +85,7 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		miseRuntimes = runtime.FromMiseToolNames(toolNames)
+		miseRuntimes = runtime.FromNames(toolNames)
 		tagByProject = osutil.Present(mise.ProjectConfigPath(config.ProjectDir()))
 		return prompt.ProjectDirSize(config.ProjectDir())
 	},

@@ -91,7 +91,7 @@ func MiseConfigSet(savePath string, checked []string) (mise.ConfigSet, error) {
 	}
 	return mise.ConfigSet{
 		Tools:    resolveTools(slices.Concat(pickedRuntimes, pickedIndependent)),
-		Packages: runtime.FromMiseToolNames(pickedRuntimes).Packages(),
+		Packages: runtime.FromNames(pickedRuntimes).Packages(),
 	}, nil
 }
 
