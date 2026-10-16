@@ -96,7 +96,7 @@ func commitLock(t *testing.T, configPath string) error {
 func seedUser(t *testing.T) {
 	t.Helper()
 	testutil.Home(t)
-	require.NoError(t, SeedConfig(UserConfigPath(), nil))
+	require.NoError(t, SeedConfig(UserConfigPath(), ConfigSet{}))
 	require.NoError(t, commitLock(t, UserConfigPath()))
 }
 
@@ -135,7 +135,7 @@ func TestBuildFS(t *testing.T) {
 		// rootSeed seeds the user level on every ccbox invocation, so no config is
 		// an error: there is nothing to build from
 		{name: "no config", projectDir: t.TempDir(), wantErr: true},
-		{name: "user", seedUser: true, projectDir: t.TempDir(), wantConfig: string(must.Get(renderConfig(nil))), wantLock: fixtureLock},
+		{name: "user", seedUser: true, projectDir: t.TempDir(), wantConfig: string(must.Get(renderConfig(ConfigSet{}))), wantLock: fixtureLock},
 		// the user level is seeded here too: the project's own config wins
 		{name: "project", seedUser: true, projectDir: projectDir, wantConfig: fixtureConfig, wantLock: fixtureLock},
 	}
@@ -191,7 +191,7 @@ func TestToolNames(t *testing.T) {
 
 func TestToolNames_UserFallback(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, SeedConfig(UserConfigPath(), []Tool{{Tool: "node", Version: "26"}}))
+	require.NoError(t, SeedConfig(UserConfigPath(), ConfigSet{Tools: []Tool{{Tool: "node", Version: "26"}}}))
 
 	names, err := ToolNames(t.TempDir())
 	require.NoError(t, err)

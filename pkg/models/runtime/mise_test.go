@@ -55,6 +55,19 @@ func TestMiseRuntimes_Tools(t *testing.T) {
 	assert.Equal(t, want, MiseRuntimes{Runtimes: All()}.Tools())
 }
 
+func TestMiseRuntimes_Packages(t *testing.T) {
+	assert.Equal(t, []string{
+		"libatomic1", "libffi8", "libgmp10", "libreadline8t64", "libssl3t64", "libyaml-0-2", "libzstd1", "zlib1g",
+	}, MiseRuntimes{Runtimes: All()}.Packages())
+
+	// libs two runtimes share render once — a repeat would redeclare the TOML key
+	overlapping := MiseRuntimes{Runtimes: []Runtime{
+		{Name: "a", AptPkgs: []string{"libz", "liba"}},
+		{Name: "b", AptPkgs: []string{"libz", "libm"}},
+	}}
+	assert.Equal(t, []string{"liba", "libm", "libz"}, overlapping.Packages())
+}
+
 func TestMiseRuntimes_CacheVolumes(t *testing.T) {
 	assert.Equal(t, AllCacheVolumes(), MiseRuntimes{Runtimes: All()}.CacheVolumes())
 	assert.Equal(t, Node().CacheVolumes, FromMiseToolNames(nil).CacheVolumes(), "node's volumes ride every resolution")

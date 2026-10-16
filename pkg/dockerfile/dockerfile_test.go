@@ -28,7 +28,6 @@ func TestRegions(t *testing.T) {
 		render func(regions) string
 		want   string
 	}{
-		{"runtimeLibs", regions.RuntimeLibs, "        libatomic1 libssl3t64 libyaml-0-2 zlib1g libffi8 libreadline8t64 libgmp10 libzstd1 \\"},
 		{"buildDeps", regions.BuildDeps, "libssl-dev libyaml-dev zlib1g-dev libffi-dev libreadline-dev libgmp-dev"},
 		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin"},
 		{
@@ -53,7 +52,6 @@ func TestRegions_Selection(t *testing.T) {
 		render func(regions) string
 		want   string
 	}{
-		{"runtimeLibs", regions.RuntimeLibs, "        libatomic1 \\"},
 		{"buildDeps", regions.BuildDeps, ""},
 		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin"},
 		{"envVars", regions.EnvVars, "GOBIN=/home/ccbox/go/bin NPM_CONFIG_PREFIX=/home/ccbox/.npm-global NPM_CONFIG_UPDATE_NOTIFIER=false"},

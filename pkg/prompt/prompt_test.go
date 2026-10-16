@@ -133,11 +133,11 @@ func TestHarnessCLI(t *testing.T) {
 	})
 }
 
-func TestMiseTools(t *testing.T) {
-	t.Run("picked runtimes resolve to their tools, node riding", func(t *testing.T) {
+func TestMiseConfigSet(t *testing.T) {
+	t.Run("picked runtimes resolve to their tools and libs, node riding", func(t *testing.T) {
 		stubRunTools(t, []string{"python"}, nil, nil)
 
-		tools, err := MiseTools("~/.ccbox/mise.toml", nil)
+		configSet, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
 			{Tool: "node", Version: "26.3.0"},
@@ -146,31 +146,42 @@ func TestMiseTools(t *testing.T) {
 				Version:     "3.13",
 				PostInstall: "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0",
 			},
-		}, tools)
+		}, configSet.Tools)
+		assert.Equal(t, []string{"libatomic1"}, configSet.Packages)
 	})
 
 	t.Run("a checked child rides its runtime, an unchecked one drops", func(t *testing.T) {
 		stubRunTools(t, []string{"go", "golangci-lint"}, nil, nil)
 
-		tools, err := MiseTools("~/.ccbox/mise.toml", nil)
+		configSet, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
 			{Tool: "go", Version: "1.26"},
 			{Tool: "golangci-lint", Version: "2.13.1"},
 			{Tool: "node", Version: "26.3.0"},
-		}, tools)
+		}, configSet.Tools)
 
 		stubRunTools(t, []string{"go"}, nil, nil)
 
-		tools, err = MiseTools("~/.ccbox/mise.toml", nil)
+		configSet, err = MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
-		assert.Equal(t, []mise.Tool{{Tool: "go", Version: "1.26"}, {Tool: "node", Version: "26.3.0"}}, tools)
+		assert.Equal(t, []mise.Tool{{Tool: "go", Version: "1.26"}, {Tool: "node", Version: "26.3.0"}}, configSet.Tools)
+	})
+
+	t.Run("the picked runtimes' apt libs ride the answer, sorted", func(t *testing.T) {
+		stubRunTools(t, []string{"ruby"}, nil, nil)
+
+		configSet, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{
+			"libatomic1", "libffi8", "libgmp10", "libreadline8t64", "libssl3t64", "libyaml-0-2", "libzstd1", "zlib1g",
+		}, configSet.Packages)
 	})
 
 	t.Run("the independent tools' picks ride the runtimes'", func(t *testing.T) {
 		stubRunTools(t, []string{"go"}, []string{"hadolint", "npm:playwright"}, nil)
 
-		tools, err := MiseTools("~/.ccbox/mise.toml", nil)
+		configSet, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
 			{Tool: "go", Version: "1.26"},
@@ -183,21 +194,22 @@ func TestMiseTools(t *testing.T) {
 				Comment:     "# --vnc flag uses this chromium as a browser",
 				Hint:        "with chrome",
 			},
-		}, tools)
+		}, configSet.Tools)
 	})
 
 	t.Run("an empty check set still rides node", func(t *testing.T) {
 		stubRunTools(t, []string{}, []string{}, nil)
 
-		tools, err := MiseTools("~/.ccbox/mise.toml", []string{"go"})
+		configSet, err := MiseConfigSet("~/.ccbox/mise.toml", []string{"go"})
 		require.NoError(t, err)
-		assert.Equal(t, []mise.Tool{{Tool: "node", Version: "26.3.0"}}, tools)
+		assert.Equal(t, []mise.Tool{{Tool: "node", Version: "26.3.0"}}, configSet.Tools)
+		assert.Equal(t, []string{"libatomic1"}, configSet.Packages)
 	})
 
 	t.Run("no picker answer errors", func(t *testing.T) {
 		stubRunTools(t, nil, nil, nil)
 
-		_, err := MiseTools("~/.ccbox/mise.toml", nil)
+		_, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no tools selected")
 	})
@@ -205,7 +217,7 @@ func TestMiseTools(t *testing.T) {
 	t.Run("quitting the picker aborts", func(t *testing.T) {
 		stubRunTools(t, nil, nil, pick.ErrCanceled)
 
-		_, err := MiseTools("~/.ccbox/mise.toml", nil)
+		_, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.ErrorIs(t, err, pick.ErrCanceled)
 	})
 }

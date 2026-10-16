@@ -25,12 +25,6 @@ var (
 // regions is the tmpl's data; its exported methods are the tmpl's actions.
 type regions struct{ runtimes []runtime.Runtime }
 
-// RuntimeLibs renders the generated apt RUN's continuation row
-func (r regions) RuntimeLibs() string {
-	libs := r.collect(func(rt runtime.Runtime) []string { return rt.AptPkgs })
-	return "        " + strings.Join(libs, " ") + " \\"
-}
-
 // BuildDeps renders the from-source compile RUN's $buildDeps
 func (r regions) BuildDeps() string {
 	return strings.Join(r.collect(func(rt runtime.Runtime) []string { return rt.AptBuildDeps }), " ")

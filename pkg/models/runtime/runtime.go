@@ -23,7 +23,7 @@ type Runtime struct {
 	MiseTool          mise.Tool   // the runtime itself, as the mise config installs it
 	MiseToolsOptional []mise.Tool // the ecosystem tooling riding the install
 
-	AptPkgs      []string // shared libs kept in the image — not always exclusively (libssl3t64, zlib1g also serve libcurl)
+	AptPkgs      []string // shared libs the mise config's [bootstrap.packages] installs
 	AptBuildDeps []string // the from-source compile's headers, purged right after
 
 	CacheVolumes []string          // the container dirs dmap maps per-project cache volumes to; the name's suffix is path.Base minus its leading dot

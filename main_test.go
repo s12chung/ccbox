@@ -69,7 +69,8 @@ func composedContext(t *testing.T) fs.FS {
 	t.Helper()
 	testutil.Home(t) // keeps the test off the host's user level
 	miseRuntimes := runtime.FromMiseToolNames(slicex.Minus(runtime.Names(), []string{runtime.Node().Name}))
-	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), miseRuntimes.Tools()))
+	configSet := mise.ConfigSet{Tools: miseRuntimes.Tools(), Packages: miseRuntimes.Packages()}
+	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), configSet))
 	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
 	src, err := mise.BuildFS(embedBuildContext, t.TempDir())
 	require.NoError(t, err)

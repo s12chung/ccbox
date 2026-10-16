@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/s12chung/ccbox/pkg/mise"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
 // FromMiseToolNames resolves a mise config's [tools] names to the runtimes they
@@ -36,6 +37,18 @@ func (m MiseRuntimes) Tools() []mise.Tool {
 		tools = append(tools, rt.MiseToolsOptional...)
 	}
 	return tools
+}
+
+// Packages flattens the selection's apt libs, repeats dropped and sorted — a
+// repeat would redeclare a TOML key
+func (m MiseRuntimes) Packages() []string {
+	var pkgs []string
+	for _, rt := range m.Runtimes {
+		pkgs = append(pkgs, rt.AptPkgs...)
+	}
+	pkgs = slicex.Unique(pkgs)
+	slices.Sort(pkgs)
+	return pkgs
 }
 
 // CacheVolumes concatenates the selection's cache volumes

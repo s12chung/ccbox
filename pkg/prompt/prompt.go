@@ -71,9 +71,9 @@ func HarnessCLI(cliNames []string) (string, error) {
 	return name, nil
 }
 
-// MiseTools asks which mise tools to install in the devbox; the answer is the
-// mise config's [tools] region's tools — node rides every answer.
-func MiseTools(savePath string, checked []string) ([]mise.Tool, error) {
+// MiseConfigSet asks which mise tools to install in the devbox; the answer is
+// the mise config's generated content — node rides every answer.
+func MiseConfigSet(savePath string, checked []string) (mise.ConfigSet, error) {
 	var pickedRuntimes, pickedIndependent []string
 	err := runFn(pick.NewRunner(pick.RunnerOptions{
 		Header:      "Select the tools to install",
@@ -84,12 +84,15 @@ func MiseTools(savePath string, checked []string) ([]mise.Tool, error) {
 		pick.NewMultiPicker(independentToolItems(), checked),
 	), &pickedRuntimes, &pickedIndependent)
 	if err != nil {
-		return nil, err
+		return mise.ConfigSet{}, err
 	}
 	if pickedRuntimes == nil { // no terminal to show the picker
-		return nil, fmt.Errorf("no tools selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
+		return mise.ConfigSet{}, fmt.Errorf("no tools selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
 	}
-	return resolveTools(slices.Concat(pickedRuntimes, pickedIndependent)), nil
+	return mise.ConfigSet{
+		Tools:    resolveTools(slices.Concat(pickedRuntimes, pickedIndependent)),
+		Packages: runtime.FromMiseToolNames(pickedRuntimes).Packages(),
+	}, nil
 }
 
 func runtimeItems() []pick.Item {

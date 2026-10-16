@@ -42,11 +42,11 @@ func seedMiseConfig(path string) (bool, error) {
 	if osutil.Present(path) {
 		return false, nil
 	}
-	tools, err := prompt.MiseTools(path, nil)
+	configSet, err := prompt.MiseConfigSet(path, nil)
 	if err != nil {
 		return false, err
 	}
-	if err := mise.SeedConfig(path, tools); err != nil {
+	if err := mise.SeedConfig(path, configSet); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -55,16 +55,16 @@ func seedMiseConfig(path string) (bool, error) {
 func init() { miseCmd.AddCommand(miseInitCmd, miseUpdateCmd) }
 
 // miseUpdate re-picks the picked mise config's tools — the config's current
-// selection pre-filled — and syncs the pick into the config's tools region
+// selection pre-filled — and syncs the pick into the config's regions
 func miseUpdate() error {
 	projectDir := config.ProjectDir()
 	toolNames, err := mise.ToolNames(projectDir)
 	if err != nil {
 		return err
 	}
-	tools, err := prompt.MiseTools(mise.PickedConfigPath(projectDir), toolNames)
+	configSet, err := prompt.MiseConfigSet(mise.PickedConfigPath(projectDir), toolNames)
 	if err != nil {
 		return err
 	}
-	return mise.SyncTools(projectDir, tools)
+	return mise.Sync(projectDir, configSet)
 }

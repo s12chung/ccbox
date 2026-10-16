@@ -20,12 +20,12 @@ import (
 func TestSeedConfig(t *testing.T) {
 	testutil.Home(t)
 
-	require.NoError(t, SeedConfig(UserConfigPath(), nil))
+	require.NoError(t, SeedConfig(UserConfigPath(), ConfigSet{}))
 
-	// the seed is the given tools' carrier — nil renders an empty region
+	// the seed is the given config set's carrier — the zero value renders empty regions
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
-	assert.Equal(t, string(must.Get(renderConfig(nil))), string(body))
+	assert.Equal(t, string(must.Get(renderConfig(ConfigSet{}))), string(body))
 }
 
 func TestSeedConfig_SkipsExisting(t *testing.T) {
@@ -33,54 +33,67 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 	require.NoError(t, os.MkdirAll(userdir.Dir(), osutil.Dir))
 	require.NoError(t, os.WriteFile(UserConfigPath(), []byte("custom"), osutil.File))
 
-	require.NoError(t, SeedConfig(UserConfigPath(), nil))
+	require.NoError(t, SeedConfig(UserConfigPath(), ConfigSet{}))
 
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own config path
 	require.NoError(t, err)
 	assert.Equal(t, "custom", string(body)) // the user's own file is never touched
 }
 
-// testTools is the fixture render's stand-in for a full prov resolution: one plain
-// binding and one with a postinstall — the two shapes row renders
-var testTools = []Tool{
-	{Tool: "go", Version: "1.26"},
-	{Tool: "python", Version: "3.13", PostInstall: "python -m pip install setuptools==82.0.1 wheel==0.47.0"},
+// testConfigSet is the fixture render's stand-in for a full prov resolution: one
+// plain binding and one with a postinstall — the two shapes row renders — plus
+// the packages rows
+var testConfigSet = ConfigSet{
+	Tools: []Tool{
+		{Tool: "go", Version: "1.26"},
+		{Tool: "python", Version: "3.13", PostInstall: "python -m pip install setuptools==82.0.1 wheel==0.47.0"},
+	},
+	Packages: []string{"libatomic1", "libyaml-0-2"},
 }
 
 // TestRenderConfig pins the fixture render to its golden
 func TestRenderConfig(t *testing.T) {
-	assert.Equal(t, golden(t, "TestRenderConfig.toml"), seedRender(t, testTools))
+	assert.Equal(t, golden(t, "TestRenderConfig.toml"), seedRender(t, testConfigSet))
 }
 
-// TestRenderConfig_IndependentTools pins the render when the picker's whole
-// second checklist rides the seed
+// TestRenderConfig_IndependentTools pins the render when the independent tools
+// ride the seed
 func TestRenderConfig_IndependentTools(t *testing.T) {
-	assert.Equal(t, golden(t, "TestRenderConfig_IndependentTools.toml"), seedRender(t, independentTools))
+	assert.Equal(t, golden(t, "TestRenderConfig_IndependentTools.toml"), seedRender(t, ConfigSet{Tools: independentTools}))
 }
 
 func TestSyncTools(t *testing.T) {
-	// narrowedTools trims the tools like a spec selection
-	narrowedTools := []Tool{
-		{Tool: "go", Version: "1.26"},
-		{Tool: "golangci-lint", Version: "2.13.1"},
+	// narrowedSet trims the tools like a spec's runtimes, with its own packages pick
+	narrowedSet := ConfigSet{
+		Tools: []Tool{
+			{Tool: "go", Version: "1.26"},
+			{Tool: "golangci-lint", Version: "2.13.1"},
+		},
+		Packages: []string{"libatomic1", "libyaml-0-2"},
 	}
 
-	// the marked region's rows after the sync, through the region's closing newline —
-	// every case syncs narrowedTools
-	const syncedRegion = `go = "1.26"
+	// the marked regions' rows after the sync, through each region's closing
+	// newline — every case syncs narrowedSet
+	const (
+		syncedToolsRegion = `go = "1.26"
 golangci-lint = "2.13.1"
 `
+		syncedPackagesRegion = `"apt:libatomic1" = "latest"
+"apt:libyaml-0-2" = "latest"
+`
+	)
 
-	t.Run("replaces only the marked region", func(t *testing.T) {
+	t.Run("replaces only the marked regions", func(t *testing.T) {
 		seedUser(t)
 
-		require.NoError(t, SyncTools(t.TempDir(), narrowedTools))
+		require.NoError(t, Sync(t.TempDir(), narrowedSet))
 
 		body := userBody(t)
-		assert.Contains(t, body, syncedRegion)
+		assert.Contains(t, body, syncedToolsRegion)
+		assert.Contains(t, body, syncedPackagesRegion)
 		// the body minus the synced rows is the fixture's top and bottom: the dropped
 		// tools' rows went with the region; the hand-written rows below stayed
-		assert.Equal(t, golden(t, "TestSyncTools.toml"), strings.Replace(body, syncedRegion, "", 1))
+		assert.Equal(t, golden(t, "TestSyncTools.toml"), strings.Replace(body, syncedToolsRegion, "", 1))
 	})
 
 	t.Run("hand edits outside the region survive", func(t *testing.T) {
@@ -88,34 +101,36 @@ golangci-lint = "2.13.1"
 		edited := strings.Replace(userBody(t), `shellcheck = "0.11.0"`, `shellcheck = "0.12.0"`, 1)
 		require.NoError(t, os.WriteFile(UserConfigPath(), []byte(edited), osutil.File)) // #nosec G703 -- the test's own config path
 
-		require.NoError(t, SyncTools(t.TempDir(), narrowedTools))
+		require.NoError(t, Sync(t.TempDir(), narrowedSet))
 
 		body := userBody(t)
 		assert.Contains(t, body, `shellcheck = "0.12.0"`)
 		// the fixture with the same hand edit
 		want := strings.Replace(golden(t, "TestSyncTools.toml"), `shellcheck = "0.11.0"`, `shellcheck = "0.12.0"`, 1)
-		assert.Equal(t, want, strings.Replace(body, syncedRegion, "", 1))
+		assert.Equal(t, want, strings.Replace(body, syncedToolsRegion, "", 1))
 	})
 
 	t.Run("picks the project config over the user's", func(t *testing.T) {
 		seedUser(t)
 		projectDir := t.TempDir()
-		marked := "[tools]\n# ccbox:tools-begin\nnode = \"26\"\n# ccbox:tools-end\n"
+		marked := "[tools]\n# ccbox:tools-begin\nnode = \"26\"\n# ccbox:tools-end\n\n[bootstrap.packages]\n# ccbox:packages-begin\n# ccbox:packages-end\n"
 		require.NoError(t, os.WriteFile(ProjectConfigPath(projectDir), []byte(marked), osutil.File))
 
-		require.NoError(t, SyncTools(projectDir, narrowedTools))
+		require.NoError(t, Sync(projectDir, narrowedSet))
 
 		project, err := os.ReadFile(ProjectConfigPath(projectDir)) // #nosec G304 -- the test's own config path
 		require.NoError(t, err)
-		assert.Contains(t, string(project), syncedRegion, "the project config's region syncs")
-		assert.Equal(t, "[tools]\n# ccbox:tools-begin\n# ccbox:tools-end\n", strings.Replace(string(project), syncedRegion, "", 1))
+		assert.Contains(t, string(project), syncedToolsRegion, "the project config's regions sync")
+		assert.Contains(t, string(project), syncedPackagesRegion, "the project config's regions sync")
+		assert.Equal(t, "[tools]\n# ccbox:tools-begin\n# ccbox:tools-end\n\n[bootstrap.packages]\n# ccbox:packages-begin\n# ccbox:packages-end\n",
+			strings.Replace(strings.Replace(string(project), syncedToolsRegion, "", 1), syncedPackagesRegion, "", 1))
 		assert.NotContains(t, userBody(t), "golangci-lint", "the user config is left untouched")
 	})
 
 	t.Run("errors when neither is present", func(t *testing.T) {
 		testutil.Home(t)
 
-		err := SyncTools(t.TempDir(), narrowedTools)
+		err := Sync(t.TempDir(), narrowedSet)
 		require.ErrorContains(t, err, "no mise config to sync")
 		assert.NoFileExists(t, UserConfigPath(), "nothing is seeded")
 	})
@@ -126,7 +141,7 @@ golangci-lint = "2.13.1"
 		legacy := "[tools]\nnode = \"26\"\n" // seeded before the markers existed
 		require.NoError(t, os.WriteFile(UserConfigPath(), []byte(legacy), osutil.File))
 
-		err := SyncTools(t.TempDir(), narrowedTools)
+		err := Sync(t.TempDir(), narrowedSet)
 		require.ErrorContains(t, err, "delete the file to reseed it")
 
 		assert.Equal(t, legacy, userBody(t), "untouched")
@@ -135,7 +150,7 @@ golangci-lint = "2.13.1"
 	t.Run("the lock goes stale for the next GenerateLock", func(t *testing.T) {
 		seedUser(t)
 
-		require.NoError(t, SyncTools(t.TempDir(), narrowedTools))
+		require.NoError(t, Sync(t.TempDir(), narrowedSet))
 
 		expander := osutil.Expander{
 			Source:    UserConfigPath(),
@@ -164,21 +179,22 @@ func golden(t *testing.T, name string) string {
 	return string(body)
 }
 
-// seedRender seeds the user-level config with tools, returning the seeded body
-func seedRender(t *testing.T, tools []Tool) string {
+// seedRender seeds the user-level config with the config set, returning the
+// seeded body
+func seedRender(t *testing.T, configSet ConfigSet) string {
 	t.Helper()
 	testutil.Home(t)
 	require.NoError(t, os.MkdirAll(userdir.Dir(), osutil.Dir))
-	require.NoError(t, SeedConfig(UserConfigPath(), tools))
+	require.NoError(t, SeedConfig(UserConfigPath(), configSet))
 	body, err := os.ReadFile(UserConfigPath()) // #nosec G304 -- the test's own seeded path
 	require.NoError(t, err)
 	return string(body)
 }
 
-// renderConfig executes the tmpl for tools — SeedConfig's content
-func renderConfig(tools []Tool) ([]byte, error) {
+// renderConfig executes the tmpl for the config set — SeedConfig's content
+func renderConfig(configSet ConfigSet) ([]byte, error) {
 	var b bytes.Buffer
-	if err := configTmpl.Execute(&b, tools); err != nil {
+	if err := configTmpl.Execute(&b, configSet); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
