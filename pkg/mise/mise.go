@@ -21,7 +21,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 const (
@@ -104,8 +103,6 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 		return nil
 	}
 
-	lockPath := LockPath(configPath)
-	log.Infof("generating %s", lockPath)
 	ctxD, err := dock.NewCtxD(ctx)
 	if err != nil {
 		return err
@@ -123,7 +120,6 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 	if err := expander.Expand(lock); err != nil {
 		return err
 	}
-	log.Infof("locked %s", lockPath)
 	return nil
 }
 

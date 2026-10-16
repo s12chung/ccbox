@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"os"
 
 	"github.com/docker/docker/api/types/container"
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/util/term"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -29,13 +32,17 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) ([]byte, error) {
 		return nil, err
 	}
 
+	env := []string{"MISE_TRUSTED_CONFIG_PATHS=" + miseWorkspaceMount}
+	if term.IsTerminal(os.Stdout) {
+		env = append(env, "CLICOLOR_FORCE=1")
+	}
 	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
 		&container.Config{
 			Image:      o.Image,
 			Entrypoint: []string{"/usr/local/bin/mise"},
 			Cmd:        []string{"lock", "--platform", misePlatforms},
 			WorkingDir: miseWorkspaceMount,
-			Env:        []string{"MISE_TRUSTED_CONFIG_PATHS=" + miseWorkspaceMount},
+			Env:        env,
 		},
 		&container.HostConfig{
 			Binds: mountSpecs([]Mount{NewBind(o.ConfigPath, miseWorkspaceMount+"/mise.toml").ReadOnly()}),
@@ -50,7 +57,7 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) ([]byte, error) {
 	})
 
 	var logs bytes.Buffer
-	if err := dock.RunOnce(ctxD, resp.ID, &logs); err != nil {
+	if err := dock.RunOnce(ctxD, resp.ID, io.MultiWriter(os.Stdout, &logs)); err != nil {
 		return nil, fmt.Errorf("mise lock: %w\n%s", err, logs.String())
 	}
 

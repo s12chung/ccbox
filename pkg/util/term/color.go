@@ -45,11 +45,17 @@ type ColorWriter struct {
 // resolves through Fd — writer wrappers holding back a file (e.g.
 // osutil.BlockedCloser) expose it with one.
 func NewColorWriter(w io.Writer, colorer LineColorer) io.Writer {
-	f, ok := w.(interface{ Fd() uintptr })
-	if !ok || !mobyterm.IsTerminal(f.Fd()) {
+	if !IsTerminal(w) {
 		return w
 	}
 	return &ColorWriter{w: w, colorer: colorer}
+}
+
+// IsTerminal reports whether w writes to a terminal — the same resolution
+// NewColorWriter applies.
+func IsTerminal(w io.Writer) bool {
+	f, ok := w.(interface{ Fd() uintptr })
+	return ok && mobyterm.IsTerminal(f.Fd())
 }
 
 func (cw *ColorWriter) Write(p []byte) (int, error) {
