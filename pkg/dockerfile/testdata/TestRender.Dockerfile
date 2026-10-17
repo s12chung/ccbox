@@ -1,4 +1,4 @@
-FROM ghcr.io/jdx/mise:2026.9.6 AS mise
+FROM ghcr.io/jdx/mise:2026.10.12 AS mise
 
 FROM debian:trixie-slim AS base
 
@@ -10,9 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
 
-# System config + optional lock, read by `mise install` below — the temp
-# MISE_DATA_DIR installs to shared /usr/local (`mise install --system`
-# doesn't put shims)
+# System config + optional lock and its dependency sidecars, read by `mise install`
+# below — the temp MISE_DATA_DIR installs to shared /usr/local (`mise install
+# --system` doesn't put shims)
 COPY docker/mise/ /etc/mise/
 ENV PATH=/usr/local/share/mise/shims:$PATH
 # Outside the per-project home volumes — every container shares one browser copy.

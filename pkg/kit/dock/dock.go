@@ -6,10 +6,13 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/containerd/errdefs"
@@ -246,4 +249,39 @@ func CopyFileFrom(ctxD *CtxD, id, path string) ([]byte, error) {
 		return nil, err
 	}
 	return io.ReadAll(tr)
+}
+
+// CopyDirFrom copies the container's directory at dir into memory, its files keyed
+// by their paths relative to dir. CopyFrom tars the tree under dir's basename.
+func CopyDirFrom(ctxD *CtxD, id, dir string) (map[string][]byte, error) {
+	stream, _, err := ctxD.D.CopyFromContainer(ctxD.Ctx, id, dir)
+	if err != nil {
+		return nil, err
+	}
+	defer log.Defer("close copy stream", stream.Close)
+	return filesFromTar(stream, filepath.Base(dir)+"/")
+}
+
+// filesFromTar reads the regular files out of a CopyFrom stream, dropping the entries'
+// name prefix — the tarred tree's basename.
+func filesFromTar(stream io.Reader, prefix string) (map[string][]byte, error) {
+	files := map[string][]byte{}
+	tr := tar.NewReader(stream)
+	for {
+		hdr, err := tr.Next()
+		if errors.Is(err, io.EOF) {
+			return files, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		if hdr.Typeflag != tar.TypeReg {
+			continue
+		}
+		body, err := io.ReadAll(tr)
+		if err != nil {
+			return nil, err
+		}
+		files[strings.TrimPrefix(hdr.Name, prefix)] = body
+	}
 }

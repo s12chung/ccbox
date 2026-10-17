@@ -42,6 +42,12 @@ func LockPath(configPath string) string {
 	return strings.TrimSuffix(configPath, filepath.Ext(configPath)) + LockExt
 }
 
+// SidecarsPath is the config's dependency sidecars' dir — mise's sidecar root for a
+// lockfile beside the config.
+func SidecarsPath(configPath string) string {
+	return filepath.Join(filepath.Dir(configPath), ".mise", "locks")
+}
+
 // PickedConfigPath is the config the build picks — the project config over the
 // user's; "" when neither is present
 func PickedConfigPath(projectDir string) string {
@@ -84,8 +90,8 @@ func ImageRefFromDockerfile(dockerfile []byte) (string, error) {
 }
 
 // GenerateLock puts the committed lock beside the mise config when the config is
-// there, regenerating only when stale — a fresh one is left untouched. Creates both
-// the lock and its config-hash
+// there, regenerating only when stale — a fresh one is left untouched. Creates the
+// lock, its sidecars and the config-hash
 func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 	if !osutil.Present(configPath) {
 		return nil
@@ -117,18 +123,36 @@ func GenerateLock(ctx context.Context, imageRef, configPath string) error {
 	}
 
 	// Expand re-perms to 0644: mise writes its lockfile 0600
-	if err := expander.Expand(lock); err != nil {
+	if err := expander.Expand(lock.Lock); err != nil {
 		return err
+	}
+	return replaceSidecars(configPath, lock.Sidecars)
+}
+
+// replaceSidecars rewrites the config's sidecars with the generation's. mise prunes
+// moved sidecars only at its own save, so clearing first drops any version dir the
+// regeneration left behind.
+func replaceSidecars(configPath string, sidecars map[string][]byte) error {
+	sidecarsPath := SidecarsPath(configPath)
+	if err := os.RemoveAll(sidecarsPath); err != nil {
+		return err
+	}
+	for _, rel := range slices.Sorted(maps.Keys(sidecars)) {
+		if err := osutil.SafeWriteFile(filepath.Join(sidecarsPath, rel), sidecars[rel]); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 // The mise config lands in the build context at the image's system config: the config
-// rides where the Dockerfile COPYs docker/mise/, and the lock sits next to it — mise
-// resolves installs through the lockfile beside the config.
+// rides where the Dockerfile COPYs docker/mise/, the lock sits next to it, and the
+// sidecars under .mise/locks — mise resolves installs through the lockfile beside the
+// config and its sidecar root.
 const (
-	contextConfigPath = "docker/mise/config.toml"
-	contextLockPath   = "docker/mise/mise.lock"
+	contextConfigPath   = "docker/mise/config.toml"
+	contextLockPath     = "docker/mise/mise.lock"
+	contextSidecarsPath = "docker/mise/.mise/locks"
 )
 
 // independentTools is the image's tools independent of the runtime selection —
@@ -171,7 +195,8 @@ func BuildFS(embed fs.FS, projectDir string) (fs.FS, error) {
 	return merged, nil
 }
 
-// configFS reads the config and its committed lock into the build context's files
+// configFS reads the config, its committed lock and its dependency sidecars into the
+// build context's files
 func configFS(configPath string) (mfs.MapFS, error) {
 	config, err := os.ReadFile(configPath) // #nosec G304 -- the config's own path
 	if err != nil {
@@ -181,8 +206,43 @@ func configFS(configPath string) (mfs.MapFS, error) {
 	if err != nil {
 		return nil, err
 	}
-	return mfs.MapFS{
+	context := mfs.MapFS{
 		contextConfigPath: {Data: config},
 		contextLockPath:   {Data: lock},
-	}, nil
+	}
+	sidecars, err := sidecarsMap(configPath)
+	if err != nil {
+		return nil, err
+	}
+	for rel, body := range sidecars {
+		context[contextSidecarsPath+"/"+rel] = &mfs.MapFile{Data: body}
+	}
+	return context, nil
+}
+
+// sidecarsMap reads the config's committed sidecar files, keyed by their paths under
+// the sidecar root — the generation's own keying. A config without them — no npm/pypi
+// tools — reads none.
+func sidecarsMap(configPath string) (map[string][]byte, error) {
+	files := map[string][]byte{}
+	sidecarsPath := SidecarsPath(configPath)
+	if osutil.Missing(sidecarsPath) {
+		return files, nil
+	}
+	sidecarsFS := os.DirFS(sidecarsPath)
+	err := fs.WalkDir(sidecarsFS, ".", func(rel string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		body, err := fs.ReadFile(sidecarsFS, rel)
+		if err != nil {
+			return err
+		}
+		files[rel] = body
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return files, nil
 }

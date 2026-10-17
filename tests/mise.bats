@@ -12,12 +12,16 @@ teardown() {
 }
 
 @test "project mise: workspace tools pinned to the system mise resolve (system)" {
-    # the workspace mirrors the image's system config — with the lock beside it when
-    # the image baked through one, exactly how ccbox overlays a project mise
+    # the workspace mirrors the image's system config — with the lock beside it, plus
+    # the lock's dependency sidecars, when the image baked through one; exactly how
+    # ccbox overlays a project mise
     proj_tmp="$(mktemp -d)"
     cp /etc/mise/config.toml "$proj_tmp/mise.toml"
     if [ -f /etc/mise/mise.lock ]; then
         cp /etc/mise/mise.lock "$proj_tmp/"
+    fi
+    if [ -d /etc/mise/.mise ]; then
+        cp -r /etc/mise/.mise "$proj_tmp/"
     fi
     mise trust "$proj_tmp" >/dev/null
 

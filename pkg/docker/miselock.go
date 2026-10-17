@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
@@ -25,11 +26,19 @@ type MiseLockOptions struct {
 	ConfigPath string // the mise config's host path
 }
 
-// GenerateMiseLock runs mise lock in a container to generate a mise lock file, returning
-// its body.
-func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) ([]byte, error) {
+// MiseLock is the lock generation's output: the lockfile's body and its dependency
+// sidecars, keyed by their paths relative to the workspace's sidecar dir
+// (miseWorkspaceMount + "/.mise/locks")
+type MiseLock struct {
+	Lock     []byte
+	Sidecars map[string][]byte
+}
+
+// GenerateMiseLock runs mise lock in a container to generate a mise lock file and its
+// dependency sidecars.
+func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) (MiseLock, error) {
 	if err := dock.EnsureImageExists(ctxD, o.Image); err != nil {
-		return nil, err
+		return MiseLock{}, err
 	}
 
 	env := []string{"MISE_TRUSTED_CONFIG_PATHS=" + miseWorkspaceMount}
@@ -50,7 +59,7 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) ([]byte, error) {
 		},
 		nil, nil, "")
 	if err != nil {
-		return nil, err
+		return MiseLock{}, err
 	}
 	defer log.Defer("remove mise lock container", func() error {
 		return ctxD.D.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
@@ -58,12 +67,26 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) ([]byte, error) {
 
 	var logs bytes.Buffer
 	if err := dock.RunOnce(ctxD, resp.ID, io.MultiWriter(os.Stdout, &logs)); err != nil {
-		return nil, fmt.Errorf("mise lock: %w\n%s", err, logs.String())
+		return MiseLock{}, fmt.Errorf("mise lock: %w\n%s", err, logs.String())
 	}
 
 	body, err := dock.CopyFileFrom(ctxD, resp.ID, miseWorkspaceMount+"/mise.lock")
 	if err != nil {
-		return nil, fmt.Errorf("mise lock wrote no lockfile: %w\n%s", err, logs.String())
+		return MiseLock{}, fmt.Errorf("mise lock wrote no lockfile: %w\n%s", err, logs.String())
 	}
-	return body, nil
+	sidecars, err := copySidecars(ctxD, resp.ID)
+	if err != nil {
+		return MiseLock{}, err
+	}
+	return MiseLock{Lock: body, Sidecars: sidecars}, nil
+}
+
+// copySidecars copies the workspace's dependency sidecars dir out of the container;
+// mise writes it only when a tool carries a dependency graph.
+func copySidecars(ctxD *dock.CtxD, id string) (map[string][]byte, error) {
+	sidecars, err := dock.CopyDirFrom(ctxD, id, miseWorkspaceMount+"/.mise/locks")
+	if errdefs.IsNotFound(err) { // no sidecars dir: no tool carries a dependency graph
+		return map[string][]byte{}, nil
+	}
+	return sidecars, err
 }

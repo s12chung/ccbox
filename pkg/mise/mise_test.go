@@ -2,8 +2,10 @@ package mise
 
 import (
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 	"testing/fstest"
 
@@ -92,6 +94,41 @@ func commitLock(t *testing.T, configPath string) error {
 	return expander.Expand([]byte(fixtureLock))
 }
 
+func TestReplaceSidecars(t *testing.T) {
+	testutil.Home(t)
+	configPath := ProjectConfigPath(t.TempDir())
+
+	t.Run("a generation replaces the previous one", func(t *testing.T) {
+		require.NoError(t, replaceSidecars(configPath, map[string][]byte{
+			"npm-tool/1.0.0/aube-lock.yaml": []byte("old"),
+		}))
+		require.NoError(t, replaceSidecars(configPath, map[string][]byte{
+			"npm-tool/1.1.0/aube-lock.yaml": []byte("new"),
+		}))
+
+		body, err := os.ReadFile(filepath.Join(SidecarsPath(configPath), "npm-tool/1.1.0/aube-lock.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, "new", string(body))
+		_, err = os.Stat(filepath.Join(SidecarsPath(configPath), "npm-tool/1.0.0"))
+		require.ErrorIs(t, err, os.ErrNotExist, "the previous generation's dir is gone")
+	})
+
+	t.Run("an empty generation clears the sidecars", func(t *testing.T) {
+		require.NoError(t, replaceSidecars(configPath, nil))
+		_, err := os.Stat(SidecarsPath(configPath))
+		require.ErrorIs(t, err, os.ErrNotExist)
+	})
+}
+
+// commitSidecars writes the config's sidecar files — the state replaceSidecars
+// leaves behind
+func commitSidecars(t *testing.T, configPath string, sidecars map[string][]byte) {
+	t.Helper()
+	for _, rel := range slices.Sorted(maps.Keys(sidecars)) {
+		require.NoError(t, osutil.SafeWriteFile(filepath.Join(SidecarsPath(configPath), rel), sidecars[rel]))
+	}
+}
+
 // seedUser seeds the user-level config and commits its lock
 func seedUser(t *testing.T) {
 	t.Helper()
@@ -167,6 +204,31 @@ func TestBuildFS(t *testing.T) {
 			require.NoError(t, err, "the rest of the embed rides untouched")
 		})
 	}
+}
+
+func TestBuildFS_Sidecars(t *testing.T) {
+	t.Run("the committed sidecars ride the context", func(t *testing.T) {
+		testutil.Home(t)
+		configPath := ProjectConfigPath(t.TempDir())
+		require.NoError(t, os.WriteFile(configPath, []byte(fixtureConfig), osutil.File))
+		require.NoError(t, commitLock(t, configPath))
+		commitSidecars(t, configPath, map[string][]byte{"npm-tool/1.0.0/aube-lock.yaml": []byte("graph")})
+
+		merged, err := BuildFS(embedFSFixture(), filepath.Dir(configPath))
+		require.NoError(t, err)
+		body, err := fs.ReadFile(merged, contextSidecarsPath+"/npm-tool/1.0.0/aube-lock.yaml")
+		require.NoError(t, err)
+		assert.Equal(t, "graph", string(body))
+	})
+
+	t.Run("no sidecars, no context entries", func(t *testing.T) {
+		seedUser(t)
+
+		merged, err := BuildFS(embedFSFixture(), t.TempDir())
+		require.NoError(t, err)
+		_, err = fs.Stat(merged, contextSidecarsPath)
+		require.ErrorIs(t, err, fs.ErrNotExist, "the context carries no sidecar tree")
+	})
 }
 
 // toolsConfig is the fixture config: plain bindings, an inline table and a
