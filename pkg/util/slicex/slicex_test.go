@@ -26,6 +26,13 @@ func TestIntersect(t *testing.T) {
 	assert.Nil(t, Intersect[int](nil, []int{1}))
 }
 
+func TestFilter(t *testing.T) {
+	isOdd := func(n int) bool { return n%2 == 1 }
+	assert.Equal(t, []int{1, 3}, Filter([]int{1, 2, 3}, isOdd))
+	assert.Nil(t, Filter([]int{2}, isOdd))
+	assert.Nil(t, Filter[int](nil, isOdd))
+}
+
 func TestMap(t *testing.T) {
 	assert.Equal(t, []string{"1", "2"}, Map([]int{1, 2}, strconv.Itoa))
 	assert.Empty(t, Map([]int(nil), strconv.Itoa))

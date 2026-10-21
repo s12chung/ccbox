@@ -1,8 +1,11 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 
+	"github.com/s12chung/ccbox/pkg/kit/miseutil"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -17,15 +20,15 @@ var miseCmd = &cobra.Command{
 var miseUpdateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "Update the mise config's runtime selection",
-	RunE:  func(_ *cobra.Command, _ []string) error { return miseUpdate() },
+	RunE:  func(cmd *cobra.Command, _ []string) error { return miseUpdate(cmd.Context()) },
 }
 
 var miseInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Write a starter mise.toml picking the project's runtimes",
-	RunE: func(_ *cobra.Command, _ []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		path := mise.ProjectConfigPath(config.ProjectDir())
-		seeded, err := seedMiseConfig(path)
+		seeded, err := seedMiseConfig(cmd.Context(), path)
 		if err != nil {
 			return err
 		}
@@ -36,13 +39,15 @@ var miseInitCmd = &cobra.Command{
 	},
 }
 
+func init() { miseCmd.AddCommand(miseInitCmd, miseUpdateCmd) }
+
 // seedMiseConfig seeds path with the mise tools picker's pick when path is
 // missing — an existing config is never touched. Reports whether it seeded.
-func seedMiseConfig(path string) (bool, error) {
+func seedMiseConfig(ctx context.Context, path string) (bool, error) {
 	if osutil.Present(path) {
 		return false, nil
 	}
-	configSet, err := prompt.MiseConfigSet(path, nil)
+	configSet, err := promptConfigSet(ctx, path, mise.ToolState{})
 	if err != nil {
 		return false, err
 	}
@@ -52,19 +57,35 @@ func seedMiseConfig(path string) (bool, error) {
 	return true, nil
 }
 
-func init() { miseCmd.AddCommand(miseInitCmd, miseUpdateCmd) }
-
 // miseUpdate re-picks the picked mise config's tools — the config's current
-// selection pre-filled — and syncs the pick into the config's regions
-func miseUpdate() error {
+// selection pre-filled — and syncs the pick into the config's regions, the
+// config's existing pins preserved
+func miseUpdate(ctx context.Context) error {
 	projectDir := config.ProjectDir()
-	toolNames, err := mise.ToolNames(projectDir)
+	state, err := mise.ReadToolState(projectDir)
 	if err != nil {
 		return err
 	}
-	configSet, err := prompt.MiseConfigSet(mise.PickedConfigPath(projectDir), toolNames)
+	configSet, err := promptConfigSet(ctx, mise.PickedConfigPath(projectDir), state)
 	if err != nil {
 		return err
 	}
 	return mise.Sync(projectDir, configSet)
+}
+
+// promptConfigSet picks the mise tools and resolves their pins — the pick
+// fetched off each source's latests
+func promptConfigSet(ctx context.Context, savePath string, state mise.ToolState) (mise.ConfigSet, error) {
+	state.VersionFunc = func(name string) (string, error) {
+		return miseutil.LatestVersion(ctx, name)
+	}
+	tools, packages, err := prompt.MiseTools(savePath, state)
+	if err != nil {
+		return mise.ConfigSet{}, err
+	}
+	resolved, err := mise.ResolvedTools(tools, state)
+	if err != nil {
+		return mise.ConfigSet{}, err
+	}
+	return mise.ConfigSet{Tools: resolved, Packages: packages}, nil
 }

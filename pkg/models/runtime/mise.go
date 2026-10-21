@@ -7,43 +7,36 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
-// FromNames resolves the given names to the runtimes they select — node rides
-// every resolution; non-runtime tools (the dev CLIs, the image's independent
-// tools) drop
-func FromNames(runtimeNames []string) MiseRuntimes {
-	names := append([]string{Node().Name}, runtimeNames...) // node rides every resolution
-	var runtimes []Runtime
+// FromMiseConfig is the picked mise config's runtime selection — the config's
+// [tools] pins resolved to runtimes
+func FromMiseConfig(projectDir string) (MiseRuntimes, error) {
+	state, err := mise.ReadToolState(projectDir)
+	if err != nil {
+		return nil, err
+	}
+	pinned := make(map[string]bool, len(state.Pins)+1)
+	for name := range state.Pins {
+		pinned[name] = true
+	}
+	pinned[Node().Name] = true // node rides every resolution — the image's tooling runs on it
+	var runtimes MiseRuntimes
 	for _, rt := range All() {
-		if slices.Contains(names, rt.Name) {
+		if pinned[rt.Name] {
 			runtimes = append(runtimes, rt)
 		}
 	}
-	return MiseRuntimes{Runtimes: runtimes}
+	return runtimes, nil
 }
 
 // MiseRuntimes is the runtimes a mise config's [tools] table selects: the one
 // input the Dockerfile regions and the run's cache volumes compose from.
-type MiseRuntimes struct {
-	// Runtimes is the selection plus node, in All()'s order
-	Runtimes []Runtime
-}
-
-// Tools flattens the selection's tools — the mise config's [tools] region's
-// input
-func (m MiseRuntimes) Tools() []mise.Tool {
-	var tools []mise.Tool
-	for _, rt := range m.Runtimes {
-		tools = append(tools, rt.MiseTool)
-		tools = append(tools, rt.MiseToolsOptional...)
-	}
-	return tools
-}
+type MiseRuntimes []Runtime
 
 // Packages flattens the selection's apt libs, repeats dropped and sorted — a
 // repeat would redeclare a TOML key
 func (m MiseRuntimes) Packages() []string {
 	var pkgs []string
-	for _, rt := range m.Runtimes {
+	for _, rt := range m {
 		pkgs = append(pkgs, rt.AptPkgs...)
 	}
 	pkgs = slicex.Unique(pkgs)
@@ -54,7 +47,7 @@ func (m MiseRuntimes) Packages() []string {
 // CacheVolumes concatenates the selection's cache volumes
 func (m MiseRuntimes) CacheVolumes() []string {
 	var volumes []string
-	for _, rt := range m.Runtimes {
+	for _, rt := range m {
 		volumes = append(volumes, rt.CacheVolumes...)
 	}
 	return volumes

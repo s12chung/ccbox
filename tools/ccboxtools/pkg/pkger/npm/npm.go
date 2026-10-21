@@ -3,6 +3,7 @@
 package npm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -24,7 +25,7 @@ type manifest struct {
 // the registry serves that tag's manifest at /<pkg>/latest; we read its version.
 func latestAt(registry, pkg string) (string, error) {
 	url := fmt.Sprintf("%s/%s/latest", registry, pkg)
-	resp, err := httputil.GetOK(nil, url)
+	resp, err := httputil.GetOK(context.Background(), nil, url)
 	if err != nil {
 		return "", err
 	}

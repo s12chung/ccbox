@@ -1,6 +1,7 @@
 package dler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -59,7 +60,7 @@ func (d JQ) Latest() (string, error) {
 
 // doc fetches the url's document, parsed per the schema's format.
 func (d JQ) doc() (any, error) {
-	body, err := httputil.Body(d.client, d.url)
+	body, err := httputil.Body(context.Background(), d.client, d.url)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +120,7 @@ func (d JQ) Download(version string) (io.ReadCloser, error) {
 	}
 
 	//nolint:bodyclose // the caller closes: the Sha512Reader wraps the body, the FilePkger.Install's defer drops it
-	resp, err := httputil.GetOK(d.client, sel.DownloadURL)
+	resp, err := httputil.GetOK(context.Background(), d.client, sel.DownloadURL)
 	if err != nil {
 		return nil, err
 	}

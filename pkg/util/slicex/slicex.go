@@ -25,6 +25,17 @@ func Intersect[E comparable](a, b []E) []E {
 	return out
 }
 
+// Filter returns s's entries f reports true for, keeping order.
+func Filter[E any](s []E, f func(E) bool) []E {
+	var out []E
+	for _, e := range s {
+		if f(e) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
 // Unique returns s's entries in order, repeats dropped.
 func Unique[E comparable](s []E) []E {
 	var out []E

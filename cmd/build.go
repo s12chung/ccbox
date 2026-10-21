@@ -39,7 +39,7 @@ func build(ctx context.Context, serveVNC bool) error {
 	if err != nil {
 		return err
 	}
-	buildContext, err = dockerfile.PatchFS(buildContext, miseRuntimes.Runtimes)
+	buildContext, err = dockerfile.PatchFS(buildContext, miseRuntimes)
 	if err != nil {
 		return err
 	}

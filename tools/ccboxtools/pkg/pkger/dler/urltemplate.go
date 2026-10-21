@@ -1,6 +1,7 @@
 package dler
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -30,7 +31,7 @@ func NewURLTemplate(url string, tpl pkginfo.DownloadTemplate) URLTemplate {
 
 // Latest fetches the url's body — its bare version — versionRe-guarded.
 func (u URLTemplate) Latest() (string, error) {
-	body, err := httputil.Body(u.client, u.url)
+	body, err := httputil.Body(context.Background(), u.client, u.url)
 	if err != nil {
 		return "", err
 	}
@@ -45,7 +46,7 @@ func (u URLTemplate) Download(version string) (io.ReadCloser, error) {
 	}
 
 	//nolint:bodyclose // the caller closes: the FilePkger.Install's defer drops it
-	resp, err := httputil.GetOK(u.client, url)
+	resp, err := httputil.GetOK(context.Background(), u.client, url)
 	if err != nil {
 		return nil, err
 	}

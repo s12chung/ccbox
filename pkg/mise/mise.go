@@ -54,26 +54,59 @@ func PickedConfigPath(projectDir string) string {
 	return osutil.PickLayer(ProjectConfigPath(projectDir), UserConfigPath())
 }
 
-// ToolNames reads the picked config's [tools] names, sorted — the mise config is
-// the runtime selection's source of truth: the update prompt's pre-fill and the
-// image state's input
-func ToolNames(projectDir string) ([]string, error) {
+// ToolState is the picked config's [tools] state
+type ToolState struct {
+	Pins map[string]string
+	// VersionFunc fetches a name's latest version
+	VersionFunc func(name string) (string, error)
+}
+
+// PinFor is the name's pin — written pins as-is, the rest fetched; an
+// unresolved pin errors, never renders empty
+func (s ToolState) PinFor(name string) (string, error) {
+	if pin := s.Pins[name]; pin != "" {
+		return pin, nil
+	}
+	if s.VersionFunc != nil {
+		pin, err := s.VersionFunc(name)
+		if err != nil {
+			return "", err
+		}
+		if pin != "" {
+			return pin, nil
+		}
+	}
+	return "", fmt.Errorf("mise: %s: no pin resolved", name)
+}
+
+// ReadToolState reads the picked config's [tools] state — the runtime
+// selection's source of truth
+func ReadToolState(projectDir string) (ToolState, error) {
 	path := PickedConfigPath(projectDir)
 	if path == "" {
-		return nil, fmt.Errorf("mise: no mise config to read — expected a project config at %s or the user config at %s",
+		return ToolState{}, fmt.Errorf("mise: no mise config to read — expected a project config at %s or the user config at %s",
 			ProjectConfigPath(projectDir), UserConfigPath())
 	}
 	body, err := os.ReadFile(path) // #nosec G304 -- the config's own path
 	if err != nil {
-		return nil, err
+		return ToolState{}, err
 	}
 	var file struct {
 		Tools map[string]any `toml:"tools"`
 	}
 	if err := toml.Unmarshal(body, &file); err != nil {
-		return nil, fmt.Errorf("mise: %s: %w", path, err)
+		return ToolState{}, fmt.Errorf("mise: %s: %w", path, err)
 	}
-	return slices.Sorted(maps.Keys(file.Tools)), nil
+	state := ToolState{Pins: make(map[string]string, len(file.Tools))}
+	for name, entry := range file.Tools {
+		switch entry := entry.(type) {
+		case string:
+			state.Pins[name] = entry
+		case map[string]any: // the postinstall inline table
+			state.Pins[name], _ = entry["version"].(string)
+		}
+	}
+	return state, nil
 }
 
 // miseImageRe matches the Dockerfile's pure-mise FROM — the lock container must run
@@ -158,11 +191,10 @@ const (
 // independentTools is the image's tools independent of the runtime selection —
 // the mise tools picker's second checklist
 var independentTools = []Tool{
-	{Tool: "bats", Version: "1.13.0"},
-	{Tool: "hadolint", Version: "2.14.0"},
+	{Name: "bats"},
+	{Name: "hadolint"},
 	{
-		Tool:        "npm:playwright",
-		Version:     "latest",
+		Name:        "npm:playwright",
 		PostInstall: "playwright install-deps chromium && playwright install chromium",
 		Comment:     "# --vnc flag uses this chromium as a browser",
 		Hint:        "with chrome",
@@ -171,6 +203,18 @@ var independentTools = []Tool{
 
 // IndependentTools is the image's independent tools, in render order
 func IndependentTools() []Tool { return slices.Clone(independentTools) }
+
+// devTools is the dev-workflow CLIs every devbox rides — rendered under their
+// header at the tools region's end
+var devTools = []Tool{
+	{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
+	{Name: "jq"},
+	{Name: "yq"},
+	{Name: "shellcheck"},
+}
+
+// DevTools is the dev-workflow CLIs every config rides, in render order
+func DevTools() []Tool { return slices.Clone(devTools) }
 
 // BuildFS is the build fs for the image's `mise install`: the embed with the
 // mise config injected where the Dockerfile COPYs it.
@@ -221,8 +265,8 @@ func configFS(configPath string) (mfs.MapFS, error) {
 }
 
 // sidecarsMap reads the config's committed sidecar files, keyed by their paths under
-// the sidecar root — the generation's own keying. A config without them — no npm/pypi
-// tools — reads none.
+// the sidecar root — the generation's own keying. A config without sidecar-backed
+// tools reads none.
 func sidecarsMap(configPath string) (map[string][]byte, error) {
 	files := map[string][]byte{}
 	sidecarsPath := SidecarsPath(configPath)

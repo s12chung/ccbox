@@ -2,20 +2,121 @@ package mise
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
+	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/kit/miseutil"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
+
+// stubVersions serves the fixture lists at the versions service's data paths
+func stubVersions(t *testing.T, lists map[string]string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	for path, list := range lists {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(list))
+		})
+	}
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	miseutil.VersionsURL = server.URL
+	t.Cleanup(func() { miseutil.VersionsURL = miseutil.VersionsBaseURL })
+}
+
+// versionList renders a versions-service TOML list dating every release
+func versionList(versions map[string]time.Time) string {
+	var list strings.Builder
+	list.WriteString("[versions]\n")
+	for _, version := range slices.Sorted(maps.Keys(versions)) {
+		fmt.Fprintf(&list, "%q = { created_at = %s }\n", version, versions[version].UTC().Format(time.RFC3339Nano))
+	}
+	return list.String()
+}
+
+// pins maps the resolved tools to their pins
+func pins(rts []ResolvedTool) map[string]string {
+	m := make(map[string]string, len(rts))
+	for _, rt := range rts {
+		m[rt.Name] = rt.Pin
+	}
+	return m
+}
+
+// pinned serves the map as the version func
+func pinned(latests map[string]string) func(string) (string, error) {
+	return func(name string) (string, error) { return latests[name], nil }
+}
+
+// resolvedConfig resolves the tools, wrapping them with the packages rows
+func resolvedConfig(tools []Tool, state ToolState, packages []string) (ConfigSet, error) {
+	rts, err := ResolvedTools(tools, state)
+	if err != nil {
+		return ConfigSet{}, err
+	}
+	return ConfigSet{Tools: rts, Packages: packages}, nil
+}
+
+func TestResolvedTools(t *testing.T) {
+	t.Run("a tool new to the config fetches its latest, pinned to the minor", func(t *testing.T) {
+		stubs := map[string]string{
+			"/data/go.toml": versionList(map[string]time.Time{
+				"1.26.5": time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "1.27.2": time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+			}),
+			"/data/node.toml": versionList(map[string]time.Time{
+				"26.11.0": time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), "26.12.0": time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC),
+			}),
+		}
+		stubVersions(t, stubs)
+
+		rts, err := ResolvedTools([]Tool{{Name: "node"}, {Name: "go"}}, ToolState{
+			VersionFunc: func(name string) (string, error) { return miseutil.LatestVersion(t.Context(), name) },
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"go": "1.27", "node": "26.12"}, pins(rts))
+	})
+
+	t.Run("a tool pinned in the config keeps its pin as written", func(t *testing.T) {
+		rts, err := ResolvedTools([]Tool{{Name: "go"}, {Name: "node"}}, ToolState{
+			Pins: map[string]string{"go": "1.24.1"}, VersionFunc: pinned(map[string]string{"node": "26.12"}),
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"go": "1.24.1", "node": "26.12"}, pins(rts))
+	})
+
+	t.Run("an all-pinned config never fetches", func(t *testing.T) {
+		rts, err := ResolvedTools([]Tool{{Name: "go"}}, ToolState{Pins: map[string]string{"go": "1.25"}})
+
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"go": "1.25"}, pins(rts))
+	})
+
+	t.Run("a fetch error propagates", func(t *testing.T) {
+		_, err := ResolvedTools([]Tool{{Name: "go"}}, ToolState{VersionFunc: func(string) (string, error) {
+			return "", errors.New("the versions service is down")
+		}})
+
+		require.ErrorContains(t, err, "the versions service is down")
+	})
+}
 
 func TestSeedConfig(t *testing.T) {
 	testutil.Home(t)
@@ -40,37 +141,37 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 	assert.Equal(t, "custom", string(body)) // the user's own file is never touched
 }
 
-// testConfigSet is the fixture render's stand-in for a full prov resolution: one
-// plain binding and one with a postinstall — the two shapes row renders — plus
-// the packages rows
-var testConfigSet = ConfigSet{
-	Tools: []Tool{
-		{Tool: "go", Version: "1.26"},
-		{Tool: "python", Version: "3.13", PostInstall: "python -m pip install setuptools==82.0.1 wheel==0.47.0"},
-	},
-	Packages: []string{"libatomic1", "libyaml-0-2"},
+// testTools is the fixture render's tool list, one per row shape
+var testTools = []Tool{
+	{Name: "go"},
+	{Name: "python", PostInstall: "python -m pip install setuptools==82.0.1 wheel==0.47.0"},
 }
+
+// testConfigSet is testTools fully resolved, plus the packages rows
+var testConfigSet = must.Get(resolvedConfig(testTools, ToolState{
+	Pins: map[string]string{"go": "1.26", "python": "3.13"},
+}, []string{"libatomic1", "libyaml-0-2"}))
 
 // TestRenderConfig pins the fixture render to its golden
 func TestRenderConfig(t *testing.T) {
 	assert.Equal(t, golden(t, "TestRenderConfig.toml"), seedRender(t, testConfigSet))
 }
 
-// TestRenderConfig_IndependentTools pins the render when the independent tools
-// ride the seed
+// TestRenderConfig_IndependentTools pins the render when only the independent
+// tools ride the seed, the dev-workflow CLIs at the tail
 func TestRenderConfig_IndependentTools(t *testing.T) {
-	assert.Equal(t, golden(t, "TestRenderConfig_IndependentTools.toml"), seedRender(t, ConfigSet{Tools: independentTools}))
+	configSet := must.Get(resolvedConfig(slices.Concat(independentTools, devTools), ToolState{Pins: map[string]string{
+		"bats": "1.14", "hadolint": "2.15", "npm:playwright": "1.64",
+		"ripgrep": "15.2", "jq": "1.8", "yq": "4.54", "shellcheck": "0.11",
+	}}, nil))
+	assert.Equal(t, golden(t, "TestRenderConfig_IndependentTools.toml"), seedRender(t, configSet))
 }
 
 func TestSyncTools(t *testing.T) {
 	// narrowedSet trims the tools like a spec's runtimes, with its own packages pick
-	narrowedSet := ConfigSet{
-		Tools: []Tool{
-			{Tool: "go", Version: "1.26"},
-			{Tool: "golangci-lint", Version: "2.13.1"},
-		},
-		Packages: []string{"libatomic1", "libyaml-0-2"},
-	}
+	narrowedSet := must.Get(resolvedConfig([]Tool{{Name: "go"}, {Name: "golangci-lint"}},
+		ToolState{Pins: map[string]string{"go": "1.26", "golangci-lint": "2.13.1"}},
+		[]string{"libatomic1", "libyaml-0-2"}))
 
 	// the marked regions' rows after the sync, through each region's closing
 	// newline — every case syncs narrowedSet
@@ -98,15 +199,16 @@ golangci-lint = "2.13.1"
 
 	t.Run("hand edits outside the region survive", func(t *testing.T) {
 		seedUser(t)
-		edited := strings.Replace(userBody(t), `shellcheck = "0.11.0"`, `shellcheck = "0.12.0"`, 1)
+		// a hand-written row between the regions — outside both
+		edited := strings.Replace(userBody(t), "# ccbox:tools-end", "# ccbox:tools-end\nfzf = \"0.44.1\"", 1)
 		require.NoError(t, os.WriteFile(UserConfigPath(), []byte(edited), osutil.File)) // #nosec G703 -- the test's own config path
 
 		require.NoError(t, Sync(t.TempDir(), narrowedSet))
 
 		body := userBody(t)
-		assert.Contains(t, body, `shellcheck = "0.12.0"`)
+		assert.Contains(t, body, `fzf = "0.44.1"`)
 		// the fixture with the same hand edit
-		want := strings.Replace(golden(t, "TestSyncTools.toml"), `shellcheck = "0.11.0"`, `shellcheck = "0.12.0"`, 1)
+		want := strings.Replace(golden(t, "TestSyncTools.toml"), "# ccbox:tools-end", "# ccbox:tools-end\nfzf = \"0.44.1\"", 1)
 		assert.Equal(t, want, strings.Replace(body, syncedToolsRegion, "", 1))
 	})
 
@@ -144,6 +246,18 @@ golangci-lint = "2.13.1"
 		err := Sync(t.TempDir(), narrowedSet)
 		require.ErrorContains(t, err, "delete the file to reseed it")
 
+		assert.Equal(t, legacy, userBody(t), "untouched")
+	})
+
+	t.Run("a legacy config's outside rows never duplicate into the region", func(t *testing.T) {
+		seedUser(t)
+		// a config written before the dev CLIs rode the region: their rows sit outside it
+		legacy := strings.Replace(userBody(t), "# ccbox:tools-end", "# ccbox:tools-end\ngo = \"1.26\"", 1)
+		require.NoError(t, os.WriteFile(UserConfigPath(), []byte(legacy), osutil.File)) // #nosec G703 -- the test's own config path
+
+		err := Sync(t.TempDir(), narrowedSet)
+
+		require.ErrorContains(t, err, "delete the file to reseed it")
 		assert.Equal(t, legacy, userBody(t), "untouched")
 	})
 

@@ -16,6 +16,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
+	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -191,7 +192,10 @@ func TestCacheVolumeNames(t *testing.T) {
 // TestCacheVolumeNames_Selection pins the per-project volumes following the
 // mise config's selection.
 func TestCacheVolumeNames_Selection(t *testing.T) {
-	selected := runtime.FromNames([]string{"go"})
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(mise.ProjectConfigPath(dir), []byte("[tools]\ngo = \"1.26\"\n"), osutil.File))
+	selected, err := runtime.FromMiseConfig(dir)
+	require.NoError(t, err)
 
 	names := cacheVolumeNames("/Users/me/proj", selected.CacheVolumes())
 	assert.NotContains(t, names, "ccbox"+slug.Path("/Users/me/proj")+"-gem-cache-default")

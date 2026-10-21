@@ -17,7 +17,7 @@ func TestGetOK(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		resp, err := GetOK(nil, srv.URL)
+		resp, err := GetOK(t.Context(), nil, srv.URL)
 		require.NoError(t, err)
 		defer resp.Body.Close() //nolint:errcheck // failing is ok
 
@@ -32,7 +32,7 @@ func TestGetOK(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, err := GetOK(nil, srv.URL) //nolint:bodyclose // the error path closes it
+		_, err := GetOK(t.Context(), nil, srv.URL) //nolint:bodyclose // the error path closes it
 		assert.ErrorContains(t, err, "404 Not Found")
 	})
 
@@ -40,7 +40,7 @@ func TestGetOK(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {}))
 		srv.Close()
 
-		_, err := GetOK(nil, srv.URL) //nolint:bodyclose // the error path closes it
+		_, err := GetOK(t.Context(), nil, srv.URL) //nolint:bodyclose // the error path closes it
 		assert.Error(t, err)
 	})
 }
@@ -55,10 +55,10 @@ func TestBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	body, err := Body(nil, srv.URL)
+	body, err := Body(t.Context(), nil, srv.URL)
 	require.NoError(t, err)
 	assert.Equal(t, "1.0.5", string(body))
 
-	_, err = Body(nil, srv.URL+"/missing")
+	_, err = Body(t.Context(), nil, srv.URL+"/missing")
 	assert.ErrorContains(t, err, "404 Not Found")
 }

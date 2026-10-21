@@ -8,13 +8,12 @@ golangci-lint = "2.13.1"
 node = "26.3.0"
 python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0" }
 ruby = "3.4"
-# ccbox:tools-end
-
 # Dev-workflow CLIs
-ripgrep    = "15.1.0"
-jq         = "1.8.1"
-yq         = "4.53.3"
-shellcheck = "0.11.0"
+ripgrep = "15.2"
+jq = "1.8"
+yq = "4.54"
+shellcheck = "0.11"
+# ccbox:tools-end
 
 # The box's apt libs — installed at image build by `mise bootstrap packages apply`.
 [bootstrap.packages]

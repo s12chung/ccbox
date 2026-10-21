@@ -26,16 +26,6 @@ func TestAliases(t *testing.T) {
 	assert.Contains(t, aliases, AllRuntimesAlias)
 }
 
-func TestNames(t *testing.T) {
-	names := Names()
-
-	assert.True(t, slices.IsSorted(names))
-	assert.Len(t, slices.Compact(slices.Clone(names)), len(names), "names are unique")
-	for _, r := range All() {
-		assert.Containsf(t, names, r.Name, "%s is listed", r.Name)
-	}
-}
-
 func TestNode(t *testing.T) {
 	assert.Equal(t, "node", Node().Name)
 }

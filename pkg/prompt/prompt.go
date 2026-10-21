@@ -10,10 +10,8 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
-	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
-	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/size"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
@@ -81,68 +79,4 @@ func (m cliModel) Hint() string { return "" }
 
 func cliModels(clis []cli.CLI) []cliModel {
 	return slicex.Map(clis, func(c cli.CLI) cliModel { return cliModel{c} })
-}
-
-// MiseConfigSet asks which mise tools to install in the devbox; the answer is
-// the mise config's generated content — node rides every answer.
-func MiseConfigSet(savePath string, checked []string) (mise.ConfigSet, error) {
-	var pickedRuntimes, pickedIndependent []pick.Item[toolModel]
-	err := runFn(pick.NewRunner(pick.RunnerOptions{
-		Header:      "Select the tools to install",
-		Subtext:     []string{"(node is included)"},
-		SubmitLabel: "Save to " + userdir.Tilde(savePath),
-	},
-		pick.NewMultiPicker(runtimeItems(), checked),
-		pick.NewMultiPicker(independentToolItems(), checked),
-	), &pickedRuntimes, &pickedIndependent)
-	if err != nil {
-		return mise.ConfigSet{}, err
-	}
-	if pickedRuntimes == nil { // no terminal to show the picker
-		return mise.ConfigSet{}, fmt.Errorf("no tools selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
-	}
-	return mise.ConfigSet{
-		Tools:    resolveTools(pickedRuntimes, pickedIndependent),
-		Packages: runtime.FromNames(pickedNames(pickedRuntimes)).Packages(),
-	}, nil
-}
-
-// toolModel is the mise.Tool as a pick.Model — the Tool's own Tool and Hint
-// fields block the Name and Hint methods, so it wraps instead of implementing
-type toolModel struct{ mise.Tool }
-
-func (m toolModel) Name() string { return m.Tool.Tool }
-func (m toolModel) Hint() string { return m.Tool.Hint }
-
-func runtimeItems() []pick.Item[toolModel] {
-	return slicex.Map(runtime.Selectable(), func(rt runtime.Runtime) pick.Item[toolModel] {
-		return pick.Item[toolModel]{
-			Model:    toolModel{rt.MiseTool},
-			Children: slicex.Map(rt.MiseToolsOptional, func(t mise.Tool) toolModel { return toolModel{t} }),
-		}
-	})
-}
-
-func independentToolItems() []pick.Item[toolModel] {
-	return slicex.Map(mise.IndependentTools(), func(t mise.Tool) pick.Item[toolModel] {
-		return pick.Item[toolModel]{Model: toolModel{t}}
-	})
-}
-
-// pickedNames lists the picked runtime items' names — FromNames resolves them
-// back to the runtimes their apt libs ride from
-func pickedNames(items []pick.Item[toolModel]) []string {
-	return slicex.Map(items, func(item pick.Item[toolModel]) string { return item.Model.Name() })
-}
-
-// resolveTools flattens the picked items' models into their tools — node
-// riding every answer, the npm-installed harness CLIs run through it
-func resolveTools(pickedSets ...[]pick.Item[toolModel]) []mise.Tool {
-	tools := []mise.Tool{runtime.Node().MiseTool}
-	for _, items := range pickedSets {
-		for _, model := range pick.Flatten(items) {
-			tools = append(tools, model.Tool)
-		}
-	}
-	return tools
 }

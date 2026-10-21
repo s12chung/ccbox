@@ -8,16 +8,38 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/pelletier/go-toml/v2"
+
 	"github.com/s12chung/ccbox/pkg/kit/tomlutil"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 // ConfigSet is the mise config's generated content, carried in its marked
-// regions
+// regions — its tools from ResolvedTools
 type ConfigSet struct {
-	Tools    []Tool
+	Tools    []ResolvedTool
 	Packages []string // the runtimes' apt libs; rows render apt-prefixed
+}
+
+// renderTools renders the marked region's content — the tmpl and the sync
+// share it
+func (c ConfigSet) renderTools() string {
+	rows := make([]string, 0, len(c.Tools))
+	for _, t := range c.Tools {
+		rows = append(rows, t.row())
+	}
+	return strings.TrimSuffix(strings.Join(rows, ""), "\n")
+}
+
+// renderPackages renders the marked region's content — the tmpl and the sync
+// share it
+func (c ConfigSet) renderPackages() string {
+	rows := make([]string, 0, len(c.Packages))
+	for _, pkg := range c.Packages {
+		rows = append(rows, fmt.Sprintf("%s = %q\n", tomlutil.Key("apt:"+pkg), "latest"))
+	}
+	return strings.TrimSuffix(strings.Join(rows, ""), "\n")
 }
 
 // SeedConfig safe-seeds the user-level mise config: the config set rendered into
@@ -34,7 +56,7 @@ var (
 	//go:embed config.tmpl
 	configTmplBody []byte
 	configTmpl     = template.Must(template.New("config.tmpl").Funcs(sections).Parse(string(configTmplBody)))
-	sections       = template.FuncMap{"miseTools": renderTools, "misePackages": renderPackages}
+	sections       = template.FuncMap{"miseTools": ConfigSet.renderTools, "misePackages": ConfigSet.renderPackages}
 )
 
 // Sync syncs the generated regions of the config the build picks — project
@@ -58,6 +80,10 @@ func syncConfig(path string, configSet ConfigSet) error {
 	if err != nil {
 		return fmt.Errorf("mise: %s: %w", path, err)
 	}
+	var parsed map[string]any
+	if err := toml.Unmarshal([]byte(synced), &parsed); err != nil {
+		return fmt.Errorf("mise: %s: %w — delete the file to reseed it", path, err)
+	}
 	return osutil.AtomicWriteFile(path, []byte(synced))
 }
 
@@ -74,8 +100,8 @@ const (
 // outside byte-for-byte
 func setRegions(body string, configSet ConfigSet) (string, error) {
 	regions := []markedRegion{
-		{toolsBegin, toolsEnd, renderTools(configSet.Tools)},
-		{packagesBegin, packagesEnd, renderPackages(configSet.Packages)},
+		{toolsBegin, toolsEnd, configSet.renderTools()},
+		{packagesBegin, packagesEnd, configSet.renderPackages()},
 	}
 	for _, r := range regions {
 		var err error
@@ -102,14 +128,4 @@ func setRegion(body string, r markedRegion) (string, error) {
 		return "", fmt.Errorf("no %s/%s markers — delete the file to reseed it", r.begin, r.end)
 	}
 	return body[:beginLine+len(r.begin)+1] + r.region + body[endLine:], nil
-}
-
-// renderPackages renders the marked region's content — the tmpl and the sync
-// share it
-func renderPackages(pkgs []string) string {
-	rows := make([]string, 0, len(pkgs))
-	for _, pkg := range pkgs {
-		rows = append(rows, fmt.Sprintf("%s = %q\n", tomlutil.Key("apt:"+pkg), "latest"))
-	}
-	return strings.TrimSuffix(strings.Join(rows, ""), "\n")
 }

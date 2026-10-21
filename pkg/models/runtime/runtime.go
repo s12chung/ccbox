@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/s12chung/ccbox/pkg/mise"
-	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
 // Runtime is a language runtime and everything the image knows about it: the
@@ -38,8 +37,8 @@ var runtimes = []Runtime{
 	{
 		Name:              "go",
 		Domains:           []string{"golang.org", "proxy.golang.org", "sum.golang.org", "dl.google.com", "storage.googleapis.com"},
-		MiseTool:          mise.Tool{Tool: "go", Version: "1.26"},
-		MiseToolsOptional: []mise.Tool{{Tool: "golangci-lint", Version: "2.13.1"}},
+		MiseTool:          mise.Tool{Name: "go"},
+		MiseToolsOptional: []mise.Tool{{Name: "golangci-lint"}},
 		CacheVolumes:      []string{"/home/ccbox/go"}, // go mod tidy module cache + GOBIN
 		BinEntries:        []string{"/home/ccbox/go/bin"},
 		EnvVars:           map[string]string{"GOBIN": "/home/ccbox/go/bin"},
@@ -50,8 +49,7 @@ var runtimes = []Runtime{
 		Domains: []string{"pypi.org", "pythonhosted.org"},
 		// postinstall re-adds setuptools/wheel CPython 3.12+ dropped (setuptools = 3.13's distutils shim)
 		MiseTool: mise.Tool{
-			Tool:        "python",
-			Version:     "3.13",
+			Name:        "python",
 			PostInstall: "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0",
 		},
 	},
@@ -59,7 +57,7 @@ var runtimes = []Runtime{
 	{
 		Name:         "ruby",
 		Domains:      []string{"rubygems.org", "cache.ruby-lang.org"},
-		MiseTool:     mise.Tool{Tool: "ruby", Version: "3.4"},
+		MiseTool:     mise.Tool{Name: "ruby"},
 		AptPkgs:      []string{"libssl3t64", "libyaml-0-2", "zlib1g", "libffi8", "libreadline8t64", "libgmp10", "libzstd1"},
 		AptBuildDeps: []string{"libssl-dev", "libyaml-dev", "zlib1g-dev", "libffi-dev", "libreadline-dev", "libgmp-dev"},
 		CacheVolumes: []string{"/home/ccbox/.gem"}, // bundler GEM_HOME
@@ -72,7 +70,7 @@ var runtimes = []Runtime{
 var node = Runtime{
 	Name:         "node",
 	Domains:      []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
-	MiseTool:     mise.Tool{Tool: "node", Version: "26.3.0"},
+	MiseTool:     mise.Tool{Name: "node"},
 	AptPkgs:      []string{"libatomic1"},                                  // V8 needs libatomic on arm64
 	CacheVolumes: []string{"/home/ccbox/.npm", "/home/ccbox/.npm-global"}, // npm download cache; global packages
 	BinEntries:   []string{"/home/ccbox/.npm-global/bin"},
@@ -97,32 +95,6 @@ func (r Runtime) Alias() string { return "ccbox-" + r.Name + "-runtime" }
 
 // Node is the always-installed runtime: the prov spec's runtimes never list it.
 func Node() Runtime { return node }
-
-// Names lists every runtime's name — node included — sorted
-func Names() []string {
-	all := All()
-	names := make([]string, 0, len(all))
-	for _, r := range all {
-		names = append(names, r.Name)
-	}
-	return names
-}
-
-// Selectable lists the selectable runtimes — node's absent: it rides every
-// resolution
-func Selectable() []Runtime {
-	var selectable []Runtime
-	for _, r := range All() {
-		if r.Name != Node().Name {
-			selectable = append(selectable, r)
-		}
-	}
-	return selectable
-}
-
-// SelectableNames lists the selectable runtimes' names — node's absent: it rides
-// every resolution
-func SelectableNames() []string { return slicex.Minus(Names(), []string{Node().Name}) }
 
 // Aliases lists every runtime's alias plus AllRuntimesAlias, sorted
 func Aliases() []string {

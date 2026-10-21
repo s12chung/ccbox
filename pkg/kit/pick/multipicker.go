@@ -124,9 +124,10 @@ func (p *multiPicker[M]) picked() bool {
 // enter toggles the cursor's row's check — an option's, or one revealed child's
 func (p *multiPicker[M]) enter(cursor int) { p.flatten()[cursor].toggle() }
 
-// respond writes the checklist's answer into the caller's *[]Item[M] — the
-// checked items, each with its checked children. Non-nil on an empty check
-// set, so callers can tell it from the nil no-terminal read
+// respond writes the checked items into the caller's *[]Item[M] — each item
+// its model with its checked children's models alone, an unchecked item
+// dropping its children with it. Non-nil on an empty check set, so callers
+// can tell it from the nil non-terminal read
 func (p *multiPicker[M]) respond(ptr any) error {
 	picked := make([]Item[M], 0, len(p.checklist))
 	for i := range p.checklist {

@@ -150,7 +150,7 @@ func TestIndependentTools(t *testing.T) {
 
 	// a clone: mutating the answer doesn't leak into the next call
 	tools := IndependentTools()
-	tools[0] = Tool{Tool: "bogus"}
+	tools[0] = Tool{Name: "bogus"}
 	assert.Equal(t, independentTools, IndependentTools())
 }
 
@@ -231,7 +231,7 @@ func TestBuildFS_Sidecars(t *testing.T) {
 	})
 }
 
-// toolsConfig is the fixture config: plain bindings, an inline table and a
+// toolsConfig is the fixture config: plain pins, an inline table and a
 // sub-table — the shapes a [tools] table carries
 const toolsConfig = `[tools]
 go = "1.26"
@@ -241,30 +241,63 @@ ruby = { version = "3.4" }
 version = "latest"
 `
 
-func TestToolNames(t *testing.T) {
+func TestPinFor(t *testing.T) {
+	tests := []struct {
+		name  string
+		state ToolState
+		want  string
+	}{
+		{"the written pin as-is", ToolState{Pins: map[string]string{"go": "1.26"}}, "1.26"},
+		{"the unwritten pin fetched", ToolState{VersionFunc: pinned(map[string]string{"go": "1.27"})}, "1.27"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pin, err := tt.state.PinFor("go")
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, pin)
+		})
+	}
+}
+
+func TestPinFor_Errors(t *testing.T) {
+	t.Run("a nil VersionFunc is the unresolved pin erroring", func(t *testing.T) {
+		_, err := ToolState{}.PinFor("go")
+
+		require.ErrorContains(t, err, "mise: go: no pin resolved")
+	})
+}
+
+func TestReadToolState(t *testing.T) {
 	testutil.Home(t)
 	projectDir := t.TempDir()
 	require.NoError(t, os.WriteFile(ProjectConfigPath(projectDir), []byte(toolsConfig), osutil.File))
 
-	names, err := ToolNames(projectDir)
+	state, err := ReadToolState(projectDir)
+
 	require.NoError(t, err)
-	assert.Equal(t, []string{"go", "npm:playwright", "ruby"}, names, "the [tools] table's names, sub-tables included")
+	assert.Equal(t, map[string]string{"go": "1.26", "ruby": "3.4", "npm:playwright": "latest"}, state.Pins,
+		"the [tools] table's pins, sub-tables included")
 }
 
-func TestToolNames_UserFallback(t *testing.T) {
+func TestReadToolState_UserFallback(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, SeedConfig(UserConfigPath(), ConfigSet{Tools: []Tool{{Tool: "node", Version: "26"}}}))
+	configSet := must.Get(resolvedConfig([]Tool{{Name: "node"}},
+		ToolState{Pins: map[string]string{"node": "26"}}, nil))
+	require.NoError(t, SeedConfig(UserConfigPath(), configSet))
 
-	names, err := ToolNames(t.TempDir())
+	state, err := ReadToolState(t.TempDir())
+
 	require.NoError(t, err)
-	assert.Contains(t, names, "node", "the user config's [tools] names")
+	assert.Contains(t, state.Pins, "node", "the user config's [tools] pins")
 }
 
-func TestToolNames_Errors(t *testing.T) {
+func TestReadToolState_Errors(t *testing.T) {
 	t.Run("no config", func(t *testing.T) {
 		testutil.Home(t)
 
-		_, err := ToolNames(t.TempDir())
+		_, err := ReadToolState(t.TempDir())
+
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "no mise config to read")
 	})
@@ -274,7 +307,8 @@ func TestToolNames_Errors(t *testing.T) {
 		configPath := ProjectConfigPath(t.TempDir())
 		require.NoError(t, os.WriteFile(configPath, []byte("[tools\n"), osutil.File))
 
-		_, err := ToolNames(t.TempDir())
+		_, err := ReadToolState(t.TempDir())
+
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "mise:")
 	})

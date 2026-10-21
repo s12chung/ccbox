@@ -10,15 +10,27 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/util/slicex"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
 // allSelection selects every runtime: the render matches the all-runtimes image,
 // byte for byte.
 func allSelection(t *testing.T) []runtime.Runtime {
 	t.Helper()
-	return runtime.FromNames(slicex.Minus(runtime.Names(), []string{runtime.Node().Name})).Runtimes
+	return runtime.MiseRuntimes(runtime.All())
+}
+
+// goSelection reads the go-only config's selection — the subset ccbox build
+// composes for a project pinning go alone
+func goSelection(t *testing.T) runtime.MiseRuntimes {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(mise.ProjectConfigPath(dir), []byte("[tools]\ngo = \"1.26\"\n"), osutil.File))
+	selected, err := runtime.FromMiseConfig(dir)
+	require.NoError(t, err)
+	return selected
 }
 
 // TestRegions pins each generated region's render.
@@ -45,7 +57,7 @@ func TestRegions(t *testing.T) {
 
 // TestRegions_Selection pins the regions narrowing to a subset selection.
 func TestRegions_Selection(t *testing.T) {
-	selected := runtime.FromNames([]string{"go"}).Runtimes
+	selected := goSelection(t)
 
 	tests := []struct {
 		name   string
@@ -78,7 +90,7 @@ func TestRender_SubsetSelection(t *testing.T) {
 	golden, err := os.ReadFile(filepath.Join("testdata", "TestRender_SubsetSelection.Dockerfile")) // #nosec G304 -- the test's own fixture
 	require.NoError(t, err)
 
-	composed, err := render(runtime.FromNames([]string{"go"}).Runtimes)
+	composed, err := render(goSelection(t))
 	require.NoError(t, err)
 	assert.Equal(t, string(golden), string(composed))
 }

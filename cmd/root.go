@@ -3,6 +3,7 @@
 package cmd
 
 import (
+	"context"
 	"embed"
 	"errors"
 	"os"
@@ -73,7 +74,7 @@ var rootCmd = &cobra.Command{
 			return nil
 		}
 
-		if err := rootSeed(); err != nil {
+		if err := rootSeed(cmd.Context()); err != nil {
 			return err
 		}
 		var err error
@@ -81,11 +82,10 @@ var rootCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-		toolNames, err := mise.ToolNames(config.ProjectDir())
+		miseRuntimes, err = runtime.FromMiseConfig(config.ProjectDir())
 		if err != nil {
 			return err
 		}
-		miseRuntimes = runtime.FromNames(toolNames)
 		tagByProject = osutil.Present(mise.ProjectConfigPath(config.ProjectDir()))
 		return prompt.ProjectDirSize(config.ProjectDir())
 	},
@@ -117,7 +117,7 @@ func init() {
 }
 
 // rootSeed seeds the user-level harness state if missing
-func rootSeed() error {
+func rootSeed(ctx context.Context) error {
 	if err := seed.IfNotExist(clitmpl.UserSeedFS(), clitmpl.UserDir()); err != nil {
 		return err
 	}
@@ -130,7 +130,7 @@ func rootSeed() error {
 	if err := safeSeedUserConfig(); err != nil {
 		return err
 	}
-	_, err := seedMiseConfig(mise.UserConfigPath())
+	_, err := seedMiseConfig(ctx, mise.UserConfigPath())
 	return err
 }
 

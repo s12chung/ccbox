@@ -9,17 +9,22 @@ import (
 	"net/http"
 )
 
-// GetOK GETs the url through the client — nil is the default — failing on
-// non-200; the caller closes the body.
-func GetOK(client *http.Client, url string) (*http.Response, error) {
+// Get is the client's GET — nil is the default — context-bound
+func Get(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
 	if client == nil {
 		client = http.DefaultClient
 	}
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	resp, err := client.Do(req)
+	return client.Do(req)
+}
+
+// GetOK GETs the url through the client — nil is the default — failing on
+// non-200; the caller closes the body.
+func GetOK(ctx context.Context, client *http.Client, url string) (*http.Response, error) {
+	resp, err := Get(ctx, client, url)
 	if err != nil {
 		return nil, err
 	}
@@ -31,8 +36,8 @@ func GetOK(client *http.Client, url string) (*http.Response, error) {
 }
 
 // Body GETs the url through the client — nil is the default — and reads its body.
-func Body(client *http.Client, url string) ([]byte, error) {
-	resp, err := GetOK(client, url)
+func Body(ctx context.Context, client *http.Client, url string) ([]byte, error) {
+	resp, err := GetOK(ctx, client, url)
 	if err != nil {
 		return nil, err
 	}
