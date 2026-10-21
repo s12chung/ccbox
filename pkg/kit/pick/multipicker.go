@@ -59,12 +59,19 @@ func (item *Item[M]) row() []row {
 // Flatten lists the items' models in row order: each item's model, then its
 // children's — the checklist's answer, read back as models
 func Flatten[M Model](items []Item[M]) []M {
-	models := make([]M, 0, len(items))
+	return FlattenFunc(items, func(model M, children []M) []M {
+		return append([]M{model}, children...)
+	})
+}
+
+// FlattenFunc lists the items as f answers them: each item's model and its
+// checked children in f's shape
+func FlattenFunc[M Model, A any](items []Item[M], f func(M, []M) []A) []A {
+	out := make([]A, 0, len(items))
 	for _, item := range items {
-		models = append(models, item.Model)
-		models = append(models, item.Children...)
+		out = append(out, f(item.Model, item.Children)...)
 	}
-	return models
+	return out
 }
 
 // row is one visible checklist row: the option itself, or one of its revealed

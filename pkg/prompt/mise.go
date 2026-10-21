@@ -23,7 +23,7 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 		Subtext:     []string{"(node is included)"},
 		SubmitLabel: "Save to " + userdir.Tilde(savePath),
 	},
-		pick.NewMultiPicker(runtimeItems(), checked),
+		pick.NewMultiPicker(runtimeItems(state), checked),
 		pick.NewMultiPicker(independentItems(), checked),
 	), &pickedRuntimes, &pickedIndependent)
 	if err != nil {
@@ -39,8 +39,9 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 	for _, item := range pickedRuntimes {
 		runtimes = append(runtimes, item.Model.rt)
 	}
-	tools := append([]mise.Tool{node.MiseTool}, modelTools(pick.Flatten(pickedRuntimes))...)
-	tools = append(tools, modelTools(pick.Flatten(pickedIndependent))...)
+	tools := append([]mise.Tool{node.MiseTool},
+		pick.FlattenFunc(pickedRuntimes, flattenNonPostInstall)...)
+	tools = append(tools, pick.FlattenFunc(pickedIndependent, flattenNonPostInstall)...)
 	return append(tools, mise.DevTools()...), runtimes.Packages(), nil
 }
 
@@ -59,18 +60,23 @@ func (m toolModel) Name() string { return m.Tool.Name }
 func (m toolModel) Hint() string { return m.Tool.Hint }
 
 // runtimeItems lists the picker's runtime items — every selectable runtime as
-// its mise tool, its optionals as children. Node's absent: it rides every pick.
-func runtimeItems() []pick.Item[toolModel] {
+// its mise tool, its optionals and postinstall packages as children; a written
+// postinstall hints its inheritance instead
+func runtimeItems(state mise.ToolState) []pick.Item[toolModel] {
 	all := runtime.All()
 	items := make([]pick.Item[toolModel], 0, len(all)-1)
 	for _, rt := range all {
 		if rt.Name == runtime.Node().Name {
 			continue
 		}
-		items = append(items, pick.Item[toolModel]{
-			Model:    toolModel{Tool: rt.MiseTool, rt: rt},
-			Children: toolModels(rt.MiseToolsOptional),
-		})
+		model := toolModel{Tool: rt.MiseTool, rt: rt}
+		children := toolModels(rt.MiseToolsOptional)
+		if state.PostInstalls[rt.Name] != "" {
+			model.Tool.Hint = "inherit existing postinstall"
+		} else {
+			children = append(children, toolModels(rt.MiseTool.PostInstallTools)...)
+		}
+		items = append(items, pick.Item[toolModel]{Model: model, Children: children})
 	}
 	return items
 }
@@ -89,4 +95,14 @@ func toolModels(tools []mise.Tool) []toolModel {
 // modelTools unpacks the models to their tools
 func modelTools(models []toolModel) []mise.Tool {
 	return slicex.Map(models, func(m toolModel) mise.Tool { return m.Tool })
+}
+
+// flattenNonPostInstall flattens the mise tools, and keeps postinstall tools
+// in the PostInstallTools field
+func flattenNonPostInstall(model toolModel, children []toolModel) []mise.Tool {
+	if len(model.PostInstallTools) == 0 {
+		return append([]mise.Tool{model.Tool}, modelTools(children)...)
+	}
+	model.PostInstallTools = modelTools(children)
+	return []mise.Tool{model.Tool}
 }

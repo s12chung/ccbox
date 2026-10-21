@@ -13,28 +13,32 @@ import (
 type Tool struct {
 	Name string
 
-	// PostInstallCmdTmpl is the postinstall as a text/template over PostInstallNames
+	// PostInstallCmdTmpl is the postinstall as a text/template over PostInstallTools
 	PostInstallCmdTmpl string
-	// PostInstallNames are the postinstall's packages, as full tool names
-	PostInstallNames []string
+	// PostInstallTools are the postinstall's packages — nil declares none, an
+	// empty slice answers every package dropped
+	PostInstallTools []Tool
 
 	Comment string // renders above the row when the tool needs a why
 	Hint    string // the mise tools picker's gray note after the name
 }
 
 // postInstallCmd is the tool's final postinstall cmd: the config's written one
-// as-is, else the tmpl rendered over the packages
+// as-is, else the tmpl over the tool's packages
 func (t Tool) postInstallCmd(state ToolState) (string, error) {
 	if post := state.PostInstalls[t.Name]; post != "" {
 		return post, nil // the written post carries its packages' pins — they never fetch, never render
 	}
-	pkgs := make([]postInstallPkg, 0, len(t.PostInstallNames))
-	for _, name := range t.PostInstallNames {
-		version, err := state.PinFor(name)
+	if t.PostInstallTools != nil && len(t.PostInstallTools) == 0 {
+		return "", nil // every package dropped — the plain pin
+	}
+	pkgs := make([]postInstallPkg, 0, len(t.PostInstallTools))
+	for _, pkg := range t.PostInstallTools {
+		version, err := state.PinFor(pkg.Name)
 		if err != nil {
 			return "", err
 		}
-		pkgs = append(pkgs, postInstallPkg{Tool: name, Version: version})
+		pkgs = append(pkgs, postInstallPkg{Tool: pkg.Name, Version: version})
 	}
 	tmpl := template.Must(template.New(t.Name).Parse(t.PostInstallCmdTmpl))
 	var b strings.Builder
@@ -64,7 +68,7 @@ func ResolvedTools(tools []Tool, state ToolState) ([]ResolvedTool, error) {
 	return resolved, nil
 }
 
-// newResolvedTool fully resolves t: the tool's pin, then its postinstall cmd
+// newResolvedTool fully resolves t: the pin, then the postinstall cmd
 func newResolvedTool(t Tool, state ToolState) (ResolvedTool, error) {
 	rt := ResolvedTool{Name: t.Name, Comment: t.Comment}
 	var err error

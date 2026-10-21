@@ -45,6 +45,20 @@ func TestFlatten(t *testing.T) {
 	assert.Empty(t, Flatten([]Item[testModel](nil)))
 }
 
+func TestFlattenFunc(t *testing.T) {
+	items := []Item[testModel]{
+		{Model: testModel{name: "go"}, Children: []testModel{{name: "golangci-lint"}}},
+		{Model: testModel{name: "ruby"}},
+	}
+	got := FlattenFunc(items, func(model testModel, children []testModel) []string {
+		if len(children) == 0 {
+			return []string{model.name}
+		}
+		return []string{model.name + " + " + children[0].name}
+	})
+	assert.Equal(t, []string{"go + golangci-lint", "ruby"}, got)
+}
+
 func TestMultiPicker_UpdateEnterChecksAndReveals(t *testing.T) {
 	m := NewMultiPicker(testItems(), nil)
 	s := stack(RunnerOptions{Header: "pick some", SubmitLabel: "Save"}, m)

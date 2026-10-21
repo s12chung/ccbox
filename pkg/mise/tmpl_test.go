@@ -128,7 +128,7 @@ func TestResolvedTools(t *testing.T) {
 	t.Run("the postinstall's packages fill their full release", func(t *testing.T) {
 		rts, err := ResolvedTools([]Tool{
 			{Name: "node"},
-			{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames},
+			{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: pipTools},
 		}, ToolState{
 			Pins: map[string]string{"python": "3.13"}, // python keeps its pin
 			VersionFunc: pinned(map[string]string{
@@ -143,7 +143,7 @@ func TestResolvedTools(t *testing.T) {
 	})
 
 	t.Run("a written postinstall rides — its packages never fetch", func(t *testing.T) {
-		rts, err := ResolvedTools([]Tool{{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames}},
+		rts, err := ResolvedTools([]Tool{{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: pipTools}},
 			ToolState{
 				Pins:         map[string]string{"python": "3.13"},
 				PostInstalls: map[string]string{"python": "python -m pip install --no-cache-dir setuptools==70.0.0"},
@@ -190,7 +190,7 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 // testTools is the fixture render's tool list, one per row shape
 var testTools = []Tool{
 	{Name: "go"},
-	{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames},
+	{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: pipTools},
 }
 
 // testConfigSet is testTools fully resolved, plus the packages rows

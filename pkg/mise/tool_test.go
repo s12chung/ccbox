@@ -10,10 +10,10 @@ import (
 
 const pipCmdTmpl = `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`
 
-var pipNames = []string{"pypi:setuptools", "pypi:wheel"}
+var pipTools = []Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}}
 
 func TestNewResolvedTool(t *testing.T) {
-	python := Tool{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames}
+	python := Tool{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: pipTools}
 	tests := []struct {
 		name  string
 		tool  Tool
@@ -45,7 +45,7 @@ func TestNewResolvedTool(t *testing.T) {
 		},
 		{
 			"the name renders sans its backend prefix",
-			Tool{Name: "python", PostInstallCmdTmpl: "pip index versions {{range .}}{{.Name}}{{end}}", PostInstallNames: []string{"pypi:wheel"}},
+			Tool{Name: "python", PostInstallCmdTmpl: "pip index versions {{range .}}{{.Name}}{{end}}", PostInstallTools: []Tool{{Name: "pypi:wheel"}}},
 			ToolState{VersionFunc: pinned(map[string]string{"python": "3.13", "pypi:wheel": "0.47.0"})},
 			ResolvedTool{Name: "python", Pin: "3.13", PostInstall: "pip index versions wheel"},
 		},
@@ -68,6 +68,12 @@ func TestNewResolvedTool(t *testing.T) {
 			ResolvedTool{Name: "python", Pin: "3.13", PostInstall: "python -m pip install setuptools==70.0.0"},
 		},
 		{
+			"every package dropped — the plain pin",
+			Tool{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: []Tool{}},
+			ToolState{Pins: map[string]string{"python": "3.13"}},
+			ResolvedTool{Name: "python", Pin: "3.13"},
+		},
+		{
 			"no postinstall — the plain pin, the comment riding",
 			Tool{Name: "go", Comment: "# the toolchain"},
 			ToolState{Pins: map[string]string{"go": "1.26"}},
@@ -85,7 +91,7 @@ func TestNewResolvedTool(t *testing.T) {
 }
 
 func TestNewResolvedTool_Errors(t *testing.T) {
-	python := Tool{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames}
+	python := Tool{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: pipTools}
 
 	t.Run("a fetch error propagates", func(t *testing.T) {
 		_, err := newResolvedTool(python, ToolState{VersionFunc: func(string) (string, error) {

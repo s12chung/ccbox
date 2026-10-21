@@ -51,7 +51,7 @@ var runtimes = []Runtime{
 		MiseTool: mise.Tool{
 			Name:               "python",
 			PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
-			PostInstallNames:   []string{"pypi:setuptools", "pypi:wheel"},
+			PostInstallTools:   []mise.Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}},
 		},
 	},
 	// Ruby: gems + from-source tarballs
