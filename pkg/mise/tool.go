@@ -3,18 +3,43 @@ package mise
 import (
 	"fmt"
 	"strings"
+	"text/template"
 
 	"github.com/s12chung/ccbox/pkg/kit/tomlutil"
+	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
-// Tool is one entry of the mise config's [tools] table — the version binding
-// resolves at generation: the config pins the minor, the lock flexes the patch
+// Tool is one entry of the mise config's [tools] table — the image's recipe
 type Tool struct {
-	Name        string
-	PostInstall string // runs after the install
+	Name string
+
+	// PostInstallCmdTmpl is the postinstall as a text/template over PostInstallNames
+	PostInstallCmdTmpl string
+	// PostInstallNames are the postinstall's packages, as full tool names
+	PostInstallNames []string
 
 	Comment string // renders above the row when the tool needs a why
 	Hint    string // the mise tools picker's gray note after the name
+}
+
+// postInstallCmd is the tool's final postinstall cmd: the config's written one
+// as-is, else the tmpl rendered over the packages
+func (t Tool) postInstallCmd(state ToolState) (string, error) {
+	if post := state.PostInstalls[t.Name]; post != "" {
+		return post, nil // the written post carries its packages' pins — they never fetch, never render
+	}
+	pkgs := make([]postInstallPkg, 0, len(t.PostInstallNames))
+	for _, name := range t.PostInstallNames {
+		version, err := state.PinFor(name)
+		if err != nil {
+			return "", err
+		}
+		pkgs = append(pkgs, postInstallPkg{Tool: name, Version: version})
+	}
+	tmpl := template.Must(template.New(t.Name).Parse(t.PostInstallCmdTmpl))
+	var b strings.Builder
+	must.Do(tmpl.Execute(&b, pkgs)) // the tmpl is authored and its data resolved — neither fails here
+	return b.String(), nil
 }
 
 // ResolvedTool is a Tool fully resolved to its config row's final values —
@@ -26,8 +51,7 @@ type ResolvedTool struct {
 	Comment     string // renders above the row when the tool needs a why
 }
 
-// ResolvedTools resolves the tools to their config rows — each written pin
-// riding, the rest fetched
+// ResolvedTools resolves the tools to their config rows
 func ResolvedTools(tools []Tool, state ToolState) ([]ResolvedTool, error) {
 	resolved := make([]ResolvedTool, 0, len(tools))
 	for _, t := range tools {
@@ -40,17 +64,21 @@ func ResolvedTools(tools []Tool, state ToolState) ([]ResolvedTool, error) {
 	return resolved, nil
 }
 
-// newResolvedTool fully resolves t: the tool's pin, then its postinstall
+// newResolvedTool fully resolves t: the tool's pin, then its postinstall cmd
 func newResolvedTool(t Tool, state ToolState) (ResolvedTool, error) {
-	pin, err := state.PinFor(t.Name)
+	rt := ResolvedTool{Name: t.Name, Comment: t.Comment}
+	var err error
+	rt.Pin, err = state.PinFor(t.Name)
 	if err != nil {
 		return ResolvedTool{}, err
 	}
-	return ResolvedTool{Name: t.Name, Pin: pin, PostInstall: t.PostInstall, Comment: t.Comment}, nil
+	if rt.PostInstall, err = t.postInstallCmd(state); err != nil {
+		return ResolvedTool{}, err
+	}
+	return rt, nil
 }
 
-// row renders one [tools] entry: the comment line when the tool carries one,
-// then the version binding, or the inline table when it carries a postinstall
+// row renders one [tools] entry
 func (t ResolvedTool) row() string {
 	var b strings.Builder
 	if t.Comment != "" {
@@ -63,4 +91,15 @@ func (t ResolvedTool) row() string {
 			tomlutil.Key(t.Name), t.Pin, t.PostInstall)
 	}
 	return b.String()
+}
+
+// postInstallPkg is one resolved postinstall package
+type postInstallPkg struct {
+	Tool    string
+	Version string
+}
+
+// Name is the tool's name sans its backend prefix — pypi:setuptools's setuptools
+func (p postInstallPkg) Name() string {
+	return p.Tool[strings.LastIndex(p.Tool, ":")+1:]
 }

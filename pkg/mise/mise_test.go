@@ -231,11 +231,10 @@ func TestBuildFS_Sidecars(t *testing.T) {
 	})
 }
 
-// toolsConfig is the fixture config: plain pins, an inline table and a
-// sub-table — the shapes a [tools] table carries
+// toolsConfig is the fixture config: the shapes a [tools] table carries
 const toolsConfig = `[tools]
 go = "1.26"
-ruby = { version = "3.4" }
+python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir setuptools==70.0.0" }
 
 [tools."npm:playwright"]
 version = "latest"
@@ -276,8 +275,10 @@ func TestReadToolState(t *testing.T) {
 	state, err := ReadToolState(projectDir)
 
 	require.NoError(t, err)
-	assert.Equal(t, map[string]string{"go": "1.26", "ruby": "3.4", "npm:playwright": "latest"}, state.Pins,
+	assert.Equal(t, map[string]string{"go": "1.26", "python": "3.13", "npm:playwright": "latest"}, state.Pins,
 		"the [tools] table's pins, sub-tables included")
+	assert.Equal(t, map[string]string{"python": "python -m pip install --no-cache-dir setuptools==70.0.0"}, state.PostInstalls,
+		"the inline table's postinstall rides")
 }
 
 func TestReadToolState_UserFallback(t *testing.T) {

@@ -56,7 +56,8 @@ func PickedConfigPath(projectDir string) string {
 
 // ToolState is the picked config's [tools] state
 type ToolState struct {
-	Pins map[string]string
+	Pins         map[string]string
+	PostInstalls map[string]string
 	// VersionFunc fetches a name's latest version
 	VersionFunc func(name string) (string, error)
 }
@@ -97,13 +98,19 @@ func ReadToolState(projectDir string) (ToolState, error) {
 	if err := toml.Unmarshal(body, &file); err != nil {
 		return ToolState{}, fmt.Errorf("mise: %s: %w", path, err)
 	}
-	state := ToolState{Pins: make(map[string]string, len(file.Tools))}
+	state := ToolState{
+		Pins:         make(map[string]string, len(file.Tools)),
+		PostInstalls: make(map[string]string),
+	}
 	for name, entry := range file.Tools {
 		switch entry := entry.(type) {
 		case string:
 			state.Pins[name] = entry
 		case map[string]any: // the postinstall inline table
 			state.Pins[name], _ = entry["version"].(string)
+			if post, ok := entry["postinstall"].(string); ok {
+				state.PostInstalls[name] = post
+			}
 		}
 	}
 	return state, nil
@@ -194,10 +201,10 @@ var independentTools = []Tool{
 	{Name: "bats"},
 	{Name: "hadolint"},
 	{
-		Name:        "npm:playwright",
-		PostInstall: "playwright install-deps chromium && playwright install chromium",
-		Comment:     "# --vnc flag uses this chromium as a browser",
-		Hint:        "with chrome",
+		Name:               "npm:playwright",
+		PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium",
+		Comment:            "# --vnc flag uses this chromium as a browser",
+		Hint:               "with chrome",
 	},
 }
 

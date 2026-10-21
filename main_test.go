@@ -69,8 +69,9 @@ func composedContext(t *testing.T) fs.FS {
 	t.Helper()
 	testutil.Home(t) // keeps the test off the host's user level
 	miseRuntimes := runtime.MiseRuntimes(runtime.All())
-	rts := must.Get(mise.ResolvedTools(allTools(miseRuntimes), mise.ToolState{},
-		func(string) (string, error) { return "0.0.0", nil })) // a stand-in pin — the golden pins paths, not pins
+	rts := must.Get(mise.ResolvedTools(allTools(miseRuntimes), mise.ToolState{
+		VersionFunc: func(string) (string, error) { return "0.0.0", nil }, // a stand-in pin — the golden pins paths, not pins
+	}))
 	configSet := mise.ConfigSet{Tools: rts, Packages: miseRuntimes.Packages()}
 	require.NoError(t, mise.SeedConfig(mise.UserConfigPath(), configSet))
 	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))

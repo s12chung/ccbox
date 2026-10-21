@@ -20,7 +20,11 @@ func TestMiseTools(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
 			{Name: "node"},
-			{Name: "python", PostInstall: "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0"},
+			{
+				Name:               "python", // the packages ride the postinstall, never the picker
+				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
+				PostInstallNames:   []string{"pypi:setuptools", "pypi:wheel"},
+			},
 			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
 			{Name: "jq"},
 			{Name: "yq"},
@@ -79,10 +83,10 @@ func TestMiseTools(t *testing.T) {
 			{Name: "go"},
 			{Name: "hadolint"},
 			{
-				Name:        "npm:playwright",
-				PostInstall: "playwright install-deps chromium && playwright install chromium",
-				Comment:     "# --vnc flag uses this chromium as a browser",
-				Hint:        "with chrome",
+				Name:               "npm:playwright",
+				PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium",
+				Comment:            "# --vnc flag uses this chromium as a browser",
+				Hint:               "with chrome",
 			},
 			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
 			{Name: "jq"},
@@ -126,15 +130,19 @@ func TestRuntimeItems(t *testing.T) {
 	items := runtimeItems()
 
 	names := make([]string, 0, len(items))
-	var goItem pick.Item[toolModel]
+	var goItem, python pick.Item[toolModel]
 	for _, item := range items {
 		names = append(names, item.Model.Name())
-		if item.Model.Name() == "go" {
+		switch item.Model.Name() {
+		case "go":
 			goItem = item
+		case "python":
+			python = item
 		}
 	}
 	assert.Equal(t, []string{"go", "python", "ruby"}, names, "every selectable runtime in All()'s order — node rides, never an item")
 	assert.Equal(t, []string{"golangci-lint"}, childNames(goItem), "the optionals ride as children")
+	assert.Empty(t, childNames(python), "python's packages ride its postinstall, never the picker")
 }
 
 func TestIndependentItems(t *testing.T) {

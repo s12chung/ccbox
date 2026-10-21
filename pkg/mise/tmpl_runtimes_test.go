@@ -30,6 +30,7 @@ func TestRenderConfig_AllRuntimes(t *testing.T) {
 	}
 	rts := must.Get(mise.ResolvedTools(slices.Concat(tools, mise.DevTools()), mise.ToolState{Pins: map[string]string{
 		"go": "1.26", "golangci-lint": "2.13.1", "node": "26.3.0", "python": "3.13", "ruby": "3.4",
+		"pypi:setuptools": "82.0.1", "pypi:wheel": "0.47.0",
 		"ripgrep": "15.2", "jq": "1.8", "yq": "4.54", "shellcheck": "0.11",
 	}}))
 	configSet := mise.ConfigSet{Tools: rts, Packages: all.Packages()}

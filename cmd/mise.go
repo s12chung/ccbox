@@ -57,9 +57,9 @@ func seedMiseConfig(ctx context.Context, path string) (bool, error) {
 	return true, nil
 }
 
-// miseUpdate re-picks the picked mise config's tools — the config's current
-// selection pre-filled — and syncs the pick into the config's regions, the
-// config's existing pins preserved
+// miseUpdate re-picks the picked config's tools — the current selection
+// pre-filled — then syncs the pick into the config's regions, existing pins
+// preserved
 func miseUpdate(ctx context.Context) error {
 	projectDir := config.ProjectDir()
 	state, err := mise.ReadToolState(projectDir)

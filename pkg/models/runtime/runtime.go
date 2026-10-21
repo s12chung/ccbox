@@ -47,10 +47,11 @@ var runtimes = []Runtime{
 	{
 		Name:    "python",
 		Domains: []string{"pypi.org", "pythonhosted.org"},
-		// postinstall re-adds setuptools/wheel CPython 3.12+ dropped (setuptools = 3.13's distutils shim)
+		// CPython 3.12+ dropped setuptools/wheel; the postinstall reinstalls them
 		MiseTool: mise.Tool{
-			Name:        "python",
-			PostInstall: "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0",
+			Name:               "python",
+			PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
+			PostInstallNames:   []string{"pypi:setuptools", "pypi:wheel"},
 		},
 	},
 	// Ruby: gems + from-source tarballs

@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/kit/miseutil"
+	"github.com/s12chung/ccbox/pkg/kit/pypi"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -48,6 +49,21 @@ func versionList(versions map[string]time.Time) string {
 		fmt.Fprintf(&list, "%q = { created_at = %s }\n", version, versions[version].UTC().Format(time.RFC3339Nano))
 	}
 	return list.String()
+}
+
+// stubPyPI serves the fixture indexes at PyPI's JSON paths
+func stubPyPI(t *testing.T, indexes map[string]string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	for path, index := range indexes {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(index))
+		})
+	}
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	pypi.JSONURL = server.URL
+	t.Cleanup(func() { pypi.JSONURL = pypi.BaseURL })
 }
 
 // pins maps the resolved tools to their pins
@@ -109,6 +125,36 @@ func TestResolvedTools(t *testing.T) {
 		assert.Equal(t, map[string]string{"go": "1.25"}, pins(rts))
 	})
 
+	t.Run("the postinstall's packages fill their full release", func(t *testing.T) {
+		rts, err := ResolvedTools([]Tool{
+			{Name: "node"},
+			{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames},
+		}, ToolState{
+			Pins: map[string]string{"python": "3.13"}, // python keeps its pin
+			VersionFunc: pinned(map[string]string{
+				"node": "26.12", "pypi:setuptools": "84.0.0", "pypi:wheel": "0.48.0",
+			}),
+		})
+
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"node": "26.12", "python": "3.13"}, pins(rts))
+		assert.Equal(t, "python -m pip install --no-cache-dir setuptools==84.0.0 wheel==0.48.0", rts[1].PostInstall,
+			"the full releases — pip's == matches an exact version")
+	})
+
+	t.Run("a written postinstall rides — its packages never fetch", func(t *testing.T) {
+		rts, err := ResolvedTools([]Tool{{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames}},
+			ToolState{
+				Pins:         map[string]string{"python": "3.13"},
+				PostInstalls: map[string]string{"python": "python -m pip install --no-cache-dir setuptools==70.0.0"},
+			})
+
+		require.NoError(t, err)
+		assert.Equal(t, map[string]string{"python": "3.13"}, pins(rts))
+		assert.Equal(t, "python -m pip install --no-cache-dir setuptools==70.0.0", rts[0].PostInstall,
+			"the written postinstall carries its pins — none resolve")
+	})
+
 	t.Run("a fetch error propagates", func(t *testing.T) {
 		_, err := ResolvedTools([]Tool{{Name: "go"}}, ToolState{VersionFunc: func(string) (string, error) {
 			return "", errors.New("the versions service is down")
@@ -144,17 +190,36 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 // testTools is the fixture render's tool list, one per row shape
 var testTools = []Tool{
 	{Name: "go"},
-	{Name: "python", PostInstall: "python -m pip install setuptools==82.0.1 wheel==0.47.0"},
+	{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallNames: pipNames},
 }
 
 // testConfigSet is testTools fully resolved, plus the packages rows
-var testConfigSet = must.Get(resolvedConfig(testTools, ToolState{
-	Pins: map[string]string{"go": "1.26", "python": "3.13"},
-}, []string{"libatomic1", "libyaml-0-2"}))
+var testConfigSet = must.Get(resolvedConfig(testTools, ToolState{Pins: map[string]string{
+	"go": "1.26", "python": "3.13",
+	"pypi:setuptools": "82.0.1", "pypi:wheel": "0.47.0",
+}}, []string{"libatomic1", "libyaml-0-2"}))
 
 // TestRenderConfig pins the fixture render to its golden
 func TestRenderConfig(t *testing.T) {
 	assert.Equal(t, golden(t, "TestRenderConfig.toml"), seedRender(t, testConfigSet))
+}
+
+// TestRenderConfig_WrittenPostInstall pins the render: the written postinstall rides as-is
+func TestRenderConfig_WrittenPostInstall(t *testing.T) {
+	configSet := must.Get(resolvedConfig(testTools, ToolState{
+		Pins: map[string]string{
+			"go": "1.26", "python": "3.13",
+			"pypi:setuptools": "82.0.1", "pypi:wheel": "0.47.0", // present yet bypassed — the written post wins
+		},
+		PostInstalls: map[string]string{"python": "python -m pip install --no-cache-dir setuptools==70.0.0"},
+	}, testConfigSet.Packages))
+
+	body := seedRender(t, configSet)
+
+	want := strings.Replace(golden(t, "TestRenderConfig.toml"),
+		`postinstall = "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0"`,
+		`postinstall = "python -m pip install --no-cache-dir setuptools==70.0.0"`, 1)
+	assert.Equal(t, want, body)
 }
 
 // TestRenderConfig_IndependentTools pins the render when only the independent
