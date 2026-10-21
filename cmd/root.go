@@ -140,7 +140,7 @@ func safeSeedUserConfig() error {
 	if osutil.Present(path) {
 		return nil // the file already existed: no seed, so no prompt, no log
 	}
-	cliName, err := prompt.HarnessCLI(cli.Names())
+	cliName, err := prompt.HarnessCLI(cli.All())
 	if err != nil {
 		return err
 	}

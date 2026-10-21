@@ -3,6 +3,7 @@ package prompt
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,9 +11,11 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/mise"
+	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/size"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -116,18 +119,20 @@ func TestProjectDirSize(t *testing.T) {
 }
 
 func TestHarnessCLI(t *testing.T) {
-	t.Run("picked name is returned", func(t *testing.T) {
-		stubRun(t, "pi", nil)
+	clis := []cli.CLI{{PkgInfo: pkginfo.PkgInfo{Name: "pi"}}}
 
-		name, err := HarnessCLI([]string{"claude", "pi"})
+	t.Run("picked name is returned", func(t *testing.T) {
+		stubRun(t, cliModel{clis[0]}, nil)
+
+		name, err := HarnessCLI(clis)
 		require.NoError(t, err)
 		assert.Equal(t, "pi", name)
 	})
 
 	t.Run("no picker answer errors", func(t *testing.T) {
-		stubRun(t, "", nil)
+		stubRun(t, cliModel{}, nil)
 
-		_, err := HarnessCLI([]string{"claude", "pi"})
+		_, err := HarnessCLI(clis)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "no harness CLI selected")
 	})
@@ -156,16 +161,16 @@ func TestMiseConfigSet(t *testing.T) {
 		configSet, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
+			{Tool: "node", Version: "26.3.0"},
 			{Tool: "go", Version: "1.26"},
 			{Tool: "golangci-lint", Version: "2.13.1"},
-			{Tool: "node", Version: "26.3.0"},
 		}, configSet.Tools)
 
 		stubRunTools(t, []string{"go"}, nil, nil)
 
 		configSet, err = MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
-		assert.Equal(t, []mise.Tool{{Tool: "go", Version: "1.26"}, {Tool: "node", Version: "26.3.0"}}, configSet.Tools)
+		assert.Equal(t, []mise.Tool{{Tool: "node", Version: "26.3.0"}, {Tool: "go", Version: "1.26"}}, configSet.Tools)
 	})
 
 	t.Run("the picked runtimes' apt libs ride the answer, sorted", func(t *testing.T) {
@@ -184,8 +189,8 @@ func TestMiseConfigSet(t *testing.T) {
 		configSet, err := MiseConfigSet("~/.ccbox/mise.toml", nil)
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
-			{Tool: "go", Version: "1.26"},
 			{Tool: "node", Version: "26.3.0"},
+			{Tool: "go", Version: "1.26"},
 			{Tool: "hadolint", Version: "2.14.0"},
 			{
 				Tool:        "npm:playwright",
@@ -223,19 +228,44 @@ func TestMiseConfigSet(t *testing.T) {
 }
 
 // stubRunTools pins runFn's two answers — the runtimes' checklist's, then the
-// independent tools'
+// independent tools' — as the named-checked items, nil leaving the headless
+// zero read
 func stubRunTools(t *testing.T, rts, independentTools []string, err error) {
 	t.Helper()
 	runFn = func(_ pick.Runner, ptrs ...any) error {
 		require.Len(t, ptrs, 2)
-		rtsPtr, ok := ptrs[0].(*[]string)
+		rtsPtr, ok := ptrs[0].(*[]pick.Item[toolModel])
 		require.True(t, ok)
-		toolsPtr, ok := ptrs[1].(*[]string)
+		toolsPtr, ok := ptrs[1].(*[]pick.Item[toolModel])
 		require.True(t, ok)
-		*rtsPtr, *toolsPtr = rts, independentTools
+		if rts != nil {
+			*rtsPtr = checkedItems(runtimeItems(), rts)
+		}
+		if independentTools != nil {
+			*toolsPtr = checkedItems(independentToolItems(), independentTools)
+		}
 		return err
 	}
 	t.Cleanup(func() { runFn = pick.Runner.Run })
+}
+
+// checkedItems keeps the named-checked items alone, each with its checked
+// children — the typed read the checklist's respond writes
+func checkedItems[M pick.Model](items []pick.Item[M], checked []string) []pick.Item[M] {
+	picked := make([]pick.Item[M], 0, len(items))
+	for _, item := range items {
+		if !slices.Contains(checked, item.Model.Name()) {
+			continue
+		}
+		var children []M
+		for _, child := range item.Children {
+			if slices.Contains(checked, child.Name()) {
+				children = append(children, child)
+			}
+		}
+		picked = append(picked, pick.Item[M]{Model: item.Model, Children: children})
+	}
+	return picked
 }
 
 // stubRun pins runFn's answer into its one response pointer

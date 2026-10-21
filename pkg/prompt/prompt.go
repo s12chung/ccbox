@@ -11,6 +11,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/kit/pick"
 	"github.com/s12chung/ccbox/pkg/mise"
+	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
@@ -54,27 +55,38 @@ func ProjectDirSize(projectDir string) error {
 
 // HarnessCLI asks which harness CLI to seed the user config with. No terminal to
 // show the picker errors out — a CLI has no default to keep.
-func HarnessCLI(cliNames []string) (string, error) {
-	var name string
+func HarnessCLI(clis []cli.CLI) (string, error) {
+	var picked cliModel
 	err := runFn(pick.NewRunner(pick.RunnerOptions{
 		Header:          "Select a harness CLI",
 		Subtext:         []string{fmt.Sprintf("see %s to plug your own", userdir.Tilde(filepath.Join(clitmpl.UserDir(), "README.md")))},
 		SubmitLabel:     "Save to " + userdir.Tilde(cfg.UserConfigFile()),
 		RequireSelected: true,
-	}, pick.NewPicker(cliNames)), &name)
+	}, pick.NewPicker(cliModels(clis))), &picked)
 	if err != nil {
 		return "", err
 	}
-	if name == "" { // no terminal to show the picker
+	if picked.Name() == "" { // no terminal to show the picker
 		return "", fmt.Errorf("no harness CLI selected: rerun in a terminal to pick one, or set cli in %s", cfg.UserConfigFile())
 	}
-	return name, nil
+	return picked.Name(), nil
+}
+
+// cliModel is the cli.CLI as a pick.Model — the CLI's own Name field blocks
+// the Name method, so it wraps instead of implementing
+type cliModel struct{ cli.CLI }
+
+func (m cliModel) Name() string { return m.CLI.Name }
+func (m cliModel) Hint() string { return "" }
+
+func cliModels(clis []cli.CLI) []cliModel {
+	return slicex.Map(clis, func(c cli.CLI) cliModel { return cliModel{c} })
 }
 
 // MiseConfigSet asks which mise tools to install in the devbox; the answer is
 // the mise config's generated content — node rides every answer.
 func MiseConfigSet(savePath string, checked []string) (mise.ConfigSet, error) {
-	var pickedRuntimes, pickedIndependent []string
+	var pickedRuntimes, pickedIndependent []pick.Item[toolModel]
 	err := runFn(pick.NewRunner(pick.RunnerOptions{
 		Header:      "Select the tools to install",
 		Subtext:     []string{"(node is included)"},
@@ -90,51 +102,46 @@ func MiseConfigSet(savePath string, checked []string) (mise.ConfigSet, error) {
 		return mise.ConfigSet{}, fmt.Errorf("no tools selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
 	}
 	return mise.ConfigSet{
-		Tools:    resolveTools(slices.Concat(pickedRuntimes, pickedIndependent)),
-		Packages: runtime.FromNames(pickedRuntimes).Packages(),
+		Tools:    resolveTools(pickedRuntimes, pickedIndependent),
+		Packages: runtime.FromNames(pickedNames(pickedRuntimes)).Packages(),
 	}, nil
 }
 
-func runtimeItems() []pick.Item {
-	rts := runtime.Selectable()
-	items := make([]pick.Item, 0, len(rts))
-	for _, rt := range rts {
-		children := make([]string, 0, len(rt.MiseToolsOptional))
-		for _, t := range rt.MiseToolsOptional {
-			children = append(children, t.Tool)
-		}
-		items = append(items, pick.Item{Name: rt.Name, Children: children})
-	}
-	return items
-}
+// toolModel is the mise.Tool as a pick.Model — the Tool's own Tool and Hint
+// fields block the Name and Hint methods, so it wraps instead of implementing
+type toolModel struct{ mise.Tool }
 
-func independentToolItems() []pick.Item {
-	return slicex.Map(mise.IndependentTools(), func(t mise.Tool) pick.Item {
-		return pick.Item{Name: t.Tool, Hint: t.Hint}
+func (m toolModel) Name() string { return m.Tool.Tool }
+func (m toolModel) Hint() string { return m.Tool.Hint }
+
+func runtimeItems() []pick.Item[toolModel] {
+	return slicex.Map(runtime.Selectable(), func(rt runtime.Runtime) pick.Item[toolModel] {
+		return pick.Item[toolModel]{
+			Model:    toolModel{rt.MiseTool},
+			Children: slicex.Map(rt.MiseToolsOptional, func(t mise.Tool) toolModel { return toolModel{t} }),
+		}
 	})
 }
 
-func resolveTools(picked []string) []mise.Tool {
-	chosen := make(map[string]bool, len(picked)+1)
-	for _, name := range picked {
-		chosen[name] = true
-	}
-	chosen[runtime.Node().Name] = true // node rides every resolution — the npm-installed harness CLIs run through it
-	var tools []mise.Tool
-	for _, rt := range runtime.All() {
-		if !chosen[rt.Name] {
-			continue
-		}
-		tools = append(tools, rt.MiseTool)
-		for _, t := range rt.MiseToolsOptional {
-			if chosen[t.Tool] {
-				tools = append(tools, t)
-			}
-		}
-	}
-	for _, t := range mise.IndependentTools() {
-		if chosen[t.Tool] {
-			tools = append(tools, t)
+func independentToolItems() []pick.Item[toolModel] {
+	return slicex.Map(mise.IndependentTools(), func(t mise.Tool) pick.Item[toolModel] {
+		return pick.Item[toolModel]{Model: toolModel{t}}
+	})
+}
+
+// pickedNames lists the picked runtime items' names — FromNames resolves them
+// back to the runtimes their apt libs ride from
+func pickedNames(items []pick.Item[toolModel]) []string {
+	return slicex.Map(items, func(item pick.Item[toolModel]) string { return item.Model.Name() })
+}
+
+// resolveTools flattens the picked items' models into their tools — node
+// riding every answer, the npm-installed harness CLIs run through it
+func resolveTools(pickedSets ...[]pick.Item[toolModel]) []mise.Tool {
+	tools := []mise.Tool{runtime.Node().MiseTool}
+	for _, items := range pickedSets {
+		for _, model := range pick.Flatten(items) {
+			tools = append(tools, model.Tool)
 		}
 	}
 	return tools

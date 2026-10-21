@@ -9,20 +9,20 @@ import (
 )
 
 // multi unwraps the checklist parts of its picker
-func multi(t *testing.T, p Picker) *multiPicker {
+func multi(t *testing.T, p Picker) *multiPicker[testModel] {
 	t.Helper()
-	mp, ok := p.(*multiPicker)
+	mp, ok := p.(*multiPicker[testModel])
 	require.True(t, ok)
 	return mp
 }
 
 // testItems builds the checklist fixture fresh: one runtime item with a
 // child, two plain — the checks ride the items, so nothing is shared
-func testItems() []Item {
-	return []Item{
-		{Name: "go", Children: []string{"golangci-lint"}},
-		{Name: "python"},
-		{Name: "ruby", Hint: "from-source build"},
+func testItems() []Item[testModel] {
+	return []Item[testModel]{
+		{Model: testModel{name: "go"}, Children: []testModel{{name: "golangci-lint"}}},
+		{Model: testModel{name: "python"}},
+		{Model: testModel{name: "ruby", hint: "from-source build"}},
 	}
 }
 
@@ -34,6 +34,15 @@ func checklistChecks(t *testing.T, p Picker) []bool {
 		checks[i] = checklist[i].checked
 	}
 	return checks
+}
+
+func TestFlatten(t *testing.T) {
+	items := []Item[testModel]{
+		{Model: testModel{name: "go"}, Children: []testModel{{name: "golangci-lint"}}},
+		{Model: testModel{name: "ruby"}},
+	}
+	assert.Equal(t, []testModel{{name: "go"}, {name: "golangci-lint"}, {name: "ruby"}}, Flatten(items))
+	assert.Empty(t, Flatten([]Item[testModel](nil)))
 }
 
 func TestMultiPicker_UpdateEnterChecksAndReveals(t *testing.T) {
@@ -78,13 +87,13 @@ func TestMultiPicker_UpdateEnterOnSubmitRow(t *testing.T) {
 
 	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	require.NotNil(t, cmd, "submitting quits the program")
-	var picked []string
+	var picked []Item[testModel]
 	require.NoError(t, m.respond(&picked))
 	assert.Empty(t, picked)
 }
 
 func TestMultiPicker_UpdateSubmitNeedsCheck(t *testing.T) {
-	m := NewMultiPicker([]Item{{Name: "go"}, {Name: "python"}}, nil)
+	m := NewMultiPicker([]Item[testModel]{{Model: testModel{name: "go"}}, {Model: testModel{name: "python"}}}, nil)
 	s := stack(RunnerOptions{Header: "pick some", SubmitLabel: "Save", RequireSelected: true}, m)
 	w := s.models[0]
 	assert.False(t, s.isSubmitFocusable())
@@ -104,21 +113,33 @@ func TestMultiPicker_UpdateSubmitNeedsCheck(t *testing.T) {
 
 func TestMultiPicker_Respond(t *testing.T) {
 	m := NewMultiPicker(testItems(), nil)
-	var picked []string
+	var picked []Item[testModel]
 	require.NoError(t, m.respond(&picked))
 	assert.NotNil(t, picked, "an empty check set stays distinct from the nil non-terminal read")
 	assert.Empty(t, picked)
 
-	// a checked item picks its name, then its checked children in row order
+	// a checked item picks its model, its checked children alone riding it —
+	// an unchecked child drops, an unchecked item drops its children with it
 	m = NewMultiPicker(testItems(), []string{"go", "ruby"})
 	multi(t, m).checklist[0].checks[0] = false
 	picked = nil
 	require.NoError(t, m.respond(&picked))
-	assert.Equal(t, []string{"go", "ruby"}, picked)
+	assert.Equal(t, []Item[testModel]{
+		{Model: testModel{name: "go"}},
+		{Model: testModel{name: "ruby", hint: "from-source build"}},
+	}, picked)
+
+	// go's child rides once checked
+	m = NewMultiPicker(testItems(), []string{"go"})
+	picked = nil
+	require.NoError(t, m.respond(&picked))
+	assert.Equal(t, []Item[testModel]{
+		{Model: testModel{name: "go"}, Children: []testModel{{name: "golangci-lint"}}},
+	}, picked)
 
 	err := m.respond(new(string))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "want *[]string")
+	assert.Contains(t, err.Error(), "want *[]pick.Item")
 }
 
 func TestNewMultiPicker_Checked(t *testing.T) {
@@ -127,8 +148,8 @@ func TestNewMultiPicker_Checked(t *testing.T) {
 }
 
 func TestNewMultiPicker_NoItems(t *testing.T) {
-	assert.Panics(t, func() { NewMultiPicker(nil, nil) })
-	assert.Panics(t, func() { NewMultiPicker([]Item{}, nil) })
+	assert.Panics(t, func() { NewMultiPicker[testModel](nil, nil) })
+	assert.Panics(t, func() { NewMultiPicker([]Item[testModel]{}, nil) })
 }
 
 func TestMultiPicker_View(t *testing.T) {
@@ -157,9 +178,9 @@ func TestMultiPicker_View(t *testing.T) {
 
 func TestMultiPickerHeadless(t *testing.T) {
 	// go test pipes stdin/stdout: no terminal, no prompt, no error, the nil read
-	var picked []string
+	var picked []Item[testModel]
 	runner := NewRunner(RunnerOptions{Header: "pick some", SubmitLabel: "Save"},
-		NewMultiPicker([]Item{{Name: "go"}}, nil))
+		NewMultiPicker([]Item[testModel]{{Model: testModel{name: "go"}}}, nil))
 	require.NoError(t, runner.Run(&picked))
 	assert.Nil(t, picked)
 }

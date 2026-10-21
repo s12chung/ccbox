@@ -268,3 +268,11 @@ func fill[A any](ptr any, a A) error {
 	*p = a
 	return nil
 }
+
+// hintSuffix is a model's hint as the gray note parenthesized after its name
+func hintSuffix(hint string) string {
+	if hint == "" {
+		return ""
+	}
+	return " " + lightStyle.Render("("+hint+")")
+}

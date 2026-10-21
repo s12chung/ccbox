@@ -7,17 +7,33 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
+
+// testModel is the Model tests pick with: a name with an optional hint
+type testModel struct {
+	name string
+	hint string
+}
+
+func (m testModel) Name() string { return m.name }
+func (m testModel) Hint() string { return m.hint }
+
+// testModels builds the named Models, the plain no-hint kind
+func testModels(names ...string) []testModel {
+	return slicex.Map(names, func(name string) testModel { return testModel{name: name} })
+}
 
 func TestRunner_RunHeadless(t *testing.T) {
 	// go test pipes stdin/stdout: no terminal, no prompt, no error, the zero read
-	var choice string
-	require.NoError(t, NewRunner(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker([]string{"claude"})).Run(&choice))
-	assert.Empty(t, choice)
+	var choice testModel
+	require.NoError(t, NewRunner(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker(testModels("claude"))).Run(&choice))
+	assert.Empty(t, choice.name)
 }
 
 func TestRunner_RunPtrCount(t *testing.T) {
-	err := NewRunner(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker([]string{"claude"})).Run()
+	err := NewRunner(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker(testModels("claude"))).Run()
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not match picker count (1)")
 }
@@ -38,7 +54,7 @@ func stack(opts RunnerOptions, pickers ...Picker) *stackModel {
 }
 
 func TestStackModel_UpdateMovesCursor(t *testing.T) {
-	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker([]string{"claude", "codex", "grok"}))
+	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker(testModels("claude", "codex", "grok")))
 	w := s.models[0]
 	assert.Equal(t, 0, w.cursor)
 
@@ -54,7 +70,7 @@ func TestStackModel_UpdateMovesCursor(t *testing.T) {
 	assert.Equal(t, 0, s.focus, "wraps down off the submit row")
 	assert.Equal(t, 0, w.cursor)
 
-	s = stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker([]string{"claude", "codex", "grok"}))
+	s = stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker(testModels("claude", "codex", "grok")))
 	w = s.models[0]
 	for range 4 {
 		key(t, s, tea.KeyDown)
@@ -63,8 +79,8 @@ func TestStackModel_UpdateMovesCursor(t *testing.T) {
 }
 
 func TestStackModel_UpdateMovesAcrossModels(t *testing.T) {
-	p1 := NewPicker([]string{"claude", "codex"})
-	p2 := NewPicker([]string{"pi", "gemini"})
+	p1 := NewPicker(testModels("claude", "codex"))
+	p2 := NewPicker(testModels("pi", "gemini"))
 	s := stack(RunnerOptions{Header: "pick two", SubmitLabel: "save"}, p1, p2)
 	w1, w2 := s.models[0], s.models[1]
 
@@ -92,7 +108,7 @@ func TestStackModel_UpdateMovesAcrossModels(t *testing.T) {
 func TestStackModel_UpdateMovesOverGraySubmit(t *testing.T) {
 	// nothing marked under RequireSelected: the submit row stays out of the
 	// cursor's path, so both directions wrap over it
-	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save", RequireSelected: true}, NewPicker([]string{"claude", "codex"}))
+	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save", RequireSelected: true}, NewPicker(testModels("claude", "codex")))
 	w := s.models[0]
 
 	key(t, s, tea.KeyDown)
@@ -107,7 +123,7 @@ func TestStackModel_UpdateMovesOverGraySubmit(t *testing.T) {
 
 func TestStackModel_UpdateCancelKeys(t *testing.T) {
 	for _, k := range []tea.KeyType{tea.KeyEsc, tea.KeyCtrlC} {
-		s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker([]string{"claude"}))
+		s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker(testModels("claude")))
 		_, cmd := s.Update(tea.KeyMsg{Type: k})
 		require.NotNil(t, cmd, k)
 		cmd() // the cancel rides the cmd
@@ -116,7 +132,7 @@ func TestStackModel_UpdateCancelKeys(t *testing.T) {
 }
 
 func TestStackModel_UpdateTracksWindowSize(t *testing.T) {
-	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker([]string{"claude"}))
+	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker(testModels("claude")))
 	next, cmd := s.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
 	updated, ok := next.(*stackModel)
 	require.True(t, ok)
@@ -126,8 +142,8 @@ func TestStackModel_UpdateTracksWindowSize(t *testing.T) {
 }
 
 func TestStackModel_View(t *testing.T) {
-	p1 := NewPicker([]string{"claude", "codex"})
-	p2 := NewPicker([]string{"pi"})
+	p1 := NewPicker(testModels("claude", "codex"))
+	p2 := NewPicker(testModels("pi"))
 	view := stack(RunnerOptions{Header: "pick two", SubmitLabel: "save"}, p1, p2).View()
 
 	// one chrome opens the run — the header over both pickers, a blank line

@@ -11,15 +11,15 @@ import (
 )
 
 // single unwraps the single-pick parts of its picker
-func single(t *testing.T, p Picker) *picker {
+func single(t *testing.T, p Picker) *picker[testModel] {
 	t.Helper()
-	pk, ok := p.(*picker)
+	pk, ok := p.(*picker[testModel])
 	require.True(t, ok)
 	return pk
 }
 
 func TestPicker_UpdateEnterSelects(t *testing.T) {
-	p := NewPicker([]string{"claude", "codex"})
+	p := NewPicker(testModels("claude", "codex"))
 	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, p)
 	s.models[0].cursor = 1
 
@@ -27,13 +27,13 @@ func TestPicker_UpdateEnterSelects(t *testing.T) {
 	assert.Nil(t, cmd, "marking doesn't quit; the submit row does")
 	assert.Equal(t, 1, single(t, p).selected)
 
-	var choice string
+	var choice testModel
 	require.NoError(t, p.respond(&choice))
-	assert.Equal(t, "codex", choice)
+	assert.Equal(t, testModel{name: "codex"}, choice)
 }
 
 func TestPicker_UpdateEnterOnSubmitRow(t *testing.T) {
-	p := NewPicker([]string{"claude", "codex"})
+	p := NewPicker(testModels("claude", "codex"))
 	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, p)
 	key(t, s, tea.KeyEnter) // marking an item
 	key(t, s, tea.KeyDown)
@@ -41,13 +41,13 @@ func TestPicker_UpdateEnterOnSubmitRow(t *testing.T) {
 
 	_, cmd := s.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	require.NotNil(t, cmd, "submitting quits the program")
-	var choice string
+	var choice testModel
 	require.NoError(t, p.respond(&choice))
-	assert.Equal(t, "claude", choice)
+	assert.Equal(t, testModel{name: "claude"}, choice)
 }
 
 func TestPicker_UpdateSubmitNeedsSelection(t *testing.T) {
-	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save", RequireSelected: true}, NewPicker([]string{"claude", "codex"}))
+	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save", RequireSelected: true}, NewPicker(testModels("claude", "codex")))
 	w := s.models[0]
 	assert.False(t, s.isSubmitFocusable())
 
@@ -65,22 +65,22 @@ func TestPicker_UpdateSubmitNeedsSelection(t *testing.T) {
 }
 
 func TestPicker_Respond(t *testing.T) {
-	p := NewPicker([]string{"claude", "codex"})
+	p := NewPicker(testModels("claude", "codex"))
 	p.enter(1)
 
-	var choice string
+	var choice testModel
 	require.NoError(t, p.respond(&choice))
-	assert.Equal(t, "codex", choice)
+	assert.Equal(t, testModel{name: "codex"}, choice)
 
-	err := p.respond(new(int))
+	err := p.respond(new(string))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "want *string")
+	assert.Contains(t, err.Error(), "want *pick.testModel")
 
-	// nothing marked reads empty
-	p = NewPicker([]string{"claude", "codex"})
-	var empty string
-	require.NoError(t, p.respond(&empty))
-	assert.Empty(t, empty)
+	// nothing marked reads the zero model
+	p = NewPicker(testModels("claude", "codex"))
+	choice = testModel{}
+	require.NoError(t, p.respond(&choice))
+	assert.Empty(t, choice.name)
 }
 
 func TestPicker_View(t *testing.T) {
@@ -88,7 +88,7 @@ func TestPicker_View(t *testing.T) {
 	submitLabel := "Save to ~/.ccbox/config/ccbox.yaml"
 	opts := RunnerOptions{Header: header, Subtext: []string{subtext}, SubmitLabel: submitLabel}
 
-	p := NewPicker([]string{"claude", "codex"})
+	p := NewPicker(testModels("claude", "codex"))
 	s := stack(opts, p)
 	s.models[0].cursor = 1
 
@@ -106,7 +106,7 @@ func TestPicker_View(t *testing.T) {
 	}, trimmedLines(s.View()))
 
 	// no subtext: the header flows straight into the blank line before the items
-	p = NewPicker([]string{"claude", "codex"})
+	p = NewPicker(testModels("claude", "codex"))
 	assert.Equal(t, []string{
 		"  Select a harness CLI",
 		"",
@@ -118,10 +118,22 @@ func TestPicker_View(t *testing.T) {
 		"  ↑/↓ move • enter select • esc quit",
 	}, trimmedLines(stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View()))
 
+	// a hinted model carries its gray note parenthesized after its name
+	p = NewPicker([]testModel{{name: "claude", hint: "anthropic"}})
+	assert.Equal(t, []string{
+		"  Select a harness CLI",
+		"",
+		"  ❯ ○ claude (anthropic)",
+		"",
+		"    Save to ~/.ccbox/config/ccbox.yaml",
+		"",
+		"  ↑/↓ move • enter select • esc quit",
+	}, trimmedLines(stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View()))
+
 	// the block is placed in the terminal's size, left-aligned: the run's
 	// 2-space padding rides every line's own indent — the rows' 2-space mark
 	// column, the submit row's 2
-	p = NewPicker([]string{"claude", "codex"})
+	p = NewPicker(testModels("claude", "codex"))
 	s = stack(opts, p)
 	s.models[0].cursor = 1
 	key(t, s, tea.KeyEnter) // mark codex
@@ -151,6 +163,6 @@ func TestPicker_View(t *testing.T) {
 }
 
 func TestNewPicker_NoItems(t *testing.T) {
-	assert.Panics(t, func() { NewPicker(nil) })
-	assert.Panics(t, func() { NewPicker([]string{}) })
+	assert.Panics(t, func() { NewPicker[testModel](nil) })
+	assert.Panics(t, func() { NewPicker([]testModel{}) })
 }
