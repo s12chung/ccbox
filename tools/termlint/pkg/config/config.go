@@ -1,4 +1,4 @@
-// Package config loads and validates the termlint.json schema.
+// Package config loads and validates the .termlint.json schema.
 package config
 
 import (
@@ -11,7 +11,7 @@ import (
 	"github.com/s12chung/ccbox/tools/termlint/pkg/pattern"
 )
 
-// Config is the termlint.json schema. Terms ban a word's generated forms
+// Config is the .termlint.json schema. Terms ban a word's generated forms
 // (pattern.Compile); allows are phrases whose match makes overlapping term
 // hits on the same line allowed.
 type Config struct {

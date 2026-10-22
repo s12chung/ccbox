@@ -33,10 +33,10 @@ type violation struct {
 }
 
 // Run lints the text files under root for the terms configured in root's
-// termlint.json. It returns an error reporting every violation, nil when the
+// .termlint.json. It returns an error reporting every violation, nil when the
 // repo is clean.
 func Run(root string) error {
-	cfg, err := config.Load(filepath.Join(root, "termlint.json"))
+	cfg, err := config.Load(filepath.Join(root, ".termlint.json"))
 	if err != nil {
 		return err
 	}

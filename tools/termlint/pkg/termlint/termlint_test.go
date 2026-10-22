@@ -13,9 +13,9 @@ import (
 
 func TestRun_Clean(t *testing.T) {
 	root := writeTree(t, map[string]string{
-		"termlint.json": `{
+		".termlint.json": `{
 			"extensions": [".go", ".md"],
-			"exclude_globs": ["termlint.json", "tools/**"],
+			"exclude_globs": [".termlint.json", "tools/**"],
 			"terms": [{"word": "wall", "allows": ["egress wall"], "hint": "use egress wall"}]
 		}`,
 		"main.go":    "package main\nvar proxy = egressWall\n",
@@ -31,9 +31,9 @@ func TestRun_Clean(t *testing.T) {
 
 func TestRun_Violations(t *testing.T) {
 	root := writeTree(t, map[string]string{
-		"termlint.json": `{
+		".termlint.json": `{
 			"extensions": [".go", ".md"],
-			"exclude_globs": ["termlint.json"],
+			"exclude_globs": [".termlint.json"],
 			"terms": [
 				{"word": "wall", "hint": "use egress wall"},
 				{"word": "ride", "hint": "name the relationship"}
@@ -58,9 +58,9 @@ name the relationship`, err.Error())
 
 func TestRun_SkipsGitAndExcluded(t *testing.T) {
 	root := writeTree(t, map[string]string{
-		"termlint.json": `{
+		".termlint.json": `{
 			"extensions": [".go", ".md"],
-			"exclude_globs": ["termlint.json", "vendor/**"],
+			"exclude_globs": [".termlint.json", "vendor/**"],
 			"terms": [{"word": "wall", "hint": "use egress wall"}]
 		}`,
 		".git/config":     "wall\n",

@@ -1,6 +1,6 @@
 {
   "extensions": [".go", ".md", ".tmpl", ".sh", ".bats", ".yaml", ".yml", ".json", ".toml"],
-  "exclude_globs": ["dist/**", ".idea/**", "tools/termlint/**", "termlint.json"],
+  "exclude_globs": ["dist/**", ".idea/**", "tools/termlint/**", ".termlint.json"],
   "terms": [
     {
       "word": "wall",

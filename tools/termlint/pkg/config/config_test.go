@@ -12,7 +12,7 @@ import (
 )
 
 func TestLoad_Ok(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "termlint.json")
+	path := filepath.Join(t.TempDir(), ".termlint.json")
 	requireWrite(t, path, `{
 		"extensions": [".go", ".md"],
 		"exclude_globs": ["dist/**"],
@@ -58,7 +58,7 @@ func TestLoad_Errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "termlint.json")
+			path := filepath.Join(t.TempDir(), ".termlint.json")
 			requireWrite(t, path, test.config)
 
 			_, err := Load(path)

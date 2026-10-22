@@ -1,5 +1,5 @@
 // Command termlint lints the repo for banned terms configured in
-// termlint.json (make lint.terms). make runs it via `go run`: it lints
+// .termlint.json (make lint.terms). make runs it via `go run`: it lints
 // source text, not the built binary, so it must work before `go build`.
 package main
 
