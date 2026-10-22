@@ -1,5 +1,5 @@
 // The all-runtimes render test requires runtime, which imports mise — a circular
-// dep, so it rides the external test package.
+// dep, so it lives in the external test package.
 package mise_test
 
 import (
@@ -20,7 +20,7 @@ import (
 )
 
 // TestRenderConfig_AllRuntimes pins the seed a fresh host gets: every runtime's
-// real tools and apt libs riding the render, the dev-workflow CLIs at the tail
+// real tools and apt libs in the render, the dev-workflow CLIs at the tail
 func TestRenderConfig_AllRuntimes(t *testing.T) {
 	all := runtime.MiseRuntimes(runtime.All())
 	var tools []mise.Tool

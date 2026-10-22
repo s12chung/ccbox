@@ -17,7 +17,7 @@ func multi(t *testing.T, p Picker) *multiPicker[testModel] {
 }
 
 // testItems builds the checklist fixture fresh: one runtime item with a
-// child, two plain — the checks ride the items, so nothing is shared
+// child, two plain — the checks live on the items, so nothing is shared
 func testItems() []Item[testModel] {
 	return []Item[testModel]{
 		{Model: testModel{name: "go"}, Children: []testModel{{name: "golangci-lint"}}},
@@ -82,7 +82,7 @@ func TestMultiPicker_UpdateEnterChecksAndReveals(t *testing.T) {
 func TestMultiPicker_UpdateEnterHidesChildren(t *testing.T) {
 	m := NewMultiPicker(testItems(), []string{"go"})
 	s := stack(RunnerOptions{Header: "pick some", SubmitLabel: "Save"}, m)
-	assert.Len(t, multi(t, m).flatten(), 4, "go's child rides the rows while go is checked")
+	assert.Len(t, multi(t, m).flatten(), 4, "go's child joins the rows while go is checked")
 
 	// down onto the child, back up onto go, enter unchecks go — the child's row drops
 	key(t, s, tea.KeyDown)
@@ -132,7 +132,7 @@ func TestMultiPicker_Respond(t *testing.T) {
 	assert.NotNil(t, picked, "an empty check set stays distinct from the nil non-terminal read")
 	assert.Empty(t, picked)
 
-	// a checked item picks its model, its checked children alone riding it —
+	// a checked item picks its model with its checked children alone —
 	// an unchecked child drops, an unchecked item drops its children with it
 	m = NewMultiPicker(testItems(), []string{"go", "ruby"})
 	multi(t, m).checklist[0].checks[0] = false
@@ -143,7 +143,7 @@ func TestMultiPicker_Respond(t *testing.T) {
 		{Model: testModel{name: "ruby", hint: "from-source build"}},
 	}, picked)
 
-	// go's child rides once checked
+	// go's child comes along once checked
 	m = NewMultiPicker(testItems(), []string{"go"})
 	picked = nil
 	require.NoError(t, m.respond(&picked))
@@ -174,7 +174,7 @@ func TestMultiPicker_View(t *testing.T) {
 	s := stack(opts, m)
 	s.models[0].cursor = 2 // python, past go's revealed child
 
-	// every row rides the run's 2-space left padding, over the rows' own indents
+	// every row carries the run's 2-space left padding, over the rows' own indents
 	assert.Equal(t, []string{
 		"  Select the runtimes to install",
 		"  (set in ~/.ccbox/mise.toml)",

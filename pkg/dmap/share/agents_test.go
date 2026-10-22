@@ -177,7 +177,7 @@ func TestAdminMd(t *testing.T) {
 		name      string // fixture name: testdata/TestAdminMd_<name>.md
 		isNoProxy bool
 	}{
-		{"proxy", false},   // the network section rides
+		{"proxy", false},   // the network section renders
 		{"no-proxy", true}, // the network section is dropped
 	} {
 		t.Run(tt.name, func(t *testing.T) {

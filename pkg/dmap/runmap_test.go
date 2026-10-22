@@ -53,7 +53,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	assert.NotNil(t, options.Proxy.BeforeStart)
 	assert.NotNil(t, options.Proxy.OnRefresh)
 	assert.NotNil(t, options.Proxy.OnStop)
-	assert.Nil(t, options.Proxy.Log, "runs ride the session's log file, not a foreground stream")
+	assert.Nil(t, options.Proxy.Log, "runs log to the session's log file, not a foreground stream")
 	options.Proxy.BeforeStart = nil
 	options.Proxy.OnRefresh = nil
 	options.Proxy.OnStop = nil
@@ -79,10 +79,10 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
 	assert.Nil(t, options.Proxy, "a vnc run always skips the egress wall")
-	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env rides even without a vnc config section")
+	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env is set even without a vnc config section")
 	expanded := config.AllowlistExpanded()
 	for _, d := range guiapp.App.AllowDomains {
-		assert.Containsf(t, expanded, d, "the GUI app's download domain rides the proxy via the harness alias")
+		assert.Containsf(t, expanded, d, "the GUI app's download domain is allowlisted via the harness alias")
 	}
 }
 
@@ -190,7 +190,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	defer func() { require.NoError(t, clean()) }()
 
 	assert.Contains(t, hostOptions.Mounts, docker.NewVolume("ccbox-apps", install.AppsRoot).Global(),
-		"the GUI app's install volume rides only a VNC run")
+		"the GUI app's install volume is mounted only on a VNC run")
 }
 
 func TestRunMap_Env(t *testing.T) {

@@ -26,7 +26,7 @@ func TestFromMiseConfig(t *testing.T) {
 		for _, rt := range selected {
 			names = append(names, rt.Name)
 		}
-		assert.Equal(t, []string{"go", "node"}, names, "non-runtime pins drop, node rides")
+		assert.Equal(t, []string{"go", "node"}, names, "non-runtime pins drop, node stays")
 	})
 
 	t.Run("no config to read errors", func(t *testing.T) {

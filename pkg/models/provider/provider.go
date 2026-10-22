@@ -53,7 +53,7 @@ type Provider struct {
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Provider]().
 		Validates(firm.RuleMap{
-			// the name rides the ccbox-<name>-provider alias and the file name
+			// the name feeds the ccbox-<name>-provider alias and the file name
 			"Name":    {rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)}},
 			"Domains": {rule.Len{Min: 1}, firm.Elems[[]string](firmrule.Domain)},
 		}))

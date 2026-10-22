@@ -224,7 +224,7 @@ func TestInit_RefusesExisting(t *testing.T) {
 }
 
 func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
-	// the defaults are tooling only: providers ride their own aliases —
+	// the defaults are tooling only: providers live under their own aliases —
 	// ccbox-all-providers resolves every one of them
 	providerDomains, ok := provider.DomainsFor(provider.AllProvidersAlias)
 	require.True(t, ok)
@@ -234,7 +234,7 @@ func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
 }
 
 func TestAllowlistDefaults_ExcludeRuntimes(t *testing.T) {
-	// the defaults are tooling only: the runtimes ride their own aliases —
+	// the defaults are tooling only: the runtimes live under their own aliases —
 	// ccbox-all-runtimes resolves every one of them
 	runtimeDomains, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
 	require.True(t, ok)
@@ -244,7 +244,7 @@ func TestAllowlistDefaults_ExcludeRuntimes(t *testing.T) {
 }
 
 func TestAllowlistDefaults_ExcludeGuiApp(t *testing.T) {
-	// the GUI app's domains ride a vnc load's ccbox-set-harness expansion alone —
+	// the GUI app's domains enter only through a vnc load's ccbox-set-harness expansion —
 	// a headless run never downloads the app
 	for _, d := range guiapp.App.AllowDomains {
 		assert.NotContainsf(t, AllowlistDefaults(), d, "guiapp: %s", d)

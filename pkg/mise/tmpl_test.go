@@ -142,7 +142,7 @@ func TestResolvedTools(t *testing.T) {
 			"the full releases — pip's == matches an exact version")
 	})
 
-	t.Run("a written postinstall rides — its packages never fetch", func(t *testing.T) {
+	t.Run("a written postinstall is used as-is — its packages never fetch", func(t *testing.T) {
 		rts, err := ResolvedTools([]Tool{{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: pipTools}},
 			ToolState{
 				Pins:         map[string]string{"python": "3.13"},
@@ -204,7 +204,7 @@ func TestRenderConfig(t *testing.T) {
 	assert.Equal(t, golden(t, "TestRenderConfig.toml"), seedRender(t, testConfigSet))
 }
 
-// TestRenderConfig_WrittenPostInstall pins the render: the written postinstall rides as-is
+// TestRenderConfig_WrittenPostInstall pins the render: the written postinstall renders as-is
 func TestRenderConfig_WrittenPostInstall(t *testing.T) {
 	configSet := must.Get(resolvedConfig(testTools, ToolState{
 		Pins: map[string]string{
@@ -223,7 +223,7 @@ func TestRenderConfig_WrittenPostInstall(t *testing.T) {
 }
 
 // TestRenderConfig_IndependentTools pins the render when only the independent
-// tools ride the seed, the dev-workflow CLIs at the tail
+// tools are seeded, the dev-workflow CLIs at the tail
 func TestRenderConfig_IndependentTools(t *testing.T) {
 	configSet := must.Get(resolvedConfig(slices.Concat(independentTools, devTools), ToolState{Pins: map[string]string{
 		"bats": "1.14", "hadolint": "2.15", "npm:playwright": "1.64",

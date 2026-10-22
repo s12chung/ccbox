@@ -60,7 +60,7 @@ func Build(ctx context.Context, contextFS fs.FS, o BuildOptions) error {
 	}
 
 	opts := map[string]build.Options{"default": {
-		// Context tar on stdin (ContextPath "-"); the Dockerfile rides at its root.
+		// Context tar on stdin (ContextPath "-"); the Dockerfile sits at its root.
 		Inputs:    build.Inputs{ContextPath: "-", InStream: build.NewSyncMultiReader(contextTar)},
 		Tags:      []string{o.Tag},
 		Target:    o.Target,

@@ -56,8 +56,8 @@ type Config struct {
 
 	// projectDir anchors the masks' present-filters
 	projectDir string
-	// serveVNC is the resolved run mode — the --vnc flag or the vnc section's enabled:
-	// the GUI app's domains ride SetHarnessAlias's expansion only on it
+	// serveVNC is the resolved run mode — the --vnc flag or the vnc section's enabled;
+	// only it gates the GUI app's domains into SetHarnessAlias's expansion
 	serveVNC bool
 	// cache the DefaultsAlias expansions of raw lists and the read_only_binds' path resolutions
 	expandedTmpfsMasks    []string

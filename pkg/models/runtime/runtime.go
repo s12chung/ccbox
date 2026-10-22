@@ -20,7 +20,7 @@ type Runtime struct {
 	Domains []string // the egress wall domains
 
 	MiseTool          mise.Tool   // the runtime itself, as the mise config installs it
-	MiseToolsOptional []mise.Tool // the ecosystem tooling riding the install
+	MiseToolsOptional []mise.Tool // the ecosystem tooling installed with the runtime
 
 	AptPkgs      []string // shared libs the mise config's [bootstrap.packages] installs
 	AptBuildDeps []string // the from-source compile's headers, purged right after

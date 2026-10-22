@@ -126,8 +126,8 @@ func TestStackModel_UpdateCancelKeys(t *testing.T) {
 		s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, NewPicker(testModels("claude")))
 		_, cmd := s.Update(tea.KeyMsg{Type: k})
 		require.NotNil(t, cmd, k)
-		cmd() // the cancel rides the cmd
-		assert.Len(t, s.done, 1, "%v: the cancel rides the cmd back to Run", k)
+		cmd() // run the cancel's cmd
+		assert.Len(t, s.done, 1, "%v: the cancel reaches Run through the cmd", k)
 	}
 }
 
@@ -147,7 +147,7 @@ func TestStackModel_View(t *testing.T) {
 	view := stack(RunnerOptions{Header: "pick two", SubmitLabel: "save"}, p1, p2).View()
 
 	// one chrome opens the run — the header over both pickers, a blank line
-	// between them — and one submit row closes it; every row rides the run's
+	// between them — and one submit row closes it; every row carries the run's
 	// 2-space left padding
 	assert.Equal(t, []string{
 		"  pick two",

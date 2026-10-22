@@ -13,7 +13,7 @@ import (
 )
 
 func TestMiseTools(t *testing.T) {
-	t.Run("picked runtimes resolve to their tools and libs, node riding", func(t *testing.T) {
+	t.Run("picked runtimes resolve to their tools and libs, node always in", func(t *testing.T) {
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("python", "pypi:setuptools", "pypi:wheel")}, nil, nil)
 
 		tools, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
@@ -52,7 +52,7 @@ func TestMiseTools(t *testing.T) {
 		}, tools)
 	})
 
-	t.Run("a checked child rides its runtime, an unchecked one drops", func(t *testing.T) {
+	t.Run("a checked child joins its runtime, an unchecked one drops", func(t *testing.T) {
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go", "golangci-lint")}, nil, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
@@ -81,7 +81,7 @@ func TestMiseTools(t *testing.T) {
 		}, tools)
 	})
 
-	t.Run("the picked runtimes' apt libs ride the answer, sorted", func(t *testing.T) {
+	t.Run("the picked runtimes' apt libs are in the answer, sorted", func(t *testing.T) {
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("ruby")}, nil, nil)
 
 		_, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
@@ -91,7 +91,7 @@ func TestMiseTools(t *testing.T) {
 		}, packages)
 	})
 
-	t.Run("the independent tools' picks ride the runtimes'", func(t *testing.T) {
+	t.Run("the independent tools' picks follow the runtimes'", func(t *testing.T) {
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")},
 			[]pick.Item[toolModel]{pickedIndependent("hadolint"), pickedIndependent("npm:playwright")}, nil)
 
@@ -114,7 +114,7 @@ func TestMiseTools(t *testing.T) {
 		}, tools)
 	})
 
-	t.Run("an empty pick still rides node", func(t *testing.T) {
+	t.Run("an empty pick still includes node", func(t *testing.T) {
 		stubRunTools(t, []pick.Item[toolModel]{}, nil, nil)
 
 		tools, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
@@ -159,8 +159,8 @@ func TestRuntimeItems(t *testing.T) {
 			python = item
 		}
 	}
-	assert.Equal(t, []string{"go", "python", "ruby"}, names, "every selectable runtime in All()'s order — node rides, never an item")
-	assert.Equal(t, []string{"golangci-lint"}, childNames(goItem), "the optionals ride as children")
+	assert.Equal(t, []string{"go", "python", "ruby"}, names, "every selectable runtime in All()'s order — node always present, never an item")
+	assert.Equal(t, []string{"golangci-lint"}, childNames(goItem), "the optionals listed as children")
 	assert.Equal(t, []string{"pypi:setuptools", "pypi:wheel"}, childNames(python),
 		"the postinstall packages as pickable children — an unchecked one dropping from the postinstall")
 
@@ -203,7 +203,7 @@ func TestIndependentItems(t *testing.T) {
 	assert.Equal(t, []string{"bats", "hadolint", "npm:playwright"}, names)
 
 	playwright := items[slices.Index(names, "npm:playwright")]
-	assert.Equal(t, "with chrome", playwright.Model.Hint(), "the tool's hint rides the model")
+	assert.Equal(t, "with chrome", playwright.Model.Hint(), "the tool's hint carries through the model")
 	assert.Empty(t, playwright.Children, "a static postinstall has no packages to pick")
 }
 
@@ -224,7 +224,7 @@ func stubRunTools(t *testing.T, rts, independentTools []pick.Item[toolModel], er
 }
 
 // pickedRuntime is the named runtime item as respond answers it: the item
-// with its listed children alone riding
+// with only its listed children checked
 func pickedRuntime(name string, children ...string) pick.Item[toolModel] {
 	for _, item := range runtimeItems(mise.ToolState{}) {
 		if item.Model.Name() != name {

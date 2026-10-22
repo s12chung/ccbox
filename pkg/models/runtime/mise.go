@@ -18,7 +18,7 @@ func FromMiseConfig(projectDir string) (MiseRuntimes, error) {
 	for name := range state.Pins {
 		pinned[name] = true
 	}
-	pinned[Node().Name] = true // node rides every resolution — the image's tooling runs on it
+	pinned[Node().Name] = true // node is always resolved — the image's tooling runs on it
 	var runtimes MiseRuntimes
 	for _, rt := range All() {
 		if pinned[rt.Name] {

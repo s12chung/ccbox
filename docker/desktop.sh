@@ -31,7 +31,7 @@ until [ "$stopping" ]; do
   # (no trap runs on teardown) leaves locks the next run's server refuses
   # the display over.
   rm -f "/tmp/.X${DISPLAY#:}-lock" "/tmp/.X11-unix/X${DISPLAY#:}"
-  # Serve no custom xstartup to ride Debian's default chain —
+  # Serve no custom xstartup, keeping Debian's default chain —
   # /etc/X11/Xtigervnc-session execs Xsession, whose x-session-manager is
   # startxfce4 (the 75dbus snippet provides the session bus).
   # Listen beyond loopback to receive docker's published port, which arrives on

@@ -67,7 +67,7 @@ func TestGenerateLock_SHAUnderTmp(t *testing.T) {
 	require.NoError(t, commitLock(t, configPath))
 
 	shaPath := filepath.Join(userdir.Tmp(), "misesha", slug.Path(configPath)+".sha256")
-	require.FileExists(t, shaPath, "the sha rides under userdir's tmp")
+	require.FileExists(t, shaPath, "the sha lands under userdir's tmp")
 	_, err := os.Stat(configPath + ".sha256")
 	require.ErrorIs(t, err, os.ErrNotExist, "the config's dir carries no sha")
 }
@@ -201,13 +201,13 @@ func TestBuildFS(t *testing.T) {
 			}
 
 			_, err = fs.ReadFile(merged, "Dockerfile")
-			require.NoError(t, err, "the rest of the embed rides untouched")
+			require.NoError(t, err, "the rest of the embed stays untouched")
 		})
 	}
 }
 
 func TestBuildFS_Sidecars(t *testing.T) {
-	t.Run("the committed sidecars ride the context", func(t *testing.T) {
+	t.Run("the committed sidecars land in the context", func(t *testing.T) {
 		testutil.Home(t)
 		configPath := ProjectConfigPath(t.TempDir())
 		require.NoError(t, os.WriteFile(configPath, []byte(fixtureConfig), osutil.File))
@@ -278,7 +278,7 @@ func TestReadToolState(t *testing.T) {
 	assert.Equal(t, map[string]string{"go": "1.26", "python": "3.13", "npm:playwright": "latest"}, state.Pins,
 		"the [tools] table's pins, sub-tables included")
 	assert.Equal(t, map[string]string{"python": "python -m pip install --no-cache-dir setuptools==70.0.0"}, state.PostInstalls,
-		"the inline table's postinstall rides")
+		"the inline table's postinstall is read too")
 }
 
 func TestReadToolState_UserFallback(t *testing.T) {

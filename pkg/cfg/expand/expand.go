@@ -12,7 +12,7 @@ type Expansion struct {
 }
 
 // Map expands each entry found in expansions to its Expansion's resolved key and value,
-// the rest ride expand
+// the rest through expand
 func Map(entries map[string]string, expansions map[string]Expansion, expand func(key, value string) (string, string)) map[string]string {
 	expanded := make(map[string]string, len(entries))
 	for key, value := range entries {

@@ -99,7 +99,7 @@ func contextPaths(t *testing.T, src fs.FS) []string {
 	return paths
 }
 
-// allTools flattens every runtime's mise tools, its optionals riding
+// allTools flattens every runtime's mise tools with its optionals
 func allTools(runtimes runtime.MiseRuntimes) []mise.Tool {
 	var tools []mise.Tool
 	for _, rt := range runtimes {

@@ -106,5 +106,5 @@ func TestPatchFS(t *testing.T) {
 	assert.Contains(t, string(patched), "ENV PATH=", "the render's regions are in")
 
 	_, err = fs.ReadFile(merged, "docker/desktop.sh")
-	require.NoError(t, err, "the rest of the fs rides untouched")
+	require.NoError(t, err, "the rest of the fs stays untouched")
 }

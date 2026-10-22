@@ -85,11 +85,11 @@ func (r Runner) Run(ptrs ...any) error {
 // enter does on the cursor's row, whether it has its pick, and the read it
 // writes into the caller's pointer
 type Picker interface {
-	// rows counts the body's rows — the cursor's bounds ride the count: rows
+	// rows counts the body's rows — the cursor's bounds come from the count: rows
 	// can exceed the options with revealed rows
 	rows() int
 
-	// render draws the body's rows — the cursor's mark rides the focused prompt
+	// render draws the body's rows — the cursor's mark lands on the focused row
 	render(cursor int, focused bool) []string
 
 	// enter answers enter on the cursor's row
@@ -161,7 +161,7 @@ func (s *stackModel) key(msg tea.KeyMsg) tea.Cmd {
 // quitMsg closes the run once its cancel reached Run
 type quitMsg struct{}
 
-// cancel quits the run as canceled, the cancel riding the cmd back to Run
+// cancel quits the run as canceled, the cancellation carried back to Run in the cmd
 func (s *stackModel) cancel() tea.Cmd {
 	return func() tea.Msg {
 		s.done <- struct{}{}

@@ -200,7 +200,7 @@ func TestCacheVolumeNames_Selection(t *testing.T) {
 	names := cacheVolumeNames("/Users/me/proj", selected.CacheVolumes())
 	assert.NotContains(t, names, "ccbox"+slug.Path("/Users/me/proj")+"-gem-cache-default")
 	assert.ElementsMatch(t, slices.Collect(maps.Keys(names)), []string{
-		"ccbox" + slug.Path("/Users/me/proj") + "-cache-cache-default", // sharedCacheVolumes ride every run
+		"ccbox" + slug.Path("/Users/me/proj") + "-cache-cache-default", // sharedCacheVolumes, in every run
 		"ccbox" + slug.Path("/Users/me/proj") + "-local-cache-default",
 		"ccbox" + slug.Path("/Users/me/proj") + "-tmp-cache-default",
 		"ccbox" + slug.Path("/Users/me/proj") + "-go-cache-default",

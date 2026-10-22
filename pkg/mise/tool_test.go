@@ -59,7 +59,7 @@ func TestNewResolvedTool(t *testing.T) {
 			},
 		},
 		{
-			"the config's written postinstall rides as-is — its packages never fetch",
+			"the config's written postinstall is used as-is — its packages never fetch",
 			python,
 			ToolState{
 				Pins:         map[string]string{"python": "3.13", "pypi:setuptools": "82.0.1"}, // present yet bypassed
@@ -74,7 +74,7 @@ func TestNewResolvedTool(t *testing.T) {
 			ResolvedTool{Name: "python", Pin: "3.13"},
 		},
 		{
-			"no postinstall — the plain pin, the comment riding",
+			"no postinstall — the plain pin, the comment kept",
 			Tool{Name: "go", Comment: "# the toolchain"},
 			ToolState{Pins: map[string]string{"go": "1.26"}},
 			ResolvedTool{Name: "go", Pin: "1.26", Comment: "# the toolchain"},

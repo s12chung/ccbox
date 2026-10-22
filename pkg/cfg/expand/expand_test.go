@@ -20,7 +20,7 @@ func TestMap(t *testing.T) {
 		want    map[string]string
 	}{
 		{
-			name:    "keyed entries expand to their Expansion, the rest ride expand",
+			name:    "keyed entries expand to their Expansion, the rest go through expand",
 			entries: map[string]string{"special": "raw", "plain": "raw"},
 			want:    map[string]string{"resolved-key": "resolved:raw", "<plain": "raw>"},
 		},

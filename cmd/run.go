@@ -20,7 +20,7 @@ import (
 var runMode dmap.RunMode
 
 // runVNC serves the desktop session (`--vnc`); Load resolves it with the vnc
-// section's enabled, so the runs ride config's resolved mode
+// section's enabled, and the runs follow the resolved mode
 var runVNC bool
 
 // runCmd execs a command in a fresh devbox container; bare, it drops into the

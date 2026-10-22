@@ -33,8 +33,8 @@ func NewMultiPicker[M Model](items []Item[M], checked []string) Picker {
 }
 
 // Item is one checklist entry: children list the models revealed checked
-// beneath it while it's checked — each child unchecks alone. The checks ride
-// the item.
+// beneath it while it's checked — each child unchecks alone. The checks live
+// on the item.
 type Item[M Model] struct {
 	Model    M
 	Children []M
@@ -122,8 +122,8 @@ func (p *multiPicker[M]) render(cursor int, focused bool) []string {
 	return rows
 }
 
-// picked reports any item is checked — children don't count: they ride their
-// item's check
+// picked reports any item is checked — children don't count on their own: a
+// checked child implies its item
 func (p *multiPicker[M]) picked() bool {
 	return slices.ContainsFunc(p.checklist, func(item Item[M]) bool { return item.checked })
 }

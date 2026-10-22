@@ -545,7 +545,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 		assert.Equal(t, allRuntimes, c.AllowlistExpanded())
 	})
 
-	t.Run("the GUI app's domains ride the harness alias on a vnc load alone", func(t *testing.T) {
+	t.Run("the GUI app's domains enter only through the harness alias on a vnc load", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nallowlist:\n  - ccbox-set-harness\n")
 
 		headlessConfig, err := Load(dir, Config{}, false)
@@ -559,7 +559,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.AllowDomains), vncConfig.AllowlistExpanded())
 	})
 
-	t.Run("enabled rides the harness alias without the flag", func(t *testing.T) {
+	t.Run("enabled pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\nallowlist:\n  - ccbox-set-harness\n")
 
 		c, err := Load(dir, Config{}, false)

@@ -186,9 +186,9 @@ func replaceSidecars(configPath string, sidecars map[string][]byte) error {
 }
 
 // The mise config lands in the build context at the image's system config: the config
-// rides where the Dockerfile COPYs docker/mise/, the lock sits next to it, and the
-// sidecars under .mise/locks — mise resolves installs through the lockfile beside the
-// config and its sidecar root.
+// where the Dockerfile COPYs docker/mise/, the lock beside it, and the sidecars under
+// .mise/locks — mise resolves installs through the lockfile beside the config and its
+// sidecar root.
 const (
 	contextConfigPath   = "docker/mise/config.toml"
 	contextLockPath     = "docker/mise/mise.lock"
@@ -211,7 +211,7 @@ var independentTools = []Tool{
 // IndependentTools is the image's independent tools, in render order
 func IndependentTools() []Tool { return slices.Clone(independentTools) }
 
-// devTools is the dev-workflow CLIs every devbox rides — rendered under their
+// devTools is the dev-workflow CLIs every devbox gets — rendered under their
 // header at the tools region's end
 var devTools = []Tool{
 	{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
@@ -220,7 +220,7 @@ var devTools = []Tool{
 	{Name: "shellcheck"},
 }
 
-// DevTools is the dev-workflow CLIs every config rides, in render order
+// DevTools is the dev-workflow CLIs in every config, in render order
 func DevTools() []Tool { return slices.Clone(devTools) }
 
 // BuildFS is the build fs for the image's `mise install`: the embed with the

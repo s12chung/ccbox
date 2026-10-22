@@ -26,7 +26,7 @@ type ProxyMap struct {
 func NewProxyMap(cfg *cfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 
 // Options renders the egress wall's docker.ProxyOptions; foreground is the optional
-// stream — nil runs ride the session's log file only
+// stream — nil keeps the run on the session's log file alone
 func (pm *ProxyMap) Options(foreground *tinyproxy.Log) *docker.ProxyOptions {
 	proxyConfigMap := map[string][]byte{
 		tinyproxy.ConfFile:     tinyproxy.MustConf(),

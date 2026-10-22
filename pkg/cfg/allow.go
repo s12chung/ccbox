@@ -8,7 +8,7 @@ import (
 // tooling domains.
 func AllowlistDefaults() []string { return slices.Clone(sharedAllowlistDefaults) }
 
-// sharedAllowlistDefaults are the CLI-independent egress domains; the runtimes' ride
+// sharedAllowlistDefaults are the CLI-independent egress domains; the runtimes keep
 // their own aliases.
 var sharedAllowlistDefaults = []string{
 	// mise (tool version manager): version lists + release metadata

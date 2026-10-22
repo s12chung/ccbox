@@ -131,7 +131,7 @@ func TestPicker_View(t *testing.T) {
 	}, trimmedLines(stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View()))
 
 	// the block is placed in the terminal's size, left-aligned: the run's
-	// 2-space padding rides every line's own indent — the rows' 2-space mark
+	// 2-space padding sits over every line's own indent — the rows' 2-space mark
 	// column, the submit row's 2
 	p = NewPicker(testModels("claude", "codex"))
 	s = stack(opts, p)

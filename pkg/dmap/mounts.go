@@ -145,7 +145,7 @@ var globalVolumesMap = map[string]string{
 }
 
 // globalVolumes returns the run's global volumes: the GUI app's install root
-// rides only a VNC run — its volume seeds from the desktop variant's image
+// only on a VNC run — its volume seeds from the desktop variant's image
 func globalVolumes(serveVNC bool) map[string]string {
 	if !serveVNC {
 		return globalVolumesMap

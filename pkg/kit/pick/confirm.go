@@ -4,7 +4,7 @@ import (
 	"errors"
 )
 
-// yesNo is Confirm's two answers as Models — the bool rides the pick
+// yesNo is Confirm's two answers as Models — the pick itself is the bool
 type yesNo bool
 
 func (y yesNo) Name() string {
