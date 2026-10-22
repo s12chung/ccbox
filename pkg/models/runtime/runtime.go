@@ -54,6 +54,7 @@ var runtimes = []Runtime{
 			PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
 			PostInstallTools:   []mise.Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}},
 		},
+		MiseToolsOptional: []mise.Tool{{Name: "pypi:ruff"}},
 	},
 	// Ruby: gems + from-source tarballs
 	{
@@ -71,6 +72,8 @@ var runtimes = []Runtime{
 		Name:     "rust",
 		Domains:  []string{"sh.rustup.rs", "static.rust-lang.org", "crates.io", "index.crates.io", "static.crates.io"},
 		MiseTool: mise.Tool{Name: "rust"},
+		// no MiseToolsOptional: clippy and rustfmt ship as the toolchain's rustup
+		// components
 		// The build's HOME (root's) is unreadable to ccbox, and rustup hangs its
 		// state off it by default — pin both homes system-side, baking only the
 		// toolchain home the proxies resolve through
@@ -86,10 +89,11 @@ var runtimes = []Runtime{
 
 // node is installed by default — the devbox tooling depends on it.
 var node = Runtime{
-	Name:     "node",
-	Domains:  []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
-	MiseTool: mise.Tool{Name: "node"},
-	AptPkgs:  []string{"libatomic1"}, // V8 needs libatomic on arm64
+	Name:              "node",
+	Domains:           []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
+	MiseTool:          mise.Tool{Name: "node", Hint: "required"},
+	MiseToolsOptional: []mise.Tool{{Name: "npm:oxlint"}, {Name: "npm:oxfmt"}},
+	AptPkgs:           []string{"libatomic1"}, // V8 needs libatomic on arm64
 	EnvVars: map[string]string{
 		"NPM_CONFIG_PREFIX":          "/home/ccbox/.npm-global",
 		"NPM_CONFIG_UPDATE_NOTIFIER": "false",

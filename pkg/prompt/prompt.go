@@ -70,8 +70,7 @@ func HarnessCLI(clis []cli.CLI) (string, error) {
 	return picked.Name(), nil
 }
 
-// cliModel is the cli.CLI as a pick.Model — the CLI's own Name field blocks
-// the Name method, so it wraps instead of implementing
+// cliModel is the cli.CLI as a pick.Model
 type cliModel struct{ cli.CLI }
 
 func (m cliModel) Name() string { return m.CLI.Name }

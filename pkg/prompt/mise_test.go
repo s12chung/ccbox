@@ -14,12 +14,13 @@ import (
 
 func TestMiseTools(t *testing.T) {
 	t.Run("picked runtimes resolve to their tools and libs, node always in", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("python", "pypi:setuptools", "pypi:wheel")}, toolItems(mise.DevTools()), nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("python", "pypi:setuptools", "pypi:wheel")},
+			toolItems(mise.DevTools()), nil, nil)
 
 		tools, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
-			{Name: "node"},
+			{Name: "node", Hint: "required"},
 			{
 				Name:               "python",
 				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
@@ -34,12 +35,12 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("every package dropped answers empty", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("python")}, toolItems(mise.DevTools()), nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("python")}, toolItems(mise.DevTools()), nil, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
-			{Name: "node"},
+			{Name: "node", Hint: "required"},
 			{
 				Name:               "python",
 				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
@@ -53,12 +54,12 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("a checked child joins its runtime, an unchecked one drops", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go", "golangci-lint")}, toolItems(mise.DevTools()), nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("go", "golangci-lint")}, toolItems(mise.DevTools()), nil, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
-			{Name: "node"},
+			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "golangci-lint"},
 			{Name: "ripgrep"},
@@ -67,12 +68,12 @@ func TestMiseTools(t *testing.T) {
 			{Name: "shellcheck"},
 		}, tools)
 
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")}, toolItems(mise.DevTools()), nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("go")}, toolItems(mise.DevTools()), nil, nil)
 
 		tools, _, err = MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
-			{Name: "node"},
+			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
 			{Name: "jq"},
@@ -82,7 +83,7 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("the picked runtimes' apt libs are in the answer, sorted", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("ruby")}, toolItems(mise.DevTools()), nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("ruby")}, toolItems(mise.DevTools()), nil, nil)
 
 		_, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
@@ -92,13 +93,13 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("the independent tools' picks follow the runtimes'", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")},
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("go")},
 			toolItems(mise.DevTools()), []pick.Item[toolModel]{pickedIndependent("hadolint"), pickedIndependent("npm:playwright")}, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
-			{Name: "node"},
+			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
 			{Name: "jq"},
@@ -115,14 +116,14 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("the dev tools' picks follow the runtimes', ahead of the independent tools'", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")},
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("go")},
 			[]pick.Item[toolModel]{pickedDev("ripgrep"), pickedDev("yq")},
 			[]pick.Item[toolModel]{pickedIndependent("hadolint")}, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
-			{Name: "node"},
+			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
 			{Name: "yq"},
@@ -130,12 +131,12 @@ func TestMiseTools(t *testing.T) {
 		}, tools)
 	})
 
-	t.Run("an empty pick still includes node", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{}, nil, nil, nil)
+	t.Run("the locked node answers node alone", func(t *testing.T) {
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node")}, nil, nil, nil)
 
 		tools, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
-		assert.Equal(t, []mise.Tool{{Name: "node"}}, tools)
+		assert.Equal(t, []mise.Tool{{Name: "node", Hint: "required"}}, tools)
 		assert.Equal(t, []string{"libatomic1"}, packages)
 	})
 
@@ -159,20 +160,26 @@ func TestRuntimeItems(t *testing.T) {
 	items := runtimeItems(mise.ToolState{})
 
 	names := make([]string, 0, len(items))
-	var goItem, python pick.Item[toolModel]
+	var goItem, node, python pick.Item[toolModel]
 	for _, item := range items {
 		names = append(names, item.Model.Name())
 		switch item.Model.Name() {
 		case "go":
 			goItem = item
+		case "node":
+			node = item
 		case "python":
 			python = item
 		}
 	}
-	assert.Equal(t, []string{"go", "python", "ruby", "rust"}, names, "every selectable runtime in All()'s order — node always present, never an item")
+	assert.Equal(t, []string{"go", "node", "python", "ruby", "rust"}, names, "every runtime in All()'s order")
+	assert.True(t, node.IsDisabled, "node's row is locked — the always-installed runtime")
+	assert.Equal(t, "required", node.Model.Hint())
+	assert.True(t, node.RevealUnchecked, "the optionals start unchecked")
+	assert.Equal(t, []string{"npm:oxlint", "npm:oxfmt"}, childNames(node), "the node-only linters as children")
 	assert.Equal(t, []string{"golangci-lint"}, childNames(goItem), "the optionals listed as children")
-	assert.Equal(t, []string{"pypi:setuptools", "pypi:wheel"}, childNames(python),
-		"the postinstall packages as pickable children — an unchecked one dropping from the postinstall")
+	assert.Equal(t, []string{"pypi:ruff", "pypi:setuptools", "pypi:wheel"}, childNames(python),
+		"the optional linter, then the postinstall packages, as pickable children — an unchecked one dropping")
 
 	t.Run("the written postinstall pins the packages — the inheritance hinted instead", func(t *testing.T) {
 		state := mise.ToolState{PostInstalls: map[string]string{"python": "python -m pip install setuptools==70.0.0"}}
@@ -180,7 +187,8 @@ func TestRuntimeItems(t *testing.T) {
 		python := runtimeItem(t, state, "python")
 
 		assert.Equal(t, "inherit existing postinstall", python.Model.Tool.Hint)
-		assert.Empty(t, python.Children, "the packages never re-fetch, never re-render")
+		assert.Equal(t, []string{"pypi:ruff"}, childNames(python),
+			"only the optionals — the packages never re-fetch, never re-render")
 	})
 
 	t.Run("a plain pin keeps the children — the packages fetch at resolve time", func(t *testing.T) {
@@ -188,7 +196,7 @@ func TestRuntimeItems(t *testing.T) {
 
 		python := runtimeItem(t, state, "python")
 
-		assert.Equal(t, []string{"pypi:setuptools", "pypi:wheel"}, childNames(python))
+		assert.Equal(t, []string{"pypi:ruff", "pypi:setuptools", "pypi:wheel"}, childNames(python))
 	})
 }
 

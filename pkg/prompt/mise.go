@@ -20,7 +20,6 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 	checked := slices.Sorted(maps.Keys(state.Pins))
 	err := runFn(pick.NewRunner(pick.RunnerOptions{
 		Header:      "Select the tools to install",
-		Subtext:     []string{"(node is included)"},
 		SubmitLabel: "Save to " + userdir.Tilde(savePath),
 	},
 		pick.NewMultiPicker(runtimeItems(state), checked),
@@ -34,16 +33,16 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 		return nil, nil, fmt.Errorf("no tools selected: rerun in a terminal to pick them, or edit the [tools] region in %s", savePath)
 	}
 
-	node := runtime.Node()
-	runtimes := make(runtime.MiseRuntimes, 0, len(pickedRuntimes)+1)
-	runtimes = append(runtimes, node) // node is always picked
+	runtimes := make(runtime.MiseRuntimes, 0, len(pickedRuntimes))
 	for _, item := range pickedRuntimes {
 		runtimes = append(runtimes, item.Model.rt)
 	}
-	tools := append([]mise.Tool{node.MiseTool},
-		pick.FlattenFunc(pickedRuntimes, flattenNonPostInstall)...)
-	tools = append(tools, pick.FlattenFunc(pickedDev, flattenNonPostInstall)...)
-	return append(tools, pick.FlattenFunc(pickedIndependent, flattenNonPostInstall)...), runtimes.Packages(), nil
+	tools := slices.Concat(
+		pick.FlattenFunc(pickedRuntimes, flattenNonPostInstall),
+		pick.FlattenFunc(pickedDev, flattenNonPostInstall),
+		pick.FlattenFunc(pickedIndependent, flattenNonPostInstall),
+	)
+	return tools, runtimes.Packages(), nil
 }
 
 // toolItems lists the tools as the picker's flat items
@@ -53,11 +52,9 @@ func toolItems(tools []mise.Tool) []pick.Item[toolModel] {
 	})
 }
 
-// toolModel is the mise.Tool as a pick.Model — the Tool's own Tool and Hint
-// fields block the Name and Hint methods, so it wraps instead of implementing.
-// A runtime item's model also carries rt, its runtime's registry value, so
-// the answer maps to the config content without re-resolving the registry
-// (children and independent tools carry none)
+// toolModel is the mise.Tool as a pick.Model — a runtime item's model also
+// carries rt, its runtime's registry value, so the answer maps to the config
+// content without re-resolving the registry
 type toolModel struct {
 	mise.Tool
 
@@ -67,16 +64,15 @@ type toolModel struct {
 func (m toolModel) Name() string { return m.Tool.Name }
 func (m toolModel) Hint() string { return m.Tool.Hint }
 
-// runtimeItems lists the picker's runtime items — every selectable runtime as
-// its mise tool, its optionals and postinstall packages as children; a written
-// postinstall hints its inheritance instead
+// runtimeItems lists the picker's runtime items — every runtime as its mise
+// tool, its optionals and postinstall packages as children; a written
+// postinstall hints its inheritance instead. Node's row is locked on: it's
+// the always-installed runtime, its optionals starting unchecked
 func runtimeItems(state mise.ToolState) []pick.Item[toolModel] {
 	all := runtime.All()
-	items := make([]pick.Item[toolModel], 0, len(all)-1)
+	items := make([]pick.Item[toolModel], 0, len(all))
 	for _, rt := range all {
-		if rt.Name == runtime.Node().Name {
-			continue
-		}
+		isNode := rt.Name == runtime.Node().Name
 		model := toolModel{Tool: rt.MiseTool, rt: rt}
 		children := toolModels(rt.MiseToolsOptional)
 		if state.PostInstalls[rt.Name] != "" {
@@ -84,7 +80,7 @@ func runtimeItems(state mise.ToolState) []pick.Item[toolModel] {
 		} else {
 			children = append(children, toolModels(rt.MiseTool.PostInstallTools)...)
 		}
-		items = append(items, pick.Item[toolModel]{Model: model, Children: children})
+		items = append(items, pick.Item[toolModel]{Model: model, Children: children, IsDisabled: isNode, RevealUnchecked: isNode})
 	}
 	return items
 }

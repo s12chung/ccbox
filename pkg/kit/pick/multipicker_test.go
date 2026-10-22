@@ -157,8 +157,49 @@ func TestMultiPicker_Respond(t *testing.T) {
 }
 
 func TestNewMultiPicker_Checked(t *testing.T) {
-	m := NewMultiPicker(testItems(), []string{"ruby", "bogus"})
-	assert.Equal(t, []bool{false, false, true}, checklistChecks(t, m), "the named items pre-check, unknown names drop")
+	t.Run("the named items pre-check, unknown names drop", func(t *testing.T) {
+		m := NewMultiPicker(testItems(), []string{"ruby", "bogus"})
+		assert.Equal(t, []bool{false, false, true}, checklistChecks(t, m))
+	})
+
+	t.Run("a child's name pre-checks it past its item's RevealUnchecked", func(t *testing.T) {
+		m := NewMultiPicker([]Item[testModel]{
+			{Model: testModel{name: "node"}, Children: []testModel{{name: "oxlint"}}, RevealUnchecked: true},
+		}, []string{"oxlint"})
+		assert.Equal(t, []bool{true}, multi(t, m).checklist[0].checks)
+	})
+}
+
+func TestNewMultiPicker_Disabled(t *testing.T) {
+	items := []Item[testModel]{
+		{Model: testModel{name: "node"}, Children: []testModel{{name: "oxlint"}}, IsDisabled: true},
+		{Model: testModel{name: "go"}},
+	}
+
+	t.Run("a locked item is checked from the start", func(t *testing.T) {
+		m := NewMultiPicker(items, nil)
+		assert.Equal(t, []bool{true, false}, checklistChecks(t, m))
+	})
+
+	t.Run("enter never unchecks the locked row", func(t *testing.T) {
+		m := NewMultiPicker(items, nil)
+		s := stack(RunnerOptions{Header: "pick some", SubmitLabel: "Save"}, m)
+		key(t, s, tea.KeyEnter)
+		assert.Equal(t, []bool{true, false}, checklistChecks(t, m))
+	})
+
+	t.Run("the locked row renders checked", func(t *testing.T) {
+		m := NewMultiPicker(items, nil)
+		assert.Contains(t, m.render(0, true)[0], "[x] node")
+	})
+}
+
+func TestNewMultiPicker_RevealUnchecked(t *testing.T) {
+	items := []Item[testModel]{
+		{Model: testModel{name: "go"}, Children: []testModel{{name: "golangci-lint"}}, RevealUnchecked: true},
+	}
+	m := NewMultiPicker(items, []string{"go"})
+	assert.Equal(t, []bool{false}, multi(t, m).checklist[0].checks, "the reveal starts unchecked")
 }
 
 func TestNewMultiPicker_NoItems(t *testing.T) {

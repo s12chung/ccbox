@@ -3,7 +3,10 @@
 go = "1.26"
 golangci-lint = "2.13.1"
 node = "26.3.0"
+"npm:oxlint" = "1.28.0"
+"npm:oxfmt" = "0.18.0"
 python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0" }
+"pypi:ruff" = "0.15.1"
 ruby = "3.4"
 rust = "1.99"
 ripgrep = "15.2"

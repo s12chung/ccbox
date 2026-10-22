@@ -18,26 +18,33 @@ func NewMultiPicker[M Model](items []Item[M], checked []string) Picker {
 		panic("pick: no items to pick from")
 	}
 	p := &multiPicker[M]{checklist: slices.Clone(items)}
-	byName := make(map[string]*Item[M], len(p.checklist))
+	checks := make(map[string]*bool, len(p.checklist))
 	for i := range p.checklist {
 		item := &p.checklist[i]
-		item.checks = slices.Repeat([]bool{true}, len(item.Children)) // a reveal starts checked
-		byName[item.Model.Name()] = item
+		item.checks = slices.Repeat([]bool{!item.RevealUnchecked}, len(item.Children))
+		checks[item.Model.Name()] = &item.checked
+		for j, child := range item.Children {
+			checks[child.Name()] = &item.checks[j]
+		}
+		if item.IsDisabled {
+			item.checked = true // a locked item is always picked
+		}
 	}
 	for _, name := range checked {
-		if item, ok := byName[name]; ok {
-			item.checked = true
+		if check, ok := checks[name]; ok {
+			*check = true
 		}
 	}
 	return p
 }
 
-// Item is one checklist entry: children list the models revealed checked
-// beneath it while it's checked — each child unchecks alone. The checks live
-// on the item.
+// Item is one checklist entry: children list the models revealed beneath it
+// while it's checked — each child unchecks alone. The checks live on the item.
 type Item[M Model] struct {
-	Model    M
-	Children []M
+	Model           M
+	Children        []M
+	IsDisabled      bool // locks the row on checked — rendered gray, enter never toggles it
+	RevealUnchecked bool // starts the revealed children unchecked
 
 	checked bool
 	checks  []bool // the children's checks, one per child
@@ -46,7 +53,7 @@ type Item[M Model] struct {
 // row flattens the item into its visible rows: itself, then its revealed
 // children while it's checked
 func (item *Item[M]) row() []row {
-	rows := []row{{name: item.Model.Name(), hint: item.Model.Hint(), checked: &item.checked}}
+	rows := []row{{name: item.Model.Name(), hint: item.Model.Hint(), checked: &item.checked, disabled: item.IsDisabled}}
 	if !item.checked {
 		return rows
 	}
@@ -77,13 +84,19 @@ func FlattenFunc[M Model, A any](items []Item[M], f func(M, []M) []A) []A {
 // row is one visible checklist row: the option itself, or one of its revealed
 // children — checked points at the check it renders and toggles
 type row struct {
-	name    string
-	hint    string
-	checked *bool
-	child   bool
+	name     string
+	hint     string
+	checked  *bool
+	disabled bool
+	child    bool
 }
 
-func (r row) toggle() { *r.checked = !*r.checked }
+func (r row) toggle() {
+	if r.disabled {
+		return
+	}
+	*r.checked = !*r.checked
+}
 
 // view renders the row: the cursor, the check box and the name, children
 // indented under their option
@@ -95,6 +108,9 @@ func (r row) view(onCursor bool) string {
 	indent := ""
 	if r.child {
 		indent = "  "
+	}
+	if r.disabled {
+		return cursor + indent + lightStyle.Render("[x] "+r.name) + hintSuffix(r.hint)
 	}
 	box := defaultStyle.Render("[ ]")
 	if *r.checked {
