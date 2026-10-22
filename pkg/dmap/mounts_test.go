@@ -167,6 +167,7 @@ func TestCacheVolumeNames(t *testing.T) {
 	s := slug.Path("/Users/me/proj")
 	assert.Equal(t, map[string]string{
 		"ccbox" + s + "-cache-cache-default":       "/home/ccbox/.cache",
+		"ccbox" + s + "-cargo-cache-default":       "/home/ccbox/.cargo",
 		"ccbox" + s + "-gem-cache-default":         "/home/ccbox/.gem",
 		"ccbox" + s + "-go-cache-default":          "/home/ccbox/go",
 		"ccbox" + s + "-local-cache-default":       "/home/ccbox/.local",

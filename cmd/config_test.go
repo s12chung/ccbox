@@ -111,6 +111,13 @@ func TestAliasSections(t *testing.T) {
 		"# ccbox-ruby-runtime:",
 		"#   - rubygems.org",
 		"#   - cache.ruby-lang.org",
+		"",
+		"# ccbox-rust-runtime:",
+		"#   - sh.rustup.rs",
+		"#   - static.rust-lang.org",
+		"#   - crates.io",
+		"#   - index.crates.io",
+		"#   - static.crates.io",
 	}, printutil.Render(aliasSections()))
 }
 

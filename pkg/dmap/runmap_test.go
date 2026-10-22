@@ -143,6 +143,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 		docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly(),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),
+		docker.NewVolume("ccbox"+s+"-cargo-cache-default", "/home/ccbox/.cargo"),
 		docker.NewVolume("ccbox"+s+"-gem-cache-default", "/home/ccbox/.gem"),
 		docker.NewVolume("ccbox"+s+"-go-cache-default", "/home/ccbox/go"),
 		docker.NewVolume("ccbox"+s+"-local-cache-default", "/home/ccbox/.local"),

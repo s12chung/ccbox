@@ -1,7 +1,6 @@
 package runtime
 
 import (
-	"maps"
 	"slices"
 	"strings"
 	"testing"
@@ -79,16 +78,15 @@ func TestData_Corroborates(t *testing.T) {
 			// every env'd path is a cache volume or PATH entry: the volumes seed what the env points at
 			for k, v := range r.EnvVars {
 				if !strings.HasPrefix(v, containerHome+"/") {
-					continue // not a path (NPM_CONFIG_UPDATE_NOTIFIER=false)
+					continue // not per-project state (NPM_CONFIG_UPDATE_NOTIFIER=false, RUSTUP_HOME system-side)
 				}
 				assert.Containsf(t, dirs, v, "%s points outside the runtime's dirs", k)
 			}
 
-			// PATH entries derive from the env: the value itself (GOBIN), or its bin dir (GEM_HOME, NPM_CONFIG_PREFIX)
-			values := slices.Collect(maps.Values(r.EnvVars))
+			// PATH entries hang off a cache volume: the volume seeds the bin dir
 			for _, bin := range r.BinEntries {
-				derived := slices.ContainsFunc(values, func(v string) bool { return v == bin || v+"/bin" == bin })
-				assert.Truef(t, derived, "%s derives from no env var", bin)
+				derived := slices.ContainsFunc(r.CacheVolumes, func(v string) bool { return v == bin || v+"/bin" == bin })
+				assert.Truef(t, derived, "%s hangs off no cache volume", bin)
 			}
 		})
 	}

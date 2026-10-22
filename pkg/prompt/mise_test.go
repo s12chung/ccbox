@@ -169,7 +169,7 @@ func TestRuntimeItems(t *testing.T) {
 			python = item
 		}
 	}
-	assert.Equal(t, []string{"go", "python", "ruby"}, names, "every selectable runtime in All()'s order — node always present, never an item")
+	assert.Equal(t, []string{"go", "python", "ruby", "rust"}, names, "every selectable runtime in All()'s order — node always present, never an item")
 	assert.Equal(t, []string{"golangci-lint"}, childNames(goItem), "the optionals listed as children")
 	assert.Equal(t, []string{"pypi:setuptools", "pypi:wheel"}, childNames(python),
 		"the postinstall packages as pickable children — an unchecked one dropping from the postinstall")

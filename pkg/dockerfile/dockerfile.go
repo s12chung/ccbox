@@ -5,6 +5,7 @@ package dockerfile
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"io/fs"
 	"maps"
 	"slices"
@@ -28,6 +29,18 @@ type regions struct{ runtimes []runtime.Runtime }
 // BuildDeps renders the from-source compile RUN's $buildDeps
 func (r regions) BuildDeps() string {
 	return strings.Join(r.collect(func(rt runtime.Runtime) []string { return rt.AptBuildDeps }), " ")
+}
+
+// BuildEnv renders the from-source install RUN's env exports — the RUN's shell
+// alone; the baked image only sees what EnvVars redefines
+func (r regions) BuildEnv() string {
+	var b strings.Builder
+	for _, rt := range r.runtimes {
+		for _, k := range slices.Sorted(maps.Keys(rt.EnvBuildDeps)) {
+			fmt.Fprintf(&b, "    export %s=%s; \\\n", k, rt.EnvBuildDeps[k])
+		}
+	}
+	return b.String()
 }
 
 // PATHDirs renders the user PATH ENV's runtime segment

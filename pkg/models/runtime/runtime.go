@@ -22,12 +22,13 @@ type Runtime struct {
 	MiseTool          mise.Tool   // the runtime itself, as the mise config installs it
 	MiseToolsOptional []mise.Tool // the ecosystem tooling installed with the runtime
 
-	AptPkgs      []string // shared libs the mise config's [bootstrap.packages] installs
-	AptBuildDeps []string // the from-source compile's headers, purged right after
+	AptPkgs      []string          // shared libs the mise config's [bootstrap.packages] installs
+	AptBuildDeps []string          // the from-source compile's headers, purged right after
+	EnvVars      map[string]string // the baked env — consumers sort the keys
+	EnvBuildDeps map[string]string // from-source install's env, exported to the install RUN
 
-	CacheVolumes []string          // the container dirs dmap maps per-project cache volumes to; the name's suffix is path.Base minus its leading dot
-	BinEntries   []string          // the container PATH additions
-	EnvVars      map[string]string // the image env (GOBIN, GEM_HOME, NPM_CONFIG_*) — consumers sort the keys
+	BinEntries   []string // the container PATH additions
+	CacheVolumes []string // the container dirs dmap maps per-project cache volumes to; the name's suffix is path.Base minus its leading dot
 }
 
 // runtimes is every selectable runtime, sorted by name — node is not selectable
@@ -39,9 +40,9 @@ var runtimes = []Runtime{
 		Domains:           []string{"golang.org", "proxy.golang.org", "sum.golang.org", "dl.google.com", "storage.googleapis.com"},
 		MiseTool:          mise.Tool{Name: "go"},
 		MiseToolsOptional: []mise.Tool{{Name: "golangci-lint"}},
-		CacheVolumes:      []string{"/home/ccbox/go"}, // go mod tidy module cache + GOBIN
+		EnvVars:           map[string]string{"GOBIN": "/home/ccbox/go/bin"}, // mise sets its own GOBIN
 		BinEntries:        []string{"/home/ccbox/go/bin"},
-		EnvVars:           map[string]string{"GOBIN": "/home/ccbox/go/bin"},
+		CacheVolumes:      []string{"/home/ccbox/go"}, // go mod tidy module cache + GOBIN
 	},
 	// Python: the package index and its file host
 	{
@@ -61,24 +62,40 @@ var runtimes = []Runtime{
 		MiseTool:     mise.Tool{Name: "ruby"},
 		AptPkgs:      []string{"libssl3t64", "libyaml-0-2", "zlib1g", "libffi8", "libreadline8t64", "libgmp10", "libzstd1"},
 		AptBuildDeps: []string{"libssl-dev", "libyaml-dev", "zlib1g-dev", "libffi-dev", "libreadline-dev", "libgmp-dev"},
-		CacheVolumes: []string{"/home/ccbox/.gem"}, // bundler GEM_HOME
-		BinEntries:   []string{"/home/ccbox/.gem/bin"},
 		EnvVars:      map[string]string{"GEM_HOME": "/home/ccbox/.gem"},
+		BinEntries:   []string{"/home/ccbox/.gem/bin"},
+		CacheVolumes: []string{"/home/ccbox/.gem"}, // bundler GEM_HOME
+	},
+	// Rust: rustup-init + the toolchain dists it installs, the crates index and its downloads
+	{
+		Name:     "rust",
+		Domains:  []string{"sh.rustup.rs", "static.rust-lang.org", "crates.io", "index.crates.io", "static.crates.io"},
+		MiseTool: mise.Tool{Name: "rust"},
+		// The build's HOME (root's) is unreadable to ccbox, and rustup hangs its
+		// state off it by default — pin both homes system-side, baking only the
+		// toolchain home the proxies resolve through
+		EnvVars: map[string]string{"RUSTUP_HOME": "/usr/local/share/mise/rustup"},
+		EnvBuildDeps: map[string]string{
+			"CARGO_HOME":  "/usr/local/share/mise/cargo",
+			"RUSTUP_HOME": "/usr/local/share/mise/rustup",
+		},
+		BinEntries:   []string{"/home/ccbox/.cargo/bin"},
+		CacheVolumes: []string{"/home/ccbox/.cargo"}, // cargo registry + git dep caches; cargo install's bin dir
 	},
 }
 
 // node is installed by default — the devbox tooling depends on it.
 var node = Runtime{
-	Name:         "node",
-	Domains:      []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
-	MiseTool:     mise.Tool{Name: "node"},
-	AptPkgs:      []string{"libatomic1"},                                  // V8 needs libatomic on arm64
-	CacheVolumes: []string{"/home/ccbox/.npm", "/home/ccbox/.npm-global"}, // npm download cache; global packages
-	BinEntries:   []string{"/home/ccbox/.npm-global/bin"},
+	Name:     "node",
+	Domains:  []string{"registry.npmjs.org", "registry.yarnpkg.com", "nodejs.org"},
+	MiseTool: mise.Tool{Name: "node"},
+	AptPkgs:  []string{"libatomic1"}, // V8 needs libatomic on arm64
 	EnvVars: map[string]string{
 		"NPM_CONFIG_PREFIX":          "/home/ccbox/.npm-global",
 		"NPM_CONFIG_UPDATE_NOTIFIER": "false",
 	},
+	BinEntries:   []string{"/home/ccbox/.npm-global/bin"},
+	CacheVolumes: []string{"/home/ccbox/.npm", "/home/ccbox/.npm-global"}, // npm download cache; global packages
 }
 
 // AllRuntimesAlias is the allowlist alias expanding to every runtime's domains

@@ -25,7 +25,7 @@ ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
 # hadolint ignore=SC2086
 RUN set -eux; \
     export HOME=/root; \
-    apt-get update; \
+{{.BuildEnv}}    apt-get update; \
     buildDeps='{{.BuildDeps}}'; \
     apt-get install -y --no-install-recommends $buildDeps; \
     MISE_DATA_DIR=/usr/local/share/mise mise install; \

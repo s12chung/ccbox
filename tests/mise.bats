@@ -12,9 +12,7 @@ teardown() {
 }
 
 @test "project mise: workspace tools pinned to the system mise resolve (system)" {
-    # the workspace mirrors the image's system config — with the lock beside it, plus
-    # the lock's dependency sidecars, when the image baked through one; exactly how
-    # ccbox overlays a project mise
+    # the workspace mirrors the image's system config — exactly how ccbox overlays a project mise
     proj_tmp="$(mktemp -d)"
     cp /etc/mise/config.toml "$proj_tmp/mise.toml"
     if [ -f /etc/mise/mise.lock ]; then
@@ -28,6 +26,7 @@ teardown() {
     run bash -c "cd '$proj_tmp' && mise ls --current 2>/dev/null"
     [ "$status" -eq 0 ]
     [[ "$output" == *"(system)"* ]]
-    # every current tool resolves to its system install — none missing, none to download
-    run ! grep -qv '(system)' <<<"$output"
+    # every current tool resolves to its system install — none missing, none to download;
+    # rust installs as a symlink
+    run ! grep -qvE '\((system|symlink)\)' <<<"$output"
 }

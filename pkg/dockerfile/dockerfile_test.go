@@ -41,12 +41,17 @@ func TestRegions(t *testing.T) {
 		want   string
 	}{
 		{"buildDeps", regions.BuildDeps, "libssl-dev libyaml-dev zlib1g-dev libffi-dev libreadline-dev libgmp-dev"},
-		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin"},
+		{
+			"buildEnv", regions.BuildEnv,
+			"    export CARGO_HOME=/usr/local/share/mise/cargo; \\\n    export RUSTUP_HOME=/usr/local/share/mise/rustup; \\\n",
+		},
+		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.gem/bin:/home/ccbox/.cargo/bin"},
 		{
 			"envVars", regions.EnvVars,
-			"GOBIN=/home/ccbox/go/bin NPM_CONFIG_PREFIX=/home/ccbox/.npm-global NPM_CONFIG_UPDATE_NOTIFIER=false GEM_HOME=/home/ccbox/.gem",
+			"GOBIN=/home/ccbox/go/bin NPM_CONFIG_PREFIX=/home/ccbox/.npm-global NPM_CONFIG_UPDATE_NOTIFIER=false GEM_HOME=/home/ccbox/.gem" +
+				" RUSTUP_HOME=/usr/local/share/mise/rustup",
 		},
-		{"cacheDirs", regions.CacheDirs, "/home/ccbox/go /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.gem"},
+		{"cacheDirs", regions.CacheDirs, "/home/ccbox/go /home/ccbox/.npm /home/ccbox/.npm-global /home/ccbox/.gem /home/ccbox/.cargo"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -65,6 +70,7 @@ func TestRegions_Selection(t *testing.T) {
 		want   string
 	}{
 		{"buildDeps", regions.BuildDeps, ""},
+		{"buildEnv", regions.BuildEnv, ""},
 		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin"},
 		{"envVars", regions.EnvVars, "GOBIN=/home/ccbox/go/bin NPM_CONFIG_PREFIX=/home/ccbox/.npm-global NPM_CONFIG_UPDATE_NOTIFIER=false"},
 		{"cacheDirs", regions.CacheDirs, "/home/ccbox/go /home/ccbox/.npm /home/ccbox/.npm-global"},
