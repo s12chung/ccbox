@@ -2,3 +2,7 @@
 # Pinning every system package is high-churn and low-value for a dev image.
 ignored:
   - DL3008
+# Devbox policy: only warnings and above fail the lint. Info rules appear as
+# hadolint evolves (DL3066 postdates CI's install), so failing on them lets the
+# image's mise-resolved version and CI's pinned version disagree on a clean tree.
+failure-threshold: warning
