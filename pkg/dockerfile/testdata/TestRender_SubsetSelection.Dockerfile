@@ -61,6 +61,8 @@ COPY --chmod=755 dist/ccboxtools /usr/local/bin/ccboxtools
 RUN rm -rf /root/.cache /root/.npm /tmp; mkdir -m 1777 /tmp; \
     mkdir -p /opt/ccbox && chown ccbox:ccbox /opt/ccbox
 
+# the name resolves in-image: ccbox's uid is pinned to 1000 at creation
+# hadolint ignore=DL3066
 USER ccbox
 
 # Pre-created dirs let the named volumes mapped onto them inherit uid 1000;
@@ -83,7 +85,7 @@ CMD ["bash"]
 # XFCE, the session's browser wrapper, and the GUI app's Electron/OAuth bits.
 FROM base AS vnc
 # The stage inherits the base's ccbox USER; the apt row below needs root.
-# hadolint ignore=DL3002
+# hadolint ignore=DL3002,DL3066
 USER root
 
 # Only the dep-graph's tips — everything else lands via Depends:
@@ -114,6 +116,8 @@ COPY docker/desktop/policies/ /
 # The GUI app's volume mountpoint, ccbox-owned so the named volume seeds uid 1000
 RUN mkdir -p /opt/ccbox/apps && chown ccbox:ccbox /opt/ccbox/apps
 
+# the name resolves in-image: ccbox's uid is pinned to 1000 at creation
+# hadolint ignore=DL3066
 USER ccbox
 
 # The default target
