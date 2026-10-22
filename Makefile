@@ -18,11 +18,7 @@ lint: lint.terms
 	cd tools/ccboxtools && golangci-lint run --fix $(TEST)
 
 lint.terms:
-	@out=$$(grep -rnE '(_|\b)[Ww][Aa][Ll][Ll]([Ee][Dd]|[Ss])?(_|\b)|[a-z]Wall' \
-		--include='*.go' --include='*.md' --include='*.tmpl' --include='*.sh' --include='*.bats' \
-		--include='*.yaml' --include='*.yml' --include='*.json' --include='*.toml' . \
-		| grep -vE '[Ee]gress[ -]?[Ww]all|wall/walled|^\./(\.git|dist|\.idea)/'); \
-	if [ -n "$$out" ]; then echo "$$out"; echo 'standalone "wall/walled" is banned — use "proxy" or "egress wall"' >&2; exit 1; fi
+	go run ./tools/termlint
 
 ci: lint test
 test.all: test test.docker

@@ -1,0 +1,15 @@
+{
+  "extensions": [".go", ".md", ".tmpl", ".sh", ".bats", ".yaml", ".yml", ".json", ".toml"],
+  "exclude_globs": ["dist/**", ".idea/**", "tools/termlint/**", "termlint.json"],
+  "terms": [
+    {
+      "word": "wall",
+      "allows": ["egress wall", "wall/walled"],
+      "hint": "standalone \"wall/walled\" is banned — use \"proxy\" or \"egress wall\""
+    },
+    {
+      "word": "ride",
+      "hint": "\"ride/rides/riding\" is banned — name the actual relationship, e.g. \"carried by\" or \"included with\""
+    }
+  ]
+}

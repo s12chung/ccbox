@@ -17,6 +17,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
     - `pkg/util/` - std lib utility packages shared between `ccbox` and `ccboxtools`, notable: `flock`, `httputil`, `testutil`
       - `log/` — log helpers and abstraction, never use `fmt.Print*`
   - `toolsbuild/` — `go run` command that builds `dist/ccboxtools`
+  - `termlint/` — `go run` command that lints banned terms from `termlint.json` (`make lint.terms`)
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `cfg/` — the `ccbox` Config as described in the README
