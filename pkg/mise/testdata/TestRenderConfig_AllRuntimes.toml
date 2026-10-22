@@ -5,7 +5,6 @@ golangci-lint = "2.13.1"
 node = "26.3.0"
 python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0" }
 ruby = "3.4"
-# Dev-workflow CLIs
 ripgrep = "15.2"
 jq = "1.8"
 yq = "4.54"

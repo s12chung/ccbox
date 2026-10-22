@@ -195,8 +195,20 @@ const (
 	contextSidecarsPath = "docker/mise/.mise/locks"
 )
 
+// devTools is the dev-workflow CLIs every devbox gets — rendered after the
+// runtimes, ahead of the independent tools
+var devTools = []Tool{
+	{Name: "ripgrep"},
+	{Name: "jq"},
+	{Name: "yq"},
+	{Name: "shellcheck"},
+}
+
+// DevTools is the dev-workflow CLIs in every config, in render order
+func DevTools() []Tool { return slices.Clone(devTools) }
+
 // independentTools is the image's tools independent of the runtime selection —
-// the mise tools picker's second checklist
+// the mise tools picker's third checklist, the rendered region's tail
 var independentTools = []Tool{
 	{Name: "bats"},
 	{Name: "hadolint"},
@@ -210,18 +222,6 @@ var independentTools = []Tool{
 
 // IndependentTools is the image's independent tools, in render order
 func IndependentTools() []Tool { return slices.Clone(independentTools) }
-
-// devTools is the dev-workflow CLIs every devbox gets — rendered under their
-// header at the tools region's end
-var devTools = []Tool{
-	{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
-	{Name: "jq"},
-	{Name: "yq"},
-	{Name: "shellcheck"},
-}
-
-// DevTools is the dev-workflow CLIs in every config, in render order
-func DevTools() []Tool { return slices.Clone(devTools) }
 
 // BuildFS is the build fs for the image's `mise install`: the embed with the
 // mise config injected where the Dockerfile COPYs it.

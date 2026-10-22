@@ -16,7 +16,7 @@ import (
 // with the runtimes' apt libs — a fresh config passes the zero state, with
 // nothing written to prefill the pick prompt
 func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, error) {
-	var pickedRuntimes, pickedIndependent []pick.Item[toolModel]
+	var pickedRuntimes, pickedDev, pickedIndependent []pick.Item[toolModel]
 	checked := slices.Sorted(maps.Keys(state.Pins))
 	err := runFn(pick.NewRunner(pick.RunnerOptions{
 		Header:      "Select the tools to install",
@@ -24,8 +24,9 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 		SubmitLabel: "Save to " + userdir.Tilde(savePath),
 	},
 		pick.NewMultiPicker(runtimeItems(state), checked),
-		pick.NewMultiPicker(independentItems(), checked),
-	), &pickedRuntimes, &pickedIndependent)
+		pick.NewMultiPicker(toolItems(mise.DevTools()), checked),
+		pick.NewMultiPicker(toolItems(mise.IndependentTools()), checked),
+	), &pickedRuntimes, &pickedDev, &pickedIndependent)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -41,8 +42,15 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 	}
 	tools := append([]mise.Tool{node.MiseTool},
 		pick.FlattenFunc(pickedRuntimes, flattenNonPostInstall)...)
-	tools = append(tools, pick.FlattenFunc(pickedIndependent, flattenNonPostInstall)...)
-	return append(tools, mise.DevTools()...), runtimes.Packages(), nil
+	tools = append(tools, pick.FlattenFunc(pickedDev, flattenNonPostInstall)...)
+	return append(tools, pick.FlattenFunc(pickedIndependent, flattenNonPostInstall)...), runtimes.Packages(), nil
+}
+
+// toolItems lists the tools as the picker's flat items
+func toolItems(tools []mise.Tool) []pick.Item[toolModel] {
+	return slicex.Map(tools, func(t mise.Tool) pick.Item[toolModel] {
+		return pick.Item[toolModel]{Model: toolModel{Tool: t}}
+	})
 }
 
 // toolModel is the mise.Tool as a pick.Model — the Tool's own Tool and Hint
@@ -81,28 +89,17 @@ func runtimeItems(state mise.ToolState) []pick.Item[toolModel] {
 	return items
 }
 
-// independentItems lists the picker's independent tool items
-func independentItems() []pick.Item[toolModel] {
-	return slicex.Map(mise.IndependentTools(), func(t mise.Tool) pick.Item[toolModel] {
-		return pick.Item[toolModel]{Model: toolModel{Tool: t}}
-	})
-}
-
 func toolModels(tools []mise.Tool) []toolModel {
 	return slicex.Map(tools, func(t mise.Tool) toolModel { return toolModel{Tool: t} })
-}
-
-// modelTools unpacks the models to their tools
-func modelTools(models []toolModel) []mise.Tool {
-	return slicex.Map(models, func(m toolModel) mise.Tool { return m.Tool })
 }
 
 // flattenNonPostInstall flattens the mise tools, and keeps postinstall tools
 // in the PostInstallTools field
 func flattenNonPostInstall(model toolModel, children []toolModel) []mise.Tool {
+	childTools := slicex.Map(children, func(m toolModel) mise.Tool { return m.Tool })
 	if len(model.PostInstallTools) == 0 {
-		return append([]mise.Tool{model.Tool}, modelTools(children)...)
+		return append([]mise.Tool{model.Tool}, childTools...)
 	}
-	model.PostInstallTools = modelTools(children)
+	model.PostInstallTools = childTools
 	return []mise.Tool{model.Tool}
 }

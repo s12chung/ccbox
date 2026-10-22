@@ -222,10 +222,10 @@ func TestRenderConfig_WrittenPostInstall(t *testing.T) {
 	assert.Equal(t, want, body)
 }
 
-// TestRenderConfig_IndependentTools pins the render when only the independent
-// tools are seeded, the dev-workflow CLIs at the tail
+// TestRenderConfig_IndependentTools pins the render when only the dev tools
+// and independent tools are seeded, the independent tools at the tail
 func TestRenderConfig_IndependentTools(t *testing.T) {
-	configSet := must.Get(resolvedConfig(slices.Concat(independentTools, devTools), ToolState{Pins: map[string]string{
+	configSet := must.Get(resolvedConfig(slices.Concat(devTools, independentTools), ToolState{Pins: map[string]string{
 		"bats": "1.14", "hadolint": "2.15", "npm:playwright": "1.64",
 		"ripgrep": "15.2", "jq": "1.8", "yq": "4.54", "shellcheck": "0.11",
 	}}, nil))

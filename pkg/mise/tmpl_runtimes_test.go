@@ -20,7 +20,7 @@ import (
 )
 
 // TestRenderConfig_AllRuntimes pins the seed a fresh host gets: every runtime's
-// real tools and apt libs in the render, the dev-workflow CLIs at the tail
+// real tools and apt libs in the render, the dev-workflow CLIs after them
 func TestRenderConfig_AllRuntimes(t *testing.T) {
 	all := runtime.MiseRuntimes(runtime.All())
 	var tools []mise.Tool

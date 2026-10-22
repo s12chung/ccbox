@@ -14,7 +14,7 @@ import (
 
 func TestMiseTools(t *testing.T) {
 	t.Run("picked runtimes resolve to their tools and libs, node always in", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("python", "pypi:setuptools", "pypi:wheel")}, nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("python", "pypi:setuptools", "pypi:wheel")}, toolItems(mise.DevTools()), nil, nil)
 
 		tools, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
@@ -25,7 +25,7 @@ func TestMiseTools(t *testing.T) {
 				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
 				PostInstallTools:   []mise.Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}}, // the checked packages answer on the tool
 			},
-			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
+			{Name: "ripgrep"},
 			{Name: "jq"},
 			{Name: "yq"},
 			{Name: "shellcheck"},
@@ -34,7 +34,7 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("every package dropped answers empty", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("python")}, nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("python")}, toolItems(mise.DevTools()), nil, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestMiseTools(t *testing.T) {
 				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
 				PostInstallTools:   []mise.Tool{}, // empty, not nil — resolve reads it as every package dropped
 			},
-			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
+			{Name: "ripgrep"},
 			{Name: "jq"},
 			{Name: "yq"},
 			{Name: "shellcheck"},
@@ -53,7 +53,7 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("a checked child joins its runtime, an unchecked one drops", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go", "golangci-lint")}, nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go", "golangci-lint")}, toolItems(mise.DevTools()), nil, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
@@ -61,20 +61,20 @@ func TestMiseTools(t *testing.T) {
 			{Name: "node"},
 			{Name: "go"},
 			{Name: "golangci-lint"},
-			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
+			{Name: "ripgrep"},
 			{Name: "jq"},
 			{Name: "yq"},
 			{Name: "shellcheck"},
 		}, tools)
 
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")}, nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")}, toolItems(mise.DevTools()), nil, nil)
 
 		tools, _, err = MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
 			{Name: "node"},
 			{Name: "go"},
-			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
+			{Name: "ripgrep"},
 			{Name: "jq"},
 			{Name: "yq"},
 			{Name: "shellcheck"},
@@ -82,7 +82,7 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("the picked runtimes' apt libs are in the answer, sorted", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("ruby")}, nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("ruby")}, toolItems(mise.DevTools()), nil, nil)
 
 		_, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
@@ -93,13 +93,17 @@ func TestMiseTools(t *testing.T) {
 
 	t.Run("the independent tools' picks follow the runtimes'", func(t *testing.T) {
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")},
-			[]pick.Item[toolModel]{pickedIndependent("hadolint"), pickedIndependent("npm:playwright")}, nil)
+			toolItems(mise.DevTools()), []pick.Item[toolModel]{pickedIndependent("hadolint"), pickedIndependent("npm:playwright")}, nil)
 
 		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
 		assert.Equal(t, []mise.Tool{
 			{Name: "node"},
 			{Name: "go"},
+			{Name: "ripgrep"},
+			{Name: "jq"},
+			{Name: "yq"},
+			{Name: "shellcheck"},
 			{Name: "hadolint"},
 			{
 				Name:               "npm:playwright",
@@ -107,30 +111,36 @@ func TestMiseTools(t *testing.T) {
 				Comment:            "# --vnc flag uses this chromium as a browser",
 				Hint:               "with chrome",
 			},
-			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
-			{Name: "jq"},
+		}, tools)
+	})
+
+	t.Run("the dev tools' picks follow the runtimes', ahead of the independent tools'", func(t *testing.T) {
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("go")},
+			[]pick.Item[toolModel]{pickedDev("ripgrep"), pickedDev("yq")},
+			[]pick.Item[toolModel]{pickedIndependent("hadolint")}, nil)
+
+		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
+		require.NoError(t, err)
+		assert.Equal(t, []mise.Tool{
+			{Name: "node"},
+			{Name: "go"},
+			{Name: "ripgrep"},
 			{Name: "yq"},
-			{Name: "shellcheck"},
+			{Name: "hadolint"},
 		}, tools)
 	})
 
 	t.Run("an empty pick still includes node", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{}, nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{}, nil, nil, nil)
 
 		tools, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
-		assert.Equal(t, []mise.Tool{
-			{Name: "node"},
-			{Name: "ripgrep", Comment: "# Dev-workflow CLIs"},
-			{Name: "jq"},
-			{Name: "yq"},
-			{Name: "shellcheck"},
-		}, tools)
+		assert.Equal(t, []mise.Tool{{Name: "node"}}, tools)
 		assert.Equal(t, []string{"libatomic1"}, packages)
 	})
 
 	t.Run("no picker answer errors", func(t *testing.T) {
-		stubRunTools(t, nil, nil, nil)
+		stubRunTools(t, nil, nil, nil, nil)
 
 		_, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.Error(t, err)
@@ -138,7 +148,7 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("quitting the picker aborts", func(t *testing.T) {
-		stubRunTools(t, nil, nil, pick.ErrCanceled)
+		stubRunTools(t, nil, nil, nil, pick.ErrCanceled)
 
 		_, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.ErrorIs(t, err, pick.ErrCanceled)
@@ -193,31 +203,36 @@ func runtimeItem(t *testing.T, state mise.ToolState, name string) pick.Item[tool
 	panic("no such runtime item: " + name)
 }
 
-func TestIndependentItems(t *testing.T) {
-	items := independentItems()
+func TestToolItems(t *testing.T) {
+	t.Run("the dev tools' items follow DevTools' render order", func(t *testing.T) {
+		assert.Equal(t, []string{"ripgrep", "jq", "yq", "shellcheck"}, itemNames(toolItems(mise.DevTools())))
+	})
 
-	names := make([]string, 0, len(items))
-	for _, item := range items {
-		names = append(names, item.Model.Name())
-	}
-	assert.Equal(t, []string{"bats", "hadolint", "npm:playwright"}, names)
+	t.Run("the independent tools' items follow IndependentTools' render order", func(t *testing.T) {
+		items := toolItems(mise.IndependentTools())
 
-	playwright := items[slices.Index(names, "npm:playwright")]
-	assert.Equal(t, "with chrome", playwright.Model.Hint(), "the tool's hint carries through the model")
-	assert.Empty(t, playwright.Children, "a static postinstall has no packages to pick")
+		names := itemNames(items)
+		assert.Equal(t, []string{"bats", "hadolint", "npm:playwright"}, names)
+
+		playwright := items[slices.Index(names, "npm:playwright")]
+		assert.Equal(t, "with chrome", playwright.Model.Hint(), "the tool's hint carries through the model")
+		assert.Empty(t, playwright.Children, "a static postinstall has no packages to pick")
+	})
 }
 
-// stubRunTools pins runFn's two answers — the runtimes' checklist's, then the
-// independent tools'
-func stubRunTools(t *testing.T, rts, independentTools []pick.Item[toolModel], err error) {
+// stubRunTools pins runFn's answers — the runtimes' checklist's, the dev
+// tools', then the independent tools'
+func stubRunTools(t *testing.T, rts, devTools, independentTools []pick.Item[toolModel], err error) {
 	t.Helper()
 	runFn = func(_ pick.Runner, ptrs ...any) error {
-		require.Len(t, ptrs, 2)
+		require.Len(t, ptrs, 3)
 		rtsPtr, ok := ptrs[0].(*[]pick.Item[toolModel])
 		require.True(t, ok)
-		toolsPtr, ok := ptrs[1].(*[]pick.Item[toolModel])
+		devPtr, ok := ptrs[1].(*[]pick.Item[toolModel])
 		require.True(t, ok)
-		*rtsPtr, *toolsPtr = rts, independentTools
+		toolsPtr, ok := ptrs[2].(*[]pick.Item[toolModel])
+		require.True(t, ok)
+		*rtsPtr, *devPtr, *toolsPtr = rts, devTools, independentTools
 		return err
 	}
 	t.Cleanup(func() { runFn = pick.Runner.Run })
@@ -236,14 +251,32 @@ func pickedRuntime(name string, children ...string) pick.Item[toolModel] {
 	panic("no such runtime item: " + name)
 }
 
+// pickedDev is the named dev tool item as respond answers it
+func pickedDev(name string) pick.Item[toolModel] {
+	for _, item := range toolItems(mise.DevTools()) {
+		if item.Model.Name() == name {
+			return item
+		}
+	}
+	panic("no such dev item: " + name)
+}
+
 // pickedIndependent is the named independent tool item as respond answers it
 func pickedIndependent(name string) pick.Item[toolModel] {
-	for _, item := range independentItems() {
+	for _, item := range toolItems(mise.IndependentTools()) {
 		if item.Model.Name() == name {
 			return item
 		}
 	}
 	panic("no such independent item: " + name)
+}
+
+func itemNames(items []pick.Item[toolModel]) []string {
+	names := make([]string, 0, len(items))
+	for _, item := range items {
+		names = append(names, item.Model.Name())
+	}
+	return names
 }
 
 func childNames(item pick.Item[toolModel]) []string {
