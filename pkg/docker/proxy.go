@@ -155,8 +155,7 @@ func streamLogs(ctxD *dock.CtxD, l *tinyproxy.Log) error {
 	}
 	logDone := l.StreamGo(logs)
 	go func() {
-		<-logDone
-		log.WarnErr("close proxy logs", errors.Join(l.Close(), logs.Close()))
+		log.WarnErr("close proxy logs", errors.Join(<-logDone, l.Close(), logs.Close()))
 	}()
 	return nil
 }

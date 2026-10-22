@@ -48,7 +48,7 @@ var (
 
 // Open opens the named file after following any symbolic links.
 //
-//nolint:cyclop,funlen,nestif,modernize // verbatim from Go's fstest.MapFS
+//nolint:cyclop,gocognit,funlen,nestif,modernize // verbatim from Go's fstest.MapFS
 func (fsys MapFS) Open(name string) (fs.File, error) {
 	if !fs.ValidPath(name) {
 		return nil, &fs.PathError{Op: opOpen, Path: name, Err: fs.ErrNotExist}

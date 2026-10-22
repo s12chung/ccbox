@@ -1,6 +1,6 @@
 version: "2"
 linters:
-  # all available linters as of golangci-lint 2.13.1
+  # all available linters as of golangci-lint 2.15.0
   default: none
   enable:
     # enabled by default
