@@ -4,7 +4,7 @@ FROM debian:trixie-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
-        git curl less procps unzip bind9-dnsutils \
+        git curl less make procps unzip bind9-dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise
