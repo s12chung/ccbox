@@ -38,6 +38,21 @@ func TestAll(t *testing.T) {
 	assert.True(t, slices.IsSorted(names))
 }
 
+// The Dockerfile applies the bootstrap packages only before `mise install` — a
+// purge of an AptBuildDeps entry that collides with an AptPkgs lib would ship
+// an image missing a runtime lib.
+func TestAll_AptBuildDepsDisjointFromAptPkgs(t *testing.T) {
+	var pkgs []string
+	for _, r := range All() {
+		pkgs = append(pkgs, r.AptPkgs...)
+	}
+	for _, r := range All() {
+		for _, dep := range r.AptBuildDeps {
+			assert.NotContainsf(t, pkgs, dep, "%s's %s is purged, never reapplied", r.Name, dep)
+		}
+	}
+}
+
 func TestAllCacheVolumes(t *testing.T) {
 	var want []string
 	for _, r := range All() {
