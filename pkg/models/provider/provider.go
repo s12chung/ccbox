@@ -64,7 +64,7 @@ var builtinProviders = []Provider{
 	{Name: "anthropic", Domains: []string{"api.anthropic.com"}},
 	{Name: "openai", Domains: []string{"api.openai.com", "auth.openai.com"}},
 	{Name: "openrouter", Domains: []string{"openrouter.ai"}},
-	{Name: "xai", Domains: []string{"x.ai"}}, // also hosts grok's own downloads
+	{Name: "xai", Domains: []string{"x.ai"}},
 	{Name: "zai", Domains: []string{"api.z.ai"}},
 }
 

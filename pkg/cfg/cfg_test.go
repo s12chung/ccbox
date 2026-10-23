@@ -291,7 +291,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build", "cache") // the layers' own mask dirs must exist to survive
 	bodies := map[string]string{             // one entry per configFiles term
-		"user": "cli: grok\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
+		"user": "cli: opencode\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
 			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  gui_app: zcode\nallowlist:\n  - user.example.dev\n",
 		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
@@ -333,11 +333,11 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 	for _, cf := range configFiles { // the other files are absent
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: grok\nallowlist:\n  - example.com\n")
+			writeConfig(t, dir, cf.name, "cli: pi\nallowlist:\n  - example.com\n")
 
 			c, err := Load(dir, Config{}, false)
 			require.NoError(t, err)
-			assert.Equal(t, "grok", *c.CLIName)
+			assert.Equal(t, "pi", *c.CLIName)
 			if cf.term == "user" { // the user file replaces the seed wholesale
 				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no alias → no defaults pulled in
 			} else { // the user seed's aliases still underlie the project/local file
@@ -394,7 +394,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		body string
 		want []string
 	}{
-		{"unknown cli", "cli: emacs\n", []string{"CLIName", "is not one of [\"claude\" \"codex\" \"grok\" \"opencode\" \"pi\"]"}},
+		{"unknown cli", "cli: emacs\n", []string{"CLIName", "is not one of [\"claude\" \"codex\" \"opencode\" \"pi\"]"}},
 		{"absolute tmpfs_masks", "tmpfs_masks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
 		{"tmpfs_masks traversal", "tmpfs_masks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
 		{"absolute volume_masks", "volume_masks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
@@ -466,9 +466,9 @@ func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), osutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectLocalConfigFileName), []byte("cli: codex\n"), osutil.File))
 
-	c, err := Load(dir, Config{CLIName: new("grok")}, false)
+	c, err := Load(dir, Config{CLIName: new("pi")}, false)
 	require.NoError(t, err)
-	assert.Equal(t, "grok", *c.CLIName) // a set flag wins over both files
+	assert.Equal(t, "pi", *c.CLIName) // a set flag wins over both files
 
 	c, err = Load(dir, Config{}, false)
 	require.NoError(t, err)

@@ -15,6 +15,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -29,7 +30,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNames(t *testing.T) {
-	assert.Equal(t, []string{"claude", "codex", "grok", "opencode", "pi"}, Names())
+	assert.Equal(t, []string{"claude", "codex", "opencode", "pi"}, Names())
 }
 
 func TestUserConfigDir(t *testing.T) {
@@ -74,7 +75,7 @@ func TestLoadUser(t *testing.T) {
 		writeUserCli(t, dir, "mycli", userCliYAML, nil)
 		all = mustLoadAll()
 
-		assert.Equal(t, []string{"claude", "codex", "grok", "mycli", "opencode", "pi"}, Names())
+		assert.Equal(t, []string{"claude", "codex", "mycli", "opencode", "pi"}, Names())
 
 		c, ok := For("mycli")
 		require.True(t, ok)
@@ -87,7 +88,7 @@ func TestLoadUser(t *testing.T) {
 	t.Run("missing dir loads nothing", func(t *testing.T) {
 		resetAll(t)
 		all = mustLoadAll()
-		assert.Len(t, all, 5)
+		assert.Len(t, all, 4)
 	})
 
 	t.Run("skips bad clis with a warning", func(t *testing.T) {
@@ -136,7 +137,7 @@ func TestLoadUser_OverridesEmbedded(t *testing.T) {
 	all = mustLoadAll()
 
 	// map keys are unique: the user cli replaces the embedded one, not appends to it
-	assert.Len(t, all, 5)
+	assert.Len(t, all, 4)
 	assert.Contains(t, Names(), "claude")
 
 	got, ok := For("claude")
@@ -156,10 +157,10 @@ func testLoadUserSkips(t *testing.T, name, body string, configs map[string]strin
 	switch name {
 	case "mycli":
 		assert.Contains(t, Names(), "mycli")
-		assert.Len(t, all, 6)
+		assert.Len(t, all, 5)
 	default: // skip cases
 		assert.NotContains(t, Names(), name)
-		assert.Len(t, all, 5)
+		assert.Len(t, all, 4)
 	}
 }
 
@@ -337,11 +338,19 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"version_url":null}`, body)
 
-	body, err = MustFor("grok").PkgInfoJSON()
+	// no embedded cli uses version_url anymore, so construct one
+	releaser := CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli", ReleaseURL: &pkginfo.ReleaseURL{
+		URL: "https://mycli.dev/stable",
+		DownloadTemplate: &pkginfo.DownloadTemplate{
+			X64URL:   "https://mycli.dev/mycli-$version-linux-x86_64",
+			Arm64URL: "https://mycli.dev/mycli-$version-linux-aarch64",
+		},
+	}}}
+	body, err = releaser.PkgInfoJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"grok","npm":null,"version_url":{"url":"https://x.ai/cli/stable",`+
-		`"download_template":{"x64_url":"https://x.ai/cli/grok-$version-linux-x86_64",`+
-		`"arm64_url":"https://x.ai/cli/grok-$version-linux-aarch64"},"jq_schema":null,"artifact":null}}`, body)
+	assert.JSONEq(t, `{"name":"mycli","npm":null,"version_url":{"url":"https://mycli.dev/stable",`+
+		`"download_template":{"x64_url":"https://mycli.dev/mycli-$version-linux-x86_64",`+
+		`"arm64_url":"https://mycli.dev/mycli-$version-linux-aarch64"},"jq_schema":null,"artifact":null}}`, body)
 }
 
 func TestCLI_SessionCmd(t *testing.T) {
@@ -367,12 +376,6 @@ func TestCLI_SessionCmd(t *testing.T) {
 		// No picker flag: bare --session errors in opencode, so -r needs an id
 		{cli: MustFor("opencode"), resume: true, want: []string{"opencode", "--session"}},
 		{cli: MustFor("opencode"), resume: true, args: []string{"ses_42"}, want: []string{"opencode", "--session", "ses_42"}},
-
-		{cli: MustFor("grok"), want: []string{"grok"}},
-		{cli: MustFor("grok"), cont: true, want: []string{"grok", "-c"}},
-		// Bare --resume resumes the most recent session
-		{cli: MustFor("grok"), resume: true, want: []string{"grok", "--resume"}},
-		{cli: MustFor("grok"), resume: true, args: []string{"abc-uuid"}, want: []string{"grok", "--resume", "abc-uuid"}},
 
 		{cli: MustFor("pi"), want: []string{"pi"}},
 		{cli: MustFor("pi"), cont: true, want: []string{"pi", "-c"}},
@@ -401,9 +404,6 @@ func TestEnv(t *testing.T) {
 	assert.Nil(t, MustFor("opencode").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Env)
 
-	assert.Nil(t, MustFor("grok").ConfigDirEnvKey)
-	assert.Equal(t, map[string]string{"GROK_DISABLE_AUTOUPDATER": "1"}, MustFor("grok").Env)
-
 	assert.Nil(t, MustFor("pi").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"PI_SKIP_VERSION_CHECK": "1"}, MustFor("pi").Env)
 }
@@ -414,7 +414,7 @@ func TestCLI_CLIDataBinds(t *testing.T) {
 		map[string]*string{".local/share/opencode/auth.json": &authJSON},
 		MustFor("opencode").DataBinds)
 
-	for _, name := range []string{"claude", "codex", "grok", "pi"} {
+	for _, name := range []string{"claude", "codex", "pi"} {
 		assert.Emptyf(t, MustFor(name).DataBinds, "%s has no data binds", name)
 	}
 }
