@@ -32,6 +32,7 @@ func TestCheckPlaywright_DefaultsPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(DefaultBrowsersPath, chromeGlob), pattern)
 	assert.Contains(t, err.Error(), "vnc requested")
 	assert.Contains(t, err.Error(), "no playwright chromium under /opt/ms-playwright")
+	assert.Contains(t, err.Error(), "`ccbox mise update`")
 }
 
 func TestCheckPlaywright_HonorsEnvOverride(t *testing.T) {

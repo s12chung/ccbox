@@ -33,7 +33,7 @@ func CheckPlaywright(getenv func(string) string, glob func(string) ([]string, er
 		return fmt.Errorf("vnc requested: find playwright chromium: %w", err)
 	}
 	if len(chromes) == 0 {
-		return fmt.Errorf("vnc requested: no playwright chromium under %s — run: playwright install chromium", dir)
+		return fmt.Errorf("vnc requested: no playwright chromium under %s — run: `ccbox mise update` to install playwright with chromium", dir)
 	}
 	return nil
 }
