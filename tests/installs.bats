@@ -6,9 +6,9 @@ load test_helper
 
 teardown() {
     npm uninstall -g cowsay >/dev/null 2>&1 || true
-    gem uninstall -aIx lolcat >/dev/null 2>&1 || true
     pip uninstall -y pyfiglet >/dev/null 2>&1 || true
     rm -f "$HOME/go/bin/2fa"
+    cargo uninstall b3sum >/dev/null 2>&1 || true
     mise uninstall jq@1.7.1 >/dev/null 2>&1 || true
 }
 
@@ -39,12 +39,6 @@ teardown() {
     assert_on_path_under cowsay "$HOME/.npm-global/bin"
 }
 
-@test "gem: install lands in ~/.gem and on PATH (GEM_HOME)" {
-    gem install lolcat --no-document --quiet
-    ls -d "$HOME"/.gem/gems/lolcat-* >/dev/null
-    assert_on_path_under lolcat "$HOME/.gem/bin"
-}
-
 @test "pip: install lands in ~/.local and on PATH (auto --user)" {
     pip install pyfiglet --quiet
     ls -d "$HOME"/.local/lib/python*/site-packages/pyfiglet >/dev/null
@@ -55,6 +49,12 @@ teardown() {
     go install rsc.io/2fa@latest
     [ -x "$HOME/go/bin/2fa" ]
     assert_on_path_under 2fa "$HOME/go/bin"
+}
+
+@test "cargo: install lands in ~/.cargo/bin and on PATH (CARGO_HOME)" {
+    cargo install b3sum --locked --quiet
+    [ -x "$HOME/.cargo/bin/b3sum" ]
+    assert_on_path_under b3sum "$HOME/.cargo/bin"
 }
 
 @test "mise: user 'mise use' installs into ~/.local/share/mise" {

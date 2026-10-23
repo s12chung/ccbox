@@ -56,17 +56,6 @@ var runtimes = []Runtime{
 		},
 		MiseToolsOptional: []mise.Tool{{Name: "aqua:astral-sh/ruff"}, {Name: "aqua:pypa/pipx"}},
 	},
-	// Ruby: gems + from-source tarballs
-	{
-		Name:         "ruby",
-		Domains:      []string{"rubygems.org", "cache.ruby-lang.org"},
-		MiseTool:     mise.Tool{Name: "ruby"},
-		AptPkgs:      []string{"libssl3t64", "libyaml-0-2", "zlib1g", "libffi8", "libreadline8t64", "libgmp10", "libzstd1"},
-		AptBuildDeps: []string{"libssl-dev", "libyaml-dev", "zlib1g-dev", "libffi-dev", "libreadline-dev", "libgmp-dev"},
-		EnvVars:      map[string]string{"GEM_HOME": "/home/ccbox/.gem"},
-		BinEntries:   []string{"/home/ccbox/.gem/bin"},
-		CacheVolumes: []string{"/home/ccbox/.gem"}, // bundler GEM_HOME
-	},
 	// Rust: rustup-init + the toolchain dists it installs, the crates index and its downloads
 	{
 		Name:     "rust",

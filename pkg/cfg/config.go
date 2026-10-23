@@ -371,7 +371,7 @@ func (c *Config) renderTmpl() ([]byte, error) {
 		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(c.ReadOnlyGlobs, defaultsExpansionComment),
 		AllowlistComments: yamlutil.EntryToComments(c.Allowlist, map[string]string{
 			DefaultsAlias:            "shared tooling domains",
-			runtime.AllRuntimesAlias: "every runtime's domains (node, python, ruby, go, rust)",
+			runtime.AllRuntimesAlias: "every runtime's domains (node, python, go, rust)",
 			SetHarnessAlias:          "the selected CLI's — and on --vnc, the GUI app's",
 		}),
 	}

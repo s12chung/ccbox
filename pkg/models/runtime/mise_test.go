@@ -39,9 +39,7 @@ func TestFromMiseConfig(t *testing.T) {
 }
 
 func TestMiseRuntimes_Packages(t *testing.T) {
-	assert.Equal(t, []string{
-		"libatomic1", "libffi8", "libgmp10", "libreadline8t64", "libssl3t64", "libyaml-0-2", "libzstd1", "zlib1g",
-	}, MiseRuntimes(All()).Packages())
+	assert.Equal(t, []string{"libatomic1"}, MiseRuntimes(All()).Packages())
 
 	// libs two runtimes share render once — a repeat would redeclare the TOML key
 	overlapping := MiseRuntimes{

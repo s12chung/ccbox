@@ -168,7 +168,6 @@ func TestCacheVolumeNames(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"ccbox" + s + "-cache-cache-default":       "/home/ccbox/.cache",
 		"ccbox" + s + "-cargo-cache-default":       "/home/ccbox/.cargo",
-		"ccbox" + s + "-gem-cache-default":         "/home/ccbox/.gem",
 		"ccbox" + s + "-go-cache-default":          "/home/ccbox/go",
 		"ccbox" + s + "-local-cache-default":       "/home/ccbox/.local",
 		"ccbox" + s + "-npm-cache-default":         "/home/ccbox/.npm",
@@ -199,7 +198,6 @@ func TestCacheVolumeNames_Selection(t *testing.T) {
 	require.NoError(t, err)
 
 	names := cacheVolumeNames("/Users/me/proj", selected.CacheVolumes())
-	assert.NotContains(t, names, "ccbox"+slug.Path("/Users/me/proj")+"-gem-cache-default")
 	assert.ElementsMatch(t, slices.Collect(maps.Keys(names)), []string{
 		"ccbox" + slug.Path("/Users/me/proj") + "-cache-cache-default", // sharedCacheVolumes, in every run
 		"ccbox" + slug.Path("/Users/me/proj") + "-local-cache-default",

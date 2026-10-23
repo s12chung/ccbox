@@ -3,9 +3,8 @@ FROM ghcr.io/jdx/mise:2026.10.12 AS mise
 FROM debian:trixie-slim AS base
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        build-essential \
         ca-certificates \
-        git curl less procps pkg-config unzip bind9-dnsutils \
+        git curl less procps unzip bind9-dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=mise /usr/local/bin/mise /usr/local/bin/mise

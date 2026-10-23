@@ -8,7 +8,6 @@ node = "26.3.0"
 python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir setuptools==82.0.1 wheel==0.47.0" }
 "aqua:astral-sh/ruff" = "0.17"
 "aqua:pypa/pipx" = "1.18"
-ruby = "3.4"
 rust = "1.99"
 ripgrep = "15.2"
 shellcheck = "0.11"
@@ -19,11 +18,4 @@ yq = "4.54"
 [bootstrap.packages]
 # ccbox:packages-begin
 "apt:libatomic1" = "latest"
-"apt:libffi8" = "latest"
-"apt:libgmp10" = "latest"
-"apt:libreadline8t64" = "latest"
-"apt:libssl3t64" = "latest"
-"apt:libyaml-0-2" = "latest"
-"apt:libzstd1" = "latest"
-"apt:zlib1g" = "latest"
 # ccbox:packages-end

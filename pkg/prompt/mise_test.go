@@ -106,13 +106,11 @@ func TestMiseTools(t *testing.T) {
 	})
 
 	t.Run("the picked runtimes' apt libs are in the answer, sorted", func(t *testing.T) {
-		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("ruby")}, toolItems(mise.DevTools()), nil, nil)
+		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node")}, toolItems(mise.DevTools()), nil, nil)
 
 		_, packages, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
 		require.NoError(t, err)
-		assert.Equal(t, []string{
-			"libatomic1", "libffi8", "libgmp10", "libreadline8t64", "libssl3t64", "libyaml-0-2", "libzstd1", "zlib1g",
-		}, packages)
+		assert.Equal(t, []string{"libatomic1"}, packages)
 	})
 
 	t.Run("the independent tools' picks follow the runtimes'", func(t *testing.T) {
@@ -196,7 +194,7 @@ func TestRuntimeItems(t *testing.T) {
 			python = item
 		}
 	}
-	assert.Equal(t, []string{"go", "node", "python", "ruby", "rust"}, names, "every runtime in All()'s order")
+	assert.Equal(t, []string{"go", "node", "python", "rust"}, names, "every runtime in All()'s order")
 	assert.True(t, node.IsDisabled, "node's row is locked — the always-installed runtime")
 	assert.Equal(t, "required", node.Model.Hint())
 	assert.True(t, node.RevealUnchecked, "the optionals start unchecked")
