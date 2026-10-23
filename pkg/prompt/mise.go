@@ -13,18 +13,19 @@ import (
 )
 
 // MiseTools asks which mise tools to install; the answer is the picked tools
-// with the runtimes' apt libs
+// with the runtimes' and the apt group's packages
 func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, error) {
-	var pickedRuntimes, pickedDev, pickedIndependent []pick.Item[toolModel]
-	checked := slices.Sorted(maps.Keys(state.Pins))
+	var pickedRuntimes, pickedDev, pickedApt, pickedIndependent []pick.Item[toolModel]
+	checked := slices.Concat(slices.Sorted(maps.Keys(state.Pins)), state.Packages)
 	err := runFn(pick.NewRunner(pick.RunnerOptions{
 		Header:      "Select the tools to install",
 		SubmitLabel: "Save to " + userdir.Tilde(savePath),
 	},
 		pick.NewMultiPicker(runtimeItems(state), checked),
 		pick.NewMultiPicker(toolItems(mise.DevTools()), checked),
+		pick.NewMultiPicker(toolItems([]mise.Tool{mise.AptTools().Tool}), checked), // the apt group's one collapsed row
 		pick.NewMultiPicker(toolItems(mise.IndependentTools()), checked),
-	), &pickedRuntimes, &pickedDev, &pickedIndependent)
+	), &pickedRuntimes, &pickedDev, &pickedApt, &pickedIndependent)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -41,7 +42,13 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 		pick.FlattenFunc(pickedDev, flattenNonPostInstall),
 		pick.FlattenFunc(pickedIndependent, flattenNonPostInstall),
 	)
-	return tools, runtimes.Packages(), nil
+	packages := runtimes.Packages()
+	if len(pickedApt) > 0 { // the group's row picked — its packages answer whole
+		packages = append(packages, mise.AptTools().Packages...)
+	}
+	packages = slicex.Unique(packages)
+	slices.Sort(packages)
+	return tools, packages, nil
 }
 
 // toolItems lists the tools as the picker's flat items

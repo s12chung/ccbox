@@ -154,6 +154,15 @@ func TestIndependentTools(t *testing.T) {
 	assert.Equal(t, independentTools, IndependentTools())
 }
 
+func TestAptTools(t *testing.T) {
+	assert.Equal(t, aptTools, AptTools())
+
+	// a clone: mutating the answer doesn't leak into the next call
+	group := AptTools()
+	group.Packages[0] = "bogus"
+	assert.Equal(t, aptTools, AptTools())
+}
+
 func TestBuildFS(t *testing.T) {
 	testutil.Home(t) // the user level starts empty, like a fresh host
 
@@ -238,6 +247,10 @@ python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir
 
 [tools."npm:playwright"]
 version = "latest"
+
+[bootstrap.packages]
+"apt:build-essential" = "latest"
+"apt:libatomic1" = "latest"
 `
 
 func TestPinFor(t *testing.T) {
@@ -289,6 +302,8 @@ func TestReadToolState(t *testing.T) {
 		"the [tools] table's pins, sub-tables included")
 	assert.Equal(t, map[string]string{"python": "python -m pip install --no-cache-dir setuptools==70.0.0"}, state.PostInstalls,
 		"the inline table's postinstall is read too")
+	assert.Equal(t, []string{"build-essential", "libatomic1"}, state.Packages,
+		"the [bootstrap.packages] keys, bare and sorted")
 }
 
 func TestReadToolState_UserFallback(t *testing.T) {

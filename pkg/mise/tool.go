@@ -9,7 +9,8 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
-// Tool is one entry of the mise config's [tools] table — the image's recipe
+// Tool is one pick of the mise tools picker — manager-prefixed names render
+// into [bootstrap.packages], the rest as [tools] rows
 type Tool struct {
 	Name string
 

@@ -54,10 +54,13 @@ func PickedConfigPath(projectDir string) string {
 	return osutil.PickLayer(ProjectConfigPath(projectDir), UserConfigPath())
 }
 
-// ToolState is the picked config's [tools] state
+// ToolState is the picked config's [tools] and [bootstrap.packages] state
 type ToolState struct {
 	Pins         map[string]string
 	PostInstalls map[string]string
+	// Packages are the config's [bootstrap.packages] keys — bare names
+	// (build-essential), sorted
+	Packages []string
 	// VersionFunc fetches a name's latest version
 	VersionFunc func(name string) (string, error)
 }
@@ -90,6 +93,15 @@ func SeedToolState() ToolState {
 	return ToolState{Pins: pins}
 }
 
+// toolsFile is the picked config's tables ToolState reads — the [tools] state
+// and the [bootstrap.packages]
+type toolsFile struct {
+	Tools     map[string]any `toml:"tools"`
+	Bootstrap struct {
+		Packages map[string]any `toml:"packages"`
+	} `toml:"bootstrap"`
+}
+
 // ReadToolState reads the picked config's [tools] state — the runtime
 // selection's source of truth
 func ReadToolState(projectDir string) (ToolState, error) {
@@ -102,9 +114,7 @@ func ReadToolState(projectDir string) (ToolState, error) {
 	if err != nil {
 		return ToolState{}, err
 	}
-	var file struct {
-		Tools map[string]any `toml:"tools"`
-	}
+	var file toolsFile
 	if err := toml.Unmarshal(body, &file); err != nil {
 		return ToolState{}, fmt.Errorf("mise: %s: %w", path, err)
 	}
@@ -123,6 +133,13 @@ func ReadToolState(projectDir string) (ToolState, error) {
 			}
 		}
 	}
+	pkgs := make([]string, 0, len(file.Bootstrap.Packages))
+	for name := range file.Bootstrap.Packages {
+		pkg, _ := strings.CutPrefix(name, aptPrefix) // bare names — the manager prefix is the render's to write
+		pkgs = append(pkgs, pkg)
+	}
+	state.Packages = pkgs
+	slices.Sort(state.Packages)
 	return state, nil
 }
 
@@ -218,7 +235,7 @@ var devTools = []Tool{
 func DevTools() []Tool { return slices.Clone(devTools) }
 
 // independentTools is the image's tools independent of the runtime selection —
-// the mise tools picker's third checklist, the rendered region's tail
+// the rendered region's tail
 var independentTools = []Tool{
 	{Name: "bats"},
 	{Name: "hadolint"},
@@ -233,6 +250,26 @@ var independentTools = []Tool{
 
 // IndependentTools is the image's independent tools, in render order
 func IndependentTools() []Tool { return slices.Clone(independentTools) }
+
+// ToolGroup is the packages collapsing into one picker row — the Tool names
+// and hints it, the pick answers as the whole group
+type ToolGroup struct {
+	Tool // the collapsed picker row
+
+	Packages []string
+}
+
+// aptTools is the C/C++ toolchain's packages as one group — the pick lands in
+// [bootstrap.packages]
+var aptTools = ToolGroup{
+	Tool:     Tool{Name: "build-essential", Hint: "C/C++ toolchain"},
+	Packages: []string{"build-essential", "pkg-config"},
+}
+
+// AptTools is the apt group
+func AptTools() ToolGroup {
+	return ToolGroup{Tool: aptTools.Tool, Packages: slices.Clone(aptTools.Packages)}
+}
 
 // BuildFS is the build fs for the image's `mise install`: the embed with the
 // mise config injected where the Dockerfile COPYs it.

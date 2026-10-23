@@ -19,8 +19,12 @@ import (
 // regions — its tools from ResolvedTools
 type ConfigSet struct {
 	Tools    []ResolvedTool
-	Packages []string // the runtimes' apt libs; rows render apt-prefixed
+	Packages []string // the bootstrap packages; rows render manager-prefixed
 }
+
+// aptPrefix marks a tool as a bootstrap package — mise has no apt [tools]
+// backend, so its render lands in [bootstrap.packages]
+const aptPrefix = "apt:"
 
 // renderTools renders the marked region's content — the tmpl and the sync
 // share it
@@ -37,7 +41,7 @@ func (c ConfigSet) renderTools() string {
 func (c ConfigSet) renderPackages() string {
 	rows := make([]string, 0, len(c.Packages))
 	for _, pkg := range c.Packages {
-		rows = append(rows, fmt.Sprintf("%s = %q\n", tomlutil.Key("apt:"+pkg), "latest"))
+		rows = append(rows, fmt.Sprintf("%s = %q\n", tomlutil.Key(aptPrefix+pkg), "latest"))
 	}
 	return strings.TrimSuffix(strings.Join(rows, ""), "\n")
 }
