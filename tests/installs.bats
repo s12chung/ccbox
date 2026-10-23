@@ -33,16 +33,47 @@ teardown() {
     [[ "$output" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
 }
 
+@test "apt bootstrap: source-build toolchain present" {
+    # pip sdists, C-dep crates, and cgo all compile against this baked toolchain
+    for pkg in build-essential libatomic1 pkg-config; do
+        dpkg -s "$pkg" >/dev/null
+    done
+    command -v gcc make pkg-config
+}
+
 @test "npm: global install lands in ~/.npm-global and on PATH" {
     npm install -g cowsay --silent
     [ -x "$HOME/.npm-global/bin/cowsay" ]
     assert_on_path_under cowsay "$HOME/.npm-global/bin"
 }
 
+@test "playwright: baked chromium launches (vnc web-browser)" {
+    # postinstall bakes the browser under PLAYWRIGHT_BROWSERS_PATH; missing
+    # install-deps shared libs only surface at launch
+    local png
+    png="$(mktemp --suffix .png)"
+    run playwright screenshot --viewport-size "100,100" "data:text/html,<h1>ok</h1>" "$png"
+    [ "$status" -eq 0 ]
+    [ -s "$png" ]
+    rm -f "$png"
+}
+
+@test "python postinstall: pinned setuptools+wheel importable" {
+    # config postinstall bakes them for offline source builds; silent loss bites later
+    python -c 'import setuptools, wheel'
+}
+
 @test "pip: install lands in ~/.local and on PATH (auto --user)" {
     pip install pyfiglet --quiet
     ls -d "$HOME"/.local/lib/python*/site-packages/pyfiglet >/dev/null
     assert_on_path_under pyfiglet "$HOME/.local/bin"
+}
+
+@test "pipx: venv install lands in ~/.local/share/pipx and on PATH" {
+    # --force reinstalls the baked pycowsay, so state converges — no teardown entry
+    pipx install --force pycowsay >/dev/null
+    [ -x "$HOME/.local/share/pipx/venvs/pycowsay/bin/pycowsay" ]
+    assert_on_path_under pycowsay "$HOME/.local/bin"
 }
 
 @test "go: install lands in ~/go/bin and on PATH (GOBIN)" {
