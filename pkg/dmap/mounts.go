@@ -19,6 +19,10 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
+// miseDataMount is the user mise data dir's container path, tmpfs-masked so ad-hoc
+// `mise use` installs die with the run instead of persisting to shadow the system installs
+const miseDataMount = cfg.ContainerHome + "/.local/share/mise"
+
 // tmpfsMasks maps each project-relative dir to its masked container path.
 func tmpfsMasks(projectDir string, relDirs []string) []string {
 	workspace := workspaceMount(projectDir)
@@ -161,7 +165,7 @@ const cacheVolumeSuffix = "-cache-default"
 // sharedCacheVolumes are the generic volumes every project gets, runtime-independent
 var sharedCacheVolumes = map[string]string{
 	"cache": "/home/ccbox/.cache", // go-build + pip cache
-	"local": "/home/ccbox/.local", // XDG data dir
+	"local": "/home/ccbox/.local", // XDG data dir; its mise data dir is tmpfs-masked (miseDataMount)
 	"tmp":   "/tmp",               // agent tmp workspace to try things out
 }
 

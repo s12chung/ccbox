@@ -11,6 +11,14 @@ teardown() {
     rm -rf "$proj_tmp"
 }
 
+@test "user mise data dir: tmpfs-masked so ad-hoc installs die with the run" {
+    # persisted, ad-hoc `mise use` installs outlive their configs and shadow the
+    # system installs the config pins
+    run findmnt -n -o FSTYPE --target /home/ccbox/.local/share/mise
+    [ "$status" -eq 0 ]
+    [ "$output" = "tmpfs" ]
+}
+
 @test "project mise: workspace tools pinned to the system mise resolve (system)" {
     # the workspace mirrors the image's system config — exactly how ccbox overlays a project mise
     proj_tmp="$(mktemp -d)"

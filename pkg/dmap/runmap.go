@@ -72,7 +72,7 @@ func (rm *RunMap) HostOptions(serveVNC, noProxy bool) (docker.RunHostOptions, fu
 		ProjectDir:     projectDir,
 		WorkspaceMount: workspaceMount(projectDir),
 		Mounts:         binds,
-		TmpfsPaths:     tmpfsMasks(projectDir, rm.cfg.TmpfsMasksPresent()),
+		TmpfsPaths:     append(tmpfsMasks(projectDir, rm.cfg.TmpfsMasksPresent()), miseDataMount),
 	}, clean, nil
 }
 

@@ -157,7 +157,23 @@ func TestRunMap_HostOptions(t *testing.T) {
 	}, hostOptions.Mounts)
 
 	assert.Equal(t, workspace, hostOptions.WorkspaceMount)
-	assert.Equal(t, []string{workspace + "/dist"}, hostOptions.TmpfsPaths)
+	assert.Equal(t, []string{workspace + "/dist", miseDataMount}, hostOptions.TmpfsPaths)
+}
+
+func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {
+	// the mask is always on: an ad-hoc `mise use`'s installs must not persist into
+	// the local volume and shadow the system installs the config pins
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd())
+
+	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
+	require.NoError(t, err)
+
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, clean()) }()
+
+	assert.Equal(t, []string{miseDataMount}, hostOptions.TmpfsPaths)
 }
 
 func TestRunMap_HostOptions_NoProxy(t *testing.T) {
