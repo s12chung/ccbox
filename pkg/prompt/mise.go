@@ -21,11 +21,15 @@ func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, er
 		Header:      "Select the tools to install",
 		SubmitLabel: "Save to " + userdir.Tilde(savePath),
 	},
-		pick.NewMultiPicker(runtimeItems(state), checked),
-		pick.NewMultiPicker(toolItems(mise.DevTools()), checked),
-		pick.NewMultiPicker(toolItems([]mise.Tool{mise.AptTools().Tool}), checked), // the apt group's one collapsed row
-		pick.NewMultiPicker(toolItems(mise.IndependentTools()), checked),
-	), &pickedRuntimes, &pickedDev, &pickedApt, &pickedIndependent)
+		pick.SelectAll{Pickers: []pick.SelectAllPicker{
+			pick.NewMultiPicker(runtimeItems(state), checked),
+			pick.NewMultiPicker(toolItems(mise.DevTools()), checked),
+			pick.NewMultiPicker(toolItems([]mise.Tool{mise.AptTools().Tool}), checked), // the apt group's one collapsed row
+			pick.NewMultiPicker(toolItems(mise.IndependentTools()), checked),
+		}}.PickerStack()...,
+	),
+		nil, // the select-all row reads nothing
+		&pickedRuntimes, &pickedDev, &pickedApt, &pickedIndependent)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -9,9 +9,9 @@ import (
 )
 
 // multi unwraps the checklist parts of its picker
-func multi(t *testing.T, p Picker) *multiPicker[testModel] {
+func multi(t *testing.T, p Picker) *MultiPicker[testModel] {
 	t.Helper()
-	mp, ok := p.(*multiPicker[testModel])
+	mp, ok := p.(*MultiPicker[testModel])
 	require.True(t, ok)
 	return mp
 }

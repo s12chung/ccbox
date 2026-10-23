@@ -226,9 +226,9 @@ const (
 // runtimes, ahead of the independent tools
 var devTools = []Tool{
 	{Name: "ripgrep"},
-	{Name: "shellcheck"},
+	{Name: "shellcheck", Hint: "shell linter"},
 	{Name: "jq"},
-	{Name: "yq"},
+	{Name: "yq", Hint: "jq for YAML"},
 }
 
 // DevTools is the dev-workflow CLIs in every config, in render order
@@ -263,7 +263,7 @@ type ToolGroup struct {
 // aptTools is the C/C++ toolchain's packages as one group — the pick lands in
 // [bootstrap.packages]
 var aptTools = ToolGroup{
-	Tool:     Tool{Name: "build-essential", Hint: "C/C++ toolchain"},
+	Tool:     Tool{Name: "build-essential", Hint: "C/C++"},
 	Packages: []string{"build-essential", "pkg-config"},
 }
 

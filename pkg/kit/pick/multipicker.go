@@ -13,11 +13,11 @@ type Model interface {
 
 // NewMultiPicker returns the checklist Picker for choosing several items, the
 // named items pre-checked. No items panics.
-func NewMultiPicker[M Model](items []Item[M], checked []string) Picker {
+func NewMultiPicker[M Model](items []Item[M], checked []string) *MultiPicker[M] {
 	if len(items) == 0 {
 		panic("pick: no items to pick from")
 	}
-	p := &multiPicker[M]{checklist: slices.Clone(items)}
+	p := &MultiPicker[M]{checklist: slices.Clone(items)}
 	checks := make(map[string]*bool, len(p.checklist))
 	for i := range p.checklist {
 		item := &p.checklist[i]
@@ -119,17 +119,17 @@ func (r row) view(onCursor bool) string {
 	return cursor + indent + box + " " + r.name + hintSuffix(r.hint)
 }
 
-// multiPicker is the checklist parts: the checklist — each item a row, its
+// MultiPicker is the checklist parts: the checklist — each item a row, its
 // children rows revealed while it's checked
-type multiPicker[M Model] struct {
+type MultiPicker[M Model] struct {
 	checklist []Item[M]
 }
 
 // rows counts the visible rows: the options plus their revealed children
-func (p *multiPicker[M]) rows() int { return len(p.flatten()) }
+func (p *MultiPicker[M]) rows() int { return len(p.flatten()) }
 
 // render draws the visible rows
-func (p *multiPicker[M]) render(cursor int, focused bool) []string {
+func (p *MultiPicker[M]) render(cursor int, focused bool) []string {
 	flat := p.flatten()
 	rows := make([]string, len(flat))
 	for i, r := range flat {
@@ -140,18 +140,45 @@ func (p *multiPicker[M]) render(cursor int, focused bool) []string {
 
 // picked reports any item is checked — children don't count on their own: a
 // checked child implies its item
-func (p *multiPicker[M]) picked() bool {
+func (p *MultiPicker[M]) picked() bool {
 	return slices.ContainsFunc(p.checklist, func(item Item[M]) bool { return item.checked })
 }
 
 // enter toggles the cursor's row's check — an option's, or one revealed child's
-func (p *multiPicker[M]) enter(cursor int) { p.flatten()[cursor].toggle() }
+func (p *MultiPicker[M]) enter(cursor int) { p.flatten()[cursor].toggle() }
+
+// SelectAll checks every row: each option and every child, revealed or not
+func (p *MultiPicker[M]) SelectAll() {
+	for i := range p.checklist {
+		item := &p.checklist[i]
+		item.checked = true
+		for j := range item.checks {
+			item.checks[j] = true
+		}
+	}
+}
+
+// AllSelected reports every row checked
+func (p *MultiPicker[M]) AllSelected() bool {
+	for i := range p.checklist {
+		item := &p.checklist[i]
+		if !item.checked {
+			return false
+		}
+		for _, check := range item.checks {
+			if !check {
+				return false
+			}
+		}
+	}
+	return true
+}
 
 // respond writes the checked items into the caller's *[]Item[M] — each item
 // its model with its checked children's models alone, an unchecked item
 // dropping its children with it. Non-nil on an empty check set, so callers
 // can tell it from the nil non-terminal read
-func (p *multiPicker[M]) respond(ptr any) error {
+func (p *MultiPicker[M]) respond(ptr any) error {
 	picked := make([]Item[M], 0, len(p.checklist))
 	for i := range p.checklist {
 		item := &p.checklist[i]
@@ -170,7 +197,7 @@ func (p *multiPicker[M]) respond(ptr any) error {
 }
 
 // flatten lists the checklist's visible rows: each option's rows in order
-func (p *multiPicker[M]) flatten() []row {
+func (p *MultiPicker[M]) flatten() []row {
 	var rows []row
 	for i := range p.checklist {
 		rows = append(rows, p.checklist[i].row()...)

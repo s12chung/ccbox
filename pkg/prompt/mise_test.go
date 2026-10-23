@@ -27,9 +27,9 @@ func TestMiseTools(t *testing.T) {
 				PostInstallTools:   []mise.Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}}, // the checked packages answer on the tool
 			},
 			{Name: "ripgrep"},
-			{Name: "shellcheck"},
+			{Name: "shellcheck", Hint: "shell linter"},
 			{Name: "jq"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 		}, tools)
 		assert.Equal(t, []string{"libatomic1"}, packages)
 	})
@@ -47,9 +47,9 @@ func TestMiseTools(t *testing.T) {
 				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
 			},
 			{Name: "ripgrep"},
-			{Name: "shellcheck"},
+			{Name: "shellcheck", Hint: "shell linter"},
 			{Name: "jq"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 		}, tools)
 	})
 
@@ -63,9 +63,9 @@ func TestMiseTools(t *testing.T) {
 			{Name: "go"},
 			{Name: "golangci-lint"},
 			{Name: "ripgrep"},
-			{Name: "shellcheck"},
+			{Name: "shellcheck", Hint: "shell linter"},
 			{Name: "jq"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 		}, tools)
 
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("go")}, toolItems(mise.DevTools()), nil, nil, nil)
@@ -76,9 +76,9 @@ func TestMiseTools(t *testing.T) {
 			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
-			{Name: "shellcheck"},
+			{Name: "shellcheck", Hint: "shell linter"},
 			{Name: "jq"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 		}, tools)
 	})
 
@@ -99,9 +99,9 @@ func TestMiseTools(t *testing.T) {
 			},
 			{Name: "aqua:astral-sh/ruff"},
 			{Name: "ripgrep"},
-			{Name: "shellcheck"},
+			{Name: "shellcheck", Hint: "shell linter"},
 			{Name: "jq"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 		}, tools)
 	})
 
@@ -123,9 +123,9 @@ func TestMiseTools(t *testing.T) {
 			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
-			{Name: "shellcheck"},
+			{Name: "shellcheck", Hint: "shell linter"},
 			{Name: "jq"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 			{Name: "hadolint", Hint: "Dockerfile linter"},
 			{
 				Name:               "npm:playwright",
@@ -149,7 +149,7 @@ func TestMiseTools(t *testing.T) {
 			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 			{Name: "hadolint", Hint: "Dockerfile linter"},
 		}, tools)
 	})
@@ -163,9 +163,9 @@ func TestMiseTools(t *testing.T) {
 		assert.Equal(t, []mise.Tool{
 			{Name: "node", Hint: "required"},
 			{Name: "ripgrep"},
-			{Name: "shellcheck"},
+			{Name: "shellcheck", Hint: "shell linter"},
 			{Name: "jq"},
-			{Name: "yq"},
+			{Name: "yq", Hint: "jq for YAML"},
 		}, tools)
 		assert.Equal(t, []string{"build-essential", "libatomic1", "pkg-config"}, packages)
 	})
@@ -270,7 +270,7 @@ func TestToolItems(t *testing.T) {
 		items := toolItems([]mise.Tool{mise.AptTools().Tool})
 
 		assert.Equal(t, []string{"build-essential"}, itemNames(items))
-		assert.Equal(t, "C/C++ toolchain", items[0].Model.Hint(), "the group's row carries the hint")
+		assert.Equal(t, "C/C++", items[0].Model.Hint(), "the group's row carries the hint")
 	})
 }
 
@@ -279,11 +279,12 @@ func TestToolItems(t *testing.T) {
 func stubRunTools(t *testing.T, rts, dev, apt, independent []pick.Item[toolModel], err error) {
 	t.Helper()
 	runFn = func(_ pick.Runner, ptrs ...any) error {
-		require.Len(t, ptrs, 4)
+		require.Len(t, ptrs, 5)
+		require.Nil(t, ptrs[0], "the select-all row reads nothing")
 		answers := []*[]pick.Item[toolModel]{&rts, &dev, &apt, &independent}
-		for i, ptr := range ptrs {
+		for i, ptr := range ptrs[1:] {
 			typed, ok := ptr.(*[]pick.Item[toolModel])
-			require.Truef(t, ok, "ptrs[%d]", i)
+			require.Truef(t, ok, "ptrs[%d]", i+1)
 			*typed = *answers[i]
 		}
 		return err
