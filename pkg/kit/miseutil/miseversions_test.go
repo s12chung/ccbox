@@ -76,4 +76,12 @@ func TestVersionsSource_List(t *testing.T) {
 
 		require.ErrorContains(t, err, "404 Not Found")
 	})
+
+	t.Run("a malformed list errors, carrying its url", func(t *testing.T) {
+		stubVersions(t, map[string]string{"/data/bats.toml": `not [toml`})
+
+		_, err := versionsSource{}.List(t.Context(), "bats")
+
+		require.ErrorContains(t, err, "/data/bats.toml")
+	})
 }

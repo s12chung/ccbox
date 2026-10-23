@@ -18,7 +18,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/kit/miseutil"
-	"github.com/s12chung/ccbox/pkg/kit/pypi"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -62,8 +61,8 @@ func stubPyPI(t *testing.T, indexes map[string]string) {
 	}
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	pypi.JSONURL = server.URL
-	t.Cleanup(func() { pypi.JSONURL = pypi.BaseURL })
+	pypiURL = server.URL
+	t.Cleanup(func() { pypiURL = pypiBaseURL })
 }
 
 // pins maps the resolved tools to their pins

@@ -37,6 +37,15 @@ func TestLatestVersion(t *testing.T) {
 		"a prefixed tool resolves off its registered source, every other off the versions service — each pinned as its source binds")
 }
 
+func TestLatestVersion_Errors(t *testing.T) {
+	stubVersions(t, nil)
+
+	_, err := LatestVersion(t.Context(), "bogus")
+
+	require.ErrorContains(t, err, "mise: bogus:")
+	require.ErrorContains(t, err, "404 Not Found")
+}
+
 // stubSource stands in for a registered backend — its one release
 type stubSource struct{}
 
