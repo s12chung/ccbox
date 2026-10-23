@@ -221,7 +221,7 @@ func TestMultiPicker_View(t *testing.T) {
 		"  (set in ~/.ccbox/mise.toml)",
 		"",
 		"    [x] go",
-		"      [x] golangci-lint",
+		"     ∟[x] golangci-lint",
 		"  ❯ [ ] python",
 		"    [ ] ruby (from-source build)",
 		"",

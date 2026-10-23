@@ -47,7 +47,7 @@ func seedMiseConfig(ctx context.Context, path string) (bool, error) {
 	if osutil.Present(path) {
 		return false, nil
 	}
-	configSet, err := promptConfigSet(ctx, path, mise.ToolState{})
+	configSet, err := promptConfigSet(ctx, path, mise.SeedToolState())
 	if err != nil {
 		return false, err
 	}

@@ -107,7 +107,7 @@ func (r row) view(onCursor bool) string {
 	}
 	indent := ""
 	if r.child {
-		indent = "  "
+		indent = lightStyle.Render(" ∟")
 	}
 	if r.disabled {
 		return cursor + indent + lightStyle.Render("[x] "+r.name) + hintSuffix(r.hint)

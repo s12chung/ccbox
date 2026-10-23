@@ -267,6 +267,16 @@ func TestPinFor_Errors(t *testing.T) {
 	})
 }
 
+func TestSeedToolState(t *testing.T) {
+	state := SeedToolState()
+
+	want := make(map[string]string, len(devTools))
+	for _, tool := range devTools {
+		want[tool.Name] = ""
+	}
+	assert.Equal(t, want, state.Pins, "the dev tools are the checks' prefill, unpinned")
+}
+
 func TestReadToolState(t *testing.T) {
 	testutil.Home(t)
 	projectDir := t.TempDir()

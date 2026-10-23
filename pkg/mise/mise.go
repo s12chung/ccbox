@@ -80,6 +80,16 @@ func (s ToolState) PinFor(name string) (string, error) {
 	return "", fmt.Errorf("mise: %s: no pin resolved", name)
 }
 
+// SeedToolState is a fresh seed's ToolState: the dev tools as the checks'
+// prefill, unpinned — PinFor fetches their versions fresh
+func SeedToolState() ToolState {
+	pins := make(map[string]string, len(devTools))
+	for _, tool := range devTools {
+		pins[tool.Name] = ""
+	}
+	return ToolState{Pins: pins}
+}
+
 // ReadToolState reads the picked config's [tools] state — the runtime
 // selection's source of truth
 func ReadToolState(projectDir string) (ToolState, error) {

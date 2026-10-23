@@ -37,7 +37,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`Makefile`** — primary entrypoints are:
   - `make build` — builds `dist/ccboxtools` via `tools/toolsbuild`, verifies it with `doctor tools`, then builds the `ccbox` binary to `/tmp/ccbox` in the **container**
   - `make lint` - all linting
-  - `make test` — runs all linting and tests that are possible without a Docker daemon
+  - `make test` — runs all linting and tests that are possible without a Docker daemon - RUN THIS AFTER EACH COMPLETED TASK
 
 ### Conventions
 

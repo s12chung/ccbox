@@ -13,8 +13,7 @@ import (
 )
 
 // MiseTools asks which mise tools to install; the answer is the picked tools
-// with the runtimes' apt libs — a fresh config passes the zero state, with
-// nothing written to prefill the pick prompt
+// with the runtimes' apt libs
 func MiseTools(savePath string, state mise.ToolState) ([]mise.Tool, []string, error) {
 	var pickedRuntimes, pickedDev, pickedIndependent []pick.Item[toolModel]
 	checked := slices.Sorted(maps.Keys(state.Pins))
