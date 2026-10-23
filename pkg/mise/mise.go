@@ -225,6 +225,7 @@ var independentTools = []Tool{
 	{
 		Name:               "npm:playwright",
 		PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium",
+		PostInstallAlways:  true,
 		Comment:            "# --vnc flag uses this chromium as a browser",
 		Hint:               "with chrome",
 	},

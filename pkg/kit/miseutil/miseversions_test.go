@@ -40,6 +40,7 @@ func versionList(versions map[string]time.Time) string {
 
 func TestToolURL(t *testing.T) {
 	assert.Equal(t, VersionsBaseURL+"/data/playwright.toml", toolURL("npm:playwright"))
+	assert.Equal(t, VersionsBaseURL+"/data/ruff.toml", toolURL("aqua:astral-sh/ruff"))
 	assert.Equal(t, VersionsBaseURL+"/data/go.toml", toolURL("go"))
 }
 
@@ -52,14 +53,20 @@ func TestMinorPin(t *testing.T) {
 }
 
 func TestVersionsSource_List(t *testing.T) {
-	t.Run("a backend prefix drops off the tool's name", func(t *testing.T) {
+	t.Run("a backend prefix and its owner path drop off the tool's name", func(t *testing.T) {
 		at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-		stubVersions(t, map[string]string{"/data/playwright.toml": versionList(map[string]time.Time{"1.64.1": at})})
+		stubVersions(t, map[string]string{
+			"/data/playwright.toml": versionList(map[string]time.Time{"1.64.1": at}),
+			"/data/ruff.toml":       versionList(map[string]time.Time{"0.17.1": at}),
+		})
 
 		entries, err := versionsSource{}.List(t.Context(), "npm:playwright")
-
 		require.NoError(t, err)
 		assert.Equal(t, []VersionEntry{{Version: "1.64.1", CreatedAt: &at}}, entries)
+
+		entries, err = versionsSource{}.List(t.Context(), "aqua:astral-sh/ruff")
+		require.NoError(t, err)
+		assert.Equal(t, []VersionEntry{{Version: "0.17.1", CreatedAt: &at}}, entries)
 	})
 
 	t.Run("an unlisted tool errors", func(t *testing.T) {

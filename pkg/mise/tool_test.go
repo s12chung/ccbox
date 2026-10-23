@@ -51,7 +51,7 @@ func TestNewResolvedTool(t *testing.T) {
 		},
 		{
 			"a static cmd — no names — stays as written",
-			Tool{Name: "npm:playwright", PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium"},
+			Tool{Name: "npm:playwright", PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium", PostInstallAlways: true},
 			ToolState{Pins: map[string]string{"npm:playwright": "1.64"}},
 			ResolvedTool{
 				Name: "npm:playwright", Pin: "1.64",
@@ -68,8 +68,8 @@ func TestNewResolvedTool(t *testing.T) {
 			ResolvedTool{Name: "python", Pin: "3.13", PostInstall: "python -m pip install setuptools==70.0.0"},
 		},
 		{
-			"every package dropped — the plain pin",
-			Tool{Name: "python", PostInstallCmdTmpl: pipCmdTmpl, PostInstallTools: []Tool{}},
+			"no packages and no static — the plain pin",
+			Tool{Name: "python", PostInstallCmdTmpl: pipCmdTmpl},
 			ToolState{Pins: map[string]string{"python": "3.13"}},
 			ResolvedTool{Name: "python", Pin: "3.13"},
 		},

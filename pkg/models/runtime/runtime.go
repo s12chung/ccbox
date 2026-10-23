@@ -54,7 +54,7 @@ var runtimes = []Runtime{
 			PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
 			PostInstallTools:   []mise.Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}},
 		},
-		MiseToolsOptional: []mise.Tool{{Name: "pypi:ruff"}},
+		MiseToolsOptional: []mise.Tool{{Name: "aqua:astral-sh/ruff"}, {Name: "aqua:pypa/pipx"}},
 	},
 	// Ruby: gems + from-source tarballs
 	{

@@ -47,8 +47,11 @@ func Unique[E comparable](s []E) []E {
 	return out
 }
 
-// Map renders each element with f, keeping order.
+// Map renders each element with f, keeping order — nil for none.
 func Map[E, R any](s []E, f func(E) R) []R {
+	if len(s) == 0 {
+		return nil
+	}
 	out := make([]R, len(s))
 	for i, e := range s {
 		out[i] = f(e)

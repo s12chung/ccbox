@@ -88,13 +88,17 @@ func toolModels(tools []mise.Tool) []toolModel {
 	return slicex.Map(tools, func(t mise.Tool) toolModel { return toolModel{Tool: t} })
 }
 
-// flattenNonPostInstall flattens the mise tools, and keeps postinstall tools
-// in the PostInstallTools field
+// flattenNonPostInstall splits a runtime's answer: its checked packages belong
+// to the runtime's postinstall, its checked optionals stay tools of their own
 func flattenNonPostInstall(model toolModel, children []toolModel) []mise.Tool {
-	childTools := slicex.Map(children, func(m toolModel) mise.Tool { return m.Tool })
-	if len(model.PostInstallTools) == 0 {
-		return append([]mise.Tool{model.Tool}, childTools...)
+	isPostInstall := func(m toolModel) bool {
+		return slices.ContainsFunc(model.PostInstallTools, func(pkg mise.Tool) bool { return pkg.Name == m.Name() })
 	}
-	model.PostInstallTools = childTools
-	return []mise.Tool{model.Tool}
+	model.PostInstallTools = modelTools(slicex.Filter(children, isPostInstall))
+	return append([]mise.Tool{model.Tool}, modelTools(slicex.Filter(children, func(m toolModel) bool { return !isPostInstall(m) }))...)
+}
+
+// modelTools is the models as their tools — toolModels' inverse
+func modelTools(models []toolModel) []mise.Tool {
+	return slicex.Map(models, func(m toolModel) mise.Tool { return m.Tool })
 }

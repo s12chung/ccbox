@@ -42,9 +42,9 @@ func TestMiseTools(t *testing.T) {
 		assert.Equal(t, []mise.Tool{
 			{Name: "node", Hint: "required"},
 			{
-				Name:               "python",
+				Name: "python",
+				// no packages picked — resolve reads the plain pin
 				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
-				PostInstallTools:   []mise.Tool{}, // empty, not nil — resolve reads it as every package dropped
 			},
 			{Name: "ripgrep"},
 			{Name: "shellcheck"},
@@ -82,6 +82,29 @@ func TestMiseTools(t *testing.T) {
 		}, tools)
 	})
 
+	t.Run("a picked optional stays a tool of its own — the packages alone answer on the postinstall", func(t *testing.T) {
+		stubRunTools(t, []pick.Item[toolModel]{
+			pickedRuntime("node"),
+			pickedRuntime("python", "aqua:astral-sh/ruff", "pypi:setuptools", "pypi:wheel"),
+		}, toolItems(mise.DevTools()), nil, nil)
+
+		tools, _, err := MiseTools("~/.ccbox/mise.toml", mise.ToolState{})
+		require.NoError(t, err)
+		assert.Equal(t, []mise.Tool{
+			{Name: "node", Hint: "required"},
+			{
+				Name:               "python",
+				PostInstallCmdTmpl: `python -m pip install --no-cache-dir{{range .}} {{.Name}}=={{.Version}}{{end}}`,
+				PostInstallTools:   []mise.Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}},
+			},
+			{Name: "aqua:astral-sh/ruff"},
+			{Name: "ripgrep"},
+			{Name: "shellcheck"},
+			{Name: "jq"},
+			{Name: "yq"},
+		}, tools)
+	})
+
 	t.Run("the picked runtimes' apt libs are in the answer, sorted", func(t *testing.T) {
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("ruby")}, toolItems(mise.DevTools()), nil, nil)
 
@@ -109,6 +132,7 @@ func TestMiseTools(t *testing.T) {
 			{
 				Name:               "npm:playwright",
 				PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium",
+				PostInstallAlways:  true,
 				Comment:            "# --vnc flag uses this chromium as a browser",
 				Hint:               "with chrome",
 			},
@@ -178,8 +202,8 @@ func TestRuntimeItems(t *testing.T) {
 	assert.True(t, node.RevealUnchecked, "the optionals start unchecked")
 	assert.Equal(t, []string{"npm:oxlint", "npm:oxfmt"}, childNames(node), "the node-only linters as children")
 	assert.Equal(t, []string{"golangci-lint"}, childNames(goItem), "the optionals listed as children")
-	assert.Equal(t, []string{"pypi:ruff", "pypi:setuptools", "pypi:wheel"}, childNames(python),
-		"the optional linter, then the postinstall packages, as pickable children — an unchecked one dropping")
+	assert.Equal(t, []string{"aqua:astral-sh/ruff", "aqua:pypa/pipx", "pypi:setuptools", "pypi:wheel"}, childNames(python),
+		"the optional linter and the pip installer, then the postinstall packages, as pickable children — an unchecked one dropping")
 
 	t.Run("the written postinstall pins the packages — the inheritance hinted instead", func(t *testing.T) {
 		state := mise.ToolState{PostInstalls: map[string]string{"python": "python -m pip install setuptools==70.0.0"}}
@@ -187,7 +211,7 @@ func TestRuntimeItems(t *testing.T) {
 		python := runtimeItem(t, state, "python")
 
 		assert.Equal(t, "inherit existing postinstall", python.Model.Tool.Hint)
-		assert.Equal(t, []string{"pypi:ruff"}, childNames(python),
+		assert.Equal(t, []string{"aqua:astral-sh/ruff", "aqua:pypa/pipx"}, childNames(python),
 			"only the optionals — the packages never re-fetch, never re-render")
 	})
 
@@ -196,7 +220,7 @@ func TestRuntimeItems(t *testing.T) {
 
 		python := runtimeItem(t, state, "python")
 
-		assert.Equal(t, []string{"pypi:ruff", "pypi:setuptools", "pypi:wheel"}, childNames(python))
+		assert.Equal(t, []string{"aqua:astral-sh/ruff", "aqua:pypa/pipx", "pypi:setuptools", "pypi:wheel"}, childNames(python))
 	})
 }
 

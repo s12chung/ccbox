@@ -15,9 +15,10 @@ type Tool struct {
 
 	// PostInstallCmdTmpl is the postinstall as a text/template over PostInstallTools
 	PostInstallCmdTmpl string
-	// PostInstallTools are the postinstall's packages — nil declares none, an
-	// empty slice answers every package dropped
+	// PostInstallTools are the tmpl's packages — none picked, no postinstall
 	PostInstallTools []Tool
+	// PostInstallAlways renders the tmpl with no packages — a static postinstall
+	PostInstallAlways bool
 
 	Comment string // renders above the row when the tool needs a why
 	Hint    string // the mise tools picker's gray note after the name
@@ -29,8 +30,8 @@ func (t Tool) postInstallCmd(state ToolState) (string, error) {
 	if post := state.PostInstalls[t.Name]; post != "" {
 		return post, nil // the written post carries its packages' pins — they never fetch, never render
 	}
-	if t.PostInstallTools != nil && len(t.PostInstallTools) == 0 {
-		return "", nil // every package dropped — the plain pin
+	if len(t.PostInstallTools) == 0 && !t.PostInstallAlways {
+		return "", nil // no packages picked — the plain pin
 	}
 	pkgs := make([]postInstallPkg, 0, len(t.PostInstallTools))
 	for _, pkg := range t.PostInstallTools {
