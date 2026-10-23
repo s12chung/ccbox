@@ -45,11 +45,11 @@ func TestToolURL(t *testing.T) {
 }
 
 func TestMinorPin(t *testing.T) {
-	assert.Equal(t, "1.27", minorPin("1.27.2"))
-	assert.Equal(t, "26.12", minorPin("26.12.0"))
-	assert.Equal(t, "0.11", minorPin("0.11.0"))
-	assert.Equal(t, "3.13", minorPin("3.13"))
-	assert.Equal(t, "4", minorPin("4"))
+	assert.Equal(t, "1.27", MinorPin("1.27.2"))
+	assert.Equal(t, "26.12", MinorPin("26.12.0"))
+	assert.Equal(t, "0.11", MinorPin("0.11.0"))
+	assert.Equal(t, "3.13", MinorPin("3.13"))
+	assert.Equal(t, "4", MinorPin("4"))
 }
 
 func TestVersionsSource_List(t *testing.T) {

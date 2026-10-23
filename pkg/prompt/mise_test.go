@@ -126,7 +126,7 @@ func TestMiseTools(t *testing.T) {
 			{Name: "shellcheck"},
 			{Name: "jq"},
 			{Name: "yq"},
-			{Name: "hadolint"},
+			{Name: "hadolint", Hint: "Dockerfile linter"},
 			{
 				Name:               "npm:playwright",
 				PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium",
@@ -150,7 +150,7 @@ func TestMiseTools(t *testing.T) {
 			{Name: "go"},
 			{Name: "ripgrep"},
 			{Name: "yq"},
-			{Name: "hadolint"},
+			{Name: "hadolint", Hint: "Dockerfile linter"},
 		}, tools)
 	})
 
@@ -259,7 +259,7 @@ func TestToolItems(t *testing.T) {
 		items := toolItems(mise.IndependentTools())
 
 		names := itemNames(items)
-		assert.Equal(t, []string{"bats", "hadolint", "npm:playwright"}, names)
+		assert.Equal(t, []string{"aqua:quarylabs/sqruff", "hadolint", "bats", "npm:playwright"}, names)
 
 		playwright := items[slices.Index(names, "npm:playwright")]
 		assert.Equal(t, "with chrome", playwright.Model.Hint(), "the tool's hint carries through the model")

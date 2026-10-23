@@ -12,7 +12,7 @@ import (
 func TestIndexSource(t *testing.T) {
 	t.Run("the label, list url and pin rule bind", func(t *testing.T) {
 		stubVersions(t, map[string]string{"/releases.json": `{"releases":{"1.2.3":{"at":"2026-01-01T00:00:00Z"}}}`})
-		src := IndexSource(stubIndex{}, minorPin)
+		src := IndexSource(stubIndex{}, MinorPin)
 
 		assert.Equal(t, "stub", src.Name())
 

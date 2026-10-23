@@ -4,8 +4,9 @@ ripgrep = "15.2"
 shellcheck = "0.11"
 jq = "1.8"
 yq = "4.54"
-bats = "1.14"
+"aqua:quarylabs/sqruff" = "0.43"
 hadolint = "2.15"
+bats = "1.14"
 # --vnc flag uses this chromium as a browser
 "npm:playwright" = { version = "1.64", postinstall = "playwright install-deps chromium && playwright install chromium" }
 # ccbox:tools-end

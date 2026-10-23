@@ -65,6 +65,21 @@ func stubPyPI(t *testing.T, indexes map[string]string) {
 	t.Cleanup(func() { pypiURL = pypiBaseURL })
 }
 
+// stubAqua serves the fixture releases at the GitHub API's repo paths
+func stubAqua(t *testing.T, releases map[string]string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	for path, body := range releases {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(body))
+		})
+	}
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	aquaURL = server.URL
+	t.Cleanup(func() { aquaURL = aquaBaseURL })
+}
+
 // pins maps the resolved tools to their pins
 func pins(rts []ResolvedTool) map[string]string {
 	m := make(map[string]string, len(rts))
@@ -225,7 +240,7 @@ func TestRenderConfig_WrittenPostInstall(t *testing.T) {
 // and independent tools are seeded, the independent tools at the tail
 func TestRenderConfig_IndependentTools(t *testing.T) {
 	configSet := must.Get(resolvedConfig(slices.Concat(devTools, independentTools), ToolState{Pins: map[string]string{
-		"bats": "1.14", "hadolint": "2.15", "npm:playwright": "1.64",
+		"aqua:quarylabs/sqruff": "0.43", "bats": "1.14", "hadolint": "2.15", "npm:playwright": "1.64",
 		"ripgrep": "15.2", "jq": "1.8", "yq": "4.54", "shellcheck": "0.11",
 	}}, nil))
 	assert.Equal(t, golden(t, "TestRenderConfig_IndependentTools.toml"), seedRender(t, configSet))

@@ -78,3 +78,64 @@ func TestPypiRegistration(t *testing.T) {
 		require.ErrorContains(t, err, "404 Not Found")
 	})
 }
+
+// TestAquaListURL pins the repo's releases path
+func TestAquaListURL(t *testing.T) {
+	assert.Equal(t, aquaBaseURL+"/repos/quarylabs/sqruff/releases", aquaIndex{}.ListURL("aqua:quarylabs/sqruff"))
+}
+
+func TestAquaBodyToEntries(t *testing.T) {
+	t.Run("tags read as versions, dated off their publish time", func(t *testing.T) {
+		at := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		entries, err := aquaIndex{}.BodyToEntries([]byte(fmt.Sprintf(
+			`[{"tag_name":"v0.43.0","published_at":%q},{"tag_name":"v1.2","published_at":%q}]`,
+			at.Format(time.RFC3339), at.Format(time.RFC3339))))
+
+		require.NoError(t, err)
+		assert.Equal(t, []miseutil.VersionEntry{
+			{Version: "0.43.0", CreatedAt: &at},
+			{Version: "1.2", CreatedAt: &at},
+		}, entries)
+	})
+
+	t.Run("a flagged prerelease stays flagged", func(t *testing.T) {
+		flag := true
+
+		entries, err := aquaIndex{}.BodyToEntries([]byte(`[{"tag_name":"v1.0.0-rc1","prerelease":true}]`))
+
+		require.NoError(t, err)
+		assert.Equal(t, []miseutil.VersionEntry{{Version: "1.0.0-rc1", PreRelease: &flag}}, entries)
+	})
+
+	t.Run("a malformed body errors", func(t *testing.T) {
+		_, err := aquaIndex{}.BodyToEntries([]byte(`[`))
+
+		require.Error(t, err)
+	})
+}
+
+// TestAquaRegistration covers the init wiring
+func TestAquaRegistration(t *testing.T) {
+	t.Run("an aqua: tool resolves off its repo's releases", func(t *testing.T) {
+		aged := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
+		stubAqua(t, map[string]string{"/repos/quarylabs/sqruff/releases": fmt.Sprintf(
+			`[{"tag_name":"v0.43.0","published_at":%q},`+ // younger than the release age
+				`{"tag_name":"v0.42.0","published_at":%q}]`,
+			time.Now().Add(time.Hour).Format(time.RFC3339), aged)})
+
+		pin, err := miseutil.LatestVersion(t.Context(), "aqua:quarylabs/sqruff")
+
+		require.NoError(t, err)
+		assert.Equal(t, "0.42", pin, "the pin truncates to its minor")
+	})
+
+	t.Run("a fetch error carries the aqua source's label", func(t *testing.T) {
+		stubAqua(t, nil)
+
+		_, err := miseutil.LatestVersion(t.Context(), "aqua:bogus")
+
+		require.ErrorContains(t, err, "aqua: aqua:bogus:")
+		require.ErrorContains(t, err, "404 Not Found")
+	})
+}

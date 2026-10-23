@@ -7,19 +7,26 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/miseutil"
 )
 
+const (
+	pypiPrefix  = "pypi:"
+	pypiBaseURL = "https://pypi.org"
+
+	aquaPrefix  = "aqua:"
+	aquaBaseURL = "https://api.github.com"
+)
+
+// pypiURL and aquaURL are indirected so tests can point at a fixture server
+var (
+	pypiURL = pypiBaseURL
+	aquaURL = aquaBaseURL
+)
+
 // init registers the release sources beside the versions service's default —
 // each backend prefix its own index
 func init() {
 	miseutil.RegisterSource(pypiPrefix, miseutil.IndexSource(pypiIndex{}, nil))
+	miseutil.RegisterSource(aquaPrefix, miseutil.IndexSource(aquaIndex{}, miseutil.MinorPin))
 }
-
-const (
-	pypiPrefix  = "pypi:"
-	pypiBaseURL = "https://pypi.org"
-)
-
-// pypiURL is indirected so tests can point at a fixture server
-var pypiURL = pypiBaseURL
 
 // pypiIndex is PyPI's JSON index as the pypi: tools' source — a nil pin rule
 // keeps the full release, pip's == matching an exact version
@@ -57,4 +64,40 @@ type pypiReleases struct {
 // pypiFile is one release artifact
 type pypiFile struct {
 	UploadTime string `json:"upload_time_iso_8601"`
+}
+
+// aquaIndex is the aqua: tools' release index as their source — the pin
+// truncates to its minor, the config's depth off the versions service
+type aquaIndex struct{}
+
+// Label is the source's label — its errors' prefix
+func (aquaIndex) Label() string { return "aqua" }
+
+// ListURL is the repo's releases path
+func (aquaIndex) ListURL(tool string) string {
+	return aquaURL + "/repos/" + strings.TrimPrefix(tool, aquaPrefix) + "/releases"
+}
+
+// BodyToEntries lists the repo's releases, tags reading as versions
+func (aquaIndex) BodyToEntries(body []byte) ([]miseutil.VersionEntry, error) {
+	var decoded []aquaRelease
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		return nil, err
+	}
+	entries := make([]miseutil.VersionEntry, 0, len(decoded))
+	for _, release := range decoded {
+		entry := miseutil.Entry(strings.TrimPrefix(release.TagName, "v"), release.PublishedAt)
+		if release.PreRelease {
+			entry.PreRelease = &release.PreRelease
+		}
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+// aquaRelease is one repo release
+type aquaRelease struct {
+	TagName     string `json:"tag_name"`
+	PreRelease  bool   `json:"prerelease"`
+	PublishedAt string `json:"published_at"`
 }

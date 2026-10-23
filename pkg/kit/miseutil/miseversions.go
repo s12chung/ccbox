@@ -35,7 +35,7 @@ func (versionsSource) List(ctx context.Context, tool string) ([]VersionEntry, er
 }
 
 // Pin truncates to the minor — mise's own lock pins the patch
-func (versionsSource) Pin(version string) string { return minorPin(version) }
+func (versionsSource) Pin(version string) string { return MinorPin(version) }
 
 // toolURL is the tool's list URL — the tool's short name keys it: backend
 // prefixes and owner paths dropped (aqua:astral-sh/ruff's ruff)
@@ -46,8 +46,8 @@ func toolURL(tool string) string {
 	return VersionsURL + "/data/" + tool + ".toml"
 }
 
-// minorPin truncates a version to its minor
-func minorPin(version string) string {
+// MinorPin truncates a release to its minor
+func MinorPin(version string) string {
 	parts := strings.SplitN(version, ".", 3)
 	return strings.Join(parts[:min(len(parts), 2)], ".")
 }

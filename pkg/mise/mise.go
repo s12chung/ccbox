@@ -237,8 +237,9 @@ func DevTools() []Tool { return slices.Clone(devTools) }
 // independentTools is the image's tools independent of the runtime selection —
 // the rendered region's tail
 var independentTools = []Tool{
-	{Name: "bats"},
-	{Name: "hadolint"},
+	{Name: "aqua:quarylabs/sqruff", Hint: "SQL linter"},
+	{Name: "hadolint", Hint: "Dockerfile linter"},
+	{Name: "bats", Hint: "bash tests"},
 	{
 		Name:               "npm:playwright",
 		PostInstallCmdTmpl: "playwright install-deps chromium && playwright install chromium",
