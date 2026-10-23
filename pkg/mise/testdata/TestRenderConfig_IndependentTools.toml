@@ -1,9 +1,9 @@
 [tools]
 # ccbox:tools-begin
 ripgrep = "15.2"
+shellcheck = "0.11"
 jq = "1.8"
 yq = "4.54"
-shellcheck = "0.11"
 bats = "1.14"
 hadolint = "2.15"
 # --vnc flag uses this chromium as a browser

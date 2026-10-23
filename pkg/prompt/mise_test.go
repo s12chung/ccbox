@@ -27,9 +27,9 @@ func TestMiseTools(t *testing.T) {
 				PostInstallTools:   []mise.Tool{{Name: "pypi:setuptools"}, {Name: "pypi:wheel"}}, // the checked packages answer on the tool
 			},
 			{Name: "ripgrep"},
+			{Name: "shellcheck"},
 			{Name: "jq"},
 			{Name: "yq"},
-			{Name: "shellcheck"},
 		}, tools)
 		assert.Equal(t, []string{"libatomic1"}, packages)
 	})
@@ -47,9 +47,9 @@ func TestMiseTools(t *testing.T) {
 				PostInstallTools:   []mise.Tool{}, // empty, not nil — resolve reads it as every package dropped
 			},
 			{Name: "ripgrep"},
+			{Name: "shellcheck"},
 			{Name: "jq"},
 			{Name: "yq"},
-			{Name: "shellcheck"},
 		}, tools)
 	})
 
@@ -63,9 +63,9 @@ func TestMiseTools(t *testing.T) {
 			{Name: "go"},
 			{Name: "golangci-lint"},
 			{Name: "ripgrep"},
+			{Name: "shellcheck"},
 			{Name: "jq"},
 			{Name: "yq"},
-			{Name: "shellcheck"},
 		}, tools)
 
 		stubRunTools(t, []pick.Item[toolModel]{pickedRuntime("node"), pickedRuntime("go")}, toolItems(mise.DevTools()), nil, nil)
@@ -76,9 +76,9 @@ func TestMiseTools(t *testing.T) {
 			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
+			{Name: "shellcheck"},
 			{Name: "jq"},
 			{Name: "yq"},
-			{Name: "shellcheck"},
 		}, tools)
 	})
 
@@ -102,9 +102,9 @@ func TestMiseTools(t *testing.T) {
 			{Name: "node", Hint: "required"},
 			{Name: "go"},
 			{Name: "ripgrep"},
+			{Name: "shellcheck"},
 			{Name: "jq"},
 			{Name: "yq"},
-			{Name: "shellcheck"},
 			{Name: "hadolint"},
 			{
 				Name:               "npm:playwright",
@@ -213,7 +213,7 @@ func runtimeItem(t *testing.T, state mise.ToolState, name string) pick.Item[tool
 
 func TestToolItems(t *testing.T) {
 	t.Run("the dev tools' items follow DevTools' render order", func(t *testing.T) {
-		assert.Equal(t, []string{"ripgrep", "jq", "yq", "shellcheck"}, itemNames(toolItems(mise.DevTools())))
+		assert.Equal(t, []string{"ripgrep", "shellcheck", "jq", "yq"}, itemNames(toolItems(mise.DevTools())))
 	})
 
 	t.Run("the independent tools' items follow IndependentTools' render order", func(t *testing.T) {

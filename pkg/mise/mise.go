@@ -199,9 +199,9 @@ const (
 // runtimes, ahead of the independent tools
 var devTools = []Tool{
 	{Name: "ripgrep"},
+	{Name: "shellcheck"},
 	{Name: "jq"},
 	{Name: "yq"},
-	{Name: "shellcheck"},
 }
 
 // DevTools is the dev-workflow CLIs in every config, in render order

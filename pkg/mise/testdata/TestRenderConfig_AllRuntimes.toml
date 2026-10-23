@@ -10,9 +10,9 @@ python = { version = "3.13", postinstall = "python -m pip install --no-cache-dir
 ruby = "3.4"
 rust = "1.99"
 ripgrep = "15.2"
+shellcheck = "0.11"
 jq = "1.8"
 yq = "4.54"
-shellcheck = "0.11"
 # ccbox:tools-end
 
 [bootstrap.packages]
