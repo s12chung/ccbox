@@ -6,15 +6,17 @@ import (
 
 var (
 	// tmpfsDefaults subbed in for DefaultsAlias
-	tmpfsDefaults = []string{".idea", ".vscode"}
+	tmpfsDefaults = []string{".idea", ".vscode", ".zed"}
 	// volumeDefaults subbed in for DefaultsAlias
-	volumeDefaults = []string{"node_modules", ".venv", "vendor/bundle"}
+	volumeDefaults = []string{"node_modules", ".venv", "target"}
 	// readOnlyDefaults subbed in for DefaultsAlias
 	readOnlyDefaults = []string{
-		".ccbox.yaml", ".ccbox.local.yaml",
-		".env", ".env.*", ".envrc",
+		".ccbox.yaml", ".env", "**/*.pem", // the seeded config's inline examples — see defaultsExpansionComment
+
+		".ccbox.local.yaml",
+		".env.*", ".envrc",
 		"secrets",
-		"**/*.pem", "**/*.key",
+		"**/*.key", "**/id_rsa*",
 	}
 )
 

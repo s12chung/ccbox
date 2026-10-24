@@ -342,7 +342,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 			"the seed's alias rejects the project's absent defaults", present,
 			"",
 			nil,
-			[]string{".venv"},
+			[]string{".venv", "target"},
 		},
 		{
 			"the config's own absent dirs reject like the defaults", present,

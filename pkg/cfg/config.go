@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"text/template"
 
 	"github.com/gobwas/glob"
@@ -360,15 +361,13 @@ type configTmpl struct {
 	AllowlistComments     []string
 }
 
-const defaultsExpansionComment = "`ccbox config defaults` for expansions"
-
 func (c *Config) renderTmpl() ([]byte, error) {
 	var b bytes.Buffer
 	data := configTmpl{
 		Config:                *c,
-		TmpfsMasksComments:    yamlutil.CommentFirstEntry(c.TmpfsMasks, defaultsExpansionComment),
-		VolumeMasksComments:   yamlutil.CommentFirstEntry(c.VolumeMasks, defaultsExpansionComment),
-		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(c.ReadOnlyGlobs, defaultsExpansionComment),
+		TmpfsMasksComments:    yamlutil.CommentFirstEntry(c.TmpfsMasks, defaultsExpansionComment(tmpfsDefaults)),
+		VolumeMasksComments:   yamlutil.CommentFirstEntry(c.VolumeMasks, defaultsExpansionComment(volumeDefaults)),
+		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(c.ReadOnlyGlobs, defaultsExpansionComment(readOnlyDefaults)),
 		AllowlistComments: yamlutil.EntryToComments(c.Allowlist, map[string]string{
 			DefaultsAlias:            "shared tooling domains",
 			runtime.AllRuntimesAlias: "every runtime's domains (node, python, go, rust)",
@@ -379,6 +378,13 @@ func (c *Config) renderTmpl() ([]byte, error) {
 		return nil, fmt.Errorf("render Config template: %w", err)
 	}
 	return b.Bytes(), nil
+}
+
+func defaultsExpansionComment(defaults []string) string {
+	if len(defaults) > 3 {
+		return strings.Join(defaults[:3], ", ") + ", etc., see `ccbox config defaults` for expansions"
+	}
+	return strings.Join(defaults, ", ")
 }
 
 func absentDirs(projectDir string, dirs []string) []string {
