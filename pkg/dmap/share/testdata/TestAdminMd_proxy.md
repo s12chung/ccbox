@@ -13,6 +13,8 @@ These 2 directories bind mounted, which persist on the host:
 
 Most importantly, `/tmp` is a persistent volume — treat it as your scratch space to try things out freely.
 
+Caches persist per project (`~/.cache`, `~/.local`, `~/.npm`, etc.) so downloads survive runs, but NOT `~/.local/share/mise`.
+
 ALL other directories are **wiped on exit** via `docker run --rm`.
 
 ## Network is egress walled, allowlist-only
