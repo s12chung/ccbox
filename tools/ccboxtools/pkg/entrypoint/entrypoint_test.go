@@ -20,25 +20,6 @@ func TestMain(m *testing.M) {
 	os.Exit(testutil.MainHome(m, nil))
 }
 
-func TestExecArgv(t *testing.T) {
-	tests := []struct {
-		name    string
-		argv    []string
-		wantErr string
-	}{
-		{"empty", nil, "no command to exec"},
-		{"missing binary", []string{"ccbox-definitely-not-a-binary"}, "exec ccbox-definitely-not-a-binary"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := execArgv(tt.argv)
-
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-		})
-	}
-}
-
 // rpmInfo is Go-constructed only: the config's validation rejects the artifact type,
 // so the install fails before any download
 var rpmInfo = pkginfo.GUIPkgInfo{
@@ -85,7 +66,7 @@ func TestServeDesktop_ErrorsWithoutChromium(t *testing.T) {
 	desktopFile := writeDesktopScript(t)           // PATH finds the desktop script...
 	t.Setenv(vncdeps.BrowsersPathEnv, t.TempDir()) // ...but no chromium under the browsers dir
 
-	err := serveDesktop(vncInfo(nil))
+	err := serveDesktop(t.Context(), vncInfo(nil))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no playwright chromium")
@@ -99,7 +80,7 @@ func TestServeDesktop_ErrorsWithoutDesktop(t *testing.T) {
 	writeChrome(t)
 	t.Setenv("PATH", t.TempDir()) // no desktop script on PATH
 
-	err := serveDesktop(vncInfo(nil))
+	err := serveDesktop(t.Context(), vncInfo(nil))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, exec.ErrNotFound)
@@ -110,7 +91,7 @@ func TestServeDesktop_ErrorsWhenInstallFails(t *testing.T) {
 	writeDesktopScript(t)
 	testutil.Home(t)
 
-	err := serveDesktop(vncInfo(&rpmInfo))
+	err := serveDesktop(t.Context(), vncInfo(&rpmInfo))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unknown artifact type "rpm"`)
@@ -120,11 +101,47 @@ func TestServeDesktop_NoGUIAppServesDesktopAlone(t *testing.T) {
 	writeChrome(t)
 	desktopFile := writeDesktopScript(t)
 
-	require.NoError(t, serveDesktop(vncInfo(nil)))
+	require.NoError(t, serveDesktop(t.Context(), vncInfo(nil)))
 	// the window only bounds the wait: macOS first-spawns freshly-written
 	// scripts slowly (Gatekeeper/EDR scans), while success lands in milliseconds
 	require.Eventually(t, func() bool {
 		_, err := os.Stat(desktopFile) //nolint:gosec // test fixture path
 		return err == nil
 	}, 5*time.Second, time.Millisecond, "the desktop must start")
+}
+
+func TestExec_EmptyArgv(t *testing.T) {
+	err := Exec(t.Context(), nil)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no command to exec")
+}
+
+func TestExec_RefusesNonRootSession(t *testing.T) {
+	// the test process is never root: an egress wall session must arrive as
+	// root — the crossing needs SYS_ADMIN and the wrapper owns the drop
+	t.Setenv("http_proxy", "http://"+pkginfo.ProxyAddr+":3128") // aim at the egress wall's branch
+	err := Exec(t.Context(), []string{"id"})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "requires root")
+}
+
+func TestExecArgv(t *testing.T) {
+	tests := []struct {
+		name    string
+		argv    []string
+		wantErr string
+	}{
+		{"empty", nil, "no command to exec"},
+		{"missing binary", []string{"ccbox-definitely-not-a-binary"}, "exec ccbox-definitely-not-a-binary"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ExecArgv(tt.argv)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }

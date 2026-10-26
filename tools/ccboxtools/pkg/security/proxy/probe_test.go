@@ -1,4 +1,4 @@
-package entrypoint
+package proxy
 
 import (
 	"net/http"
@@ -47,7 +47,7 @@ func TestReachable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ok, err := reachable(directClient(), tt.url)
+			ok, err := reachable(t.Context(), directClient(), tt.url)
 
 			assert.Equal(t, tt.wantOK, ok)
 			if tt.wantOK {
@@ -62,70 +62,33 @@ func TestReachable(t *testing.T) {
 	}
 }
 
-func TestProbeAllowed(t *testing.T) {
+func TestProbeProxy(t *testing.T) {
 	ok := okServer(t).URL
+	down := downServer(t)
 
 	tests := []struct {
 		name    string
-		url     string
+		allowed string
+		blocked string
+		direct  string
 		wantErr string
 	}{
-		{"ok", ok, ""},
-		{"down", downServer(t), "allowed host unreachable"},
+		{"pass", ok, down, down, ""},
+		{"allowed unreachable", down, down, down, "allowed host unreachable"},
+		{"block not enforced", ok, ok, down, "blocked host reachable through proxy"},
+		{"direct egress works", ok, down, ok, "direct egress works"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := probeAllowed(directClient(), tt.url)
+			// no proxy in the middle: the clients dial straight, so an ok server
+			// stands in for "reachable through the proxy" and a down one for
+			// "rejected by it"
+			t.Setenv("http_proxy", "")
+			t.Setenv(allowedURLVar, tt.allowed)
+			t.Setenv(blockedURLVar, tt.blocked)
+			t.Setenv(directURLVar, tt.direct)
 
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-		})
-	}
-}
-
-func TestProbeBlocked(t *testing.T) {
-	ok := okServer(t).URL
-
-	tests := []struct {
-		name    string
-		url     string
-		wantErr string
-	}{
-		{"rejected", downServer(t), ""}, // failing here is the success case
-		{"reachable", ok, "blocked host reachable through proxy"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := probeBlocked(directClient(), tt.url)
-
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-		})
-	}
-}
-
-func TestProbeDirect(t *testing.T) {
-	ok := okServer(t).URL
-
-	tests := []struct {
-		name    string
-		url     string
-		wantErr string
-	}{
-		{"no route", downServer(t), ""},
-		{"reachable", ok, "direct egress works"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := probeDirect(directClient(), tt.url)
+			err := probeProxy(t.Context())
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)

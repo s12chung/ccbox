@@ -1,6 +1,7 @@
-// Package proxy translates the proxy's live allow file — its rendered tinyproxy ERE
-// filter rules — into the bare domains the proxy allows.
-package proxy
+// Package allowfile is the proxy allow file's format contract: its rendered
+// tinyproxy ERE filter rules, rendered and read back as bare domains — shared
+// by the host's render and the container's read.
+package allowfile
 
 import (
 	"bufio"

@@ -3,6 +3,7 @@
 package pkger
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -17,9 +18,9 @@ type Pkger interface {
 	// Name is the CLI's name; the installed executable is expected to match it.
 	Name() string
 	// Latest returns the release channel's latest version.
-	Latest() (string, error)
+	Latest(ctx context.Context) (string, error)
 	// Install downloads the version into dir.
-	Install(dir, version string) error
+	Install(ctx context.Context, dir, version string) error
 	// RelBin is the installed executable's path relative to the install dir.
 	RelBin() string
 }

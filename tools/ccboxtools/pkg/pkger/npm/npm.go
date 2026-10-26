@@ -6,10 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/cmdgen"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/httputil"
 )
 
@@ -23,9 +22,9 @@ type manifest struct {
 
 // latestAt returns the version npm's "latest" dist-tag points at for the package:
 // the registry serves that tag's manifest at /<pkg>/latest; we read its version.
-func latestAt(registry, pkg string) (string, error) {
+func latestAt(ctx context.Context, registry, pkg string) (string, error) {
 	url := fmt.Sprintf("%s/%s/latest", registry, pkg)
-	resp, err := httputil.GetOK(context.Background(), nil, url)
+	resp, err := httputil.GetOK(ctx, nil, url)
 	if err != nil {
 		return "", err
 	}
@@ -55,13 +54,13 @@ func New(name string, pkg pkginfo.Npm) Npm { return Npm{Npm: pkg, name: name} }
 func (n Npm) Name() string { return n.name }
 
 // Latest returns the version npm's "latest" dist-tag points at for the package.
-func (n Npm) Latest() (string, error) {
-	return latestAt(npmRegistry, n.Package)
+func (n Npm) Latest(ctx context.Context) (string, error) {
+	return latestAt(ctx, npmRegistry, n.Package)
 }
 
 // Install runs npm's global install with dir as the prefix, so the package tree
 // lands inside dir, ready to rename into place.
-func (n Npm) Install(dir, version string) error {
+func (n Npm) Install(ctx context.Context, dir, version string) error {
 	args := []string{
 		"install", "-g", "--prefix", dir,
 		// npm runs lifecycle scripts by default (mise's backend skips them, which
@@ -70,7 +69,7 @@ func (n Npm) Install(dir, version string) error {
 		"--ignore-scripts=false", "--allow-scripts=" + n.Package,
 		n.Package + "@" + version,
 	}
-	if err := runCmd("npm", args...); err != nil {
+	if err := runCmd(ctx, "npm", args...); err != nil {
 		return fmt.Errorf("npm install %s@%s: %w", n.Package, version, err)
 	}
 	return nil
@@ -80,10 +79,6 @@ func (n Npm) Install(dir, version string) error {
 func (n Npm) RelBin() string { return "bin/" + n.name }
 
 // runCmd runs a command with output passed through; swapped in tests.
-var runCmd = func(name string, args ...string) error {
-	//nolint:gosec // npm is fixed and args are ours (the package name is firm-validated)
-	cmd := exec.Command(name, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	return cmd.Run()
+var runCmd = func(ctx context.Context, name string, args ...string) error {
+	return cmdgen.Stdio(ctx, name, args...).Run()
 }

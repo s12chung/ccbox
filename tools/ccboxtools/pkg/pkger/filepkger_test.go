@@ -35,7 +35,7 @@ func TestFilePkger_Install(t *testing.T) {
 	p := FilePkger{Downloader: d, Installer: artifact.NewRawBin("grok"), name: "grok"}
 
 	dir := t.TempDir()
-	require.NoError(t, p.Install(dir, "1.0.5"))
+	require.NoError(t, p.Install(t.Context(), dir, "1.0.5"))
 
 	// the download lands at the dir root, executable
 	//nolint:gosec // test fixture path
@@ -68,7 +68,7 @@ func TestFilePkger_Latest(t *testing.T) {
 	})
 	require.NoError(t, err)
 	p := FilePkger{Downloader: d, Installer: artifact.NewRawBin("grok"), name: "grok"}
-	v, err := p.Latest()
+	v, err := p.Latest(t.Context())
 	require.NoError(t, err)
 	assert.Equal(t, "1.2.3", v)
 }

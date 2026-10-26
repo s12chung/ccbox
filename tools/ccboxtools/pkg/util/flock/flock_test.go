@@ -122,7 +122,7 @@ func TestDo(t *testing.T) {
 				defer release()
 			}
 
-			err := Do(lockPath, func() error { ran = true; return nil }, func() bool {
+			err := Do(t.Context(), lockPath, func() error { ran = true; return nil }, func() bool {
 				skipCalled = true
 				return true
 			})
@@ -148,7 +148,7 @@ func TestDo_Held_NoSkip_WaitsThenRunsFn(t *testing.T) {
 		release()
 	}()
 
-	err := Do(lockPath, func() error { step("fn"); return nil }, func() bool {
+	err := Do(t.Context(), lockPath, func() error { step("fn"); return nil }, func() bool {
 		step("skip")
 		close(skipped)
 		return false
@@ -162,7 +162,7 @@ func TestDo_FnError_PropagatesAndReleases(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "claude.lock")
 	wantErr := errors.New("boom")
 
-	err := Do(lockPath, func() error { return wantErr }, func() bool {
+	err := Do(t.Context(), lockPath, func() error { return wantErr }, func() bool {
 		t.Fatal("skip consulted on an uncontended lock")
 		return true
 	})
@@ -176,9 +176,9 @@ func TestDo_ReleasesAfterRun(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "claude.lock")
 	fn := func() error { return nil }
 
-	require.NoError(t, Do(lockPath, fn, func() bool { return true }))
+	require.NoError(t, Do(t.Context(), lockPath, fn, func() bool { return true }))
 
 	var ran bool // a second Do takes the lock rather than skipping to it
-	require.NoError(t, Do(lockPath, func() error { ran = true; return nil }, func() bool { return true }))
+	require.NoError(t, Do(t.Context(), lockPath, func() error { ran = true; return nil }, func() bool { return true }))
 	assert.True(t, ran)
 }

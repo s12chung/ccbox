@@ -24,6 +24,12 @@ const (
 	ProxyAllowFile = "allow.txt"
 	// ProxyAllowPath is ProxyAllowFile's path in the devbox: the allowlist command's input.
 	ProxyAllowPath = ProxyMount + "/" + ProxyAllowFile
+
+	// ProxyAddr is the egress wall's fixed /30's parent veth IP: tinyproxy's
+	// listen address and the proxy env's target.
+	ProxyAddr = "169.254.100.1"
+	// ProxyPort is tinyproxy's fixed listen port, shared with the proxy env.
+	ProxyPort = "8888"
 )
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or

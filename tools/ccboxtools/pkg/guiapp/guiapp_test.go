@@ -74,7 +74,7 @@ func TestInstall_Errors(t *testing.T) {
 	require.NoError(t, os.WriteFile(home, nil, fileMode)) // a file, not a dir
 	t.Setenv("HOME", home)
 
-	err := Install(debInfo)
+	err := Install(t.Context(), debInfo)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "write app menu entry")
@@ -119,7 +119,7 @@ func TestWriteDesktopEntry(t *testing.T) {
 }
 
 func TestExec_NotInstalled(t *testing.T) {
-	err := Exec(debInfo, nil)
+	err := Exec(t.Context(), debInfo, nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not installed at /opt/ccbox/apps/app/current/opt/App/app")
@@ -154,10 +154,10 @@ func TestWaitInstalled(t *testing.T) {
 	bin := filepath.Join(dir, "app")
 	sleeps := 0
 
-	waitInstalled(bin, func() {
+	require.NoError(t, waitInstalled(t.Context(), bin, func() {
 		sleeps++
 		require.NoError(t, os.WriteFile(bin, nil, fileMode|0o100))
-	})
+	}))
 
 	assert.Equal(t, 1, sleeps)
 }

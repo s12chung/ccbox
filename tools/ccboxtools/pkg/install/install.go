@@ -3,6 +3,7 @@
 package install
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,10 +26,10 @@ const AppsRoot = "/opt/ccbox/apps"
 // FromPkgDir resolves pkgDir's latest version, installs it unless it is already
 // current, and prunes every other version of the CLI — all under the CLI's install
 // lock. A failure keeps the installed version; with nothing usable installed, it fails.
-func FromPkgDir(pkgDir pkger.PkgDir) error {
-	return flock.Do(pkgDir.LockPath(), func() error {
+func FromPkgDir(ctx context.Context, pkgDir pkger.PkgDir) error {
+	return flock.Do(ctx, pkgDir.LockPath(), func() error {
 		active := installutil.CurrentVersion(pkgDir.Current())
-		latest, err := pkgDir.Latest()
+		latest, err := pkgDir.Latest(ctx)
 		if err != nil {
 			if active == "" {
 				return fmt.Errorf("resolve %s latest: %w", pkgDir.Name(), err)
@@ -47,7 +48,7 @@ func FromPkgDir(pkgDir pkger.PkgDir) error {
 		}
 		log.Infof("installing %s %s", pkgDir.Name(), latest)
 
-		if err := install(pkgDir, latest); err != nil {
+		if err := install(ctx, pkgDir, latest); err != nil {
 			return err
 		}
 		log.Infof("installed %s %s", pkgDir.Name(), latest)
@@ -56,12 +57,12 @@ func FromPkgDir(pkgDir pkger.PkgDir) error {
 }
 
 // FromPkgInfo installs info's CLI or GUI app at root.
-func FromPkgInfo(info pkginfo.PkgInfo, root string) error {
+func FromPkgInfo(ctx context.Context, info pkginfo.PkgInfo, root string) error {
 	p, err := pkger.ForPkgInfo(info)
 	if err != nil {
 		return err
 	}
-	return FromPkgDir(pkger.PkgDir{Pkger: p, Root: root})
+	return FromPkgDir(ctx, pkger.PkgDir{Pkger: p, Root: root})
 }
 
 // skipInstalled reports whether an installed version can stand in while another
@@ -90,12 +91,12 @@ func installed(pkgDir pkger.PkgDir, version string) bool {
 
 // install puts version in place: download to a temp dir, rename in, then flip
 // the current and bin symlinks.
-func install(pkgDir pkger.PkgDir, version string) error {
+func install(ctx context.Context, pkgDir pkger.PkgDir, version string) error {
 	tmp := pkgDir.TmpDir(version)
 	if err := installutil.SafeMkdir(tmp); err != nil {
 		return err
 	}
-	if err := pkgDir.Install(tmp, version); err != nil {
+	if err := pkgDir.Install(ctx, tmp, version); err != nil {
 		return fmt.Errorf("install %s %s: %w", pkgDir.Name(), version, err)
 	}
 	if err := installutil.SafeMv(tmp, pkgDir.VersionDir(version)); err != nil {

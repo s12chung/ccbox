@@ -14,7 +14,7 @@ func TestRawBin_Install(t *testing.T) {
 	b := RawBin{name: "grok"}
 
 	dir := t.TempDir()
-	require.NoError(t, b.Install(dir, strings.NewReader("#!/bin/sh\n")))
+	require.NoError(t, b.Install(t.Context(), dir, strings.NewReader("#!/bin/sh\n")))
 
 	// the raw binary lands at the dir root, executable
 	//nolint:gosec // test fixture path
@@ -28,7 +28,7 @@ func TestRawBin_Install(t *testing.T) {
 	assert.Equal(t, "grok", b.RelBin())
 
 	t.Run("missing dir", func(t *testing.T) {
-		err := b.Install(filepath.Join(dir, "missing"), strings.NewReader("#!/bin/sh\n"))
+		err := b.Install(t.Context(), filepath.Join(dir, "missing"), strings.NewReader("#!/bin/sh\n"))
 		assert.Error(t, err)
 	})
 }

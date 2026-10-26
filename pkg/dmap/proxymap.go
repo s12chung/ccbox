@@ -13,7 +13,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/diff"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/proxy"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/allowfile"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -30,7 +30,7 @@ func NewProxyMap(cfg *cfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 func (pm *ProxyMap) Options(foreground *tinyproxy.Log) *docker.ProxyOptions {
 	proxyConfigMap := map[string][]byte{
 		tinyproxy.ConfFile:     tinyproxy.MustConf(),
-		pkginfo.ProxyAllowFile: proxy.Render(pm.cfg.AllowlistExpanded()),
+		pkginfo.ProxyAllowFile: allowfile.Render(pm.cfg.AllowlistExpanded()),
 	}
 	writeConfigMap := func() error {
 		for name, body := range proxyConfigMap {
@@ -72,11 +72,11 @@ func (pm *ProxyMap) allowlistDiff(fresh []byte) (string, error) {
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return "", err
 	}
-	liveDomains, err := proxy.Parse(string(body))
+	liveDomains, err := allowfile.Parse(string(body))
 	if err != nil {
 		return "", err
 	}
-	freshDomains, err := proxy.Parse(string(fresh))
+	freshDomains, err := allowfile.Parse(string(fresh))
 	if err != nil {
 		return "", err // unreachable: fresh is the map's own render
 	}

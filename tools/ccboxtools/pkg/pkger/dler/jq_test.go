@@ -117,7 +117,7 @@ func TestJQ_Latest(t *testing.T) {
 		d, err := NewJQ(srv.URL, &pkginfo.JQSchema{Format: "json", Version: ".version", DownloadURL: ".url"})
 		require.NoError(t, err)
 
-		v, err := d.Latest()
+		v, err := d.Latest(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "1.2.3", v)
 	})
@@ -163,7 +163,7 @@ func TestJQ_Latest(t *testing.T) {
 			d, err := NewJQ(srv.URL, &tt.schema)
 			require.NoError(t, err)
 
-			_, err = d.Latest()
+			_, err = d.Latest(t.Context())
 			require.Error(t, err)
 			assert.ErrorContains(t, err, tt.wantErr)
 		})
@@ -181,11 +181,11 @@ func TestJQ_Download(t *testing.T) {
 	t.Run("happy", func(t *testing.T) {
 		d, srv, hits := newZcodeDownloader(t, content, true)
 
-		v, err := d.Latest()
+		v, err := d.Latest(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "3.14.4", v)
 
-		rc, err := d.Download(v)
+		rc, err := d.Download(t.Context(), v)
 		require.NoError(t, err)
 		defer func() { assert.NoError(t, rc.Close()) }()
 
@@ -201,7 +201,7 @@ func TestJQ_Download(t *testing.T) {
 	t.Run("hash mismatch", func(t *testing.T) {
 		d, _, _ := newZcodeDownloader(t, content, false)
 
-		rc, err := d.Download("3.14.4")
+		rc, err := d.Download(t.Context(), "3.14.4")
 		require.NoError(t, err)
 
 		_, err = io.ReadAll(rc)
@@ -217,7 +217,7 @@ func TestJQ_Download(t *testing.T) {
 		schema.DownloadURL = `.files[] | select(.url | endswith(".nope")) | .url`
 		d.JQSchema = schema
 
-		_, err := d.Download("3.14.4")
+		_, err := d.Download(t.Context(), "3.14.4")
 		assert.ErrorContains(t, err, "no result")
 	})
 
@@ -228,7 +228,7 @@ func TestJQ_Download(t *testing.T) {
 		schema.DownloadURL = ".version" // "3.14.4" is not an https url
 		d.JQSchema = schema
 
-		_, err := d.Download("3.14.4")
+		_, err := d.Download(t.Context(), "3.14.4")
 		assert.ErrorContains(t, err, "DownloadURL does not match ^https://")
 	})
 
@@ -239,7 +239,7 @@ func TestJQ_Download(t *testing.T) {
 		schema.Sha512 = ".version" // "3.14.4" is not a base64 sha512
 		d.JQSchema = schema
 
-		_, err := d.Download("3.14.4")
+		_, err := d.Download(t.Context(), "3.14.4")
 		assert.ErrorContains(t, err, "is not a base64 std sha512")
 	})
 
@@ -252,7 +252,7 @@ func TestJQ_Download(t *testing.T) {
 		schema.Sha512 = ""
 		d.JQSchema = schema
 
-		rc, err := d.Download("3.14.4")
+		rc, err := d.Download(t.Context(), "3.14.4")
 		require.NoError(t, err)
 		defer func() { assert.NoError(t, rc.Close()) }()
 
@@ -268,14 +268,14 @@ func TestJQ_Download(t *testing.T) {
 		schema.Version = "" // not firm-tolerated: the drift guard's Equal fails
 		d.JQSchema = schema
 
-		_, err := d.Download("3.14.4")
+		_, err := d.Download(t.Context(), "3.14.4")
 		assert.ErrorContains(t, err, "Version is not equal to 3.14.4")
 	})
 
 	t.Run("version drift", func(t *testing.T) {
 		d, _, _ := newZcodeDownloader(t, content, true)
 
-		_, err := d.Download("9.9.9")
+		_, err := d.Download(t.Context(), "9.9.9")
 		assert.ErrorContains(t, err, "Version is not equal to 9.9.9")
 	})
 }

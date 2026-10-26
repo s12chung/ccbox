@@ -3,6 +3,7 @@
 package vnc
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 )
@@ -11,13 +12,15 @@ import (
 const desktopBin = "desktop"
 
 // StartDesktop starts the image's desktop in the background, erroring when the
-// image ships no desktop or the start fails.
-func StartDesktop() error {
+// image ships no desktop or the start fails. The desktop is the shell's
+// `desktop &`: its ctx cancels only at shutdown, and the dying container takes
+// the stack with it.
+func StartDesktop(ctx context.Context) error {
 	if _, err := exec.LookPath(desktopBin); err != nil {
 		return fmt.Errorf("vnc requested: %w", err)
 	}
-	//nolint:gosec,noctx // the image's own desktop launcher, like the shell's `desktop &` — it outlives any context
-	cmd := exec.Command(desktopBin)
+	//nolint:gosec // the image's own desktop launcher
+	cmd := exec.CommandContext(ctx, desktopBin)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("vnc requested: start %s: %w", desktopBin, err)
 	}

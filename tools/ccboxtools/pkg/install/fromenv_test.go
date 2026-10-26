@@ -12,7 +12,7 @@ import (
 func TestFromEnv_MissingPkginfo(t *testing.T) {
 	t.Setenv(pkginfo.EnvVar, "")
 
-	err := FromEnv()
+	err := FromEnv(t.Context())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "CLI_PKGINFO is not set")
@@ -21,7 +21,7 @@ func TestFromEnv_MissingPkginfo(t *testing.T) {
 func TestFromEnv_BadJSON(t *testing.T) {
 	t.Setenv(pkginfo.EnvVar, `{"name":`)
 
-	err := FromEnv()
+	err := FromEnv(t.Context())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "pkginfo: parse")
