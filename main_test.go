@@ -124,5 +124,6 @@ docker/desktop/share/xfce4/helpers/web-browser.desktop
 docker/desktop.sh
 docker/mise/config.toml
 docker/mise/mise.lock
+docker/tinyproxy.conf
 docker/web-browser
 `

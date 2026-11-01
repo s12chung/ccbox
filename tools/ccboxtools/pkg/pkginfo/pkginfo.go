@@ -16,14 +16,23 @@ const (
 	// EnvVar is the container env var carrying a coding CLI's PkgInfo JSON.
 	EnvVar = "CLI_PKGINFO"
 
-	// ProxyMount is the proxy's live dir's devbox bind: the host handles the allow file
-	// within it, and the devbox trusts the bind
+	// ProxyMount is the container's binded read-only dir for the proxy
 	ProxyMount = "/etc/ccbox/proxy"
-	// ProxyAllowFile is the proxy's rendered allow file within ProxyMount — also the
-	// name of the proxy container's tinyproxy filter file.
+	// ProxyAllowFile tinyproxy's baked conf points at allow file
 	ProxyAllowFile = "allow.txt"
-	// ProxyAllowPath is ProxyAllowFile's path in the devbox: the allowlist command's input.
+	// ProxyAllowPath is ProxyAllowFile's devbox path: the allowlist command's input.
 	ProxyAllowPath = ProxyMount + "/" + ProxyAllowFile
+
+	// ProxyAddr is the fixed address tinyproxy listens on — the target of the
+	// devbox's proxy env and the room's default route.
+	ProxyAddr = "169.254.100.1"
+	// ProxyPort is tinyproxy's fixed listen port, shared with the proxy env.
+	ProxyPort = 8888
+	// ProxyMuxName is tinyproxy's tag under in the container's shared log stream.
+	ProxyMuxName = "tinyproxy"
+
+	// ReadyMarker is the boot's readiness line with the egress wall on
+	ReadyMarker = "egress wall: ready"
 )
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or

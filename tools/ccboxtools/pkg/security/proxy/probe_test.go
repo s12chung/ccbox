@@ -1,12 +1,17 @@
 package proxy
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 // okServer serves HTTP 200; downServer reserves a port and closes it, so dialing
@@ -27,7 +32,7 @@ func downServer(t *testing.T) string {
 	return server.URL
 }
 
-func directClient() *http.Client { return probeClient(nil, probeMax) }
+func directClient() *http.Client { return probeClient(nil, directProbeMax) }
 
 func TestReachable(t *testing.T) {
 	server500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -62,20 +67,45 @@ func TestReachable(t *testing.T) {
 	}
 }
 
-func TestProbeAllowed(t *testing.T) {
+func directFrom() func(*http.Request) (*url.URL, error) {
+	return http.ProxyURL(nil)
+}
+
+func TestProbeProxy(t *testing.T) {
 	ok := okServer(t).URL
+	down := downServer(t)
+
+	// the share pin is TestVerifyShareRO's: aim the stubs so this test stays on
+	// the policy probes
+	origShare := probeShareRO
+	probeShareRO = func() error { return syscall.EROFS }
+	t.Cleanup(func() { probeShareRO = origShare })
+	origOpen := openAllow
+	openAllow = func() error { return syscall.EROFS }
+	t.Cleanup(func() { openAllow = origOpen })
+	origProxy := proxyFrom
+	proxyFrom = directFrom()
+	t.Cleanup(func() { proxyFrom = origProxy })
+	origAllowed, origBlocked, origDirect := allowedURL, blockedURL, directURL
+	t.Cleanup(func() { allowedURL, blockedURL, directURL = origAllowed, origBlocked, origDirect })
 
 	tests := []struct {
 		name    string
-		url     string
+		allowed string
+		blocked string
+		direct  string
 		wantErr string
 	}{
-		{"ok", ok, ""},
-		{"down", downServer(t), "allowed host unreachable"},
+		{"pass", ok, down, down, ""},
+		{"allowed unreachable", down, down, down, "allowed host unreachable"},
+		{"block not enforced", ok, ok, down, "blocked host reachable through proxy"},
+		{"direct egress works", ok, down, ok, "direct egress works"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := probeAllowed(t.Context(), directClient(), tt.url)
+			allowedURL, blockedURL, directURL = tt.allowed, tt.blocked, tt.direct
+
+			err := probeProxy(t.Context())
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)
@@ -87,45 +117,34 @@ func TestProbeAllowed(t *testing.T) {
 	}
 }
 
-func TestProbeBlocked(t *testing.T) {
-	ok := okServer(t).URL
+func TestProxyFrom_PinsTheWallProxy(t *testing.T) {
+	u, err := proxyFrom(nil)
 
-	tests := []struct {
-		name    string
-		url     string
-		wantErr string
-	}{
-		{"rejected", downServer(t), ""}, // failing here is the success case
-		{"reachable", ok, "blocked host reachable through proxy"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := probeBlocked(t.Context(), directClient(), tt.url)
-
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-				return
-			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-		})
-	}
+	require.NoError(t, err)
+	assert.Equal(t, "http", u.Scheme)
+	assert.Equal(t, fmt.Sprintf("%s:%d", pkginfo.ProxyAddr, pkginfo.ProxyPort), u.Host)
 }
 
-func TestProbeDirect(t *testing.T) {
-	ok := okServer(t).URL
-
+func TestVerifyShareRO(t *testing.T) {
 	tests := []struct {
-		name    string
-		url     string
-		wantErr string
+		name     string
+		shareErr error
+		allowErr error
+		wantErr  string
 	}{
-		{"no route", downServer(t), ""},
-		{"reachable", ok, "direct egress works"},
+		{"pinned", syscall.EROFS, syscall.EROFS, ""},
+		{"share writable", nil, syscall.EROFS, pkginfo.ProxyMount + " is writable"},
+		{"allow writable", syscall.EROFS, nil, pkginfo.ProxyAllowPath + " is writable"},
+		{"denied another way", syscall.EACCES, syscall.EROFS, "verify share ro"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := probeDirect(t.Context(), directClient(), tt.url)
+			probeShareRO = func() error { return tt.shareErr }
+			openAllow = func() error { return tt.allowErr }
+			t.Cleanup(func() { probeShareRO = mkdirInShare })
+			t.Cleanup(func() { openAllow = openAllowFile })
+
+			err := verifyShareRO()
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)

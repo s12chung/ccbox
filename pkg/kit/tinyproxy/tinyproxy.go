@@ -1,4 +1,4 @@
-// Package tinyproxy it's configs
+// Package tinyproxy is the proxy's image-baked conf.
 package tinyproxy
 
 import (

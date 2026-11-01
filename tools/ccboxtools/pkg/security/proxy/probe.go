@@ -2,90 +2,83 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"os"
+	"syscall"
 	"time"
 
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
 // Proxy probe URLs: api.github.com returns 200 unauthenticated and matches the
-// proxy allowlist, so it makes a clean positive probe. Overridable for other allowlists.
+// proxy allowlist, so it makes a clean positive probe.
 const (
 	defaultAllowedURL = "https://api.github.com"
 	defaultBlockedURL = "https://example.com"
 	defaultDirectURL  = "https://1.1.1.1"
 )
 
-const (
-	allowedURLVar = "PROXY_ALLOWED_URL"
-	blockedURLVar = "PROXY_BLOCKED_URL"
-	directURLVar  = "PROXY_DIRECT_URL"
-
-	// proxyEnv marks the proxy: the container only has the proxy env vars when the
-	// proxy exists — no http_proxy, no proxy to verify (`ccbox --no-proxy` runs on
-	// plain bridge networking without them).
-	proxyEnv = "http_proxy"
-
-	probeMax = 5 * time.Second
+// The probes' targets — vars so tests aim them at stubs.
+var (
+	allowedURL = defaultAllowedURL
+	blockedURL = defaultBlockedURL
+	directURL  = defaultDirectURL
 )
 
-// ProbeProxy verifies the egress wall with three curl-parity probes: an allowlisted
-// host must be reachable through the proxy, a non-allowlisted host must be rejected
-// by it, and bypassing it must have no route at all — proving --internal holds even
-// for tools that ignore proxy env vars.
-func ProbeProxy(ctx context.Context) error {
-	proxy := probeClient(http.ProxyFromEnvironment, probeMax)
-	direct := probeClient(nil, probeMax)
+const (
+	// proxyEnv marks the proxy: the env vars exist only when the egress wall
+	// does (`ccbox --no-proxy` runs without them)
+	proxyEnv = "http_proxy"
 
-	if err := probeAllowed(ctx, proxy, envOr(allowedURLVar, defaultAllowedURL)); err != nil {
+	probeMax       = 5 * time.Second
+	directProbeMax = time.Second
+)
+
+// probeProxy verifies the egress wall: an allowlisted host is reachable
+// through the proxy, a blocked host is not, and direct egress has no route —
+// any failure is the rejection probes' pass.
+//
+// A listener sweep of pkginfo.ProxyAddr and the container's dynamic docker IP
+// could run here — rejected: the egress wall does not safeguard against
+// processes binding to those addresses anyway.
+func probeProxy(ctx context.Context) error {
+	if err := verifyShareRO(); err != nil {
 		return err
 	}
-	if err := probeBlocked(ctx, proxy, envOr(blockedURLVar, defaultBlockedURL)); err != nil {
-		return err
-	}
-	return probeDirect(ctx, direct, envOr(directURLVar, defaultDirectURL))
-}
+	proxy := probeClient(proxyFrom, probeMax)
+	direct := probeClient(nil, directProbeMax)
 
-// probeAllowed asserts an allowlisted host is reachable through the proxy client.
-func probeAllowed(ctx context.Context, client *http.Client, rawURL string) error {
-	if _, err := reachable(ctx, client, rawURL); err != nil {
-		return fmt.Errorf("allowed host unreachable (%s) — proxy or network is down: %w", rawURL, err)
+	if _, err := reachable(ctx, proxy, allowedURL); err != nil {
+		return fmt.Errorf("allowed host unreachable (%s) — proxy or network is down: %w", allowedURL, err)
 	}
-	return nil
-}
-
-// probeBlocked asserts a non-allowlisted host is rejected by the proxy. Failing
-// here is the success case and must stay silent.
-func probeBlocked(ctx context.Context, client *http.Client, rawURL string) error {
-	if ok, _ := reachable(ctx, client, rawURL); ok {
-		return fmt.Errorf("blocked host reachable through proxy (%s) — allowlist not enforced", rawURL)
+	if ok, _ := reachable(ctx, proxy, blockedURL); ok {
+		return fmt.Errorf("blocked host reachable through proxy (%s) — allowlist not enforced", blockedURL)
+	}
+	if ok, _ := reachable(ctx, direct, directURL); ok {
+		return fmt.Errorf("direct egress works (%s) — network is not --internal", directURL)
 	}
 	return nil
 }
 
-// probeDirect asserts bypassing the proxy has no route at all, so tools that
-// ignore proxy env vars stay isolated.
-func probeDirect(ctx context.Context, client *http.Client, rawURL string) error {
-	if ok, _ := reachable(ctx, client, rawURL); ok {
-		return fmt.Errorf("direct egress works (%s) — network is not --internal", rawURL)
-	}
-	return nil
+// proxyFrom pins the probes to the egress wall's own address — the probes
+// verify the egress wall itself, not whatever http_proxy points at
+var proxyFrom = func(*http.Request) (*url.URL, error) {
+	return &url.URL{Scheme: "http", Host: fmt.Sprintf("%s:%d", pkginfo.ProxyAddr, pkginfo.ProxyPort)}, nil
 }
 
-// probeClient builds a client with a fixed proxy: ProxyFromEnvironment honors the
-// container's proxy env vars; nil forces direct dialing — the isolation probe's
-// whole point. Timeout bounds the whole exchange.
+// probeClient builds a client with a fixed proxy: ProxyFromEnvironment honors
+// the proxy env vars; nil dials direct. Timeout bounds the whole exchange.
 func probeClient(proxy func(*http.Request) (*url.URL, error), timeout time.Duration) *http.Client {
 	return &http.Client{Transport: &http.Transport{Proxy: proxy}, Timeout: timeout}
 }
 
-// reachable GETs rawURL and reports whether it succeeded like curl -f: any
-// response below HTTP 400 counts, everything else — transport error, 4xx, 5xx —
-// does not.
+// reachable GETs rawURL and reports success like curl -f: any response below
+// HTTP 400 counts.
 func reachable(ctx context.Context, client *http.Client, rawURL string) (bool, error) {
 	status, err := getStatusCode(ctx, client, rawURL)
 	if err != nil {
@@ -98,8 +91,7 @@ func reachable(ctx context.Context, client *http.Client, rawURL string) (bool, e
 }
 
 // getStatusCode GETs rawURL and returns its status code; the client's Timeout
-// bounds it. The response is drained for connection reuse and closed here —
-// callers only read the status.
+// bounds it.
 func getStatusCode(ctx context.Context, client *http.Client, rawURL string) (int, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
@@ -117,9 +109,46 @@ func getStatusCode(ctx context.Context, client *http.Client, rawURL string) (int
 	return resp.StatusCode, nil
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+// The share pin's probes — vars so tests aim them at stubs.
+var (
+	probeShareRO = mkdirInShare
+	openAllow    = openAllowFile
+)
+
+// verifyShareRO proves the share's read-only pin
+func verifyShareRO() error {
+	if err := roVerdict(pkginfo.ProxyMount, probeShareRO()); err != nil {
+		return err
 	}
-	return fallback
+	return roVerdict(pkginfo.ProxyAllowPath, openAllow())
+}
+
+// roVerdict passes only EROFS: success is the pin gone, any other errno is
+// unexplained.
+func roVerdict(path string, err error) error {
+	switch {
+	case err == nil:
+		return fmt.Errorf("%s is writable — its read-only pin is gone", path)
+	case !errors.Is(err, syscall.EROFS):
+		return fmt.Errorf("verify share ro: %w", err)
+	}
+	return nil
+}
+
+func mkdirInShare() error {
+	// the 0777 dir makes DAC vacuous, so only the mount can refuse.
+	dir, err := os.MkdirTemp(pkginfo.ProxyMount, "ro-probe-")
+	if err == nil {
+		log.WarnErr("remove share probe", os.Remove(dir))
+	}
+	return err
+}
+
+func openAllowFile() error {
+	// with root, returns EACCES whether the mount is ro or rw
+	f, err := os.OpenFile(pkginfo.ProxyAllowPath, os.O_WRONLY, 0)
+	if err == nil {
+		log.WarnErr("close allow file", f.Close())
+	}
+	return err
 }

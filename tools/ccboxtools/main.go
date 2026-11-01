@@ -1,6 +1,6 @@
-// Command ccboxtools maintains the container: it is the container's entrypoint —
-// verifying identity and egress wall before exec'ing the command — and installs and
-// maintains the devbox's coding CLI in the clis volume.
+// Command ccboxtools maintains the container: the entrypoint that boots and
+// supervises the egress wall, the exec entry that drops sessions to ccbox
+// inside it, and the coding CLI's installer.
 package main
 
 import (
