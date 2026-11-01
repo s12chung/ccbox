@@ -1,6 +1,7 @@
 package artifact
 
 import (
+	"context"
 	"errors"
 	"io"
 	"os"
@@ -17,7 +18,7 @@ type RawBin struct{ name string }
 func NewRawBin(name string) RawBin { return RawBin{name: name} }
 
 // Install writes the downloaded executable into dir at name, executable.
-func (b RawBin) Install(dir string, exe io.Reader) error {
+func (b RawBin) Install(_ context.Context, dir string, exe io.Reader) error {
 	path := filepath.Join(dir, b.name)
 	//nolint:gosec // path is the clis root + the firm-validated CLI name
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, ExecFileMode)

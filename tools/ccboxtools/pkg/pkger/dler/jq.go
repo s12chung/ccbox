@@ -46,8 +46,8 @@ func NewJQ(url string, schema *pkginfo.JQSchema) (JQ, error) {
 }
 
 // Latest resolves the version selector's result on the url's document
-func (d JQ) Latest() (string, error) {
-	doc, err := d.doc()
+func (d JQ) Latest(ctx context.Context) (string, error) {
+	doc, err := d.doc(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -59,8 +59,8 @@ func (d JQ) Latest() (string, error) {
 }
 
 // doc fetches the url's document, parsed per the schema's format.
-func (d JQ) doc() (any, error) {
-	body, err := httputil.Body(context.Background(), d.client, d.url)
+func (d JQ) doc(ctx context.Context) (any, error) {
+	body, err := httputil.Body(ctx, d.client, d.url)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +101,8 @@ func jqSchemaSelectVldr(version string) firm.FieldsVldr[jqSchemaSelect] {
 // Download fetches the document once, guards it against rolling since Latest,
 // then GETs the download_url selector's file through the sha512-verifying
 // reader; the caller closes it.
-func (d JQ) Download(version string) (io.ReadCloser, error) {
-	doc, err := d.doc()
+func (d JQ) Download(ctx context.Context, version string) (io.ReadCloser, error) {
+	doc, err := d.doc(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -120,7 +120,7 @@ func (d JQ) Download(version string) (io.ReadCloser, error) {
 	}
 
 	//nolint:bodyclose // the caller closes: the Sha512Reader wraps the body, the FilePkger.Install's defer drops it
-	resp, err := httputil.GetOK(context.Background(), d.client, sel.DownloadURL)
+	resp, err := httputil.GetOK(ctx, d.client, sel.DownloadURL)
 	if err != nil {
 		return nil, err
 	}

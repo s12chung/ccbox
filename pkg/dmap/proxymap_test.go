@@ -12,7 +12,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/proxy"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/allowfile"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -22,7 +22,7 @@ func TestProxyMap_Options(t *testing.T) {
 		CLIName:   new("claude"),
 		Allowlist: []string{"user.example.dev", cfg.DefaultsAlias, "example.com"},
 	}
-	allowContents := proxy.Render(config.AllowlistExpanded())
+	allowContents := allowfile.Render(config.AllowlistExpanded())
 	conf := tinyproxy.MustConf()
 
 	options := NewProxyMap(config).Options(nil)
@@ -71,7 +71,7 @@ func TestProxyMap_AllowlistDiff(t *testing.T) {
 
 	config := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"new.example.dev", "kept.example.dev"}}
 	pm := NewProxyMap(config)
-	fresh := proxy.Render(config.AllowlistExpanded())
+	fresh := allowfile.Render(config.AllowlistExpanded())
 	changed := func() string {
 		r, err := pm.allowlistDiff(fresh)
 		require.NoError(t, err)
@@ -101,6 +101,6 @@ func TestProxyMap_Options_OnRefresh(t *testing.T) {
 
 	written, err := os.ReadFile(proxyAllowPath())
 	require.NoError(t, err)
-	assert.Equal(t, proxy.Render(config.AllowlistExpanded()), written)
+	assert.Equal(t, allowfile.Render(config.AllowlistExpanded()), written)
 	require.NoError(t, options.OnRefresh(), "a re-refresh is clean")
 }

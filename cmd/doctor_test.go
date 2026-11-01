@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"errors"
 	"runtime"
 	"testing"
@@ -82,7 +81,7 @@ func TestToolsGoarch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv("GOARCH", tt.env)
 
-			got, err := toolsGoarch(context.Background())
+			got, err := toolsGoarch(t.Context())
 
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, got)

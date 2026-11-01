@@ -1,4 +1,4 @@
-package proxy
+package allowfile
 
 import (
 	"os"

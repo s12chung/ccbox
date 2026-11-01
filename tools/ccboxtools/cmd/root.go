@@ -2,6 +2,8 @@
 package cmd
 
 import (
+	"context"
+
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/guiapp"
@@ -24,8 +26,8 @@ var rootCmd = &cobra.Command{
 }
 
 // Execute runs the CLI and returns the process exit code.
-func Execute() int {
-	if err := rootCmd.Execute(); err != nil {
+func Execute(ctx context.Context) int {
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		log.Errorf("command failed: %v", err)
 		return 1
 	}

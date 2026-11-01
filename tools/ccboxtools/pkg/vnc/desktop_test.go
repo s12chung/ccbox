@@ -15,7 +15,7 @@ import (
 func TestStartDesktop_Missing(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 
-	err := StartDesktop()
+	err := StartDesktop(t.Context())
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, exec.ErrNotFound)
@@ -28,7 +28,7 @@ func TestStartDesktop_StartFails(t *testing.T) {
 	require.NoError(t, os.WriteFile(script, []byte("#!/nonexistent-interpreter\n"), artifact.ExecFileMode))
 	t.Setenv("PATH", dir)
 
-	err := StartDesktop()
+	err := StartDesktop(t.Context())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "vnc requested")

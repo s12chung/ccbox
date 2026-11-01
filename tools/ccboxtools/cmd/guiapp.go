@@ -46,14 +46,14 @@ var guiappExecCmd = &cobra.Command{
 		if len(args) > 0 && args[0] == "--" { // cobra's arg split leaves the separator in
 			args = args[1:]
 		}
-		return guiapp.Exec(guiAppFrom(cmd), args)
+		return guiapp.Exec(cmd.Context(), guiAppFrom(cmd), args)
 	},
 }
 
 var guiappAutostartCmd = &cobra.Command{
 	Use:   "autostart",
 	Short: "Wait out the boot's install, then exec — the session's XDG autostart entry",
-	RunE:  func(cmd *cobra.Command, _ []string) error { return guiapp.Autostart(guiAppFrom(cmd)) },
+	RunE:  func(cmd *cobra.Command, _ []string) error { return guiapp.Autostart(cmd.Context(), guiAppFrom(cmd)) },
 }
 
 func init() { guiappCmd.AddCommand(guiappExecCmd, guiappAutostartCmd) }

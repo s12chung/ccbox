@@ -4,6 +4,7 @@
 package guiapp
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -53,11 +54,11 @@ const fileMode os.FileMode = 0o644
 
 // Install installs the session's GUI app and writes its menu entry. The
 // session's XDG autostart waits out the download rather than racing it.
-func Install(guiApp pkginfo.GUIPkgInfo) error {
+func Install(ctx context.Context, guiApp pkginfo.GUIPkgInfo) error {
 	if err := writeDesktopEntry(guiApp); err != nil {
 		return fmt.Errorf("guiapp: write %s menu entry: %w", guiApp.Name, err)
 	}
-	if err := install.FromPkgInfo(guiApp.PkgInfo, install.AppsRoot); err != nil {
+	if err := install.FromPkgInfo(ctx, guiApp.PkgInfo, install.AppsRoot); err != nil {
 		return fmt.Errorf("guiapp: %w", err)
 	}
 	return nil
@@ -84,23 +85,25 @@ func writeDesktopEntry(info pkginfo.GUIPkgInfo) error {
 
 // Exec execs the GUI app with args appended after its own Args, erroring when
 // it is not installed yet.
-func Exec(guiApp pkginfo.GUIPkgInfo, args []string) error {
-	return launch(guiApp, false, args)
+func Exec(ctx context.Context, guiApp pkginfo.GUIPkgInfo, args []string) error {
+	return launch(ctx, guiApp, false, args)
 }
 
 // Autostart execs the GUI app, waiting out the boot's install first — the
 // session's XDG autostart lands here before the entrypoint's download finishes.
-func Autostart(guiApp pkginfo.GUIPkgInfo) error {
-	return launch(guiApp, true, nil)
+func Autostart(ctx context.Context, guiApp pkginfo.GUIPkgInfo) error {
+	return launch(ctx, guiApp, true, nil)
 }
 
-func launch(guiApp pkginfo.GUIPkgInfo, wait bool, args []string) error {
+func launch(ctx context.Context, guiApp pkginfo.GUIPkgInfo, wait bool, args []string) error {
 	bin, err := binFor(guiApp)
 	if err != nil {
 		return err
 	}
 	if wait {
-		waitInstalled(bin, func() { time.Sleep(pollInterval) })
+		if err := waitInstalled(ctx, bin, func() { time.Sleep(pollInterval) }); err != nil {
+			return err
+		}
 		logLaunch(guiApp.Name)
 	} else if !installed(bin) {
 		return fmt.Errorf("guiapp: %s is not installed at %s", guiApp.Name, bin)
@@ -127,11 +130,17 @@ func installed(bin string) bool {
 	return err == nil && info.Mode()&0o111 != 0
 }
 
-// waitInstalled polls until bin is installed, sleeping between checks.
-func waitInstalled(bin string, sleep func()) {
+// waitInstalled polls until bin is installed; the ctx's cancel ends the wait.
+func waitInstalled(ctx context.Context, bin string, sleep func()) error {
 	for !installed(bin) {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("guiapp: %s never installed: %w", bin, ctx.Err())
+		default:
+		}
 		sleep()
 	}
+	return nil
 }
 
 // logLaunch records the launch and keeps the app's streams on logPath across

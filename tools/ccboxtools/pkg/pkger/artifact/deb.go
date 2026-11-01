@@ -21,7 +21,7 @@ func NewDeb(relBin string) Deb { return Deb{relBin: relBin} }
 
 // Install copies the deb to a dot-prefixed temp under dir, dpkg-deb-extracts
 // the tree into it, and removes the temp.
-func (d Deb) Install(dir string, deb io.Reader) error {
+func (d Deb) Install(ctx context.Context, dir string, deb io.Reader) error {
 	// dot-prefixed temp: SafeMv renames dir itself onto the version path, so the temp
 	// must not leak into the extracted tree's listing
 	path := filepath.Join(dir, "."+filepath.Base(d.relBin)+".deb")
@@ -38,15 +38,12 @@ func (d Deb) Install(dir string, deb io.Reader) error {
 		return err
 	}
 
-	if out, err := extractDebCmd(path, dir).CombinedOutput(); err != nil {
+	//nolint:gosec // fixed argv on a deb from the firm-validated URL
+	out, err := exec.CommandContext(ctx, "dpkg-deb", "-x", path, dir).CombinedOutput()
+	if err != nil {
 		return fmt.Errorf("extract deb: %w: %s", err, out)
 	}
 	return nil
-}
-
-func extractDebCmd(path, dir string) *exec.Cmd {
-	//nolint:gosec // fixed argv on a deb from the firm-validated URL
-	return exec.CommandContext(context.Background(), "dpkg-deb", "-x", path, dir)
 }
 
 // RelBin is the executable's path inside the extracted tree.

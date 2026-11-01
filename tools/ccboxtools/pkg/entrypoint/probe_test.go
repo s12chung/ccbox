@@ -27,7 +27,7 @@ func downServer(t *testing.T) string {
 	return server.URL
 }
 
-func directClient() *http.Client { return probeClient(nil) }
+func directClient() *http.Client { return probeClient(nil, probeMax) }
 
 func TestReachable(t *testing.T) {
 	server500 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -47,7 +47,7 @@ func TestReachable(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ok, err := reachable(directClient(), tt.url)
+			ok, err := reachable(t.Context(), directClient(), tt.url)
 
 			assert.Equal(t, tt.wantOK, ok)
 			if tt.wantOK {
@@ -75,7 +75,7 @@ func TestProbeAllowed(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := probeAllowed(directClient(), tt.url)
+			err := probeAllowed(t.Context(), directClient(), tt.url)
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)
@@ -100,7 +100,7 @@ func TestProbeBlocked(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := probeBlocked(directClient(), tt.url)
+			err := probeBlocked(t.Context(), directClient(), tt.url)
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestProbeDirect(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := probeDirect(directClient(), tt.url)
+			err := probeDirect(t.Context(), directClient(), tt.url)
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)

@@ -4,11 +4,22 @@
 package main
 
 import (
+	"context"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/cmd"
 )
 
 func main() {
-	os.Exit(cmd.Execute())
+	os.Exit(run())
+}
+
+// run builds the boot's stop signal — SIGTERM (docker stop) and SIGINT cancel
+// the ctx — and executes the CLI under it.
+func run() int {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return cmd.Execute(ctx)
 }

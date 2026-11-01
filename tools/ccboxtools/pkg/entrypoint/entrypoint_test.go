@@ -85,7 +85,7 @@ func TestServeDesktop_ErrorsWithoutChromium(t *testing.T) {
 	desktopFile := writeDesktopScript(t)           // PATH finds the desktop script...
 	t.Setenv(vncdeps.BrowsersPathEnv, t.TempDir()) // ...but no chromium under the browsers dir
 
-	err := serveDesktop(vncInfo(nil))
+	err := serveDesktop(t.Context(), vncInfo(nil))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no playwright chromium")
@@ -99,7 +99,7 @@ func TestServeDesktop_ErrorsWithoutDesktop(t *testing.T) {
 	writeChrome(t)
 	t.Setenv("PATH", t.TempDir()) // no desktop script on PATH
 
-	err := serveDesktop(vncInfo(nil))
+	err := serveDesktop(t.Context(), vncInfo(nil))
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, exec.ErrNotFound)
@@ -110,7 +110,7 @@ func TestServeDesktop_ErrorsWhenInstallFails(t *testing.T) {
 	writeDesktopScript(t)
 	testutil.Home(t)
 
-	err := serveDesktop(vncInfo(&rpmInfo))
+	err := serveDesktop(t.Context(), vncInfo(&rpmInfo))
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `unknown artifact type "rpm"`)
@@ -120,7 +120,7 @@ func TestServeDesktop_NoGUIAppServesDesktopAlone(t *testing.T) {
 	writeChrome(t)
 	desktopFile := writeDesktopScript(t)
 
-	require.NoError(t, serveDesktop(vncInfo(nil)))
+	require.NoError(t, serveDesktop(t.Context(), vncInfo(nil)))
 	// the window only bounds the wait: macOS first-spawns freshly-written
 	// scripts slowly (Gatekeeper/EDR scans), while success lands in milliseconds
 	require.Eventually(t, func() bool {

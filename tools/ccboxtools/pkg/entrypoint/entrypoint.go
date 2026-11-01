@@ -4,6 +4,7 @@
 package entrypoint
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -25,22 +26,22 @@ const (
 )
 
 // Run execs argv, replacing this process so the container's command keeps PID 1.
-func Run(argv []string, vncInfo *pkginfo.VNCInfo) error {
+func Run(ctx context.Context, argv []string, vncInfo *pkginfo.VNCInfo) error {
 	if err := checkIdentity(os.Getuid(), currentUserName(), exec.LookPath); err != nil {
 		return err
 	}
 	if os.Getenv(proxyEnv) != "" {
-		if err := probeProxy(); err != nil {
+		if err := probeProxy(ctx); err != nil {
 			return err
 		}
 	}
 	if os.Getenv(pkginfo.EnvVar) != "" {
-		if err := install.FromEnv(); err != nil {
+		if err := install.FromEnv(ctx); err != nil {
 			return err
 		}
 	}
 	if vncInfo != nil {
-		if err := serveDesktop(vncInfo); err != nil {
+		if err := serveDesktop(ctx, vncInfo); err != nil {
 			return err
 		}
 	}
@@ -49,15 +50,15 @@ func Run(argv []string, vncInfo *pkginfo.VNCInfo) error {
 
 // serveDesktop starts the image's desktop for the session and installs its GUI
 // app — a VNC run without one serves the desktop alone.
-func serveDesktop(vncInfo *pkginfo.VNCInfo) error {
+func serveDesktop(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	if err := vncdeps.CheckPlaywright(os.Getenv, filepath.Glob); err != nil {
 		return err
 	}
-	if err := vnc.StartDesktop(); err != nil {
+	if err := vnc.StartDesktop(ctx); err != nil {
 		return err
 	}
 	if vncInfo.GUIApp != nil {
-		if err := guiapp.Install(*vncInfo.GUIApp); err != nil {
+		if err := guiapp.Install(ctx, *vncInfo.GUIApp); err != nil {
 			return err
 		}
 	}

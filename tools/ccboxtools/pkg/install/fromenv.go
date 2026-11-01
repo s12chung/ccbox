@@ -1,6 +1,7 @@
 package install
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -17,7 +18,7 @@ const LockWaitEnv = "CCBOX_LOCK_WAIT"
 // FromEnv updates the CLI the container env describes: pkginfo.EnvVar's JSON picks
 // the CLI, ClisDirEnv overrides the clis root. The env-driven entry both the entrypoint
 // and `ccboxtools update` go through.
-func FromEnv() error {
+func FromEnv(ctx context.Context) error {
 	pkginfoJSON := os.Getenv(pkginfo.EnvVar)
 	if pkginfoJSON == "" {
 		return fmt.Errorf("%s is not set", pkginfo.EnvVar)
@@ -30,5 +31,5 @@ func FromEnv() error {
 	if root == "" {
 		root = DefaultRoot
 	}
-	return FromPkgInfo(info, root)
+	return FromPkgInfo(ctx, info, root)
 }

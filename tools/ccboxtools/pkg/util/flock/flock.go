@@ -4,10 +4,13 @@
 package flock
 
 import (
+	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
@@ -15,6 +18,10 @@ import (
 const (
 	dirMode  os.FileMode = 0o755
 	fileMode os.FileMode = 0o644
+
+	// waitPoll spaces the lock wait's retries: the holders are container
+	// lifecycle operations, so the poll trades promptness for no blocking syscall
+	waitPoll = 50 * time.Millisecond
 )
 
 // ErrHeld reports the lock is held elsewhere
@@ -62,8 +69,9 @@ func (l *Lock) Release() error {
 }
 
 // Do runs fn under an exclusive flock at lockPath. When the lock is held, skip
-// decides: true skips fn; false waits for the lock, then runs fn.
-func Do(lockPath string, fn func() error, skip func() bool) error {
+// decides: true skips fn; false waits for the lock — the ctx's cancel ends the
+// wait — then runs fn.
+func Do(ctx context.Context, lockPath string, fn func() error, skip func() bool) error {
 	l, err := TryEx(lockPath)
 	switch {
 	case err == nil:
@@ -72,7 +80,7 @@ func Do(lockPath string, fn func() error, skip func() bool) error {
 			return nil
 		}
 		// wait out the holder, then take the lock
-		if l, err = Ex(lockPath); err != nil {
+		if l, err = waitEx(ctx, lockPath); err != nil {
 			return err
 		}
 	default:
@@ -80,4 +88,23 @@ func Do(lockPath string, fn func() error, skip func() bool) error {
 	}
 	defer log.Defer("release lock", l.Release)
 	return fn()
+}
+
+// waitEx waits out the holder and takes the lock — LOCK_NB retries instead of
+// one blocking Flock, so the ctx's cancel ends the wait.
+func waitEx(ctx context.Context, path string) (*Lock, error) {
+	for {
+		l, err := TryEx(path)
+		switch {
+		case err == nil:
+			return l, nil
+		case !errors.Is(err, ErrHeld):
+			return nil, err
+		}
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("lock %s: %w", path, ctx.Err())
+		case <-time.After(waitPoll):
+		}
+	}
 }

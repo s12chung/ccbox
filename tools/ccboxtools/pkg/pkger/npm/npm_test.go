@@ -1,6 +1,7 @@
 package npm
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -18,7 +19,7 @@ func TestLatestAt(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		v, err := latestAt(srv.URL, "@scope/pkg")
+		v, err := latestAt(t.Context(), srv.URL, "@scope/pkg")
 		require.NoError(t, err)
 		assert.Equal(t, "1.2.3", v)
 	})
@@ -34,7 +35,7 @@ func TestLatestAt(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			_, err := latestAt(srv.URL, "@scope/pkg")
+			_, err := latestAt(t.Context(), srv.URL, "@scope/pkg")
 			assert.Error(t, err)
 		})
 	}
@@ -43,12 +44,12 @@ func TestLatestAt(t *testing.T) {
 func TestNpm_Install(t *testing.T) {
 	var got []string
 	orig := runCmd
-	runCmd = func(_ string, args ...string) error { got = args; return nil }
+	runCmd = func(_ context.Context, _ string, args ...string) error { got = args; return nil }
 	defer func() { runCmd = orig }()
 
 	p := New("pkg", pkginfo.Npm{Package: "@scope/pkg"})
 	dir := t.TempDir()
-	require.NoError(t, p.Install(dir, "1.2.3"))
+	require.NoError(t, p.Install(t.Context(), dir, "1.2.3"))
 
 	assert.Equal(t, []string{
 		"install", "-g", "--prefix", dir,

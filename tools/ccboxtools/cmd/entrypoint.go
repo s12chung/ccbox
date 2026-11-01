@@ -15,11 +15,11 @@ var entrypointCmd = &cobra.Command{
 	DisableFlagParsing:    true,
 	DisableFlagsInUseLine: true,
 	Args:                  cobra.ArbitraryArgs,
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 0 && args[0] == "--" { // cobra's arg split leaves the separator in
 			args = args[1:]
 		}
-		if err := entrypoint.Run(args, vnc); err != nil {
+		if err := entrypoint.Run(cmd.Context(), args, vnc); err != nil {
 			log.Errorf("security-entrypoint: FAIL — %v", err)
 			os.Exit(1)
 		}

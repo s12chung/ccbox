@@ -22,7 +22,7 @@ func TestURLTemplate_Latest(t *testing.T) {
 
 		u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 
-		v, err := u.Latest()
+		v, err := u.Latest(t.Context())
 		require.NoError(t, err)
 		assert.Equal(t, "1.0.5", v)
 	})
@@ -36,7 +36,7 @@ func TestURLTemplate_Latest(t *testing.T) {
 
 			u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 
-			_, err := u.Latest()
+			_, err := u.Latest(t.Context())
 			assert.ErrorContains(t, err, "is not a version")
 		})
 	}
@@ -49,7 +49,7 @@ func TestURLTemplate_Latest(t *testing.T) {
 
 		u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 
-		_, err := u.Latest()
+		_, err := u.Latest(t.Context())
 		assert.ErrorContains(t, err, "502 Bad Gateway")
 	})
 }
@@ -72,7 +72,7 @@ func TestURLTemplate_Download(t *testing.T) {
 			Arm64URL: srv.URL + "/grok-$version-arm64",
 		})
 
-		exe, err := u.Download("1.0.5")
+		exe, err := u.Download(t.Context(), "1.0.5")
 		require.NoError(t, err)
 		defer func() { assert.NoError(t, exe.Close()) }()
 
@@ -100,7 +100,7 @@ func TestURLTemplate_Download(t *testing.T) {
 
 		u := NewURLTemplate(srv.URL+"/stable", pkginfo.DownloadTemplate{X64URL: srv.URL + "/exe", Arm64URL: srv.URL + "/exe"})
 
-		_, err := u.Download("1.0.5")
+		_, err := u.Download(t.Context(), "1.0.5")
 		assert.ErrorContains(t, err, "404 Not Found")
 	})
 
@@ -109,7 +109,7 @@ func TestURLTemplate_Download(t *testing.T) {
 		u := NewURLTemplate(srv.URL, pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL})
 		srv.Close()
 
-		_, err := u.Download("1.0.5")
+		_, err := u.Download(t.Context(), "1.0.5")
 		assert.Error(t, err)
 	})
 }

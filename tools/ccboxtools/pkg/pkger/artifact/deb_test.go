@@ -2,7 +2,6 @@ package artifact
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -38,7 +37,7 @@ func (f *debFixture) pack() {
 	}
 	f.debPath = filepath.Join(f.t.TempDir(), "fixture.deb")
 	//nolint:gosec // fixed argv on the test's own fixture tree
-	out, err := exec.CommandContext(context.Background(), "dpkg-deb", "--root-owner-group", "-b", f.root, f.debPath).CombinedOutput()
+	out, err := exec.CommandContext(f.t.Context(), "dpkg-deb", "--root-owner-group", "-b", f.root, f.debPath).CombinedOutput()
 	require.NoError(f.t, err, string(out))
 }
 
@@ -90,7 +89,7 @@ func TestDeb_Install(t *testing.T) {
 	d := NewDeb("opt/ZCode/zcode")
 
 	dir := t.TempDir()
-	require.NoError(t, d.Install(dir, bytes.NewReader(buildDeb(t, content))))
+	require.NoError(t, d.Install(t.Context(), dir, bytes.NewReader(buildDeb(t, content))))
 
 	// the tree extracts intact: the exec with its content and exec bit, and the
 	// resource beside it
@@ -105,8 +104,8 @@ func TestDeb_Install(t *testing.T) {
 
 	t.Run("bad deb", func(t *testing.T) {
 		dir := t.TempDir()
-		err := d.Install(dir, bytes.NewReader([]byte("not a deb")))
-		assert.ErrorContains(t, err, "extract deb")
+		err := d.Install(t.Context(), dir, bytes.NewReader([]byte("not a deb")))
+		assert.ErrorContains(t, err, "dpkg-deb")
 	})
 }
 
