@@ -1,4 +1,4 @@
-package entrypoint
+package proxy
 
 import (
 	"context"
@@ -33,11 +33,11 @@ const (
 	probeMax = 5 * time.Second
 )
 
-// probeProxy verifies the egress wall with three curl-parity probes: an allowlisted
+// ProbeProxy verifies the egress wall with three curl-parity probes: an allowlisted
 // host must be reachable through the proxy, a non-allowlisted host must be rejected
 // by it, and bypassing it must have no route at all — proving --internal holds even
 // for tools that ignore proxy env vars.
-func probeProxy(ctx context.Context) error {
+func ProbeProxy(ctx context.Context) error {
 	proxy := probeClient(http.ProxyFromEnvironment, probeMax)
 	direct := probeClient(nil, probeMax)
 

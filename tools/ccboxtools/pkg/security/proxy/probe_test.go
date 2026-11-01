@@ -1,4 +1,4 @@
-package entrypoint
+package proxy
 
 import (
 	"net/http"

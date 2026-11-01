@@ -10,9 +10,8 @@ import (
 
 func TestDefer(t *testing.T) {
 	var buf bytes.Buffer
-	old := outErr
-	outErr = &buf
-	defer func() { outErr = old }()
+	restore := SwapErrWriter(&buf)
+	defer restore()
 
 	// nil error → nothing logged.
 	Defer("close thing", func() error { return nil })

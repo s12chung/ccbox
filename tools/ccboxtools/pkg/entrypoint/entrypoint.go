@@ -15,23 +15,19 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/guiapp"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/identity"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/proxy"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/vnc"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/vnc/vncdeps"
 )
 
-// The unprivileged container identity, matching the image's useradd.
-const (
-	ccboxUID  = 1000
-	ccboxUser = "ccbox"
-)
-
 // Run execs argv, replacing this process so the container's command keeps PID 1.
 func Run(ctx context.Context, argv []string, vncInfo *pkginfo.VNCInfo) error {
-	if err := checkIdentity(os.Getuid(), currentUserName(), exec.LookPath); err != nil {
+	if err := identity.CheckIdentity(os.Getuid(), identity.CurrentUserName(), exec.LookPath); err != nil {
 		return err
 	}
-	if os.Getenv(proxyEnv) != "" {
-		if err := probeProxy(ctx); err != nil {
+	if proxy.Proxied() {
+		if err := proxy.ProbeProxy(ctx); err != nil {
 			return err
 		}
 	}

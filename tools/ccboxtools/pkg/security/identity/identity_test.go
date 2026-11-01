@@ -1,4 +1,4 @@
-package entrypoint
+package identity
 
 import (
 	"os/exec"
@@ -26,7 +26,7 @@ func TestCheckIdentity(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := checkIdentity(tt.uid, tt.user, tt.lookPath)
+			err := CheckIdentity(tt.uid, tt.user, tt.lookPath)
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)
@@ -40,5 +40,5 @@ func TestCheckIdentity(t *testing.T) {
 
 func TestCurrentUserName_MatchesOs(t *testing.T) {
 	// the test runs as some real user; currentUserName must resolve it, not fail closed
-	assert.NotEmpty(t, currentUserName())
+	assert.NotEmpty(t, CurrentUserName())
 }
