@@ -15,7 +15,7 @@ import (
 )
 
 func TestResumeArgs(t *testing.T) {
-	defer func() { runMode.Resume = false }()
+	defer func() { execMode.Resume = false }()
 
 	tests := []struct {
 		name    string
@@ -30,7 +30,7 @@ func TestResumeArgs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			runMode.Resume = tt.resume
+			execMode.Resume = tt.resume
 			err := rootCmd.Args(nil, tt.args)
 			if tt.wantErr {
 				assert.Error(t, err)

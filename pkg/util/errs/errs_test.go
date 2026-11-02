@@ -29,6 +29,27 @@ func TestSwallow(t *testing.T) {
 	}
 }
 
+func TestJoinOnErr(t *testing.T) {
+	clean := errors.New("clean")
+	fail := errors.New("fail")
+	for _, tc := range []struct {
+		caseName string
+		err      error
+		want     error
+		ranClean bool
+	}{
+		{"SkipsCleanOnNilErr", nil, nil, false},
+		{"JoinsCleanErr", fail, errors.Join(fail, clean), true},
+	} {
+		t.Run(tc.caseName, func(t *testing.T) {
+			ranClean := false
+			got := JoinOnErr(tc.err, func() error { ranClean = true; return clean })
+			assert.Equal(t, tc.want, got)
+			assert.Equal(t, tc.ranClean, ranClean)
+		})
+	}
+}
+
 func TestExit(t *testing.T) {
 	tests := []struct {
 		name string

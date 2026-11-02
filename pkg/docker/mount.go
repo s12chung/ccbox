@@ -87,10 +87,11 @@ func (v Volume) Global() Volume {
 func (v Volume) spec() string { return v.name + ":" + v.container }
 
 const (
-	ccboxLabelKey        = "ccbox"
-	ccboxProjectLabelKey = "ccbox.project"
-	ccboxGlobalLabelKey  = "ccbox.global"
-	trueVolValue         = "true"
+	ccboxLabelKey         = "ccbox"
+	ccboxProjectLabelKey  = "ccbox.project"
+	ccboxGlobalLabelKey   = "ccbox.global"
+	ccboxHasProxyLabelKey = "ccbox.has_proxy"
+	trueVolValue          = "true"
 )
 
 // volumeLabels marks a volume as ccbox's own.

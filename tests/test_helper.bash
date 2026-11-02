@@ -16,3 +16,8 @@ assert_on_path_under() {
             ;;
     esac
 }
+
+require_docker() {
+    command -v docker >/dev/null || skip "no docker CLI — run on the host"
+    docker info >/dev/null 2>&1 || skip "no docker daemon"
+}

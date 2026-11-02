@@ -1,17 +1,24 @@
 package docker
 
-import "sort"
+import (
+	"sort"
+	"strconv"
 
-// envString renders env as KEY=VALUE in sorted-key order for a deterministic spec, with the
-// proxy vars appended last — so they override any user-supplied proxy setting.
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+)
+
+// envString renders env as KEY=VALUE in sorted-key order, the proxy vars last — overriding
+// user-supplied settings; the container reads their presence as the egress wall being on
 func envString(env map[string]string, noProxy bool) []string {
 	renderedEnv := sortedEnv(env)
 	if noProxy {
 		return renderedEnv
 	}
 	return append(renderedEnv, []string{
-		"http_proxy=http://" + proxyContainerName + ":" + proxyPort,
-		"https_proxy=http://" + proxyContainerName + ":" + proxyPort,
+		// the target is the fixed IP: no name resolves inside the child netns, whose
+		// loopback isn't the parent's
+		"http_proxy=http://" + pkginfo.ProxyAddr + ":" + strconv.Itoa(pkginfo.ProxyPort),
+		"https_proxy=http://" + pkginfo.ProxyAddr + ":" + strconv.Itoa(pkginfo.ProxyPort),
 		// Loopback never leaves the container, so route it direct — else local dev servers
 		// and browsers hit the proxy and get refused.
 		"no_proxy=localhost,127.0.0.1,::1",

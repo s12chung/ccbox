@@ -33,4 +33,5 @@ test.docker:
 	bats tests/
 
 docker.test: build
-	TERM=xterm-256color $(BIN) run make test.all
+	bats tests/host-docker.bats
+	TERM=xterm-256color $(BIN) exec make test.all

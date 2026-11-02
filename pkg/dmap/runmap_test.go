@@ -40,7 +40,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	env, err := rm.Env(false)
 	require.NoError(t, err)
 
-	options, clean, err := rm.RunOptions("dev:tag", RunMode{})
+	options, clean, err := rm.RunOptions("dev:tag", NewProxyMap(config).Options())
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -48,16 +48,18 @@ func TestRunMap_RunOptions(t *testing.T) {
 	assert.Equal(t, hostOptions, options.RunHostOptions)
 	assert.Equal(t, env, options.Env)
 	assert.Equal(t, "dev:tag", options.Tag)
-	assert.Equal(t, []string{"claude"}, options.Cmd)
+	assert.Equal(t, devboxName(config.ProjectDir(), false, false), options.Name)
+	assert.Equal(t, devboxHoldersDir(options.Name), options.HoldersDir)
+	assert.Equal(t, devboxLogPath(false, false), options.LogFile)
+	assert.Nil(t, options.Foreground, "the foreground view is the command's, not the map's")
 	require.NotNil(t, options.Proxy)
 	assert.NotNil(t, options.Proxy.BeforeStart)
 	assert.NotNil(t, options.Proxy.OnRefresh)
 	assert.NotNil(t, options.Proxy.OnStop)
-	assert.Nil(t, options.Proxy.Log, "runs log to the session's log file, not a foreground stream")
 	options.Proxy.BeforeStart = nil
 	options.Proxy.OnRefresh = nil
 	options.Proxy.OnStop = nil
-	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir(), HoldersDir: proxyHoldersDir(), LogFile: proxyLogPath()}, *options.Proxy)
+	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir(), LogFile: proxyLogPath(false)}, *options.Proxy)
 }
 
 func TestRunMap_RunOptions_VNC(t *testing.T) {
@@ -72,13 +74,15 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	}, true)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", nil)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
-	assert.Nil(t, options.Proxy, "a vnc run always skips the egress wall")
+	assert.Equal(t, devboxName(config.ProjectDir(), true, true), options.Name)
+	assert.Equal(t, devboxLogPath(true, true), options.LogFile)
+	assert.Nil(t, options.Proxy)
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env is set even without a vnc config section")
 	expanded := config.AllowlistExpanded()
 	for _, d := range guiapp.App.AllowDomains {
@@ -97,7 +101,7 @@ func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), true).RunOptions("dev:tag", RunMode{})
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), true).RunOptions("dev:tag", nil)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -268,16 +272,4 @@ func TestRunMap_Env_EmptyVNC(t *testing.T) {
 	env, err := rm.Env(true)
 	require.NoError(t, err)
 	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "an empty vnc section serves the desktop with no GUI app")
-}
-
-func TestRunMap_Cmd(t *testing.T) {
-	rm := testRunMap(t, cfg.Config{CLIName: new("claude")})
-
-	assert.Equal(t, []string{"claude"}, rm.cmd(RunMode{}))
-	assert.Nil(t, rm.cmd(RunMode{Shell: true}), "bare run drops into the image's default shell")
-	assert.Equal(t, []string{"make", "test"},
-		rm.cmd(RunMode{Shell: true, Args: []string{"make", "test"}}), "run execs the args")
-	assert.Equal(t, []string{"claude", "-c"}, rm.cmd(RunMode{Continue: true}))
-	assert.Equal(t, []string{"claude", "--resume", "sess"},
-		rm.cmd(RunMode{Resume: true, Args: []string{"sess"}}))
 }

@@ -1,6 +1,6 @@
 # Your Container (ccbox)
 
-You run as the unprivileged [ccbox](https://github.com/s12chung/ccbox) user inside a disposable container. No root, no `sudo`, no Docker daemon.
+You run as the unprivileged [ccbox](https://github.com/s12chung/ccbox) user inside a disposable container, possibly shared with other sessions. No root, no `sudo`, no Docker daemon.
 
 ## File System Persistence
 

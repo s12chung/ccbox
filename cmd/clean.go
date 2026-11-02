@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"errors"
-
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/docker"
@@ -11,12 +9,9 @@ import (
 
 var cleanCmd = &cobra.Command{
 	Use:   "clean",
-	Short: "Remove the egress wall network and this project's cache volumes",
+	Short: "Remove this project's cache volumes",
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		ctxD := dock.MustNewCtxD(cmd.Context())
-		return errors.Join(
-			docker.VolumeClean(ctxD, config.ProjectDir()),
-			docker.ProxyClean(ctxD),
-		)
+		return docker.VolumeClean(ctxD, config.ProjectDir())
 	},
 }

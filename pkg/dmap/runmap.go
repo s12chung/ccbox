@@ -5,7 +5,6 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
@@ -22,41 +21,28 @@ func NewRunMap(cfg *cfg.Config, cacheVolumes []string, tagByProject bool) *RunMa
 	return &RunMap{cfg: cfg, cacheVolumes: cacheVolumes, tagByProject: tagByProject}
 }
 
-// RunMode is the run's selected mode, with Args carrying its args
-type RunMode struct {
-	Shell    bool     // the run subcommand: Args exec in the container
-	Continue bool     // -c: continue the last session
-	Resume   bool     // -r: resume a session
-	NoProxy  bool     // skip the egress wall: direct network access
-	Args     []string // the exec argv (run), or the resumed session's name (-r)
-}
-
-// RunOptions renders the run's full docker.RunOptions
-func (rm *RunMap) RunOptions(tag string, mode RunMode) (docker.RunOptions, func() error, error) {
-	serveVNC := rm.cfg.ServeVNC()
-	noProxy := rm.cfg.NoProxyFor(serveVNC, mode.NoProxy)
-	var joiner klean.Joiner
+// RunOptions renders the run's full docker.RunOptions; nil proxyOptions is the plain boot
+func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
+	serveVNC, noProxy := rm.cfg.ServeVNC(), proxyOptions == nil
 	hostOptions, clean, err := rm.HostOptions(serveVNC, noProxy)
-	joiner.Push("clean run files", clean)
 	if err != nil {
-		return docker.RunOptions{}, joiner.Run, err
+		return docker.RunOptions{}, clean, err
 	}
 	env, err := rm.Env(serveVNC)
 	if err != nil {
-		return docker.RunOptions{}, joiner.Run, err
+		return docker.RunOptions{}, clean, err
 	}
 
-	var proxyOptions *docker.ProxyOptions
-	if !noProxy {
-		proxyOptions = NewProxyMap(rm.cfg).Options(nil)
-	}
+	name := devboxName(rm.cfg.ProjectDir(), serveVNC, noProxy)
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,
+		Name:           name,
 		Tag:            tag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
 		Env:            env,
-		Cmd:            rm.cmd(mode),
 		Proxy:          proxyOptions,
-	}, joiner.Run, nil
+		HoldersDir:     devboxHoldersDir(name),
+		LogFile:        devboxLogPath(serveVNC, noProxy),
+	}, clean, nil
 }
 
 // HostOptions renders the run's host options for docker.Run; vnc mounts the
@@ -115,13 +101,4 @@ func forwardEnv(names []string) map[string]string {
 		}
 	}
 	return env
-}
-
-// cmd maps the run mode to the container's Cmd: the run command's exec argv —
-// nil for the image's default shell — or the CLI's session launch argv.
-func (rm *RunMap) cmd(mode RunMode) []string {
-	if mode.Shell {
-		return mode.Args
-	}
-	return rm.cfg.CLI().SessionCmd(mode.Continue, mode.Resume, mode.Args)
 }

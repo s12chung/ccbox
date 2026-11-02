@@ -47,6 +47,11 @@ func SafeWriteFile(path string, body []byte) error {
 	return os.WriteFile(path, body, File)
 }
 
+// OpenAppend opens path for appending, creating it when missing
+func OpenAppend(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, File) // #nosec G304 -- the caller's file
+}
+
 // AtomicWriteFile writes body at path with File perms via temp file + rename, creating
 // its parent dir when missing. A concurrent reader sees either the old or the new file,
 // never a partial or missing one.

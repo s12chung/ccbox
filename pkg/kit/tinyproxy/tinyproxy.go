@@ -1,21 +1,33 @@
-// Package tinyproxy is the proxy's image-baked conf.
+// Package tinyproxy is related to tinyproxy, currently just coloring log lines
 package tinyproxy
 
 import (
-	"embed"
-	"io/fs"
+	"strings"
 
-	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/pkg/util/term"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/logmux"
 )
 
-// ConfFile is tinyproxy.conf's name within config
-const ConfFile = "tinyproxy.conf"
+var levelColors = map[string]term.Color{
+	"CRITICAL": term.ColorBoldRed,
+	"ERROR":    term.ColorRed,
+	"WARNING":  term.ColorYellow,
+	"NOTICE":   term.ColorGreen,
+	"CONNECT":  term.ColorCyan,
+	"INFO":     term.ColorDim,
+}
 
-// config is tinyproxy's configs, rooted at its content.
-//
-//go:embed tinyproxy.conf
-var config embed.FS
-
-// MustConf returns the tinyproxy.conf, panicking on the read error — unreachable for
-// an embed.
-func MustConf() []byte { return must.Get(fs.ReadFile(config, ConfFile)) }
+// LevelColor tints tinyproxy's log lines by level; the boot's own lines stay
+// uncolored.
+func LevelColor(line string) term.Color {
+	body, ok := logmux.Demux(pkginfo.ProxyMuxName, line)
+	if !ok {
+		return ""
+	}
+	fields := strings.Fields(body)
+	if len(fields) == 0 {
+		return ""
+	}
+	return levelColors[fields[0]]
+}

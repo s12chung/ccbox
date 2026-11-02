@@ -1,9 +1,12 @@
 package docker
 
 import (
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 func TestEnvString_BaseWins(t *testing.T) {
@@ -19,8 +22,8 @@ func TestEnvString_BaseWins(t *testing.T) {
 		"GH_TOKEN=gh",
 		"GOFLAGS=-mod=mod",
 		"http_proxy=evil",
-		"http_proxy=http://ccbox-proxy:8888",
-		"https_proxy=http://ccbox-proxy:8888",
+		"http_proxy=http://" + pkginfo.ProxyAddr + ":" + strconv.Itoa(pkginfo.ProxyPort),
+		"https_proxy=http://" + pkginfo.ProxyAddr + ":" + strconv.Itoa(pkginfo.ProxyPort),
 		"no_proxy=localhost,127.0.0.1,::1",
 		"NO_PROXY=localhost,127.0.0.1,::1",
 	}, got)

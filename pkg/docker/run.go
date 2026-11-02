@@ -1,44 +1,67 @@
 package docker
 
 import (
-	"context"
+	"errors"
+	"io"
+	"os"
 
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/pkg/kit/seccomputil"
+	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
+	"github.com/s12chung/ccbox/pkg/util/klean"
+	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/stream"
+	"github.com/s12chung/ccbox/pkg/util/term"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/identity"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/logmux"
 )
 
-const proxyPort = "8888"
+const (
+	// desktopVNCPort is the port a run's desktop serves VNC on — the stock RFB port;
+	// macOS Screen Sharing only takes it without the display number
+	desktopVNCPort = "5900"
 
-// bridgeNetworkName is the engine's default bridge: the devbox runs on the internal
-// proxy network, so the proxy itself forwards over the bridge.
-const bridgeNetworkName = "bridge"
+	// ipForwardSysctl pins the boot netns's forwarding off; the container's /proc/sys is read-only
+	ipForwardSysctl = "net.ipv4.ip_forward"
+)
 
-// desktopVNCPort is the port a run's desktop serves native VNC on. Published
-// on the host loopback, so a VNC client connects at localhost:5900 when the run
-// serves a desktop (--vnc); nothing listens behind the port when it doesn't. 5900
-// is the stock RFB port, and macOS Screen Sharing only takes it without the
-// display number.
-const desktopVNCPort = "5900"
+// ExecOptions is the exec session's workload for the boot's entrypoint to run.
+type ExecOptions struct {
+	Cmd []string // the session's exec argv, under its wrapper
+}
 
-// RunOptions configures the interactive devbox container.
+// Foreground streams the boot's logs
+type Foreground struct {
+	Writer io.Writer
+	Stop   chan struct{} // made by Run: closed when the boot's log stream ends
+}
+
+// RunOptions configures the devbox container's boot and its holder session.
 type RunOptions struct {
 	RunHostOptions
 
-	Tag string
-	Env map[string]string // container env minus the proxy vars
-	Cmd []string          // command the entrypoint execs; nil uses the image default (shell)
+	Exec  *ExecOptions  // the exec session's workload; nil boots without one
+	Proxy *ProxyOptions // options on the boot; nil is the plain boot
 
-	// Proxy is the auto-started egress wall's options; nil runs on plain bridge
-	// networking: no proxy network or env
-	Proxy *ProxyOptions
+	Name string // the boot's fixed container name
+	Tag  string
+	Env  map[string]string // container env minus the proxy vars
+
+	HoldersDir string      // the host dir of the boot's holder flock entries
+	LogFile    string      // the host file the boot's own log lines append to
+	Foreground *Foreground // the run's live view of the boot's logs; nil for the exec sessions
 }
 
-// RunHostOptions is everything mounted into the devbox: the workspace, the host dirs
-// and volumes as mounts, and the project dirs masked with tmpfs. ProjectDir is the project
-// identity labeling its volumes; WorkspaceMount is the container's WorkingDir.
+func (o RunOptions) matchesContainer(labels map[string]string) bool {
+	return labels[ccboxProjectLabelKey] == o.ProjectDir &&
+		(labels[ccboxHasProxyLabelKey] == trueVolValue) == (o.Proxy != nil)
+}
+
+// RunHostOptions is everything mounted into the devbox
 type RunHostOptions struct {
 	ProjectDir     string
 	WorkspaceMount string
@@ -47,31 +70,28 @@ type RunHostOptions struct {
 }
 
 func runConfig(hostOptions RunOptions) *container.Config {
-	return &container.Config{
-		Image:        hostOptions.Tag,
-		Cmd:          hostOptions.Cmd,
-		WorkingDir:   hostOptions.WorkspaceMount,
-		Tty:          true,
-		OpenStdin:    true,
-		AttachStdin:  true,
-		AttachStdout: true,
-		AttachStderr: true,
-		Env:          envString(hostOptions.Env, hostOptions.Proxy == nil),
+	cfg := &container.Config{
+		Image:      hostOptions.Tag,
+		Labels:     map[string]string{ccboxProjectLabelKey: hostOptions.ProjectDir},
+		WorkingDir: hostOptions.WorkspaceMount,
+		Env:        envString(hostOptions.Env, hostOptions.Proxy == nil),
 	}
+	if hostOptions.Proxy != nil {
+		// the egress wall's boot stays root to build, prove, and supervise tinyproxy —
+		// workloads still arrive dropped, via the drop chain.
+		//
+		// Raw engine exec lands on this root too; the boot can't refuse it.
+		cfg.User = "root"
+		cfg.Labels[ccboxHasProxyLabelKey] = trueVolValue
+	}
+	return cfg
 }
 
 func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
 	if err := ensureMounts(ctxD, hostOptions.Tag, hostOptions.ProjectDir, hostOptions.Mounts); err != nil {
 		return nil, err
 	}
-
-	// The egress wall network by default; a nil proxy runs on the engine's default bridge instead.
-	networkMode := container.NetworkMode(proxyNetworkName)
-	if hostOptions.Proxy == nil {
-		networkMode = bridgeNetworkName
-	}
-	return &container.HostConfig{
-		NetworkMode: networkMode,
+	hostConfig := &container.HostConfig{
 		CapDrop:     []string{"ALL"},
 		SecurityOpt: []string{"no-new-privileges"},
 		// Loopback-only: native RFB is VncAuth-password auth on a
@@ -79,44 +99,54 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		PortBindings: nat.PortMap{desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}}},
 		Binds:        mountSpecs(hostOptions.Mounts),
 		Tmpfs:        tmpfsMap(hostOptions.TmpfsPaths),
-	}, nil
-}
-
-// Run starts the devbox container interactively (docker run -it --rm) behind the egress wall,
-// returning the container's exit code as errs.ExitError. holdProxy holds the egress wall's
-// session for the run — the proxy outlives the run whenever another holder remains — and the
-// container is removed on return, before the session's leave.
-func Run(ctxD *dock.CtxD, hostOptions RunOptions) error {
-	if hostOptions.Proxy == nil {
-		return runDevbox(ctxD, hostOptions)
 	}
-	leave, err := holdProxy(ctxD, *hostOptions.Proxy)
+	seccompOpt, err := seccomputil.BootOpt()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	defer log.Defer("proxy leave", leave)
-	return runDevbox(ctxD, hostOptions)
-}
-
-func runDevbox(ctxD *dock.CtxD, hostOptions RunOptions) error {
+	hostConfig.SecurityOpt = append(hostConfig.SecurityOpt, seccompOpt)
 	if hostOptions.Proxy != nil {
-		// re-asserted per run: a proxy adopted from a creator that skipped it gets egress here
-		_ = ctxD.D.NetworkConnect(ctxD.Ctx, bridgeNetworkName, proxyContainerName, nil) // silently ignore errors
+		hostConfig.CapAdd = identity.RunCapNames()
+		hostConfig.Sysctls = map[string]string{ipForwardSysctl: "0"}
+	}
+	return hostConfig, nil
+}
+
+func (o RunOptions) streamOptions() (stream.Options, error) {
+	bootFile, err := osutil.OpenAppend(o.LogFile)
+	if err != nil {
+		return stream.Options{}, err
+	}
+	var clean klean.Joiner
+	clean.Push("close the boot's log file", bootFile.Close)
+
+	opts := stream.Options{Writers: []io.Writer{bootFile}, OnEnd: clean.Run}
+
+	if o.Proxy != nil {
+		proxyFile, err := osutil.OpenAppend(o.Proxy.LogFile)
+		if err != nil {
+			return stream.Options{}, errors.Join(err, clean.Run())
+		}
+		clean.Push("close the proxy's log file", proxyFile.Close)
+		demuxer := &logmux.Demuxer{Writers: map[string]io.Writer{
+			"":                   bootFile,
+			pkginfo.ProxyMuxName: proxyFile,
+		}}
+		clean.Push("file the stream's torn tail", demuxer.Flush)
+
+		opts.Writers = []io.Writer{demuxer}
+		opts.ReadyWait = &stream.ReadyWait{Marker: pkginfo.ReadyMarker}
+		if o.Foreground == nil {
+			opts.ReadyWait.Screen = term.NewColorWriter(os.Stdout, tinyproxy.LevelColor)
+		}
 	}
 
-	hostConfig, err := runHostConfig(ctxD, hostOptions)
-	if err != nil {
-		return err
+	if o.Foreground != nil {
+		opts.Writers = append(opts.Writers, term.NewColorWriter(o.Foreground.Writer, tinyproxy.LevelColor))
+		clean.Push("close the run's foreground wait", func() error {
+			close(o.Foreground.Stop) // closing Stop wakes the run's foreground wait
+			return nil
+		})
 	}
-	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx, runConfig(hostOptions), hostConfig, nil, nil, "")
-	if err != nil {
-		return err
-	}
-
-	// --rm: remove on return regardless of how we got here
-	defer log.Defer("remove container", func() error {
-		// context.Background() so a cancelled ctx can't block cleanup
-		return ctxD.D.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
-	})
-	return dock.RunInteractive(ctxD, resp.ID)
+	return opts, nil
 }

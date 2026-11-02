@@ -12,7 +12,9 @@ require (
 	github.com/docker/go-connections v0.7.0
 	github.com/gobwas/glob v0.2.3
 	github.com/moby/buildkit v0.31.0
+	github.com/moby/profiles/seccomp v0.2.4
 	github.com/moby/term v0.5.2
+	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/s12chung/ccbox/tools/ccboxtools v0.0.0-00010101000000-000000000000
 	github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae

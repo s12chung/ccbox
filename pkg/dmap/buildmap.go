@@ -37,18 +37,11 @@ func (bm *BuildMap) Options() docker.BuildOptions {
 	}
 }
 
-const vncTagSuffix = "-vnc"
-
 func tagSuffix(projectDir string, tagByProject, serveVNC bool) string {
-	suffix := ""
+	suffix := variantSuffix(serveVNC, false) // its own leading dash
 	if tagByProject {
-		suffix += slug.Path(projectDir)
+		suffix = slug.Path(projectDir) + suffix // slugs to its own leading dash — no separator
 	}
-	if serveVNC {
-		suffix += vncTagSuffix
-	}
-	// marks the tag of a project with its own mise config
-	// no separator due to abs path always turns in to dash
 	return suffix
 }
 

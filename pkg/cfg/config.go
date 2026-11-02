@@ -262,7 +262,8 @@ func (c *Config) SetHarnessDomains() []string {
 	return domains
 }
 
-// NoProxyFor resolves the run's skip-the-proxy — a vnc run always skips it
+// NoProxyFor resolves the run's skip-the-proxy — vnc is unwalled by design,
+// so a vnc run always skips
 func (c *Config) NoProxyFor(serveVNC, flag bool) bool {
 	return serveVNC || flag || c.NoProxy
 }

@@ -17,6 +17,14 @@ func Swallow(err error, targets ...error) error {
 	return err
 }
 
+// JoinOnErr runs clean only when err is non-nil, joining its error into err.
+func JoinOnErr(err error, clean func() error) error {
+	if err == nil {
+		return nil
+	}
+	return errors.Join(err, clean())
+}
+
 // exitError reports an exit code up through returned errors: a normal, user-facing
 // result (a container's exit status) rather than a failure to log.
 type exitError struct{ code int }

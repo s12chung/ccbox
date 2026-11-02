@@ -17,29 +17,39 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
-var runMode dmap.RunMode
-
 // runVNC serves the desktop session (`--vnc`); Load resolves it with the vnc
 // section's enabled, and the runs follow the resolved mode
 var runVNC bool
 
-// runCmd execs a command in a fresh devbox container; bare, it drops into the
-// image's default shell.
+// runCmd boots the devbox container and streams its logs to the foreground
 var runCmd = &cobra.Command{
-	Use:                   "run [command...]",
-	Short:                 "Exec a command in the devbox container",
-	Args:                  cobra.ArbitraryArgs,
+	Use:                   "run",
+	Short:                 "Boot the devbox and stream its logs",
+	Args:                  cobra.NoArgs,
 	DisableFlagsInUseLine: true,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return run(cmd.Context(), dmap.RunMode{Shell: true, NoProxy: runMode.NoProxy, Args: args})
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return runBoot(cmd.Context(), nil)
 	},
 }
 
-// run builds the image then runs the devbox container
-func run(ctx context.Context, mode dmap.RunMode) error {
+// runBoot builds the image then boots the devbox, streaming its logs to the foreground —
+// run and proxy's shared tail
+func runBoot(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
 	if err := build(ctx, config.ServeVNC()); err != nil {
 		return err
 	}
+	options, clean, err := prepareRun(proxyOptions)
+	if err != nil {
+		return err
+	}
+	defer log.Defer("clean run files", clean)
+	options.Foreground = &docker.Foreground{Writer: osutil.BlockedCloser(os.Stdout)}
+
+	return docker.Run(dock.MustNewCtxD(ctx), options)
+}
+
+// prepareRun renders the boot's options: every command's shared front
+func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
 	defer printPresentGuardMounts()
 
 	presentMasksSnapshot := append(config.TmpfsMasksPresent(), config.VolumeMasksPresent()...)
@@ -47,26 +57,22 @@ func run(ctx context.Context, mode dmap.RunMode) error {
 	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
 	if err := seedRunMounts(userdir.Dir()); err != nil {
-		return err
+		return docker.RunOptions{}, nil, err
 	}
 
-	options, clean, err := dmap.NewRunMap(config, miseRuntimes.CacheVolumes(), tagByProject).RunOptions(flagTag, mode)
-	defer log.Defer("clean run files", clean)
+	options, clean, err := dmap.NewRunMap(config, miseRuntimes.CacheVolumes(), tagByProject).RunOptions(flagTag, proxyOptions)
 	if err != nil {
-		return err
+		log.WarnErr("clean run files", clean()) // a render failure cleans its begun shares
+		return docker.RunOptions{}, nil, err
 	}
-
-	//nolint:contextcheck // the chain's context.Background cleanups are deliberate: a cancelled ctx can't block cleanup
-	return docker.Run(dock.MustNewCtxD(ctx), options)
+	return options, clean, nil
 }
 
 func init() {
-	for _, c := range []*cobra.Command{rootCmd, runCmd} {
+	for _, c := range []*cobra.Command{rootCmd, runCmd, execCmd} {
 		rf := c.Flags()
-		rf.BoolVar(&runMode.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
 		rf.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental, always no proxy)")
 	}
-	runCmd.Flags().SetInterspersed(false)
 }
 
 // seedRunMounts seeds the run mounts in userDir

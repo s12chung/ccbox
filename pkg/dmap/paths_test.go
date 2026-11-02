@@ -14,9 +14,17 @@ func TestCLIDataBindPath(t *testing.T) {
 		CLIDataBindPath("/home/me/.ccbox", "opencode", ".local/share/opencode/auth.json"))
 }
 
+func TestDevboxLogPath(t *testing.T) {
+	home := testutil.Home(t)
+	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox.log"), devboxLogPath(false, false))
+	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-plain.log"), devboxLogPath(false, true))
+	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-vnc.log"), devboxLogPath(true, true))
+}
+
 func TestProxyLogPath(t *testing.T) {
 	home := testutil.Home(t)
-	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy.log"), proxyLogPath())
+	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy.log"), proxyLogPath(false))
+	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy-vnc.log"), proxyLogPath(true))
 }
 
 func TestWorkspaceMount(t *testing.T) {

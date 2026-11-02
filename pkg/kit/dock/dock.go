@@ -6,25 +6,24 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
-	"github.com/docker/docker/pkg/stdcopy"
 
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
+	"github.com/s12chung/ccbox/pkg/util/stream"
 	"github.com/s12chung/ccbox/pkg/util/term"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
@@ -47,6 +46,11 @@ func NewCtxD(ctx context.Context) (*CtxD, error) {
 
 // MustNewCtxD is NewCtxD, panicking on error.
 func MustNewCtxD(ctx context.Context) *CtxD { return must.Get(NewCtxD(ctx)) }
+
+// BackgroundedCtx returns a copy of ctxD whose calls outlive the caller's cancel
+func (ctxD *CtxD) BackgroundedCtx() *CtxD {
+	return &CtxD{Ctx: context.Background(), D: ctxD.D}
+}
 
 // OwnedVolume is a volume EnsureOwnedVolumes ensures: created (with labels) if absent.
 type OwnedVolume struct {
@@ -105,8 +109,10 @@ func runChownContainer(ctxD *CtxD, image, uid string, fresh []OwnedVolume) error
 	if err != nil {
 		return err
 	}
+	// the chown container's remove must complete even on a cancelled ctx
+	clean := ctxD.BackgroundedCtx()
 	defer log.Defer("remove chown container", func() error {
-		return ctxD.D.ContainerRemove(context.Background(), resp.ID, container.RemoveOptions{Force: true})
+		return clean.D.ContainerRemove(clean.Ctx, resp.ID, container.RemoveOptions{Force: true})
 	})
 
 	var logs bytes.Buffer
@@ -141,11 +147,60 @@ func EnsureImageExists(ctxD *CtxD, ref string) error {
 	return term.DisplayProgress(readCloser)
 }
 
-// FollowLogs opens the container's combined follow stream. The daemon holds it open
-// until the container exits and closes it then, so the stream's end doubles as the wait.
-func FollowLogs(ctxD *CtxD, id string) (io.ReadCloser, error) {
-	return ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+// ErrNotRunning is InspectRunning's sentinel for an absent or stopped container
+var ErrNotRunning = errors.New("dock: container not running")
+
+// InspectRunning returns the named running container's inspect, ErrNotRunning otherwise.
+func InspectRunning(ctxD *CtxD, name string) (*container.InspectResponse, error) {
+	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, name)
+	if errdefs.IsNotFound(err) {
+		return nil, ErrNotRunning
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !info.State.Running {
+		return nil, ErrNotRunning
+	}
+	return &info, nil
 }
+
+// FollowLogs opens the container's combined follow stream as plain bytes. The daemon holds it
+// open until the container exits and closes it then, so the stream's end doubles as the wait.
+func FollowLogs(ctxD *CtxD, id string) (io.ReadCloser, error) {
+	logs, err := ctxD.D.ContainerLogs(ctxD.Ctx, id, container.LogsOptions{ShowStdout: true, ShowStderr: true, Follow: true})
+	if err != nil {
+		return nil, err
+	}
+	return &demuxReader{r: logs}, nil
+}
+
+// demuxReader reads the daemon's log stream as plain bytes, converted from the container's
+// format interweaving stdout/stderr
+type demuxReader struct {
+	r     io.ReadCloser
+	head  [8]byte
+	frame []byte // the current frame's bytes not yet read out
+}
+
+func (r *demuxReader) Read(p []byte) (int, error) {
+	for len(r.frame) == 0 {
+		// each frame: a stdout/stderr type byte, padding, then the payload's big-endian length
+		if _, err := io.ReadFull(r.r, r.head[:]); err != nil {
+			return 0, err
+		}
+		body := make([]byte, binary.BigEndian.Uint32(r.head[4:]))
+		if _, err := io.ReadFull(r.r, body); err != nil {
+			return 0, err
+		}
+		r.frame = body
+	}
+	n := copy(p, r.frame)
+	r.frame = r.frame[n:]
+	return n, nil
+}
+
+func (r *demuxReader) Close() error { return r.r.Close() }
 
 // RunOnce runs a created container to exit, copying its combined follow stream into w —
 // the copy doubles as the wait — and fails on a non-zero exit. Callers report their own output.
@@ -158,7 +213,7 @@ func RunOnce(ctxD *CtxD, id string, w io.Writer) error {
 		return err
 	}
 	defer log.Defer("close logs", logs.Close)
-	if _, err := stdcopy.StdCopy(w, w, logs); err != nil {
+	if _, err := io.Copy(w, logs); err != nil {
 		return err
 	}
 	info, err := ctxD.D.ContainerInspect(ctxD.Ctx, id)
@@ -171,17 +226,20 @@ func RunOnce(ctxD *CtxD, id string, w io.Writer) error {
 	return nil
 }
 
-// RunInteractive wires the local terminal to the container: raw mode, a hijacked
-// bidirectional stream, and SIGWINCH-driven resize. docker (the daemon) owns the
-// pty; we only shuttle bytes and window sizes.
-//
-// Discipline: every exit path must restore the terminal, so this returns errors
-// rather than calling os.Exit/log.Fatal (which skip defers). On a kill/hangup it
-// stops the container instead of exiting, so this same unwind still runs.
-func RunInteractive(ctxD *CtxD, id string) error {
-	att, err := ctxD.D.ContainerAttach(ctxD.Ctx, id, container.AttachOptions{
-		Stream: true, Stdin: true, Stdout: true, Stderr: true,
+// ExecInteractive wires the local terminal to a running container's exec, returning its
+// exit code as errs.ExitError. A kill/hangup ends the attach, never the container.
+func ExecInteractive(ctxD *CtxD, id string, cmd []string) error {
+	resp, err := ctxD.D.ContainerExecCreate(ctxD.Ctx, id, container.ExecOptions{
+		Cmd:          cmd,
+		Tty:          true,
+		AttachStdin:  true,
+		AttachStdout: true,
+		AttachStderr: true,
 	})
+	if err != nil {
+		return err
+	}
+	att, err := ctxD.D.ContainerExecAttach(ctxD.Ctx, resp.ID, container.ExecStartOptions{Tty: true})
 	if err != nil {
 		return err
 	}
@@ -191,49 +249,26 @@ func RunInteractive(ctxD *CtxD, id string) error {
 		defer log.Defer("restore terminal", restore)
 	}
 
-	// Register the wait before start so a fast exit isn't missed. NextExit (not
-	// NotRunning) is essential: a created, not-yet-started container already satisfies
-	// "not running", so NotRunning returns immediately with a bogus exit code 0.
-	statusCh, errCh := ctxD.D.ContainerWait(ctxD.Ctx, id, container.WaitConditionNextExit)
-
-	if err := ctxD.D.ContainerStart(ctxD.Ctx, id, container.StartOptions{}); err != nil {
-		return err
-	}
-
-	// Forward window resizes to the container's tty.
+	// Forward window resizes to the exec's tty; the first sizes the pty to the terminal,
+	// not the daemon's default.
 	stopResizes := term.ForwardResizes(func(h, w uint) {
-		_ = ctxD.D.ContainerResize(ctxD.Ctx, id, container.ResizeOptions{Height: h, Width: w})
+		_ = ctxD.D.ContainerExecResize(ctxD.Ctx, resp.ID, container.ResizeOptions{Height: h, Width: w})
 	})
 	defer stopResizes()
 
-	// On a kill/hangup, stop the container; that EOFs the output copy below, so the
-	// normal unwind restores the terminal and (via Run's defer) removes the container.
-	// Raw-mode Ctrl-C already goes to the container, so SIGINT here only fires for
-	// non-tty stdin / `kill -INT`.
-	kill := make(chan os.Signal, 1)
-	signal.Notify(kill, syscall.SIGTERM, syscall.SIGHUP, syscall.SIGINT)
-	defer signal.Stop(kill)
-	go func() {
-		<-kill
-		timeout := 5
-		_ = ctxD.D.ContainerStop(context.Background(), id, container.StopOptions{Timeout: &timeout})
-	}()
-
-	// Stdin → container (leaks on the os.Stdin read at process exit — fine for a CLI).
+	// Stdin → exec (leaks on the os.Stdin read at process exit — fine for a CLI).
 	go func() {
 		_, _ = io.Copy(att.Conn, os.Stdin)
 		_ = att.CloseWrite()
 	}()
-	// Container → stdout (tty merges stdout+stderr). Blocks until the container exits,
-	// flushing all output before the deferred terminal restore.
+	// Exec → stdout (tty merges stdout+stderr); blocks until the exec exits
 	_, _ = io.Copy(os.Stdout, att.Reader)
 
-	select {
-	case err := <-errCh:
+	info, err := ctxD.D.ContainerExecInspect(ctxD.Ctx, resp.ID)
+	if err != nil {
 		return err
-	case st := <-statusCh:
-		return errs.Exit(int(st.StatusCode))
 	}
+	return errs.Exit(info.ExitCode)
 }
 
 // CopyFileFrom copies the container's file at path into memory. CopyFrom tars single
@@ -284,4 +319,23 @@ func filesFromTar(stream io.Reader, prefix string) (map[string][]byte, error) {
 		}
 		files[strings.TrimPrefix(hdr.Name, prefix)] = body
 	}
+}
+
+// AwaitLogMarker follows the container's logs until a line equals marker, failing closed with the
+// last logs. The follow replays them, so a boot already past the marker answers at once.
+func AwaitLogMarker(ctxD *CtxD, id, marker string) error {
+	// a derived cancel stops the log stream at the marker, not the container's exit
+	ctx, cancel := context.WithCancel(ctxD.Ctx)
+	defer cancel()
+	logs, err := FollowLogs(&CtxD{Ctx: ctx, D: ctxD.D}, id)
+	if err != nil {
+		return err
+	}
+	return stream.AwaitMarker(logs, marker, cancel)
+}
+
+// StreamLogs tees the whole followed log stream to the options' views — a set marker waits on
+// those same teed bytes, failing closed with the last logs when the stream ends first
+func StreamLogs(ctxD *CtxD, id string, o stream.Options) error {
+	return stream.Follow(func() (io.ReadCloser, error) { return FollowLogs(ctxD, id) }, o)
 }

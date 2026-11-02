@@ -8,7 +8,6 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/diff"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -25,34 +24,20 @@ type ProxyMap struct {
 // NewProxyMap returns a new ProxyMap
 func NewProxyMap(cfg *cfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 
-// Options renders the egress wall's docker.ProxyOptions; foreground is the optional
-// stream — nil keeps the run on the session's log file alone
-func (pm *ProxyMap) Options(foreground *tinyproxy.Log) *docker.ProxyOptions {
-	proxyConfigMap := map[string][]byte{
-		tinyproxy.ConfFile:     tinyproxy.MustConf(),
-		pkginfo.ProxyAllowFile: allowfile.Render(pm.cfg.AllowlistExpanded()),
-	}
-	writeConfigMap := func() error {
-		for name, body := range proxyConfigMap {
-			// atomically for reload
-			if err := osutil.AtomicWriteFile(filepath.Join(proxyLiveDir(), name), body); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
+// Options renders the egress wall's docker.ProxyOptions
+func (pm *ProxyMap) Options() *docker.ProxyOptions {
+	allowContents := allowfile.Render(pm.cfg.AllowlistExpanded())
+	writeAllowFile := func() error { return osutil.AtomicWriteFile(proxyAllowPath(), allowContents) }
 	return &docker.ProxyOptions{
 		HostDir:     proxyLiveDir(),
-		HoldersDir:  proxyHoldersDir(),
-		LogFile:     proxyLogPath(),
-		Log:         foreground,
-		BeforeStart: writeConfigMap,
+		LogFile:     proxyLogPath(pm.cfg.ServeVNC()),
+		BeforeStart: writeAllowFile,
 		OnRefresh: func() error {
-			changed, err := pm.allowlistDiff(proxyConfigMap[pkginfo.ProxyAllowFile])
+			changed, err := pm.allowlistDiff(allowContents)
 			if err != nil {
 				return err
 			}
-			if err := writeConfigMap(); err != nil {
+			if err := writeAllowFile(); err != nil {
 				return err
 			}
 			if changed != "" {
@@ -86,9 +71,6 @@ func (pm *ProxyMap) allowlistDiff(fresh []byte) (string, error) {
 // proxyLiveDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
 // the changing files as the running proxy's current configs.
 func proxyLiveDir() string { return filepath.Join(userdir.Tmp(), "proxy") }
-
-// proxyHoldersDir is the proxy session's holder flock dir on the host: ~/.ccbox/tmp/proxy-holders
-func proxyHoldersDir() string { return filepath.Join(userdir.Tmp(), "proxy-holders") }
 
 // proxyAllowPath is the rendered allow file within proxyLiveDir
 func proxyAllowPath() string { return filepath.Join(proxyLiveDir(), pkginfo.ProxyAllowFile) }

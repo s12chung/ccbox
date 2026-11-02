@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/cfg"
-	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/allowfile"
@@ -23,10 +22,10 @@ func TestProxyMap_Options(t *testing.T) {
 		Allowlist: []string{"user.example.dev", cfg.DefaultsAlias, "example.com"},
 	}
 	allowContents := allowfile.Render(config.AllowlistExpanded())
-	conf := tinyproxy.MustConf()
 
-	options := NewProxyMap(config).Options(nil)
+	options := NewProxyMap(config).Options()
 	assert.Equal(t, proxyLiveDir(), options.HostDir)
+	assert.Equal(t, proxyLogPath(false), options.LogFile)
 	require.True(t, osutil.Missing(proxyLiveDir()), "rendering alone writes nothing")
 
 	require.NotNil(t, options.BeforeStart)
@@ -34,10 +33,7 @@ func TestProxyMap_Options(t *testing.T) {
 	written, err := os.ReadFile(proxyAllowPath())
 	require.NoError(t, err)
 	assert.Equal(t, allowContents, written)
-	written, err = os.ReadFile(filepath.Join(proxyLiveDir(), tinyproxy.ConfFile))
-	require.NoError(t, err)
-	assert.Equal(t, conf, written)
-	// a racing reload never reads a partial file: the dir holds exactly the two configs,
+	// a racing reload never reads a partial file: the dir holds exactly the allow file,
 	// with no temp file left behind
 	entries, err := os.ReadDir(proxyLiveDir())
 	require.NoError(t, err)
@@ -45,7 +41,7 @@ func TestProxyMap_Options(t *testing.T) {
 	for _, entry := range entries {
 		names = append(names, entry.Name())
 	}
-	assert.ElementsMatch(t, []string{tinyproxy.ConfFile, pkginfo.ProxyAllowFile}, names)
+	assert.Equal(t, []string{pkginfo.ProxyAllowFile}, names)
 
 	require.NotNil(t, options.OnStop)
 	require.NoError(t, options.OnStop())
@@ -82,10 +78,10 @@ func TestProxyMap_AllowlistDiff(t *testing.T) {
 		"a missing file diffs from nothing, in bare domains never the file's regex")
 
 	old := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"old.example.dev"}}
-	require.NoError(t, NewProxyMap(old).Options(nil).BeforeStart())
+	require.NoError(t, NewProxyMap(old).Options().BeforeStart())
 	assert.Equal(t, "-old.example.dev\n+new.example.dev\n+kept.example.dev", changed())
 
-	require.NoError(t, NewProxyMap(config).Options(nil).OnRefresh())
+	require.NoError(t, NewProxyMap(config).Options().OnRefresh())
 	assert.Empty(t, changed(), "an unchanged allowlist diffs nothing")
 }
 
@@ -93,10 +89,10 @@ func TestProxyMap_Options_OnRefresh(t *testing.T) {
 	testutil.Home(t)
 
 	old := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"old.example.dev"}}
-	require.NoError(t, NewProxyMap(old).Options(nil).BeforeStart())
+	require.NoError(t, NewProxyMap(old).Options().BeforeStart())
 
 	config := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"new.example.dev"}}
-	options := NewProxyMap(config).Options(nil)
+	options := NewProxyMap(config).Options()
 	require.NoError(t, options.OnRefresh())
 
 	written, err := os.ReadFile(proxyAllowPath())

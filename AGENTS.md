@@ -6,8 +6,9 @@ You run inside the container defined at `Dockerfile`, and we often swap containe
 
 ### Key components
 The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang files map to `cmd/`, which talks to the Docker Engine SDK in-process. Commands:
-- `ccbox` (no subcommand) — runs the devbox container interactively behind the egress wall, wiring the local terminal to the container's pty; launches the configured CLI by default (`ccbox run [command...]` for a plain shell or a one-off command, `--no-proxy` to skip the proxy for direct egress). Maps to `cmd/run.go`.
-- `ccbox proxy` — runs the `tinyproxy` egress wall in the foreground
+- `ccbox run/proxy` — boots the devbox in the foreground, streaming its logs; `ccbox proxy` boots with the tinyproxy egress wall on. Each variant ask (`--vnc`, `--no-proxy`) gets its own devbox, named per variant at `pkg/dmap/variants.go`. The boot runs no workload — sessions arrive via `ccbox exec`.
+- `ccbox exec` — execs into the devbox variant its flags and settings specify, creating that variant if not there. `ccbox exec [command...]` for a one-off command, bare for a plain shell. The container user is root, so the wrapper chain drops the session to the unprivileged user.
+- `ccbox` (no subcommand) — essentially `ccbox proxy` followed by `ccbox exec` that launches the configured CLI
 - `ccbox config` — prints the effective .ccbox.yaml
 
 This curated directory will help you discover common patterns (`pkg/util` and `pkg/kit`) and navigate the project:
@@ -21,16 +22,15 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `cfg/` — the `ccbox` Config as described in the README
-  - `dmap/` — maps the `cfg.Config`, CLI, and run flags to the docker pkg options for a run. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
-  - `docker/` — the build/run/proxy lifecycle over the Docker SDK--manages DOCKER ONLY, knows nothing but docker lifecycle
+  - `dmap/` — maps the `cfg.Config`, CLI, and run flags to the docker pkg options for a run. The devbox variant naming — one devbox per variant ask — lives at `variants.go`. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
+  - `docker/` — the build/boot/exec lifecycle over the Docker SDK--manages DOCKER ONLY, knows nothing but docker lifecycle
   - `mise/` — related to mise configs
   - `models/` — the domain models cfg resolves names against
     - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.ConfigDir()/clis` with the same format as the built-ins.
-  - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs and persistent storage
-  - `util/` — std lib utility packages, notable: `klean`, `must`, `seed`, `term`, `mergeempty`, `slicex`
+  - `userdir/` — resolves ccbox's per-user directory (`~/.ccbox`) for configs, persistent storage, and the per-variant devbox log files
+  - `util/` — std lib utility packages, notable: `errs`, `klean`, `must`, `seed`, `term`, `mergeempty`, `slicex`
     - `osutil/` — os-level file utils, including named file/dir permission constants (`Dir`, `File`, `ExecFile`); use these, never bare octal
   - `kit/` — non-std lib abstractions and utilities, most used: `dock`, `pick`, `firmrule`
-    - `tinyproxy/` — the egress wall configs
 - **`Dockerfile`** — builds the devbox image from the inputs under `docker/` plus mise config defined in the `mise` pkg.
 - **`docker/`** — baked into the vnc variant image only
 - **`tests/`** — bats integration tests (need the built image; run by `make test.docker`).
