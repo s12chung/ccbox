@@ -31,15 +31,14 @@ func execSession(ctx context.Context, mode dmap.ExecMode) error {
 	if !config.NoProxyFor(config.ServeVNC(), mode.NoProxy) {
 		proxyOptions = dmap.NewProxyMap(config).Options()
 	}
-	options, clean, err := prepareRun(proxyOptions)
+	runOptions, clean, err := prepareRun(proxyOptions)
 	if err != nil {
 		return err
 	}
 	defer log.Defer("clean run files", clean)
-	options.Exec = dmap.NewExecMap(config.CLI()).Options(mode, proxyOptions == nil)
 
 	ctxD := dock.MustNewCtxD(ctx)
-	running, err := docker.DevboxRunning(ctxD, options)
+	running, err := docker.IsDevboxRunning(ctxD, runOptions)
 	if err != nil {
 		return err
 	}
@@ -48,7 +47,7 @@ func execSession(ctx context.Context, mode dmap.ExecMode) error {
 			return err
 		}
 	}
-	return docker.Exec(ctxD, options)
+	return docker.Exec(ctxD, dmap.NewExecMap(config.CLI()).Options(runOptions, mode, proxyOptions == nil))
 }
 
 func init() {

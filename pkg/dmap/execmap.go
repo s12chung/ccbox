@@ -23,9 +23,9 @@ type ExecMap struct {
 // NewExecMap returns a new ExecMap
 func NewExecMap(c cli.CLI) *ExecMap { return &ExecMap{cli: c} }
 
-// Options renders the exec session's docker.ExecOptions; noProxy is the plain boot
-func (em *ExecMap) Options(mode ExecMode, noProxy bool) *docker.ExecOptions {
-	return &docker.ExecOptions{Cmd: em.cmd(mode, noProxy)}
+// Options renders the exec session's docker.ExecOptions; noProxy runs plain
+func (em *ExecMap) Options(runOptions docker.RunOptions, mode ExecMode, noProxy bool) docker.ExecOptions {
+	return docker.ExecOptions{RunOptions: runOptions, Cmd: em.cmd(mode, noProxy)}
 }
 
 // cmd maps the exec mode to the session's argv

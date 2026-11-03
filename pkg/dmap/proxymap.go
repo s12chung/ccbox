@@ -4,14 +4,11 @@ import (
 	"errors"
 	"io/fs"
 	"os"
-	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/diff"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/allowfile"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
@@ -67,10 +64,3 @@ func (pm *ProxyMap) allowlistDiff(fresh []byte) (string, error) {
 	}
 	return diff.Lines(liveDomains, freshDomains), nil
 }
-
-// proxyLiveDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
-// the changing files as the running proxy's current configs.
-func proxyLiveDir() string { return filepath.Join(userdir.Tmp(), "proxy") }
-
-// proxyAllowPath is the rendered allow file within proxyLiveDir
-func proxyAllowPath() string { return filepath.Join(proxyLiveDir(), pkginfo.ProxyAllowFile) }

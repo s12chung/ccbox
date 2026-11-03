@@ -1,4 +1,4 @@
-// Package docker drives the devbox lifecycle (build/boot) over the Docker Engine SDK.
+// Package docker drives the devbox lifecycle (build/run) over the Docker Engine SDK.
 package docker
 
 // DefaultTag is the devbox image's default tag, shared across commands.

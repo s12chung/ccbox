@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -28,13 +30,20 @@ var runCmd = &cobra.Command{
 	Args:                  cobra.NoArgs,
 	DisableFlagsInUseLine: true,
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return runBoot(cmd.Context(), nil)
+		return run(cmd.Context(), nil)
 	},
 }
 
-// runBoot builds the image then boots the devbox, streaming its logs to the foreground —
-// run and proxy's shared tail
-func runBoot(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
+func init() {
+	for _, c := range []*cobra.Command{rootCmd, runCmd, execCmd} {
+		rf := c.Flags()
+		rf.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental, always no proxy)")
+	}
+}
+
+// run builds the image then boots the devbox, streaming its logs to the foreground —
+// the run and proxy commands' shared tail
+func run(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
 	if err := build(ctx, config.ServeVNC()); err != nil {
 		return err
 	}
@@ -48,7 +57,7 @@ func runBoot(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
 	return docker.Run(dock.MustNewCtxD(ctx), options)
 }
 
-// prepareRun renders the boot's options: every command's shared front
+// prepareRun renders the run's options: every command's shared front
 func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
 	defer printPresentGuardMounts()
 
@@ -68,10 +77,27 @@ func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() er
 	return options, clean, nil
 }
 
-func init() {
-	for _, c := range []*cobra.Command{rootCmd, runCmd, execCmd} {
-		rf := c.Flags()
-		rf.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental, always no proxy)")
+func printPresentGuardMounts() {
+	if tmpfsMasks := config.TmpfsMasksPresent(); len(tmpfsMasks) > 0 {
+		log.Infof("during run, masked with temp filesystem: %s", strings.Join(tmpfsMasks, ", "))
+	}
+	if volumeMasks := config.VolumeMasksPresent(); len(volumeMasks) > 0 {
+		log.Infof("during run, masked with persistent volume: %s", strings.Join(volumeMasks, ", "))
+	}
+	if roPaths := config.ReadOnlyPathsPresent(); len(roPaths) > 0 {
+		log.Infof("during run, read-only: %s", strings.Join(roPaths, ", "))
+	}
+}
+
+// warnCreatedGuardMounts warns for each mask dir or glob match the run created: it exists now,
+// so future runs guard it — a heads-up that it behaves differently from here.
+func warnCreatedGuardMounts(presentMasksBefore, presentPathsBefore []string) {
+	nowPresent := append(config.TmpfsMasksPresent(), config.VolumeMasksPresent()...)
+	if created := slicex.Minus(nowPresent, presentMasksBefore); len(created) > 0 {
+		log.Warnf("before run, these directories did not exist. future runs will mask them: %s", strings.Join(created, ", "))
+	}
+	if created := slicex.Minus(config.ReadOnlyPathsPresent(), presentPathsBefore); len(created) > 0 {
+		log.Warnf("before run, these paths did not exist. future runs will re-mount them read-only: %s", strings.Join(created, ", "))
 	}
 }
 

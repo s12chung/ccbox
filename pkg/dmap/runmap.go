@@ -21,7 +21,7 @@ func NewRunMap(cfg *cfg.Config, cacheVolumes []string, tagByProject bool) *RunMa
 	return &RunMap{cfg: cfg, cacheVolumes: cacheVolumes, tagByProject: tagByProject}
 }
 
-// RunOptions renders the run's full docker.RunOptions; nil proxyOptions is the plain boot
+// RunOptions renders the run's full docker.RunOptions; nil proxyOptions runs plain
 func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
 	serveVNC, noProxy := rm.cfg.ServeVNC(), proxyOptions == nil
 	hostOptions, clean, err := rm.HostOptions(serveVNC, noProxy)

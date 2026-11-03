@@ -23,7 +23,7 @@ func TestExecMap_Cmd(t *testing.T) {
 	assert.Equal(t, execArgv("claude", "--resume", "sess"),
 		em.cmd(ExecMode{Resume: true, Args: []string{"sess"}}, false))
 	assert.Equal(t, []string{"ccboxtools", "exec", "--", "bash"}, em.cmd(ExecMode{Shell: true}, true),
-		"a plain boot runs no egress wall: the session is the image's user, already arrived")
+		"a plain variant runs no egress wall: the session is the image's user, already arrived")
 }
 
 // execArgv is the session argv under the egress wall's drop chain

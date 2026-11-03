@@ -30,13 +30,13 @@ func TestRunOptions_MatchesContainer(t *testing.T) {
 	}{
 		{
 			name:    "Plain",
-			o:       plainBoot(),
+			o:       plainRun(),
 			cLabels: map[string]string{ccboxProjectLabelKey: "/host/proj"},
 			matches: true,
 		},
 		{
 			name: "Proxy",
-			o:    proxyBoot(),
+			o:    proxyRun(),
 			cLabels: map[string]string{
 				ccboxProjectLabelKey:  "/host/proj",
 				ccboxHasProxyLabelKey: trueVolValue,
@@ -45,12 +45,12 @@ func TestRunOptions_MatchesContainer(t *testing.T) {
 		},
 		{
 			name:    "DifferingProxy",
-			o:       plainBoot(),
+			o:       plainRun(),
 			cLabels: map[string]string{ccboxProjectLabelKey: "/host/proj", ccboxHasProxyLabelKey: trueVolValue},
 		},
 		{
 			name: "UnlabeledPreLabel",
-			o:    plainBoot(),
+			o:    plainRun(),
 		},
 	}
 
@@ -72,10 +72,10 @@ func TestRunOptions_StreamOptions(t *testing.T) {
 		o          RunOptions
 		wantMarker string
 	}{
-		{name: "PlainHolders", o: withForeground(plainBoot())},
-		{name: "WalledHolders", o: withForeground(proxyBoot()), wantMarker: pkginfo.ReadyMarker},
-		{name: "WalledSession", o: proxyBoot(), wantMarker: pkginfo.ReadyMarker},
-		{name: "PlainSession", o: plainBoot()},
+		{name: "PlainHolders", o: withForeground(plainRun())},
+		{name: "WalledHolders", o: withForeground(proxyRun()), wantMarker: pkginfo.ReadyMarker},
+		{name: "WalledSession", o: proxyRun(), wantMarker: pkginfo.ReadyMarker},
+		{name: "PlainSession", o: plainRun()},
 	}
 
 	for _, tt := range tests {
@@ -91,11 +91,11 @@ func TestRunOptions_StreamOptions(t *testing.T) {
 }
 
 // withLogFiles aims o's log files at a test dir, yielding the proxy's path —
-// set on o's options only with the egress wall, so a plain boot's read finds no file
+// set on o's options only with the egress wall, so a plain run's read finds no file
 func withLogFiles(t *testing.T, o RunOptions) (RunOptions, string) {
 	t.Helper()
 	dir := t.TempDir()
-	o.LogFile = filepath.Join(dir, "boot.log")
+	o.LogFile = filepath.Join(dir, "devbox.log")
 	proxyLog := filepath.Join(dir, "proxy.log")
 	if o.Proxy != nil {
 		o.Proxy.LogFile = proxyLog
@@ -173,9 +173,8 @@ func TestRunConfig(t *testing.T) {
 					ProjectDir:     "/host/proj",
 					WorkspaceMount: "/home/ccbox/proj",
 				},
-				Exec: &ExecOptions{Cmd: []string{"claude"}},
-				Tag:  "ccbox:latest",
-				Env:  map[string]string{"GH_TOKEN": "gh", "GOFLAGS": "-mod=mod"},
+				Tag: "ccbox:latest",
+				Env: map[string]string{"GH_TOKEN": "gh", "GOFLAGS": "-mod=mod"},
 			},
 			want: &container.Config{
 				Image:      "ccbox:latest",
@@ -237,9 +236,9 @@ func TestRunHostConfig(t *testing.T) {
 	hostConfig, err := runHostConfig(nil, opts)
 
 	require.NoError(t, err)
-	assert.Empty(t, hostConfig.NetworkMode, "the boot uses the engine's default bridge")
+	assert.Empty(t, hostConfig.NetworkMode, "the devbox uses the engine's default bridge")
 	assert.Equal(t, []string{"ALL"}, []string(hostConfig.CapDrop))
-	assert.Empty(t, hostConfig.CapAdd, "the plain boot arrives as the image's user, capless")
+	assert.Empty(t, hostConfig.CapAdd, "the plain run arrives as the image's user, capless")
 	assert.Equal(t, nat.PortMap{
 		desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}},
 	}, hostConfig.PortBindings)
@@ -259,22 +258,22 @@ func TestRunHostConfig_EgressWall(t *testing.T) {
 	hostConfig, err := runHostConfig(nil, opts)
 
 	require.NoError(t, err)
-	// the boot's run budget, exact-matched by the entrypoint's verify
+	// the proxied devbox's run budget, exact-matched by the entrypoint's verify
 	assert.Equal(t, identity.RunCapNames(), []string(hostConfig.CapAdd))
 	assert.Equal(t, []string{"ALL"}, []string(hostConfig.CapDrop))
 	assert.Equal(t, map[string]string{ipForwardSysctl: "0"}, hostConfig.Sysctls)
-	require.Len(t, hostConfig.SecurityOpt, 2, "every boot mounts the seccomp profile")
+	require.Len(t, hostConfig.SecurityOpt, 2, "every devbox mounts the seccomp profile")
 }
 
-func plainBoot() RunOptions {
+func plainRun() RunOptions {
 	return RunOptions{
 		RunHostOptions: RunHostOptions{ProjectDir: "/host/proj"},
 		Name:           "ccbox-proj",
 	}
 }
 
-func proxyBoot() RunOptions {
-	o := plainBoot()
+func proxyRun() RunOptions {
+	o := plainRun()
 	o.Proxy = &ProxyOptions{}
 	return o
 }

@@ -91,7 +91,8 @@ const (
 	ccboxProjectLabelKey  = "ccbox.project"
 	ccboxGlobalLabelKey   = "ccbox.global"
 	ccboxHasProxyLabelKey = "ccbox.has_proxy"
-	trueVolValue          = "true"
+
+	trueVolValue = "true"
 )
 
 // volumeLabels marks a volume as ccbox's own.

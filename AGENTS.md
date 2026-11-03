@@ -6,7 +6,7 @@ You run inside the container defined at `Dockerfile`, and we often swap containe
 
 ### Key components
 The devbox lifecycle is driven by the **`ccbox`** Go CLI (cobra) where golang files map to `cmd/`, which talks to the Docker Engine SDK in-process. Commands:
-- `ccbox run/proxy` — boots the devbox in the foreground, streaming its logs; `ccbox proxy` boots with the tinyproxy egress wall on. Each variant ask (`--vnc`, `--no-proxy`) gets its own devbox, named per variant at `pkg/dmap/variants.go`. The boot runs no workload — sessions arrive via `ccbox exec`.
+- `ccbox run/proxy` — boots the devbox in the foreground, streaming its logs; `ccbox proxy` boots with the tinyproxy egress wall on. Each variant ask (`--vnc`, `--no-proxy`) gets its own devbox, named per variant at `pkg/dmap/variants.go`. The devbox runs no workload — sessions arrive via `ccbox exec`.
 - `ccbox exec` — execs into the devbox variant its flags and settings specify, creating that variant if not there. `ccbox exec [command...]` for a one-off command, bare for a plain shell. The container user is root, so the wrapper chain drops the session to the unprivileged user.
 - `ccbox` (no subcommand) — essentially `ccbox proxy` followed by `ccbox exec` that launches the configured CLI
 - `ccbox config` — prints the effective .ccbox.yaml
@@ -23,7 +23,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`pkg/`**
   - `cfg/` — the `ccbox` Config as described in the README
   - `dmap/` — maps the `cfg.Config`, CLI, and run flags to the docker pkg options for a run. The devbox variant naming — one devbox per variant ask — lives at `variants.go`. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
-  - `docker/` — the build/boot/exec lifecycle over the Docker SDK--manages DOCKER ONLY, knows nothing but docker lifecycle
+  - `docker/` — the build/run/exec lifecycle over the Docker SDK--manages DOCKER ONLY, knows nothing but docker lifecycle
   - `mise/` — related to mise configs
   - `models/` — the domain models cfg resolves names against
     - `cli/` — individual cli related code: the registry + CLI.yaml parsing. Built-in CLI templates are `go:embed` at `clitmpl/clis/` and user configurable at `userdir.ConfigDir()/clis` with the same format as the built-ins.
@@ -45,6 +45,7 @@ Terminology:
 
 - A **path** is a single path string - container paths end in `Mount`; host paths are unmarked. A **mount** is a bind, volume, or tmpfs mount, even when typed as an interface, refer to binds as "binds" and volumes as "volumes".
 - `tmpfs_masks`, `volume_masks`, and `read_only_globs` are internally termed as **guardMounts**. The term is code-only — never show it to users. When code handles all three, keep them in the stated order: `tmpfs_masks`, `volume_masks`, and `read_only_globs`.
+- **boot** only applies to the operations from the start of the container -> `ready` marker OR the start of `ccbox exec` until the user has access. Never use it for anything else.
 
 For tests:
 

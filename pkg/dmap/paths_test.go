@@ -21,6 +21,16 @@ func TestDevboxLogPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-vnc.log"), devboxLogPath(true, true))
 }
 
+func TestProxyLiveDir(t *testing.T) {
+	home := testutil.Home(t)
+	assert.Equal(t, filepath.Join(home, ".ccbox", "tmp", "proxy"), proxyLiveDir())
+}
+
+func TestProxyAllowPath(t *testing.T) {
+	home := testutil.Home(t)
+	assert.Equal(t, filepath.Join(home, ".ccbox", "tmp", "proxy", "allow.txt"), proxyAllowPath())
+}
+
 func TestProxyLogPath(t *testing.T) {
 	home := testutil.Home(t)
 	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy.log"), proxyLogPath(false))

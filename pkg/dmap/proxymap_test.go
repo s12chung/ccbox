@@ -2,7 +2,6 @@ package dmap
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -50,16 +49,6 @@ func TestProxyMap_Options(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, entries)
 	require.NoError(t, options.OnStop(), "an empty dir is already clean")
-}
-
-func TestProxyLiveDir(t *testing.T) {
-	home := testutil.Home(t)
-	assert.Equal(t, filepath.Join(home, ".ccbox", "tmp", "proxy"), proxyLiveDir())
-}
-
-func TestProxyAllowPath(t *testing.T) {
-	home := testutil.Home(t)
-	assert.Equal(t, filepath.Join(home, ".ccbox", "tmp", "proxy", "allow.txt"), proxyAllowPath())
 }
 
 func TestProxyMap_AllowlistDiff(t *testing.T) {
