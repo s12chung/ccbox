@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -251,6 +252,12 @@ func TestAllowlistDefaults_ExcludeGuiApp(t *testing.T) {
 	}
 }
 
+func TestAllowlistDefaults_DomainsValid(t *testing.T) {
+	for _, d := range AllowlistDefaults() {
+		assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s", d)
+	}
+}
+
 func TestLoad_UnsetRequiredErrors(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
@@ -408,6 +415,8 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 			[]string{"GUIAppName", `is not one of ["zcode" ""]`},
 		},
 		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "DomainOrAlias"}},
+		{"bare TLD allow domain", "allowlist:\n  - com\n", []string{"Allowlist", "DomainOrAlias"}},
+		{"allow domain with a newline", "allowlist:\n  - \"foo.com\\n\"\n", []string{"Allowlist", "DomainOrAlias"}},
 		{
 			"unknown allowlist alias", "allowlist:\n  - ccbox-bogus-alias\n",
 			[]string{"Allowlist", "DomainOrAlias", "is not a domain or one of " + fmt.Sprintf("%v", quotedAllowlistAliases())},

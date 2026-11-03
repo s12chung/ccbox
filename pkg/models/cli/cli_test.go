@@ -7,9 +7,11 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
@@ -416,5 +418,13 @@ func TestCLI_CLIDataBinds(t *testing.T) {
 
 	for _, name := range []string{"claude", "codex", "pi"} {
 		assert.Emptyf(t, MustFor(name).DataBinds, "%s has no data binds", name)
+	}
+}
+
+func TestAllowDomains_Valid(t *testing.T) {
+	for _, c := range All() {
+		for _, d := range c.AllowDomains {
+			assert.Nilf(t, firm.Value[string](firmrule.DomainOrAlias(provider.Aliases)).Validate(d).ToNil(), "%s: %s", c.Name, d)
+		}
 	}
 }

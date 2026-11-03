@@ -108,7 +108,7 @@ func TestData_Corroborates(t *testing.T) {
 }
 
 func TestDomains_Valid(t *testing.T) {
-	for _, r := range runtimes {
+	for _, r := range All() {
 		for _, d := range r.Domains {
 			assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s: %s", r.Name, d)
 		}

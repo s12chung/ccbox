@@ -70,7 +70,7 @@ func TestDomainsFor(t *testing.T) {
 }
 
 func TestDomains_Valid(t *testing.T) {
-	for _, p := range providers {
+	for _, p := range builtinProviders {
 		for _, d := range p.Domains {
 			assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s: %s", p.Name, d)
 		}

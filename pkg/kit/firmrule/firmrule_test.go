@@ -21,8 +21,13 @@ func TestMatchRules(t *testing.T) {
 	}{
 		{
 			"Domain", Domain,
-			[]string{"x.ai", "githubusercontent.com", "api.anthropic.com", "ccbox-defaults"},
-			[]string{"", "https://x.dev", "X.AI", "x..ai", "x.ai/", "*.x.ai"},
+			[]string{"x.ai", "githubusercontent.com", "api.anthropic.com"},
+			// QuoteMeta can't escape these: a newline would split the rendered ERE line,
+			// leaving the egress wall open — a bare TLD opens the whole TLD
+			[]string{
+				"", "https://x.dev", "X.AI", "x..ai", "x.ai/", "*.x.ai", "com", "localhost", "ccbox-defaults",
+				"foo.com\n", "foo.com\r", "foo.com ", "foo\nbar.com",
+			},
 		},
 		{
 			"EnvVar", EnvVar,
@@ -79,7 +84,7 @@ func TestDomainOrAlias(t *testing.T) {
 		}
 	})
 	t.Run("other values fail with the allowed list", func(t *testing.T) {
-		for _, s := range []string{"", "https://x.dev", "X.AI", "ccbox-bogus-provider", "ccbox-set-harness"} {
+		for _, s := range []string{"", "https://x.dev", "X.AI", "ccbox-bogus-provider", "ccbox-set-harness", "ccbox-bogus.dev"} {
 			errMap := v.Validate(s)
 			require.NotEmptyf(t, errMap, "want %q invalid", s)
 			assert.Containsf(t, errMap.Error(), "DomainOrAlias: value is not a domain or one of "+fmt.Sprintf("%v", quoted), s)

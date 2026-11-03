@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
@@ -27,6 +29,12 @@ func TestAllowDomains(t *testing.T) {
 
 	for _, name := range []string{"", "emacs"} {
 		assert.Emptyf(t, AllowDomains(name), "%q names no app to download", name)
+	}
+}
+
+func TestApp_AllowDomains_Valid(t *testing.T) {
+	for _, d := range App.AllowDomains {
+		assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s: %s", App.Name, d)
 	}
 }
 

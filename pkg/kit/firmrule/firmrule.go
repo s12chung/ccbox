@@ -15,8 +15,10 @@ import (
 
 // Each pattern requires at least one char and rejects empty values -- no rule.Present needed.
 var (
-	// Domain is a lowercased hostname or its suffix, e.g. x.ai, githubusercontent.com
-	Domain = rule.Match{Regexp: regexp.MustCompile(`^([a-z0-9-]+\.)*[a-z0-9-]+$`)} // EnvVar is a POSIX-ish env var name
+	// Domain is a lowercased hostname or its suffix, e.g. x.ai, githubusercontent.com —
+	// never a bare TLD: "com" would allow every .com host
+	Domain = rule.Match{Regexp: regexp.MustCompile(`^([a-z0-9-]+\.)+[a-z0-9-]+$`)}
+	// EnvVar is a POSIX-ish env var name
 	EnvVar = rule.Match{Regexp: regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)}
 	// MaskDir is a project-relative dir to mask: no leading slash or "~", and no ".",
 	// "..", or empty segment (".idea" and "vendor/bundle" are fine)
@@ -79,7 +81,8 @@ func DomainOrAlias(aliasesFunc func() []string) firm.RuleBasic {
 	return rule.CustomizeErr(
 		rule.Or(
 			rule.OneOf[string]{ValuesFunc: aliasesFunc},
-			// aliasPrefixRule is a subset of Domain, so AND NOT it
+			// the AND NOT reserves the ccbox- namespace: a dotted ccbox-* string
+			// would otherwise pass Domain while reading as an alias
 			rule.And(rule.Not(aliasPrefixRule), Domain),
 		),
 		func(firm.ErrorMap) firm.ErrorMap {

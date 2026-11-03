@@ -20,6 +20,7 @@ func TestRender(t *testing.T) {
 		{"Domain", []string{"example.com"}, "(^|\\.)example\\.com$\n"},
 		{"Subdomain", []string{"a.b.example.com"}, "(^|\\.)a\\.b\\.example\\.com$\n"},
 		{"Domains", []string{"example.com", "registry.npmjs.org"}, "(^|\\.)example\\.com$\n(^|\\.)registry\\.npmjs\\.org$\n"},
+		{"MetaChars", []string{"*.x.ai"}, "(^|\\.)\\*\\.x\\.ai$\n"}, // QuoteMeta neutralizes ERE metachars
 		{"EmptyAllowlist", nil, ""},
 	}
 	for _, tt := range tests {
