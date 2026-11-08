@@ -14,7 +14,6 @@ import (
 	"github.com/docker/go-connections/nat"
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
-	"github.com/s12chung/ccbox/pkg/kit/seccomputil"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/klean"
@@ -26,6 +25,7 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/flock"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/logmux"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/seccomputil"
 )
 
 // RunOptions configures the devbox run and its holder session.

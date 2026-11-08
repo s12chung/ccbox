@@ -12,8 +12,8 @@ import (
 	"github.com/opencontainers/runtime-spec/specs-go"
 )
 
-// The door's Linux wire numbers, as consts so the host binary builds on
-// every platform — x/sys/unix gates CLONE_NEWUSER to linux.
+// The door's Linux wire numbers, as consts so the package builds on every
+// platform — x/sys/unix gates CLONE_NEWUSER to linux.
 const (
 	cloneNewUser uint64 = 0x10000000
 	errnoPerm    uint   = 1
@@ -25,17 +25,16 @@ var (
 	// arg1; every other ABI, unshare included, carries them at arg0.
 	s390Arches = []string{"s390", "s390x"}
 
-	// the carried render of the library's DefaultProfile — re-render on engine
-	// bumps: the profile only grows upstream
+	// the carried render of the library's DefaultProfile
 	//
-	//go:generate go run ../../../tools/seccompgen/main.go -o seccomp_default.json
+	//go:generate go run ../../../../seccompgen/main.go -o seccomp_default.json
 	//go:embed seccomp_default.json
 	seccompDefaultJSON []byte
 )
 
 // BootOpt renders the boot's seccomp security-opt.
 func BootOpt() (string, error) {
-	profile, err := bootProfile()
+	profile, err := BootProfile()
 	if err != nil {
 		return "", err
 	}
@@ -46,14 +45,23 @@ func BootOpt() (string, error) {
 	return "seccomp=" + string(out), nil
 }
 
-// bootProfile mounts the userns door on the engine's default profile: a
+// BootProfile mounts the userns door on the engine's default profile: a
 // whitelist
-func bootProfile() (*seccomp.Seccomp, error) {
+func BootProfile() (*seccomp.Seccomp, error) {
+	profile, err := DefaultProfile()
+	if err != nil {
+		return nil, err
+	}
+	profile.Syscalls = mergeSyscalls(doorOverlay(), profile.Syscalls)
+	return profile, nil
+}
+
+// DefaultProfile parses the carried render of the engine's default profile.
+func DefaultProfile() (*seccomp.Seccomp, error) {
 	profile := &seccomp.Seccomp{}
 	if err := json.Unmarshal(seccompDefaultJSON, profile); err != nil {
 		return nil, fmt.Errorf("seccomp default profile: %w", err)
 	}
-	profile.Syscalls = mergeSyscalls(doorOverlay(), profile.Syscalls)
 	return profile, nil
 }
 
@@ -81,9 +89,9 @@ func doorOverlay() []*seccomp.Syscall {
 		{LinuxSyscall: specs.LinuxSyscall{
 			Names: []string{"io_uring_setup", "io_uring_enter", "io_uring_register"}, Action: specs.ActErrno, ErrnoRet: new(errnoNoSys),
 		}},
-		// the ptrace family is denied outright — sessions share a uid and the
-		// kernel has no Yama, so its calls would read sibling sessions' memory,
-		// LLM keys included; the names also trim the default profile's ptrace allows
+		// the ptrace family is denied outright — same-uid peers read each other's
+		// memory wherever they share a pidns; the names also trim the default
+		// profile's ptrace allows
 		{LinuxSyscall: specs.LinuxSyscall{
 			Names:  []string{"ptrace", "process_vm_readv", "process_vm_writev", "pidfd_getfd", "process_madvise", "kcmp"},
 			Action: specs.ActErrno, ErrnoRet: new(errnoPerm),

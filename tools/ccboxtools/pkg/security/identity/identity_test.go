@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/kernel"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/proc"
 )
 
@@ -31,12 +32,14 @@ func TestRunCapNames_RendersTheBudget(t *testing.T) {
 
 func TestDrop(t *testing.T) {
 	// the full drop, every row load-bearing: the bounding set closes regaining,
-	// no_new_privs closes setuid/file-cap grants
+	// the seccomp filter restores the cap-gated denials, no_new_privs closes
+	// setuid/file-cap grants
 	assert.Equal(t,
 		[]string{
 			"setpriv",
 			"--reuid=tinyproxy", "--regid=tinyproxy", "--clear-groups",
 			"--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all",
+			"--seccomp-filter=" + DropFilterPath,
 			"--no-new-privs", "--",
 			"sh",
 		},
@@ -51,7 +54,11 @@ func TestBudgetCapNames_RefusesUnnamedBit(t *testing.T) {
 
 func TestVerify_NoProxyArrival(t *testing.T) {
 	arrived := func(mutate func(*proc.Status)) *proc.Status {
-		st := &proc.Status{UID: [4]int{1000, 1000, 1000, 1000}, NoNewPrivs: true}
+		st := &proc.Status{
+			UID:        [4]int{1000, 1000, 1000, 1000},
+			GID:        [4]int{1000, 1000, 1000, 1000},
+			NoNewPrivs: true,
+		}
 		if mutate != nil {
 			mutate(st)
 		}
@@ -84,6 +91,18 @@ func TestVerify_NoProxyArrival(t *testing.T) {
 			"want uid 1000 on every slot",
 		},
 		{
+			"gid mismatch",
+			arrived(func(st *proc.Status) { st.GID = [4]int{1000, 1000, 1000, 0} }),
+			false,
+			"want gid 1000 on every slot",
+		},
+		{
+			"supplementary groups survive",
+			arrived(func(st *proc.Status) { st.Groups = []int{27} }),
+			false,
+			"supplementary groups must be empty",
+		},
+		{
 			"userns permitted",
 			arrived(nil),
 			true,
@@ -94,9 +113,7 @@ func TestVerify_NoProxyArrival(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			readStatus = func() (*proc.Status, error) { return tt.st, nil }
 			t.Cleanup(func() { readStatus = proc.ReadStatus })
-			orig := probeUnshare
-			probeUnshare = func(context.Context) (bool, error) { return !tt.usernsPermitted, nil }
-			t.Cleanup(func() { probeUnshare = orig })
+			stubProbes(t, tt.usernsPermitted)
 
 			err := Verify(t.Context(), false)
 
@@ -137,7 +154,7 @@ func TestHardenProcfs(t *testing.T) {
 				gotTarget, gotFlags, gotData = target, flags, data
 				return tt.mountErr
 			}
-			t.Cleanup(func() { mountProc = mountProcfs })
+			t.Cleanup(func() { mountProc = kernel.Mount })
 
 			err := HardenProcfs()
 
@@ -157,7 +174,7 @@ func TestHardenProcfs(t *testing.T) {
 	}
 }
 
-func TestVerifyUserNSDenied(t *testing.T) {
+func TestVerifyUserNSDenied_Unshare(t *testing.T) {
 	tests := []struct {
 		name    string
 		denied  bool
@@ -166,10 +183,11 @@ func TestVerifyUserNSDenied(t *testing.T) {
 	}{
 		{"denied", true, nil, ""},
 		{"permitted", false, nil, "unprivileged user namespaces are permitted"},
-		{"probe failed", false, errors.New("boom"), "verify userNS denied"},
+		{"probe failed", false, errors.New("boom"), "verify unshare denied"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			stubProbes(t, false)
 			orig := probeUnshare
 			probeUnshare = func(context.Context) (bool, error) { return tt.denied, tt.err }
 			t.Cleanup(func() { probeUnshare = orig })
@@ -186,12 +204,57 @@ func TestVerifyUserNSDenied(t *testing.T) {
 	}
 }
 
+func TestVerifyUserNSDenied_RawProbes(t *testing.T) {
+	perProbe := func(name, wantErr string, fn func() (bool, error)) func(*testing.T) {
+		return func(t *testing.T) {
+			stubProbes(t, false)
+			orig := postureProbes
+			postureProbes = []postureProbe{{name, fn}}
+			t.Cleanup(func() { postureProbes = orig })
+
+			err := verifyUserNSDenied(t.Context())
+
+			if wantErr == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), wantErr)
+		}
+	}
+	for _, probe := range postureProbes {
+		t.Run(probe.name+" denied", perProbe(probe.name, "", func() (bool, error) { return true, nil }))
+		t.Run(probe.name+" permitted", perProbe(probe.name, probe.name+" is permitted", func() (bool, error) { return false, nil }))
+		t.Run(probe.name+" failed", perProbe(probe.name, "verify "+probe.name+" denied", func() (bool, error) { return false, errors.New("boom") }))
+	}
+}
+
+// stubProbes stubs every posture probe: the userns ones to usernsPermitted,
+// io_uring denied, all reporting no error.
+func stubProbes(t *testing.T, usernsPermitted bool) {
+	t.Helper()
+	origUnshare := probeUnshare
+	probeUnshare = func(context.Context) (bool, error) { return !usernsPermitted, nil }
+	t.Cleanup(func() { probeUnshare = origUnshare })
+	origProbes := postureProbes
+	postureProbes = []postureProbe{
+		{"clone", func() (bool, error) { return !usernsPermitted, nil }},
+		{"clone3", func() (bool, error) { return !usernsPermitted, nil }},
+		{"io_uring_setup", func() (bool, error) { return true, nil }},
+	}
+	t.Cleanup(func() { postureProbes = origProbes })
+}
+
 func TestVerifyAndResetDrop_ResetsHome(t *testing.T) {
 	// the drop re-pins HOME: docker set it for the arrival's original user — root
 	// on an egress wall boot — and setpriv changes the uid but not the env
 	t.Setenv("HOME", "/root")
 	readStatus = func() (*proc.Status, error) {
-		return &proc.Status{UID: [4]int{1000, 1000, 1000, 1000}, NoNewPrivs: true}, nil
+		return &proc.Status{
+			UID:        [4]int{1000, 1000, 1000, 1000},
+			GID:        [4]int{1000, 1000, 1000, 1000},
+			NoNewPrivs: true,
+		}, nil
 	}
 	t.Cleanup(func() { readStatus = proc.ReadStatus })
 

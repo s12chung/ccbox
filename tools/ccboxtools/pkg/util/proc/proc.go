@@ -17,6 +17,8 @@ import (
 // The status fields the drop's proof reads — the protocol with /proc/<pid>/status.
 const (
 	uidField        = "Uid"
+	gidField        = "Gid"
+	groupsField     = "Groups"
 	capInhField     = "CapInh"
 	capPrmField     = "CapPrm"
 	capEffField     = "CapEff"
@@ -29,6 +31,8 @@ const (
 // from /proc/<pid>/status.
 type Status struct {
 	UID        [4]int // real, effective, saved, fs
+	GID        [4]int // real, effective, saved, fs
+	Groups     []int  // supplementary — a kept group like shadow hands over its files
 	CapInh     CapSet // inherited across exec
 	CapPrm     CapSet // permitted — the pool CapEff raises from
 	CapEff     CapSet // effective — what's exercised right now
@@ -37,10 +41,10 @@ type Status struct {
 	NoNewPrivs bool
 }
 
-// VerifyDrop proves a status is a completed drop to uid: the unprivileged
+// VerifyDrop proves a status is a completed drop to uid:gid: the unprivileged
 // proof, plus no-new-privs held.
-func VerifyDrop(st *Status, uid int) error {
-	if err := VerifyUnprivileged(st, uid); err != nil {
+func VerifyDrop(st *Status, uid, gid int) error {
+	if err := VerifyUnprivileged(st, uid, gid); err != nil {
 		return err
 	}
 	if !st.NoNewPrivs {
@@ -49,11 +53,18 @@ func VerifyDrop(st *Status, uid int) error {
 	return nil
 }
 
-// VerifyUnprivileged proves a status is unprivileged to uid: the identity on
-// every uid slot, zero capabilities on every set.
-func VerifyUnprivileged(st *Status, uid int) error {
+// VerifyUnprivileged proves a status is unprivileged to uid:gid: the identity
+// on every uid and gid slot, no supplementary groups, zero capabilities on
+// every set.
+func VerifyUnprivileged(st *Status, uid, gid int) error {
 	if st.UID != [4]int{uid, uid, uid, uid} {
 		return fmt.Errorf("want uid %d on every slot (got %v)", uid, st.UID)
+	}
+	if st.GID != [4]int{gid, gid, gid, gid} {
+		return fmt.Errorf("want gid %d on every slot (got %v)", gid, st.GID)
+	}
+	if len(st.Groups) != 0 {
+		return fmt.Errorf("supplementary groups must be empty, got %v", st.Groups)
 	}
 	sets := []struct {
 		name string
@@ -119,7 +130,11 @@ func parseStatus(r io.Reader) (*Status, error) {
 		var err error
 		switch name {
 		case uidField:
-			st.UID, err = parseUIDs(value)
+			st.UID, err = parseIDFields(value)
+		case gidField:
+			st.GID, err = parseIDFields(value)
+		case groupsField:
+			st.Groups, err = parseGroups(value)
 		case capInhField:
 			st.CapInh, err = parseCapSet(value)
 		case capPrmField:
@@ -141,8 +156,8 @@ func parseStatus(r io.Reader) (*Status, error) {
 		return nil, err
 	}
 	// a missing field fails closed: the drop's proof is only as good as the
-	// kernel actually reporting each of them
-	for _, name := range []string{uidField, capInhField, capPrmField, capEffField, capBndField, capAmbField, noNewPrivsField} {
+	// kernel actually reporting each of them — the Groups line needs kernel 4.16
+	for _, name := range []string{uidField, gidField, groupsField, capInhField, capPrmField, capEffField, capBndField, capAmbField, noNewPrivsField} {
 		if !seen[name] {
 			return nil, fmt.Errorf("status lacks %s", name)
 		}
@@ -150,20 +165,40 @@ func parseStatus(r io.Reader) (*Status, error) {
 	return st, nil
 }
 
-func parseUIDs(s string) ([4]int, error) {
+// parseIDFields reads a status id line: 4 space-separated slots, Uid and Gid
+// alike.
+func parseIDFields(s string) ([4]int, error) {
 	fields := strings.Fields(s)
 	if len(fields) != 4 {
-		return [4]int{}, fmt.Errorf("want 4 uid fields, got %q", s)
+		return [4]int{}, fmt.Errorf("want 4 id fields, got %q", s)
 	}
-	var uids [4]int
+	var ids [4]int
 	for i, f := range fields {
 		n, err := strconv.Atoi(f)
 		if err != nil {
 			return [4]int{}, err
 		}
-		uids[i] = n
+		ids[i] = n
 	}
-	return uids, nil
+	return ids, nil
+}
+
+// parseGroups reads the supplementary groups — an empty value is no groups,
+// which a completed --clear-groups drop always produces.
+func parseGroups(s string) ([]int, error) {
+	fields := strings.Fields(s)
+	if len(fields) == 0 {
+		return nil, nil
+	}
+	groups := make([]int, 0, len(fields))
+	for _, f := range fields {
+		n, err := strconv.Atoi(f)
+		if err != nil {
+			return nil, err
+		}
+		groups = append(groups, n)
+	}
+	return groups, nil
 }
 
 // parseCapSet reads a status cap mask: 16 hex digits, or two comma-separated

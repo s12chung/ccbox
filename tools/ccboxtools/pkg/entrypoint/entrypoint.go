@@ -37,6 +37,9 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 		if err := identity.HardenProcfs(); err != nil {
 			return err
 		}
+		if err := identity.WriteDropFilter(); err != nil {
+			return err
+		}
 		return supervise.RunF(ctx, runProxy)
 	}
 	if err := RunMain(ctx, vncInfo); err != nil {

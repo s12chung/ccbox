@@ -14,6 +14,7 @@ func TestVerifyDrop(t *testing.T) {
 	dropped := func(mutate func(*Status)) *Status {
 		st := &Status{
 			UID:        [4]int{1000, 1000, 1000, 1000},
+			GID:        [4]int{1000, 1000, 1000, 1000},
 			NoNewPrivs: true,
 		}
 		if mutate != nil {
@@ -34,6 +35,16 @@ func TestVerifyDrop(t *testing.T) {
 			"want uid 1000 on every slot",
 		},
 		{
+			"gid mismatch",
+			dropped(func(st *Status) { st.GID = [4]int{0, 1000, 1000, 1000} }),
+			"want gid 1000 on every slot",
+		},
+		{
+			"supplementary groups survive",
+			dropped(func(st *Status) { st.Groups = []int{42} }),
+			"supplementary groups must be empty",
+		},
+		{
 			"caps survive",
 			dropped(func(st *Status) { st.CapBnd = CapSet{Lo: 1 << 8} }),
 			"CapBnd must be empty",
@@ -46,7 +57,7 @@ func TestVerifyDrop(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := VerifyDrop(tt.st, 1000)
+			err := VerifyDrop(tt.st, 1000, 1000)
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)
@@ -64,21 +75,31 @@ func TestVerifyUnprivileged(t *testing.T) {
 		st      *Status
 		wantErr string
 	}{
-		{"unprivileged", &Status{UID: [4]int{1000, 1000, 1000, 1000}}, ""},
+		{"unprivileged", &Status{UID: [4]int{1000, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 1000}}, ""},
 		{
 			"uid mismatch",
-			&Status{UID: [4]int{0, 1000, 1000, 1000}},
+			&Status{UID: [4]int{0, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 1000}},
 			"want uid 1000 on every slot",
 		},
 		{
+			"gid mismatch",
+			&Status{UID: [4]int{1000, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 0}},
+			"want gid 1000 on every slot",
+		},
+		{
+			"supplementary groups survive",
+			&Status{UID: [4]int{1000, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 1000}, Groups: []int{1000}},
+			"supplementary groups must be empty",
+		},
+		{
 			"caps survive",
-			&Status{UID: [4]int{1000, 1000, 1000, 1000}, CapBnd: CapSet{Lo: 1 << 8}},
+			&Status{UID: [4]int{1000, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 1000}, CapBnd: CapSet{Lo: 1 << 8}},
 			"CapBnd must be empty",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := VerifyUnprivileged(tt.st, 1000)
+			err := VerifyUnprivileged(tt.st, 1000, 1000)
 
 			if tt.wantErr == "" {
 				require.NoError(t, err)
@@ -149,10 +170,13 @@ func TestReadStatus_MatchesOS(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, os.Getuid(), st.UID[0])
+	assert.Equal(t, os.Getgid(), st.GID[0])
 }
 
 func TestParseStatus(t *testing.T) {
 	dropped := "Uid:\t1000\t1000\t1000\t1000\n" +
+		"Gid:\t1000\t1000\t1000\t1000\n" +
+		"Groups:\t\n" +
 		"CapInh:\t0000000000000000\n" +
 		"CapPrm:\t0000000000000000\n" +
 		"CapEff:\t0000000000000000\n" +
@@ -172,11 +196,13 @@ func TestParseStatus(t *testing.T) {
 		{
 			name: "dropped",
 			body: dropped,
-			want: Status{UID: [4]int{1000, 1000, 1000, 1000}, NoNewPrivs: true},
+			want: Status{UID: [4]int{1000, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 1000}, NoNewPrivs: true},
 		},
 		{
 			name: "boot root",
 			body: "Uid:\t0\t0\t0\t0\n" +
+				"Gid:\t0\t0\t0\t0\n" +
+				"Groups:\t\n" +
 				"CapInh:\t0000000000000000\n" +
 				"CapPrm:\t00000000002011c0\n" +
 				"CapEff:\t00000000002011c0\n" +
@@ -186,8 +212,20 @@ func TestParseStatus(t *testing.T) {
 			want: Status{CapPrm: CapSet{Lo: bootCaps}, CapEff: CapSet{Lo: bootCaps}, CapBnd: CapSet{Lo: bootCaps}},
 		},
 		{
+			name: "supplementary groups",
+			body: strings.Replace(dropped, "Groups:\t\n", "Groups:\t1000 27\n", 1),
+			want: Status{
+				UID:        [4]int{1000, 1000, 1000, 1000},
+				GID:        [4]int{1000, 1000, 1000, 1000},
+				Groups:     []int{1000, 27},
+				NoNewPrivs: true,
+			},
+		},
+		{
 			name: "high word",
 			body: "Uid:\t1000\t1000\t1000\t1000\n" +
+				"Gid:\t1000\t1000\t1000\t1000\n" +
+				"Groups:\t\n" +
 				"CapInh:\t0000000000000000\n" +
 				"CapPrm:\t00000001,0000000000000000\n" +
 				"CapEff:\t00000001,0000000000000000\n" +
@@ -196,6 +234,7 @@ func TestParseStatus(t *testing.T) {
 				"NoNewPrivs:\t0\n",
 			want: Status{
 				UID:    [4]int{1000, 1000, 1000, 1000},
+				GID:    [4]int{1000, 1000, 1000, 1000},
 				CapPrm: CapSet{Hi: 1},
 				CapEff: CapSet{Hi: 1},
 				CapBnd: CapSet{Hi: 1},
@@ -207,9 +246,29 @@ func TestParseStatus(t *testing.T) {
 			wantErr: "status lacks NoNewPrivs",
 		},
 		{
+			name:    "missing gid",
+			body:    strings.Replace(dropped, "Gid:\t1000\t1000\t1000\t1000\n", "", 1),
+			wantErr: "status lacks Gid",
+		},
+		{
+			name:    "missing groups",
+			body:    strings.Replace(dropped, "Groups:\t\n", "", 1),
+			wantErr: "status lacks Groups",
+		},
+		{
+			name:    "bad gid fields",
+			body:    strings.Replace(dropped, "Gid:\t1000\t1000\t1000\t1000", "Gid:\t1000", 1),
+			wantErr: "want 4 id fields",
+		},
+		{
 			name:    "bad uid fields",
 			body:    strings.Replace(dropped, "Uid:\t1000\t1000\t1000\t1000", "Uid:\t1000", 1),
-			wantErr: "want 4 uid fields",
+			wantErr: "want 4 id fields",
+		},
+		{
+			name:    "bad groups",
+			body:    strings.Replace(dropped, "Groups:\t\n", "Groups:\tccbox\n", 1),
+			wantErr: "status Groups",
 		},
 		{
 			name:    "bad cap hex",

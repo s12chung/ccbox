@@ -5,9 +5,12 @@ go 1.26.4
 require (
 	github.com/itchyny/go-yaml v0.0.0-20251001235044-fca9a0999f15
 	github.com/itchyny/gojq v0.12.19
+	github.com/moby/profiles/seccomp v0.2.4
+	github.com/opencontainers/runtime-spec v1.3.0
 	github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
+	golang.org/x/sys v0.49.0
 )
 
 require (

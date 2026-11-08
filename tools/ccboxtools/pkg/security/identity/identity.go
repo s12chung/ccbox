@@ -12,11 +12,13 @@ import (
 	"os/user"
 	"slices"
 
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/kernel"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/proc"
 )
 
 const (
 	ccboxUID = 1000 // the unprivileged identity every start lands on, matching the image's useradd
+	ccboxGID = 1000 // its group, matching the image's groupadd
 
 	capKill     = 5
 	capSetGID   = 6
@@ -51,7 +53,8 @@ var capNames = map[int]string{
 // the shared source the host's run spec aims at, so CapAdd cannot drift.
 func RunCapNames() []string { return budgetCapNames(runCaps) }
 
-// Drop wraps argv in the setpriv drop to user.
+// Drop wraps argv in the setpriv drop to user — the one-way credential drop
+// plus the seccomp backstop WriteDropFilter places.
 func Drop(user string, argv ...string) []string {
 	return slices.Concat(
 		[]string{
@@ -60,7 +63,8 @@ func Drop(user string, argv ...string) []string {
 			setprivBin,
 			"--reuid=" + user, "--regid=" + user, "--clear-groups",
 			"--inh-caps=-all", "--ambient-caps=-all",
-			"--bounding-set=-all", // no exec can ever regain a cap
+			"--bounding-set=-all",                // no exec can ever regain a cap
+			"--seccomp-filter=" + DropFilterPath, // the boot's deny-list cBPF
 			"--no-new-privs", "--",
 		},
 		argv,
@@ -99,7 +103,7 @@ func Verify(ctx context.Context, isProxy bool) error {
 }
 
 // mountProc is the procfs remount — a var so tests can stub it.
-var mountProc = mountProcfs
+var mountProc = kernel.Mount
 
 // HardenProcfs remounts /proc with hidepid=2, hiding the boot's other users from
 // the dropped workload — it must precede any workload, while SYS_ADMIN is held.
@@ -132,18 +136,41 @@ func verifyProxyRequirements(ctx context.Context) error {
 	return verifyUserNSDenied(ctx)
 }
 
-// probeUnshare is the userNS proof's probe — a var so tests can stub it.
-var probeUnshare = unshareUserNS
+// probeUnshare is the userNS proof's unshare probe — a var so tests can stub it.
+var probeUnshare = kernel.UnshareUserNS
 
-// verifyUserNSDenied proves the seccomp posture: the probe must land on the profile's
-// EPERM — anything else refuses the start; CLONE_NEWUSER needs no cap to attempt.
+// postureProbe is one raw-syscall leg of the posture proof.
+type postureProbe struct {
+	name   string
+	denied func() (bool, error)
+}
+
+// postureProbes are the raw-syscall legs after the unshare probe — a var so
+// tests can stub them.
+var postureProbes = []postureProbe{
+	{"clone", kernel.CloneUserNS},
+	{"clone3", kernel.Clone3UserNS},
+	{"io_uring_setup", kernel.IoUringSetup},
+}
+
+// verifyUserNSDenied proves the seccomp posture: every probe must land on the
+// profile's denial — anything else refuses the start.
 func verifyUserNSDenied(ctx context.Context) error {
 	denied, err := probeUnshare(ctx)
 	switch {
 	case err != nil:
-		return fmt.Errorf("verify userNS denied: %w", err)
+		return fmt.Errorf("verify unshare denied: %w", err)
 	case !denied:
 		return errors.New("unprivileged user namespaces are permitted — the seccomp profile must deny CLONE_NEWUSER")
+	}
+	for _, probe := range postureProbes {
+		denied, err := probe.denied()
+		switch {
+		case err != nil:
+			return fmt.Errorf("verify %s denied: %w", probe.name, err)
+		case !denied:
+			return fmt.Errorf("%s is permitted — the seccomp profile must deny it", probe.name)
+		}
 	}
 	return nil
 }
@@ -157,7 +184,7 @@ func VerifyAndResetDrop() error {
 	if err != nil {
 		return err
 	}
-	if err := proc.VerifyDrop(st, ccboxUID); err != nil {
+	if err := proc.VerifyDrop(st, ccboxUID, ccboxGID); err != nil {
 		return err
 	}
 	return resetHomeCache()

@@ -36,7 +36,7 @@ func TestBootOpt_Whitelist(t *testing.T) {
 }
 
 func TestBootProfile_KeepsTheBootLifelines(t *testing.T) {
-	profile, err := bootProfile()
+	profile, err := BootProfile()
 	require.NoError(t, err)
 
 	// the boot builds the proxy under SYS_ADMIN: mount and setns stay
@@ -56,7 +56,7 @@ func TestBootProfile_KeepsTheBootLifelines(t *testing.T) {
 }
 
 func TestBootProfile_ShutsTheUsernsDoor(t *testing.T) {
-	profile, err := bootProfile()
+	profile, err := BootProfile()
 	require.NoError(t, err)
 	cloneRules := doorRules(t, profile, "clone")
 	require.Len(t, cloneRules, 2)
@@ -90,7 +90,7 @@ func TestBootProfile_ShutsTheUsernsDoor(t *testing.T) {
 }
 
 func TestBootProfile_DeniesClone3AndIoUring(t *testing.T) {
-	profile, err := bootProfile()
+	profile, err := BootProfile()
 	require.NoError(t, err)
 	rules := denialRules(t, profile)
 	clone3, uring := rules[0], rules[1]
@@ -106,7 +106,7 @@ func TestBootProfile_DeniesClone3AndIoUring(t *testing.T) {
 }
 
 func TestBootProfile_DeniesPtraceFamily(t *testing.T) {
-	profile, err := bootProfile()
+	profile, err := BootProfile()
 	require.NoError(t, err)
 	rules := denialRules(t, profile)
 	ptraceFamily := rules[2]

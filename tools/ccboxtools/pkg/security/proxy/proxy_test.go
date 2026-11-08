@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/identity"
 )
 
 func TestDropChain(t *testing.T) {
@@ -20,6 +22,7 @@ func TestDropChain(t *testing.T) {
 			"setpriv",
 			"--reuid=ccbox", "--regid=ccbox", "--clear-groups",
 			"--inh-caps=-all", "--ambient-caps=-all", "--bounding-set=-all",
+			"--seccomp-filter=" + identity.DropFilterPath,
 			"--no-new-privs", "--",
 			"/usr/local/bin/ccboxtools", "proxy", "child",
 		},
