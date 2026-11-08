@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/containerd/errdefs"
@@ -122,7 +123,7 @@ func Run(ctxD *dock.CtxD, o RunOptions) error {
 	defer log.Defer("devbox leave", leave)
 
 	sig := make(chan os.Signal, 1)
-	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(sig)
 	select {
 	case <-sig:
@@ -142,8 +143,16 @@ func holdDevbox(ctxD *dock.CtxD, o RunOptions) (_ func() error, err error) {
 		return nil, err
 	}
 
-	leave = klean.SwallowErr(leave, flock.ErrNotLast)
-	defer func() { err = errs.JoinOnErr(err, leave) }()
+	flockLeave := klean.SwallowErr(leave, flock.ErrNotLast)
+	defer func() { err = errs.JoinOnErr(err, flockLeave) }()
+
+	// leave is idempotent: the session's end and its kill/hangup both fire it
+	var once sync.Once
+	leave = func() error {
+		var leaveErr error
+		once.Do(func() { leaveErr = flockLeave() })
+		return leaveErr
+	}
 
 	if err = dock.AwaitLogMarker(ctxD, o.Name, o.readyMarker()); err != nil {
 		return nil, err
