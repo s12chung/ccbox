@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<!-- Panel defaults: a single top panel carrying just the Applications menu and the
-     window list — the desktop shows nothing else. The stock panel app launchers all
-     target missing apps in this image. Installed under the home at start, so it wins
-     over a persistent home's saved channels (the panel rewrites them at runtime). -->
+<!-- Panel defaults: a single top panel — Applications menu and window list only;
+     the stock launchers all target missing apps. Baked into the image's home, so
+     every boot starts here; the panel's runtime rewrites die with it. -->
 <channel name="xfce4-panel" version="1.0">
   <property name="configver" type="int" value="2"/>
   <property name="panels" type="array">
