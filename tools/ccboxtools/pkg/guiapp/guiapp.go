@@ -16,6 +16,7 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/proc"
 )
 
 // logPath is the autostart's scratch log: the launch record plus the app's own
@@ -155,7 +156,7 @@ func logLaunch(name string) {
 		log.WarnErr("gui app log write", err)
 	}
 	for _, fd := range []int{1, 2} {
-		if err := dupStream(int(f.Fd()), fd); err != nil {
+		if err := proc.DupStream(int(f.Fd()), fd); err != nil {
 			log.WarnErr("gui app stream redirect", err)
 		}
 	}

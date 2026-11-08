@@ -1,5 +1,5 @@
-// Package proc is the kernel's process mechanics: the /proc status protocol,
-// capability masks, and the arrival's proof.
+// Package proc is the kernel's process mechanics: child reaping, fd duplication,
+// the /proc status protocol, the arrival's proof, and capability masks.
 package proc
 
 import (
@@ -10,9 +10,23 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
+
+// DupStream dups from onto to.
+func DupStream(from, to int) error { return dup(from, to) }
+
+// ReapOne waits out one exited child without blocking; pid <= 0 when none waits.
+func ReapOne() (syscall.WaitStatus, int) {
+	var ws syscall.WaitStatus
+	pid, err := syscall.Wait4(-1, &ws, syscall.WNOHANG, nil)
+	if err != nil {
+		return ws, -1
+	}
+	return ws, pid
+}
 
 // The status fields the drop's proof reads — the protocol with /proc/<pid>/status.
 const (
