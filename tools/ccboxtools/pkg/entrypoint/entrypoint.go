@@ -91,7 +91,7 @@ func RunMain(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 			return err
 		}
 	}
-	log.Info("devbox: ready")
+	log.Info(pkginfo.DevboxReadyMarker)
 	return nil
 }
 

@@ -97,10 +97,10 @@ func TestVerify_NoProxyArrival(t *testing.T) {
 			"want gid 1000 on every slot",
 		},
 		{
-			"supplementary groups survive",
+			"supplementary group survives",
 			arrived(func(st *proc.Status) { st.Groups = []int{27} }),
 			false,
-			"supplementary groups must be empty",
+			"supplementary group beyond gid 1000",
 		},
 		{
 			"userns permitted",

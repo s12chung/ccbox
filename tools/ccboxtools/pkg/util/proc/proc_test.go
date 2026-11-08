@@ -54,9 +54,9 @@ func TestVerifyDrop(t *testing.T) {
 			"want gid 1000 on every slot",
 		},
 		{
-			"supplementary groups survive",
+			"supplementary group survives",
 			dropped(func(st *Status) { st.Groups = []int{42} }),
-			"supplementary groups must be empty",
+			"supplementary group beyond gid 1000",
 		},
 		{
 			"caps survive",
@@ -101,9 +101,14 @@ func TestVerifyUnprivileged(t *testing.T) {
 			"want gid 1000 on every slot",
 		},
 		{
-			"supplementary groups survive",
+			"primary gid in the supplementary set",
 			&Status{UID: [4]int{1000, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 1000}, Groups: []int{1000}},
-			"supplementary groups must be empty",
+			"",
+		},
+		{
+			"supplementary group survives",
+			&Status{UID: [4]int{1000, 1000, 1000, 1000}, GID: [4]int{1000, 1000, 1000, 1000}, Groups: []int{1000, 27}},
+			"supplementary group beyond gid 1000",
 		},
 		{
 			"caps survive",

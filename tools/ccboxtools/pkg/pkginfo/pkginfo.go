@@ -33,6 +33,9 @@ const (
 
 	// ReadyMarker is the boot's readiness line with the egress wall on
 	ReadyMarker = "egress wall: ready"
+	// DevboxReadyMarker is the no-proxy boot's readiness line: the CLI install
+	// and the desktop start are done, so sessions may land
+	DevboxReadyMarker = "devbox: ready"
 )
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or

@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/stream"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/identity"
@@ -72,10 +73,10 @@ func TestRunOptions_StreamOptions(t *testing.T) {
 		o          RunOptions
 		wantMarker string
 	}{
-		{name: "PlainHolders", o: withForeground(plainRun())},
+		{name: "PlainHolders", o: withForeground(plainRun()), wantMarker: pkginfo.DevboxReadyMarker},
 		{name: "WalledHolders", o: withForeground(proxyRun()), wantMarker: pkginfo.ReadyMarker},
 		{name: "WalledSession", o: proxyRun(), wantMarker: pkginfo.ReadyMarker},
-		{name: "PlainSession", o: plainRun()},
+		{name: "PlainSession", o: plainRun(), wantMarker: pkginfo.DevboxReadyMarker},
 	}
 
 	for _, tt := range tests {
@@ -103,8 +104,8 @@ func withLogFiles(t *testing.T, o RunOptions) (RunOptions, string) {
 	return o, proxyLog
 }
 
-// assertWait checks the ready wait: nil without the egress wall, the marker with it,
-// its screen only for the session holding no foreground view
+// assertWait checks the ready wait: every run waits its boot's marker and
+// its screen is only for the session holding no foreground view
 func assertWait(t *testing.T, wantMarker string, o RunOptions, wait *stream.ReadyWait) {
 	t.Helper()
 	if wantMarker == "" {
@@ -225,6 +226,10 @@ func TestRunConfig(t *testing.T) {
 }
 
 func TestRunHostConfig(t *testing.T) {
+	// hermetic to this machine's port state: the run assumes the VNC port free
+	refuseHeldPorts = func(*dock.CtxD, nat.PortMap) error { return nil }
+	t.Cleanup(func() { refuseHeldPorts = dock.RefuseHeldPorts })
+
 	opts := RunOptions{
 		RunHostOptions: RunHostOptions{
 			ProjectDir: "/host/proj",
@@ -239,11 +244,11 @@ func TestRunHostConfig(t *testing.T) {
 	assert.Empty(t, hostConfig.NetworkMode, "the devbox uses the engine's default bridge")
 	assert.Equal(t, []string{"ALL"}, []string(hostConfig.CapDrop))
 	assert.Empty(t, hostConfig.CapAdd, "the plain run arrives as the image's user, capless")
-	assert.Equal(t, nat.PortMap{
-		desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}},
-	}, hostConfig.PortBindings)
 	assert.Equal(t, []string{"/host/proj:/home/ccbox/proj"}, hostConfig.Binds)
 	assert.Equal(t, map[string]string{"/home/ccbox/.cache": tmpfsOpts}, hostConfig.Tmpfs)
+	assert.Equal(t, nat.PortMap{
+		desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}},
+	}, hostConfig.PortBindings, "the unwalled boot may serve the desktop")
 	require.Len(t, hostConfig.SecurityOpt, 2)
 	assert.Equal(t, "no-new-privileges", hostConfig.SecurityOpt[0])
 	assert.True(t, strings.HasPrefix(hostConfig.SecurityOpt[1], "seccomp="))
@@ -262,6 +267,7 @@ func TestRunHostConfig_EgressWall(t *testing.T) {
 	assert.Equal(t, identity.RunCapNames(), []string(hostConfig.CapAdd))
 	assert.Equal(t, []string{"ALL"}, []string(hostConfig.CapDrop))
 	assert.Equal(t, map[string]string{ipForwardSysctl: "0"}, hostConfig.Sysctls)
+	assert.Empty(t, hostConfig.PortBindings, "the proxied boot never serves the desktop: it claims no host port")
 	require.Len(t, hostConfig.SecurityOpt, 2, "every devbox mounts the seccomp profile")
 }
 

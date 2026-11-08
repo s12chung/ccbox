@@ -57,6 +57,13 @@ type Foreground struct {
 	Stop   chan struct{} // made by Run: closed when the devbox's log stream ends
 }
 
+func (o RunOptions) readyMarker() string {
+	if o.Proxy != nil {
+		return pkginfo.ReadyMarker
+	}
+	return pkginfo.DevboxReadyMarker
+}
+
 func (o RunOptions) matchesContainer(labels map[string]string) bool {
 	return labels[ccboxProjectLabelKey] == o.ProjectDir &&
 		(labels[ccboxHasProxyLabelKey] == trueVolValue) == (o.Proxy != nil)
@@ -85,10 +92,11 @@ func (o RunOptions) streamOptions() (stream.Options, error) {
 		clean.Push("file the stream's torn tail", demuxer.Flush)
 
 		opts.Writers = []io.Writer{demuxer}
-		opts.ReadyWait = &stream.ReadyWait{Marker: pkginfo.ReadyMarker}
-		if o.Foreground == nil {
-			opts.ReadyWait.Screen = term.NewColorWriter(os.Stdout, tinyproxy.LevelColor)
-		}
+	}
+
+	opts.ReadyWait = &stream.ReadyWait{Marker: o.readyMarker()}
+	if o.Foreground == nil {
+		opts.ReadyWait.Screen = term.NewColorWriter(os.Stdout, tinyproxy.LevelColor)
 	}
 
 	if o.Foreground != nil {
@@ -137,10 +145,10 @@ func holdDevbox(ctxD *dock.CtxD, o RunOptions) (_ func() error, err error) {
 	leave = klean.SwallowErr(leave, flock.ErrNotLast)
 	defer func() { err = errs.JoinOnErr(err, leave) }()
 
+	if err = dock.AwaitLogMarker(ctxD, o.Name, o.readyMarker()); err != nil {
+		return nil, err
+	}
 	if o.Proxy != nil {
-		if err = dock.AwaitLogMarker(ctxD, o.Name, pkginfo.ReadyMarker); err != nil {
-			return nil, err
-		}
 		if err = o.Proxy.OnRefresh(); err != nil {
 			return nil, err
 		}
@@ -264,27 +272,32 @@ const (
 	ipForwardSysctl = "net.ipv4.ip_forward"
 )
 
+// refuseHeldPorts is a var so tests can stub it.
+var refuseHeldPorts = dock.RefuseHeldPorts
+
 func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConfig, error) {
 	if err := ensureMounts(ctxD, hostOptions.Tag, hostOptions.ProjectDir, hostOptions.Mounts); err != nil {
 		return nil, err
-	}
-	hostConfig := &container.HostConfig{
-		CapDrop:     []string{"ALL"},
-		SecurityOpt: []string{"no-new-privileges"},
-		// Loopback-only: native RFB is VncAuth-password auth on a
-		// plain wire, so keep it off the network.
-		PortBindings: nat.PortMap{desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}}},
-		Binds:        mountSpecs(hostOptions.Mounts),
-		Tmpfs:        tmpfsMap(hostOptions.TmpfsPaths),
 	}
 	seccompOpt, err := seccomputil.BootOpt()
 	if err != nil {
 		return nil, err
 	}
-	hostConfig.SecurityOpt = append(hostConfig.SecurityOpt, seccompOpt)
-	if hostOptions.Proxy != nil {
+
+	hostConfig := &container.HostConfig{
+		CapDrop:     []string{"ALL"},
+		SecurityOpt: append([]string{"no-new-privileges"}, seccompOpt),
+		Binds:       mountSpecs(hostOptions.Mounts),
+		Tmpfs:       tmpfsMap(hostOptions.TmpfsPaths),
+	}
+	if hostOptions.Proxy == nil {
+		hostConfig.PortBindings = nat.PortMap{desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}}}
+	} else {
 		hostConfig.CapAdd = identity.RunCapNames()
 		hostConfig.Sysctls = map[string]string{ipForwardSysctl: "0"}
+	}
+	if err := refuseHeldPorts(ctxD, hostConfig.PortBindings); err != nil {
+		return nil, err
 	}
 	return hostConfig, nil
 }

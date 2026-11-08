@@ -68,8 +68,8 @@ func VerifyDrop(st *Status, uid, gid int) error {
 }
 
 // VerifyUnprivileged proves a status is unprivileged to uid:gid: the identity
-// on every uid and gid slot, no supplementary groups, zero capabilities on
-// every set.
+// on every uid and gid slot, no supplementary group beyond the primary, zero
+// capabilities on every set.
 func VerifyUnprivileged(st *Status, uid, gid int) error {
 	if st.UID != [4]int{uid, uid, uid, uid} {
 		return fmt.Errorf("want uid %d on every slot (got %v)", uid, st.UID)
@@ -77,8 +77,12 @@ func VerifyUnprivileged(st *Status, uid, gid int) error {
 	if st.GID != [4]int{gid, gid, gid, gid} {
 		return fmt.Errorf("want gid %d on every slot (got %v)", gid, st.GID)
 	}
-	if len(st.Groups) != 0 {
-		return fmt.Errorf("supplementary groups must be empty, got %v", st.Groups)
+	// the engine seeds the primary gid into the supplementary set on launch —
+	// beyond-primary is the line a kept group like shadow would cross
+	for _, g := range st.Groups {
+		if g != gid {
+			return fmt.Errorf("supplementary group beyond gid %d: got %v", gid, st.Groups)
+		}
 	}
 	sets := []struct {
 		name string

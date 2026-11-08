@@ -10,15 +10,21 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
+	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
+	"time"
 
 	"github.com/containerd/errdefs"
 	"github.com/docker/docker/api/types/container"
+	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/api/types/volume"
 	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -163,6 +169,53 @@ func InspectRunning(ctxD *CtxD, name string) (*container.InspectResponse, error)
 		return nil, ErrNotRunning
 	}
 	return &info, nil
+}
+
+// RefuseHeldPorts errors for each published host port something already
+// listens on — naming the running container publishing it, else the port
+// alone — so the caller refuses before the daemon's bind error names nobody
+func RefuseHeldPorts(ctxD *CtxD, bindings nat.PortMap) error {
+	var errs []error
+	for _, port := range slices.Sorted(maps.Keys(bindings)) {
+		for _, b := range bindings[port] {
+			if err := refuseHeldBinding(ctxD, b); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+	return errors.Join(errs...)
+}
+
+// refuseHeldBinding errors when something already listens on the binding's host port
+func refuseHeldBinding(ctxD *CtxD, b nat.PortBinding) error {
+	hostIP := b.HostIP
+	if hostIP == "" {
+		hostIP = "127.0.0.1" // the loopback probe answers a 0.0.0.0 bind too
+	}
+	addr := net.JoinHostPort(hostIP, b.HostPort)
+	conn, err := (&net.Dialer{Timeout: 250 * time.Millisecond}).DialContext(ctxD.Ctx, "tcp", addr)
+	taken := err == nil
+	if taken {
+		log.WarnErr("close the port probe", conn.Close())
+	}
+	if !taken {
+		return nil // refused: nothing listens
+	}
+
+	resp, err := ctxD.D.ContainerList(ctxD.Ctx, container.ListOptions{Filters: filters.NewArgs(
+		filters.Arg("publish", b.HostPort),
+	)})
+	if err != nil {
+		return fmt.Errorf("host tcp port %s is already taken", addr)
+	}
+	for _, c := range resp {
+		if c.State != "running" || len(c.Names) == 0 {
+			continue // a stopped devbox's spec still matches, but its bind is gone
+		}
+		holder := strings.TrimPrefix(c.Names[0], "/")
+		return fmt.Errorf("host tcp port %s is held by %s — exit its session or `docker rm -f %s`", addr, holder, holder)
+	}
+	return fmt.Errorf("host tcp port %s is already taken", addr)
 }
 
 // FollowLogs opens the container's combined follow stream as plain bytes. The daemon holds it
