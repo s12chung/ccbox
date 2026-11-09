@@ -11,9 +11,8 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/tinyproxy"
 )
 
-// The egress wall's fixed /30: the parent-side IP is tinyproxy's listen and
-// the child's only way out; the child-side IP is the workload's only address.
-// Literal — the child netns resolves no names, and its loopback is its own.
+// The egress wall's fixed /30 — parent: tinyproxy's listen, child: the
+// workload's address. Literal: the child netns resolves no names, no shared loopback.
 const (
 	childIP = "169.254.100.2"
 
@@ -25,18 +24,14 @@ const (
 	parentRPFilterPath = "/proc/sys/net/ipv4/conf/" + parentVeth + "/rp_filter"
 	childRPFilterPath  = "/proc/sys/net/ipv4/conf/" + childVeth + "/rp_filter"
 
-	// The pins — one script per netns side. Their sysctls are born wrong and
-	// /proc/sys is read-only, so each mounts a throwaway rw proc under
-	// /run/netns (root-owned, so the workload can't pre-plant the mount),
-	// writes its values, and tears the mount down. rp_filter is per-iface
-	// only: effective is max(conf.all, conf.iface), so iface=1 suffices and
-	// conf/all stays untouched (it would also hit eth0).
+	// The pins — the netns sysctls are born wrong and /proc/sys is read-only,
+	// so each writes through a rw proc mount, root-owned so the workload can't pre-plant it.
 	pinChild = "mkdir -p /run/netns/.proc-pin && mount -t proc proc /run/netns/.proc-pin" + //nolint:dupword // fstype and source, two "proc"s
 		" && echo 0 > /run/netns/.proc-pin/sys/net/ipv4/ip_forward" +
-		" && echo 1 > /run/netns/.proc-pin/sys/net/ipv4/conf/" + childVeth + "/rp_filter" +
+		" && echo 1 > /run/netns/.proc-pin/sys/net/ipv4/conf/" + childVeth + "/rp_filter" + // per-iface: effective is max(conf.all, conf.iface)
 		" && umount /run/netns/.proc-pin && rmdir /run/netns/.proc-pin"
 	pinParent = "mkdir -p /run/netns/.proc-pin && mount -t proc proc /run/netns/.proc-pin" + //nolint:dupword // fstype and source, two "proc"s
-		" && echo 1 > /run/netns/.proc-pin/sys/net/ipv4/conf/" + parentVeth + "/rp_filter" +
+		" && echo 1 > /run/netns/.proc-pin/sys/net/ipv4/conf/" + parentVeth + "/rp_filter" + // per-iface: conf/all would sweep eth0 too
 		" && umount /run/netns/.proc-pin && rmdir /run/netns/.proc-pin"
 )
 
@@ -68,22 +63,22 @@ var (
 	readChildSysctl  = childSysctl
 )
 
-// The start contract's halves: the spawn choice is this package's, the
-// supervision — and its live pid answer — the caller's.
 type (
-	// Spawn starts a fresh process, answering with its command.
+	// Spawn builds a fresh, unstarted process command.
 	Spawn func(ctx context.Context) (*exec.Cmd, error)
+	// Ready awaits the forked child's readiness, owning its cleanup on failure.
+	Ready func(ctx context.Context, cmd *exec.Cmd) error
 	// PID answers the started process's pid, live across respawns.
 	PID func() int
 )
 
 // CreateNetwork brings the egress wall up: the network, tinyproxy through
 // start, and its allowlist watch — in order, failing closed.
-func CreateNetwork(ctx context.Context, start func(ctx context.Context, spawn Spawn) (PID, error)) error {
+func CreateNetwork(ctx context.Context, start func(ctx context.Context, spawn Spawn, ready Ready) (PID, error)) error {
 	if err := buildNetns(ctx); err != nil {
 		return err
 	}
-	pid, err := start(ctx, tinyproxy.Start)
+	pid, err := start(ctx, tinyproxy.Cmd, tinyproxy.AwaitListen)
 	if err != nil {
 		return err
 	}

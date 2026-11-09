@@ -53,8 +53,8 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 // the boot's main work on its way out — tinyproxy stays the only supervisee.
 func runProxy(ctx context.Context) ([]*supervise.Respawnable, error) {
 	var tproxy *supervise.Respawnable
-	err := proxy.CreateNetwork(ctx, func(_ context.Context, spawn proxy.Spawn) (proxy.PID, error) {
-		tproxy = &supervise.Respawnable{Name: "tinyproxy", Spawn: spawn}
+	err := proxy.CreateNetwork(ctx, func(_ context.Context, spawn proxy.Spawn, ready proxy.Ready) (proxy.PID, error) {
+		tproxy = &supervise.Respawnable{Name: "tinyproxy", Spawn: supervise.Spawn(spawn), Ready: supervise.Ready(ready)}
 		if err := tproxy.Start(ctx); err != nil {
 			return nil, err
 		}

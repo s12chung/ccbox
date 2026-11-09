@@ -4,6 +4,7 @@ package supervise
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -63,11 +64,19 @@ func reapAll(ctx context.Context, svcs []*Respawnable) {
 	}
 }
 
-// Respawnable is a supervised child brought up and kept up: spawned at boot,
+type (
+	// Spawn builds a fresh, unstarted process command.
+	Spawn func(ctx context.Context) (*exec.Cmd, error)
+	// Ready awaits the forked child's readiness, owning its cleanup on failure.
+	Ready func(ctx context.Context, cmd *exec.Cmd) error
+)
+
+// Respawnable is a supervised child brought up and kept up: forked at boot,
 // respawned with a backoff on death.
 type Respawnable struct {
 	Name  string
-	Spawn func(ctx context.Context) (*exec.Cmd, error)
+	Spawn Spawn
+	Ready Ready
 
 	mu        sync.Mutex
 	cmd       *exec.Cmd
@@ -75,11 +84,19 @@ type Respawnable struct {
 	fails     int
 }
 
-// Start spawns the service's child.
+// Start forks the service's child and awaits it, recording it only once ready.
 func (r *Respawnable) Start(ctx context.Context) error {
 	cmd, err := r.Spawn(ctx)
 	if err != nil {
 		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("fork %s: %w", r.Name, err)
+	}
+	if r.Ready != nil {
+		if err := r.Ready(ctx, cmd); err != nil {
+			return err
+		}
 	}
 	r.mu.Lock()
 	r.cmd, r.startedAt = cmd, time.Now()
@@ -115,7 +132,7 @@ func (r *Respawnable) reap(ctx context.Context, pid int) {
 	go r.respawn(ctx, delay)
 }
 
-// respawn keeps the service up: wait out each backoff, spawn, retry until it
+// respawn keeps the service up: wait out each backoff, fork, retry until it
 // sticks — a failing respawn degrades the caller without killing it.
 func (r *Respawnable) respawn(ctx context.Context, delay time.Duration) {
 	for {

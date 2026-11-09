@@ -39,21 +39,25 @@ func WatchAllowlist(ctx context.Context, pid func() int) error {
 	})
 }
 
-// Start spawns tinyproxy in the foreground through the full drop to its dedicated
-// uid, refusing without the host-rendered allow file, and waits out its listen.
-func Start(ctx context.Context) (*exec.Cmd, error) {
+// Cmd builds the proxy's foreground run through the full drop to its dedicated
+// uid — an unstarted command for supervise to fork, refusing without the
+// host-rendered allow file.
+func Cmd(ctx context.Context) (*exec.Cmd, error) {
 	if _, err := os.Stat(pkginfo.ProxyAllowPath); err != nil {
 		return nil, fmt.Errorf("allow file not bound at %s: %w", pkginfo.ProxyAllowPath, err)
 	}
 	chain := identity.Drop(daemonUser, bin, "-d", "-c", confPath)
 	cmd := cmdgen.Stdio(ctx, chain[0], chain[1:]...)
 	cmd.Stdout, cmd.Stderr = logmux.NewMuxer(pkginfo.ProxyMuxName, os.Stdout), logmux.NewMuxer(pkginfo.ProxyMuxName, os.Stderr)
-	if err := cmd.Start(); err != nil {
-		return nil, fmt.Errorf("start %s: %w", bin, err)
-	}
+	return cmd, nil
+}
+
+// AwaitListen waits the forked proxy's listen out — the kill is its cleanup,
+// and the respawn retries.
+func AwaitListen(ctx context.Context, cmd *exec.Cmd) error {
 	if err := dial.AwaitListen(ctx, pkginfo.ProxyPort, listenTimeout); err != nil {
 		log.WarnErr("kill unlistening "+bin, cmd.Process.Kill())
-		return nil, err
+		return err
 	}
-	return cmd, nil
+	return nil
 }

@@ -81,6 +81,19 @@ func TestRespawnable_Backoff(t *testing.T) {
 	assert.Equal(t, respawnMax, r.backoff(), "capped")
 }
 
+func TestRespawnable_Start_FailedReady(t *testing.T) {
+	r := &Respawnable{
+		Name:  "test",
+		Spawn: startTrue,
+		Ready: func(context.Context, *exec.Cmd) error { return errors.New("boom") },
+	}
+
+	err := r.Start(t.Context())
+
+	require.Error(t, err)
+	assert.Zero(t, r.PID())
+}
+
 func TestRespawnable_Reap_Respawns(t *testing.T) {
 	r := &Respawnable{Name: "test", Spawn: startTrue}
 	require.NoError(t, r.Start(t.Context()))
@@ -129,8 +142,25 @@ func TestRespawnable_Reap_RetriesFailedRespawns(t *testing.T) {
 		10*time.Second, 10*time.Millisecond, "the failed respawn was retried until it stuck")
 }
 
-// startTrue spawns the reaper test's throwaway child.
+func TestRespawnable_Reap_RetriesFailedReady(t *testing.T) {
+	// the respawn's first Ready fails: the retry must keep the service down, not the boot
+	var fails atomic.Int32
+	r := &Respawnable{Name: "test", Spawn: startTrue}
+	require.NoError(t, r.Start(t.Context()))
+	r.Ready = func(context.Context, *exec.Cmd) error {
+		if fails.Add(1) == 1 {
+			return errors.New("boom")
+		}
+		return nil
+	}
+
+	r.reap(t.Context(), r.PID())
+
+	assert.Eventually(t, func() bool { return fails.Load() >= 2 && r.PID() != 0 },
+		10*time.Second, 10*time.Millisecond, "the failed respawn was retried until it stuck")
+}
+
+// startTrue constructs the tests' throwaway child — Start forks it.
 func startTrue(_ context.Context) (*exec.Cmd, error) {
-	cmd := exec.Command("true") //nolint:gosec,noctx // the reaper test's throwaway child
-	return cmd, cmd.Start()
+	return exec.Command("true"), nil //nolint:gosec,noctx // the tests' throwaway child
 }
