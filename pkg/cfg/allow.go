@@ -31,6 +31,7 @@ var sharedAllowlistDefaults = []string{
 	"bitbucket.org",
 	"codeberg.org",
 	"sourceforge.net",
+	"deb.debian.org",
 
 	// Docker: Hub's registry/auth/CDN subdomains + the other common registries
 	"docker.io",

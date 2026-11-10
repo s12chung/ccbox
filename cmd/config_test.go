@@ -55,6 +55,7 @@ func TestAliasSections(t *testing.T) {
 		"#     - bitbucket.org",
 		"#     - codeberg.org",
 		"#     - sourceforge.net",
+		"#     - deb.debian.org",
 		"#     - docker.io",
 		"#     - docker.com",
 		"#     - ghcr.io",
