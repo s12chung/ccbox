@@ -10,8 +10,10 @@ import (
 	"math/bits"
 	"os"
 	"os/user"
+	"path/filepath"
 	"slices"
 
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/cbpf"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/kernel"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/proc"
 )
@@ -54,7 +56,7 @@ var capNames = map[int]string{
 func RunCapNames() []string { return budgetCapNames(runCaps) }
 
 // Drop wraps argv in the setpriv drop to user — the one-way credential drop
-// plus the seccomp backstop WriteDropFilter places.
+// plus the seccomp backstop writeDropFilter places.
 func Drop(user string, argv ...string) []string {
 	return slices.Concat(
 		[]string{
@@ -88,7 +90,7 @@ func budgetCapNames(caps uint64) []string {
 }
 
 // Verify proves the start: the egress wall boot's root budget or the no-proxy's
-// ccbox arrival
+// ccbox arrival.
 func Verify(ctx context.Context, isProxy bool) error {
 	if isProxy {
 		return verifyProxyRequirements(ctx)
@@ -102,12 +104,21 @@ func Verify(ctx context.Context, isProxy bool) error {
 	return nil
 }
 
+// Harden lays down the root-only hardening while the budget holds — the
+// dropped starts inherit it.
+func Harden() error {
+	if err := hardenProcfs(); err != nil {
+		return err
+	}
+	return writeDropFilter()
+}
+
 // mountProc is the procfs remount — a var so tests can stub it.
 var mountProc = kernel.Mount
 
-// HardenProcfs remounts /proc with hidepid=2, hiding the boot's other users from
+// hardenProcfs remounts /proc with hidepid=2, hiding the boot's other users from
 // the dropped workload — it must precede any workload, while SYS_ADMIN is held.
-func HardenProcfs() error {
+func hardenProcfs() error {
 	const (
 		target = "/proc"
 		data   = "hidepid=2"
@@ -178,7 +189,7 @@ func verifyUserNSDenied(ctx context.Context) error {
 // readStatus is a var so tests can stub it.
 var readStatus = proc.ReadStatus
 
-// VerifyAndResetDrop proves the drop and resets HOME to it
+// VerifyAndResetDrop proves the drop and resets HOME to it.
 func VerifyAndResetDrop() error {
 	st, err := readStatus()
 	if err != nil {
@@ -199,4 +210,39 @@ func resetHomeCache() error {
 		return os.Setenv("HOME", u.HomeDir)
 	}
 	return nil
+}
+
+// DropFilterPath is the file writeDropFilter places the drop filter at —
+// Drop's setpriv reads it.
+const (
+	DropFilterPath                 = "/run/ccbox/drop-filter.bpf"
+	dropFilterDirMode  os.FileMode = 0o700 // root-only: the workload never reads or forges it
+	dropFilterFileMode os.FileMode = 0o400
+)
+
+// dropFilterNames is the drop filter's deny list: the default profile's
+// cap-gated names.
+var dropFilterNames = []string{
+	"bpf", "fanotify_init", "fsconfig", "fsmount", "fsopen",
+	"fspick", "lookup_dcookie", "lsm_get_self_attr", "lsm_list_modules",
+	"lsm_set_self_attr", "mount", "mount_setattr", "move_mount",
+	"open_by_handle_at", // its cap is not in the boot budget
+	"open_tree", "perf_event_open", "quotactl",
+	"quotactl_fd", "setdomainname", "sethostname", "setns", "syslog",
+	// umount is out — no const on every build arch; the kernel's cap check is
+	// its backstop
+	"umount2", "unshare",
+}
+
+// writeDropFilter writes the drop's seccomp backstop — the boot runs it while
+// root, before Drop's setpriv stacks it.
+func writeDropFilter() error {
+	prog, err := cbpf.RenderDenyList(dropFilterNames)
+	if err != nil {
+		return fmt.Errorf("drop filter: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(DropFilterPath), dropFilterDirMode); err != nil {
+		return err
+	}
+	return os.WriteFile(DropFilterPath, prog, dropFilterFileMode)
 }

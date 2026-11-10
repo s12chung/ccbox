@@ -40,16 +40,6 @@ func Run(ctx context.Context, svcs ...*Respawnable) {
 	}
 }
 
-// RunF brings f's services up and supervises them — f's error fails the caller.
-func RunF(ctx context.Context, f func(ctx context.Context) ([]*Respawnable, error)) error {
-	svcs, err := f(ctx)
-	if err != nil {
-		return err
-	}
-	Run(ctx, svcs...)
-	return nil
-}
-
 // reapAll drains every exited child without blocking, adopting each into its
 // service — docker exec's re-parented zombies included.
 func reapAll(ctx context.Context, svcs []*Respawnable) {

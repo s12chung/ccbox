@@ -10,6 +10,7 @@ import (
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/tinyproxy"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/supervise"
 )
 
 // The egress wall's fixed /30 — parent: tinyproxy's listen, child: the
@@ -76,27 +77,24 @@ var (
 	readChildSysctl  = childSysctl
 )
 
-type (
-	// Spawn builds a fresh, unstarted process command.
-	Spawn func(ctx context.Context) (*exec.Cmd, error)
-	// Ready awaits the forked child's readiness, owning its cleanup on failure.
-	Ready func(ctx context.Context, cmd *exec.Cmd) error
-	// PID answers the started process's pid, live across respawns.
-	PID func() int
-)
-
-// CreateNetwork brings the egress wall up: the network — childPorts open into
-// the child — tinyproxy through start, and its allowlist watch — in order,
-// failing closed.
-func CreateNetwork(ctx context.Context, childPorts []uint16, start func(ctx context.Context, spawn Spawn, ready Ready) (PID, error)) error {
+// CreateNetworkAndForkChild brings the egress wall up, failing closed —
+// childPorts open into the child — and returns the tinyproxy supervisee for
+// the caller's run loop.
+func CreateNetworkAndForkChild(ctx context.Context, childPorts []uint16) (*supervise.Respawnable, error) {
 	if err := buildNetns(ctx, childPorts); err != nil {
-		return err
+		return nil, err
 	}
-	pid, err := start(ctx, tinyproxy.Cmd, tinyproxy.AwaitListen)
-	if err != nil {
-		return err
+	tproxy := &supervise.Respawnable{Name: "tinyproxy", Spawn: tinyproxy.Cmd, Ready: tinyproxy.AwaitListen}
+	if err := tproxy.Start(ctx); err != nil {
+		return nil, err
 	}
-	return tinyproxy.WatchAllowlist(ctx, pid)
+	if err := tinyproxy.WatchAllowlist(ctx, tproxy.PID); err != nil {
+		return nil, err
+	}
+	if err := forkProxyChild(ctx); err != nil {
+		return nil, err
+	}
+	return tproxy, nil
 }
 
 // buildNetns builds the egress wall's network: the iproute2 cable, the iptables

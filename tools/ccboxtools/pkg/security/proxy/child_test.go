@@ -1,9 +1,7 @@
 package proxy
 
 import (
-	"context"
 	"net/http"
-	"sync/atomic"
 	"syscall"
 	"testing"
 
@@ -11,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestValidateAndRun_ProbeFails(t *testing.T) {
+func TestValidate_ProbeFails(t *testing.T) {
 	// no proxy in the middle: the clients dial straight, so a down server reads
 	// as the allowed host being unreachable — the egress wall unproven
 	origProxy := proxyFrom
@@ -28,13 +26,8 @@ func TestValidateAndRun_ProbeFails(t *testing.T) {
 	t.Cleanup(func() { probeShareRO = mkdirInShare })
 	t.Cleanup(func() { openAllow = openAllowFile })
 
-	var worked atomic.Bool
-	err := ValidateAndRun(t.Context(), func(context.Context) error {
-		worked.Store(true)
-		return nil
-	})
+	err := Validate(t.Context())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "allowed host unreachable")
-	assert.False(t, worked.Load(), "work never runs unless the egress wall is proven")
 }

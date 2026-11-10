@@ -25,7 +25,7 @@ func TestRun_RespawnsDeadChild(t *testing.T) {
 			return startTrue(ctx)
 		},
 	}
-	require.NoError(t, svc.Start(ctx)) // like runProxy: the service runs before the supervise
+	require.NoError(t, svc.Start(ctx)) // like the entrypoint's tproxy: the service runs before the supervise
 
 	done := make(chan struct{})
 	go func() { Run(ctx, svc); close(done) }()
@@ -38,35 +38,6 @@ func TestRun_RespawnsDeadChild(t *testing.T) {
 	case <-done:
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not return on the ctx's cancel")
-	}
-}
-
-func TestRunF_FailsOnSpawnError(t *testing.T) {
-	wantErr := errors.New("boom")
-
-	err := RunF(t.Context(), func(context.Context) ([]*Respawnable, error) { return nil, wantErr })
-
-	require.ErrorIs(t, err, wantErr)
-}
-
-func TestRunF_ReturnsOnCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-
-	svc := &Respawnable{Name: "test", Spawn: startTrue}
-	require.NoError(t, svc.Start(ctx)) // like runProxy: the service runs before the supervise
-
-	done := make(chan error, 1)
-	go func() {
-		done <- RunF(ctx, func(context.Context) ([]*Respawnable, error) { return []*Respawnable{svc}, nil })
-	}()
-
-	cancel()
-	select {
-	case err := <-done:
-		require.NoError(t, err)
-	case <-time.After(5 * time.Second):
-		t.Fatal("RunF did not return on the ctx's cancel")
 	}
 }
 

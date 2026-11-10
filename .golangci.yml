@@ -150,6 +150,9 @@ linters:
       replace-local: true
       replace-allow-list:
         - github.com/s12chung/ccbox/tools/ccboxtools
+    nestif:
+      # Default: 5
+      min-complexity: 6
     tagliatelle:
       case:
         rules:

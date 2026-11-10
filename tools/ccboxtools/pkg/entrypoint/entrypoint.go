@@ -30,56 +30,40 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	if err := identity.Verify(ctx, isProxy); err != nil {
 		return err
 	}
+	var svcs []*supervise.Respawnable
 	if isProxy {
 		if vncInfo != nil {
 			return errors.New("vnc is incompatible with the egress wall")
 		}
-		if err := identity.HardenProcfs(); err != nil {
+		if err := identity.Harden(); err != nil {
 			return err
 		}
-		if err := identity.WriteDropFilter(); err != nil {
+		tproxy, err := proxy.CreateNetworkAndForkChild(ctx, nil)
+		if err != nil {
 			return err
 		}
-		return supervise.RunF(ctx, runProxy)
+		svcs = append(svcs, tproxy)
+	} else {
+		if err := runMain(ctx, vncInfo); err != nil {
+			return err
+		}
 	}
-	if err := RunMain(ctx, vncInfo); err != nil {
-		return err
-	}
-	supervise.Run(ctx) // the boot's idle
+	supervise.Run(ctx, svcs...)
 	return nil
-}
-
-// runProxy brings the egress wall up, proven by a one-shot proxy child that runs
-// the boot's main work on its way out — tinyproxy stays the only supervisee.
-func runProxy(ctx context.Context) ([]*supervise.Respawnable, error) {
-	var tproxy *supervise.Respawnable
-	err := proxy.CreateNetwork(ctx, nil, func(_ context.Context, spawn proxy.Spawn, ready proxy.Ready) (proxy.PID, error) {
-		tproxy = &supervise.Respawnable{Name: "tinyproxy", Spawn: supervise.Spawn(spawn), Ready: supervise.Ready(ready)}
-		if err := tproxy.Start(ctx); err != nil {
-			return nil, err
-		}
-		return tproxy.PID, nil
-	})
-	if err != nil {
-		return nil, err
-	}
-	if err := proxy.ValidateWithChild(ctx); err != nil {
-		return nil, err
-	}
-	return []*supervise.Respawnable{tproxy}, nil
 }
 
 // RunChild is the proxy child's landing: prove the egress wall from inside,
 // go ready, then run the boot's main work.
 func RunChild(ctx context.Context) error {
-	return proxy.ValidateAndRun(ctx, func(ctx context.Context) error {
-		return RunMain(ctx, nil) // no VNC with proxy
-	})
+	if err := proxy.Validate(ctx); err != nil {
+		return err
+	}
+	return runMain(ctx, nil) // no VNC with proxy
 }
 
-// RunMain is a boot's main work: install the env's CLI and serve the desktop on a
+// runMain is a boot's main work: install the env's CLI and serve the desktop on a
 // VNC run — the no-proxy boot after its arrival proof, the proxy child after going ready.
-func RunMain(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
+func runMain(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	if err := install.FromEnv(ctx); err != nil {
 		return err
 	}

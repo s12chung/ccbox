@@ -12,9 +12,9 @@ import (
 // readyTimeout is the proxy child's deadline to go ready.
 const readyTimeout = time.Minute
 
-// ValidateWithChild forks a one-shot proxy child into the pinned netns and
-// waits it out — its ready ping proves the egress wall.
-func ValidateWithChild(ctx context.Context) error {
+// forkProxyChild forks a one-shot proxy child into the pinned netns and
+// waits out `ccbox proxy child` — its Validate run proves the egress wall.
+func forkProxyChild(ctx context.Context) error {
 	ready, err := handshake.New()
 	if err != nil {
 		return err
@@ -40,16 +40,12 @@ func ValidateWithChild(ctx context.Context) error {
 	return nil
 }
 
-// ValidateAndRun proves the egress wall, goes ready, then runs the work — the
-// one-shot child's whole life.
-func ValidateAndRun(ctx context.Context, work func(context.Context) error) error {
+// Validate proves the egress wall and goes ready — the one-shot child's arrival proof.
+func Validate(ctx context.Context) error {
 	if err := probeProxy(ctx); err != nil {
 		return err
 	}
 	ready := handshake.ForChild()
 	defer ready.Close()
-	if err := ready.SendReady(); err != nil {
-		return err
-	}
-	return work(ctx)
+	return ready.SendReady()
 }
