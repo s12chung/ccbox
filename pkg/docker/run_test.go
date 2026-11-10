@@ -69,14 +69,13 @@ func TestRunOptions_StreamOptions(t *testing.T) {
 		return o
 	}
 	tests := []struct {
-		name       string
-		o          RunOptions
-		wantMarker string
+		name string
+		o    RunOptions
 	}{
-		{name: "PlainHolders", o: withForeground(plainRun()), wantMarker: pkginfo.DevboxReadyMarker},
-		{name: "WalledHolders", o: withForeground(proxyRun()), wantMarker: pkginfo.ReadyMarker},
-		{name: "WalledSession", o: proxyRun(), wantMarker: pkginfo.ReadyMarker},
-		{name: "PlainSession", o: plainRun(), wantMarker: pkginfo.DevboxReadyMarker},
+		{name: "PlainHolders", o: withForeground(plainRun())},
+		{name: "WalledHolders", o: withForeground(proxyRun())},
+		{name: "WalledSession", o: proxyRun()},
+		{name: "PlainSession", o: plainRun()},
 	}
 
 	for _, tt := range tests {
@@ -84,7 +83,7 @@ func TestRunOptions_StreamOptions(t *testing.T) {
 			o, proxyLog := withLogFiles(t, tt.o)
 			opts, err := o.streamOptions()
 			require.NoError(t, err)
-			assertWait(t, tt.wantMarker, o, opts.ReadyWait)
+			assertWait(t, o, opts.ReadyWait)
 			assertWriters(t, &foreground, o, opts.Writers)
 			assertFiles(t, o, proxyLog, opts)
 		})
@@ -106,14 +105,10 @@ func withLogFiles(t *testing.T, o RunOptions) (RunOptions, string) {
 
 // assertWait checks the ready wait: every run waits its boot's marker and
 // its screen is only for the session holding no foreground view
-func assertWait(t *testing.T, wantMarker string, o RunOptions, wait *stream.ReadyWait) {
+func assertWait(t *testing.T, o RunOptions, wait *stream.ReadyWait) {
 	t.Helper()
-	if wantMarker == "" {
-		assert.Nil(t, wait)
-		return
-	}
 	require.NotNil(t, wait)
-	assert.Equal(t, wantMarker, wait.Marker)
+	assert.Equal(t, pkginfo.ReadyMarker, wait.Marker)
 	if o.Foreground != nil {
 		assert.Nil(t, wait.Screen, "the holders' foreground view needs no wait screen")
 	} else {

@@ -66,7 +66,6 @@ func runProxy(ctx context.Context) ([]*supervise.Respawnable, error) {
 	if err := proxy.ValidateWithChild(ctx); err != nil {
 		return nil, err
 	}
-	log.Info(pkginfo.ReadyMarker)
 	return []*supervise.Respawnable{tproxy}, nil
 }
 
@@ -81,17 +80,15 @@ func RunChild(ctx context.Context) error {
 // RunMain is a boot's main work: install the env's CLI and serve the desktop on a
 // VNC run — the no-proxy boot after its arrival proof, the proxy child after going ready.
 func RunMain(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
-	if os.Getenv(pkginfo.EnvVar) != "" {
-		if err := install.FromEnv(ctx); err != nil {
-			return err
-		}
+	if err := install.FromEnv(ctx); err != nil {
+		return err
 	}
 	if vncInfo != nil {
 		if err := serveDesktop(ctx, vncInfo); err != nil {
 			return err
 		}
 	}
-	log.Info(pkginfo.DevboxReadyMarker)
+	log.Info(pkginfo.ReadyMarker)
 	return nil
 }
 

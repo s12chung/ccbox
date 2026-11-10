@@ -2,7 +2,6 @@ package install
 
 import (
 	"context"
-	"fmt"
 	"os"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -15,13 +14,12 @@ const ClisDirEnv = "CCBOX_CLIS_DIR"
 // skipping to the installed version.
 const LockWaitEnv = "CCBOX_LOCK_WAIT"
 
-// FromEnv updates the CLI the container env describes: pkginfo.EnvVar's JSON picks
-// the CLI, ClisDirEnv overrides the clis root. The env-driven entry both the entrypoint
-// and `ccboxtools update` go through.
+// FromEnv installs the CLI the run's env names — no-op when it names none.
+// pkginfo.EnvVar's JSON picks the CLI, ClisDirEnv overrides the clis root.
 func FromEnv(ctx context.Context) error {
 	pkginfoJSON := os.Getenv(pkginfo.EnvVar)
 	if pkginfoJSON == "" {
-		return fmt.Errorf("%s is not set", pkginfo.EnvVar)
+		return nil
 	}
 	info, err := pkginfo.FromJSON(pkginfoJSON)
 	if err != nil {

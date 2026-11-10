@@ -58,4 +58,4 @@ func cmdWithExec(params cmdWithExecParams) *cobra.Command {
 	}
 }
 
-func init() { rootCmd.AddCommand(updateCmd, entrypointCmd, proxyCmd, execCmd, guiappCmd, allowlistCmd) }
+func init() { rootCmd.AddCommand(entrypointCmd, proxyCmd, execCmd, guiappCmd, allowlistCmd) }

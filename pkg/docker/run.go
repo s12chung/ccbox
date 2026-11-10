@@ -58,13 +58,6 @@ type Foreground struct {
 	Stop   chan struct{} // made by Run: closed when the devbox's log stream ends
 }
 
-func (o RunOptions) readyMarker() string {
-	if o.Proxy != nil {
-		return pkginfo.ReadyMarker
-	}
-	return pkginfo.DevboxReadyMarker
-}
-
 func (o RunOptions) matchesContainer(labels map[string]string) bool {
 	return labels[ccboxProjectLabelKey] == o.ProjectDir &&
 		(labels[ccboxHasProxyLabelKey] == trueVolValue) == (o.Proxy != nil)
@@ -95,7 +88,7 @@ func (o RunOptions) streamOptions() (stream.Options, error) {
 		opts.Writers = []io.Writer{demuxer}
 	}
 
-	opts.ReadyWait = &stream.ReadyWait{Marker: o.readyMarker()}
+	opts.ReadyWait = &stream.ReadyWait{Marker: pkginfo.ReadyMarker}
 	if o.Foreground == nil {
 		opts.ReadyWait.Screen = term.NewColorWriter(os.Stdout, tinyproxy.LevelColor)
 	}
@@ -154,7 +147,7 @@ func holdDevbox(ctxD *dock.CtxD, o RunOptions) (_ func() error, err error) {
 		return leaveErr
 	}
 
-	if err = dock.AwaitLogMarker(ctxD, o.Name, o.readyMarker()); err != nil {
+	if err = dock.AwaitLogMarker(ctxD, o.Name, pkginfo.ReadyMarker); err != nil {
 		return nil, err
 	}
 	if o.Proxy != nil {
