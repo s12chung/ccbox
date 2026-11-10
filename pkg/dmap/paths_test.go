@@ -19,6 +19,8 @@ func TestDevboxLogPath(t *testing.T) {
 	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox.log"), devboxLogPath(false, false))
 	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-plain.log"), devboxLogPath(false, true))
 	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-vnc.log"), devboxLogPath(true, true))
+	want := filepath.Join(home, ".ccbox", "devbox-vnc-proxy.log")
+	assert.Equal(t, want, devboxLogPath(true, false), "the egress wall makes the proxied vnc combo its own variant")
 }
 
 func TestProxyLiveDir(t *testing.T) {
@@ -34,7 +36,7 @@ func TestProxyAllowPath(t *testing.T) {
 func TestProxyLogPath(t *testing.T) {
 	home := testutil.Home(t)
 	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy.log"), proxyLogPath(false))
-	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy-vnc.log"), proxyLogPath(true))
+	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy-vnc-proxy.log"), proxyLogPath(true))
 }
 
 func TestWorkspaceMount(t *testing.T) {

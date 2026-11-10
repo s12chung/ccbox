@@ -7,6 +7,7 @@ import (
 	"context"
 	"os"
 	"os/exec"
+	"syscall"
 )
 
 // Stdio returns bin's long-lived command, wired to this process's stdio — the
@@ -16,4 +17,21 @@ func Stdio(ctx context.Context, bin string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, bin, args...)
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = os.Stdin, os.Stdout, os.Stderr
 	return cmd
+}
+
+// SyscallCmd is bin's one-shot exec: the process is replaced in place, its
+// pid and TTY preserved — the shell's `exec` semantics.
+type SyscallCmd struct {
+	Bin  string
+	Args []string
+}
+
+// Run looks bin up and execs it, erroring when it's absent.
+func (s SyscallCmd) Run() error {
+	path, err := exec.LookPath(s.Bin)
+	if err != nil {
+		return err
+	}
+	//nolint:gosec // the entrypoint's own binaries, argv fixed at the call sites
+	return syscall.Exec(path, append([]string{s.Bin}, s.Args...), os.Environ())
 }

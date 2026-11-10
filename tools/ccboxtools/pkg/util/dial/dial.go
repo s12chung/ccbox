@@ -16,13 +16,12 @@ const (
 	tcpListen = "0A"
 )
 
-// AwaitListen waits until procfs shows a socket LISTENing on port in this
-// network namespace, bounded by timeout — the connect-free readiness gate: the
-// listener is proven without the dial its own log would record.
-func AwaitListen(ctx context.Context, port int, timeout time.Duration) error {
+// AwaitListen waits until procfs shows a socket LISTENing on port in the pid's
+// netns (0 = this process), bounded by timeout — no dial, so the probe never logs.
+func AwaitListen(ctx context.Context, pid int, port int, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	for {
-		if listening(port) {
+		if listening(pid, port) {
 			return nil
 		}
 		if ctx.Err() != nil {
@@ -39,11 +38,14 @@ func AwaitListen(ctx context.Context, port int, timeout time.Duration) error {
 	}
 }
 
-// listening reports whether procfs shows a socket LISTENing on port in this
-// network namespace — the reader's own /proc/net/tcp tables.
-func listening(port int) bool {
-	for _, table := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
-		body, err := os.ReadFile(table) //nolint:gosec // the fixed procfs path
+// listening reports whether procfs shows a socket LISTENing on port in the
+// pid's netns — its /proc/<pid>/net tcp tables; 0 names this process's own.
+func listening(pid, port int) bool {
+	if pid == 0 {
+		pid = os.Getpid()
+	}
+	for _, name := range []string{"tcp", "tcp6"} {
+		body, err := os.ReadFile("/proc/" + strconv.Itoa(pid) + "/net/" + name) //nolint:gosec // the fixed procfs path
 		if err != nil {
 			continue // a missing table holds no listener
 		}

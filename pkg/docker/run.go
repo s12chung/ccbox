@@ -35,9 +35,10 @@ type RunOptions struct {
 
 	Proxy *ProxyOptions // the run's egress wall; nil runs plain
 
-	Name string // the devbox's fixed container name
-	Tag  string
-	Env  map[string]string // container env minus the proxy vars
+	Name     string // the devbox's fixed container name
+	Tag      string
+	Env      map[string]string // container env minus the proxy vars
+	ServeVNC bool
 
 	HoldersDir string      // the host dir of the devbox's holder flock entries
 	LogFile    string      // the host file the devbox's own log lines append to
@@ -292,11 +293,12 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		Binds:       mountSpecs(hostOptions.Mounts),
 		Tmpfs:       tmpfsMap(hostOptions.TmpfsPaths),
 	}
-	if hostOptions.Proxy == nil {
-		hostConfig.PortBindings = nat.PortMap{desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}}}
-	} else {
+	if hostOptions.Proxy != nil {
 		hostConfig.CapAdd = identity.RunCapNames()
 		hostConfig.Sysctls = map[string]string{ipForwardSysctl: "0"}
+	}
+	if hostOptions.ServeVNC {
+		hostConfig.PortBindings = nat.PortMap{desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}}}
 	}
 	if err := refuseHeldPorts(ctxD, hostConfig.PortBindings); err != nil {
 		return nil, err

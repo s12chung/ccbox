@@ -7,20 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
-	"syscall"
 
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/guiapp"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/identity"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/proxy"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/cmdgen"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/supervise"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/vnc"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/vnc/vncdeps"
 )
 
 // Run boots the container: the egress wall's boot when the proxy env is present,
@@ -32,65 +27,38 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	}
 	var svcs []*supervise.Respawnable
 	if isProxy {
-		if vncInfo != nil {
-			return errors.New("vnc is incompatible with the egress wall")
-		}
 		if err := identity.Harden(); err != nil {
 			return err
 		}
-		tproxy, err := proxy.CreateNetworkAndForkChild(ctx, nil)
+		var ports []uint16
+		if vncInfo != nil {
+			ports = []uint16{pkginfo.VNCPort}
+		}
+		tproxy, err := proxy.CreateNetworkAndForkChild(ctx, ports)
 		if err != nil {
 			return err
 		}
 		svcs = append(svcs, tproxy)
-	} else {
-		if err := runMain(ctx, vncInfo); err != nil {
+	} else if err := install.FromEnv(ctx); err != nil {
+		return err
+	}
+	if vncInfo != nil {
+		desktopSvcs, err := vnc.Serve(vncInfo)
+		if err != nil {
 			return err
 		}
+		svcs = append(svcs, desktopSvcs...)
 	}
-	supervise.Run(ctx, svcs...)
-	return nil
+	return supervise.Run(ctx, func() { log.Info(pkginfo.ReadyMarker) }, svcs...)
 }
 
-// RunChild is the proxy child's landing: prove the egress wall from inside,
-// go ready, then run the boot's main work.
+// RunChild is the proxy child's landing: the proof, then the boot's install —
+// Run marks the devbox ready.
 func RunChild(ctx context.Context) error {
 	if err := proxy.Validate(ctx); err != nil {
 		return err
 	}
-	return runMain(ctx, nil) // no VNC with proxy
-}
-
-// runMain is a boot's main work: install the env's CLI and serve the desktop on a
-// VNC run — the no-proxy boot after its arrival proof, the proxy child after going ready.
-func runMain(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
-	if err := install.FromEnv(ctx); err != nil {
-		return err
-	}
-	if vncInfo != nil {
-		if err := serveDesktop(ctx, vncInfo); err != nil {
-			return err
-		}
-	}
-	log.Info(pkginfo.ReadyMarker)
-	return nil
-}
-
-// serveDesktop starts the image's desktop and installs its GUI app — a VNC run
-// without one serves the desktop alone.
-func serveDesktop(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
-	if err := vncdeps.CheckPlaywright(os.Getenv, filepath.Glob); err != nil {
-		return err
-	}
-	if err := vnc.StartDesktop(ctx); err != nil {
-		return err
-	}
-	if vncInfo.GUIApp != nil {
-		if err := guiapp.Install(ctx, *vncInfo.GUIApp); err != nil {
-			return err
-		}
-	}
-	return nil
+	return install.FromEnv(ctx)
 }
 
 // verifyAndResetDrop proves the drop and resets HOME to it before any exec — a var
@@ -118,10 +86,24 @@ func ExecArgv(argv []string) error {
 	if len(argv) == 0 {
 		return errors.New("no command to exec")
 	}
-	path, err := exec.LookPath(argv[0])
-	if err != nil {
+	if err := (cmdgen.SyscallCmd{Bin: argv[0], Args: argv[1:]}).Run(); err != nil {
 		return fmt.Errorf("exec %s: %w", argv[0], err)
 	}
-	//nolint:gosec // the entrypoint's job: exec the container's command, like the shell's `exec "$@"`
-	return syscall.Exec(path, append([]string{path}, argv[1:]...), os.Environ())
+	return nil
+}
+
+// ExecDesktop is the desktop session's landing inside the egress wall's netns —
+// the session execs the image's XFCE on the bare server's display.
+func ExecDesktop(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
+	cmd, err := vnc.SetupDesktop(ctx, vncInfo)
+	if err != nil {
+		return err
+	}
+	if err := vnc.SendReady(); err != nil {
+		return fmt.Errorf("vnc requested: %w", err)
+	}
+	if err := cmd.SyscallCmd().Run(); err != nil {
+		return fmt.Errorf("vnc requested: %w", err)
+	}
+	return nil
 }

@@ -28,7 +28,7 @@ var execCmd = &cobra.Command{
 // config and --no-proxy; always the flags-and-settings variant's devbox
 func execSession(ctx context.Context, mode dmap.ExecMode) error {
 	var proxyOptions *docker.ProxyOptions
-	if !config.NoProxyFor(config.ServeVNC(), mode.NoProxy) {
+	if !config.IsNoProxy(mode.NoProxy) {
 		proxyOptions = dmap.NewProxyMap(config).Options()
 	}
 	runOptions, clean, err := prepareRun(proxyOptions)

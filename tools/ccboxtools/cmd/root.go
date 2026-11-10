@@ -11,8 +11,8 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
-// vnc is the run's parsed VNC session, loaded in root's PersistentPreRunE — nil means no vnc
-var vnc *pkginfo.VNCInfo
+// vncInfo is the run's parsed VNC session, loaded in root's PersistentPreRunE — nil means no vnc
+var vncInfo *pkginfo.VNCInfo
 
 var rootCmd = &cobra.Command{
 	Use:           "ccboxtools",
@@ -20,7 +20,7 @@ var rootCmd = &cobra.Command{
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	PersistentPreRunE: func(*cobra.Command, []string) error {
-		vnc = guiapp.Load()
+		vncInfo = guiapp.Load()
 		return nil
 	},
 }

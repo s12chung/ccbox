@@ -31,6 +31,9 @@ const (
 	// ProxyMuxName is tinyproxy's tag under in the container's shared log stream.
 	ProxyMuxName = "tinyproxy"
 
+	// VNCPort is the desktop's fixed RFB listen — the bare server's start gate.
+	VNCPort = 5900
+
 	// ReadyMarker is the boot's readiness line — the CLI install and the
 	// desktop serve are done, so sessions may land
 	ReadyMarker = "devbox: ready"

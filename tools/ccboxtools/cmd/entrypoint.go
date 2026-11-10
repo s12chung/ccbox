@@ -10,6 +10,6 @@ var entrypointCmd = &cobra.Command{
 	Use:   "entrypoint",
 	Short: "Boot the container: build and prove the egress wall, then idle as its root supervisor",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		return entrypoint.Run(cmd.Context(), vnc)
+		return entrypoint.Run(cmd.Context(), vncInfo)
 	},
 }

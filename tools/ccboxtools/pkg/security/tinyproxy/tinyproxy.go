@@ -55,7 +55,7 @@ func Cmd(ctx context.Context) (*exec.Cmd, error) {
 // AwaitListen waits the forked proxy's listen out — the kill is its cleanup,
 // and the respawn retries.
 func AwaitListen(ctx context.Context, cmd *exec.Cmd) error {
-	if err := dial.AwaitListen(ctx, pkginfo.ProxyPort, listenTimeout); err != nil {
+	if err := dial.AwaitListen(ctx, cmd.Process.Pid, pkginfo.ProxyPort, listenTimeout); err != nil {
 		log.WarnErr("kill unlistening "+bin, cmd.Process.Kill())
 		return err
 	}

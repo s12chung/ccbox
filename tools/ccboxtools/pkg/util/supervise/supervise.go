@@ -23,9 +23,18 @@ const (
 	respawnResets = time.Minute // alive this long → the next death restarts the backoff
 )
 
-// Run supervises svcs until the ctx's cancel. SIGCHLD wakes it as children
-// die.
-func Run(ctx context.Context, svcs ...*Respawnable) {
+// Run starts svcs in order, calls afterStart when set, then supervises them
+// until the ctx's cancel. SIGCHLD wakes it as children die.
+func Run(ctx context.Context, afterStart func(), svcs ...*Respawnable) error {
+	for _, svc := range svcs {
+		if err := svc.Start(ctx); err != nil {
+			return err
+		}
+	}
+	if afterStart != nil {
+		afterStart()
+	}
+
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGCHLD)
 	defer signal.Stop(sig)
@@ -33,7 +42,7 @@ func Run(ctx context.Context, svcs ...*Respawnable) {
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		case <-sig:
 			reapAll(ctx, svcs)
 		}
@@ -54,19 +63,13 @@ func reapAll(ctx context.Context, svcs []*Respawnable) {
 	}
 }
 
-type (
-	// Spawn builds a fresh, unstarted process command.
-	Spawn func(ctx context.Context) (*exec.Cmd, error)
-	// Ready awaits the forked child's readiness, owning its cleanup on failure.
-	Ready func(ctx context.Context, cmd *exec.Cmd) error
-)
-
 // Respawnable is a supervised child brought up and kept up: forked at boot,
 // respawned with a backoff on death.
 type Respawnable struct {
-	Name  string
-	Spawn Spawn
-	Ready Ready
+	Name       string
+	CmdToStart func(ctx context.Context) (*exec.Cmd, error)
+	// Ready awaits the forked child's readiness — owning its cleanup on failure.
+	Ready func(ctx context.Context, cmd *exec.Cmd) error
 
 	mu        sync.Mutex
 	cmd       *exec.Cmd
@@ -76,7 +79,7 @@ type Respawnable struct {
 
 // Start forks the service's child and awaits it, recording it only once ready.
 func (r *Respawnable) Start(ctx context.Context) error {
-	cmd, err := r.Spawn(ctx)
+	cmd, err := r.CmdToStart(ctx)
 	if err != nil {
 		return err
 	}
@@ -92,16 +95,6 @@ func (r *Respawnable) Start(ctx context.Context) error {
 	r.cmd, r.startedAt = cmd, time.Now()
 	r.mu.Unlock()
 	return nil
-}
-
-// PID is the child's pid, 0 when it isn't running.
-func (r *Respawnable) PID() int {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	if r.cmd == nil {
-		return 0
-	}
-	return r.cmd.Process.Pid
 }
 
 // reap adopts a reaped child pid when it is this service's, respawning after

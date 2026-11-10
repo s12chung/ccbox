@@ -84,15 +84,17 @@ func CreateNetworkAndForkChild(ctx context.Context, childPorts []uint16) (*super
 	if err := buildNetns(ctx, childPorts); err != nil {
 		return nil, err
 	}
-	tproxy := &supervise.Respawnable{Name: "tinyproxy", Spawn: tinyproxy.Cmd, Ready: tinyproxy.AwaitListen}
-	if err := tproxy.Start(ctx); err != nil {
-		return nil, err
-	}
-	if err := tinyproxy.WatchAllowlist(ctx, tproxy.PID); err != nil {
-		return nil, err
-	}
-	if err := forkProxyChild(ctx); err != nil {
-		return nil, err
+	tproxy := &supervise.Respawnable{
+		Name: "tinyproxy", CmdToStart: tinyproxy.Cmd,
+		Ready: func(ctx context.Context, cmd *exec.Cmd) error {
+			if err := tinyproxy.AwaitListen(ctx, cmd); err != nil {
+				return err
+			}
+			if err := tinyproxy.WatchAllowlist(ctx, func() int { return cmd.Process.Pid }); err != nil {
+				return err
+			}
+			return forkProxyChild(ctx)
+		},
 	}
 	return tproxy, nil
 }

@@ -51,6 +51,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	assert.Equal(t, devboxName(config.ProjectDir(), false, false), options.Name)
 	assert.Equal(t, devboxHoldersDir(options.Name), options.HoldersDir)
 	assert.Equal(t, devboxLogPath(false, false), options.LogFile)
+	assert.False(t, options.ServeVNC)
 	assert.Nil(t, options.Foreground, "the foreground view is the command's, not the map's")
 	require.NotNil(t, options.Proxy)
 	assert.NotNil(t, options.Proxy.BeforeStart)
@@ -82,12 +83,34 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
 	assert.Equal(t, devboxName(config.ProjectDir(), true, true), options.Name)
 	assert.Equal(t, devboxLogPath(true, true), options.LogFile)
+	assert.True(t, options.ServeVNC)
 	assert.Nil(t, options.Proxy)
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env is set even without a vnc config section")
 	expanded := config.AllowlistExpanded()
 	for _, d := range guiapp.App.AllowDomains {
 		assert.Containsf(t, expanded, d, "the GUI app's download domain is allowlisted via the harness alias")
 	}
+}
+
+func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+
+	// the --vnc flag on a config without a vnc section, as `ccbox proxy --vnc` arrives
+	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, true)
+	require.NoError(t, err)
+
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", NewProxyMap(config).Options())
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+
+	serveVNC := true
+	assert.Equal(t, "dev:tag-vnc", options.Tag, "the tag carries the vnc suffix only — the egress wall is runtime-only")
+	assert.Equal(t, devboxName(config.ProjectDir(), serveVNC, false), options.Name, "the egress wall makes the proxied vnc combo its own devbox")
+	assert.Equal(t, devboxLogPath(serveVNC, false), options.LogFile)
+	assert.True(t, options.ServeVNC)
+	assert.NotNil(t, options.Proxy)
 }
 
 func TestRunMap_RunOptions_TagByProject(t *testing.T) {

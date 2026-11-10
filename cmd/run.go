@@ -37,7 +37,7 @@ var runCmd = &cobra.Command{
 func init() {
 	for _, c := range []*cobra.Command{rootCmd, runCmd, execCmd} {
 		rf := c.Flags()
-		rf.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental, always no proxy)")
+		rf.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental)")
 	}
 }
 

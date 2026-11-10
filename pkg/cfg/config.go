@@ -262,10 +262,10 @@ func (c *Config) SetHarnessDomains() []string {
 	return domains
 }
 
-// NoProxyFor resolves the run's skip-the-proxy — vnc is unwalled by design,
-// so a vnc run always skips
-func (c *Config) NoProxyFor(serveVNC, flag bool) bool {
-	return serveVNC || flag || c.NoProxy
+// IsNoProxy resolves the run's skip-the-proxy — a vnc run proxies exactly like
+// a headless one
+func (c *Config) IsNoProxy(flag bool) bool {
+	return flag || c.NoProxy
 }
 
 // expandAllowlist runs the alias→domains expansion over the raw entries, keeping order

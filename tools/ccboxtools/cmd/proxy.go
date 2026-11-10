@@ -16,7 +16,10 @@ var proxyCmd = &cobra.Command{
 	Use:    "proxy",
 	Short:  "The egress wall's maintenance entries",
 	Hidden: true,
-	PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := rootCmd.PersistentPreRunE(cmd, args); err != nil {
+			return err
+		}
 		if err := identity.VerifyAndResetDrop(); err != nil {
 			return err
 		}
@@ -40,7 +43,12 @@ var proxyExecCmd = cmdWithExec(cmdWithExecParams{
 	},
 })
 
-func init() {
-	proxyCmd.AddCommand(proxyChildCmd)
-	proxyCmd.AddCommand(proxyExecCmd)
+var proxyDesktopCmd = &cobra.Command{
+	Use:   "desktop",
+	Short: "Exec the XFCE session on the bare server's display — the desktop session's landing inside the egress wall",
+	RunE: func(cmd *cobra.Command, _ []string) error {
+		return entrypoint.ExecDesktop(cmd.Context(), vncInfo)
+	},
 }
+
+func init() { proxyCmd.AddCommand(proxyChildCmd, proxyExecCmd, proxyDesktopCmd) }

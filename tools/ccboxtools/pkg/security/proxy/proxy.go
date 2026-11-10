@@ -56,6 +56,20 @@ func NSIsolatedCmd(ctx context.Context, argv ...string) (*exec.Cmd, error) {
 	return cmdgen.Stdio(ctx, chain[0], chain[1:]...), nil
 }
 
+// dropHome is the drop target's home — the boot's env says HOME=/root, a dir
+// the dropped process can't even enter.
+const dropHome = "/home/" + dropUser
+
+// IsolatedCmd builds the DropChain command running argv inside the pinned
+// netns — the room's residents with no Go landing, like the bare server.
+func IsolatedCmd(ctx context.Context, argv ...string) (*exec.Cmd, error) {
+	chain := DropChain(argv...)
+	cmd := cmdgen.Stdio(ctx, chain[0], chain[1:]...)
+	// the drop changes credentials only — the env still says HOME=/root
+	cmd.Env = append(slices.Clone(os.Environ()), "HOME="+dropHome)
+	return cmd, nil
+}
+
 // SameNetNS reports whether this process already sits in the pinned child netns.
 func SameNetNS() bool {
 	self, err := os.Stat("/proc/self/ns/net")

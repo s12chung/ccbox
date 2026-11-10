@@ -40,6 +40,7 @@ func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (doc
 		Tag:            tag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
 		Env:            env,
 		Proxy:          proxyOptions,
+		ServeVNC:       serveVNC,
 		HoldersDir:     devboxHoldersDir(name),
 		LogFile:        devboxLogPath(serveVNC, noProxy),
 	}, clean, nil

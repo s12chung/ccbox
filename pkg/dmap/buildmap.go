@@ -38,7 +38,10 @@ func (bm *BuildMap) Options() docker.BuildOptions {
 }
 
 func tagSuffix(projectDir string, tagByProject, serveVNC bool) string {
-	suffix := variantSuffix(serveVNC, false) // its own leading dash
+	suffix := ""
+	if serveVNC {
+		suffix = "-vnc" // the image doesn't vary on the egress wall
+	}
 	if tagByProject {
 		suffix = slug.Path(projectDir) + suffix // slugs to its own leading dash — no separator
 	}

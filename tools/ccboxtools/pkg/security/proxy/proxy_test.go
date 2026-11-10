@@ -34,6 +34,18 @@ func TestDropChain(t *testing.T) {
 	assert.Equal(t, []string{"two"}, DropChain("two")[len(first)-1:], "argv aliases the drop")
 }
 
+func TestIsolatedCmd(t *testing.T) {
+	cmd, err := IsolatedCmd(t.Context(), "/usr/local/bin/desktop")
+	require.NoError(t, err)
+
+	assert.Equal(t, DropChain("/usr/local/bin/desktop"), cmd.Args,
+		"the session's chain without NSIsolatedCmd's self-re-exec — the resident has no Go landing")
+	assert.Contains(t, cmd.Env, "HOME="+dropHome,
+		"the boot's HOME=/root is unwritable for the dropped process: re-aim it at the drop target's home")
+	assert.Same(t, os.Stdout, cmd.Stdout)
+	assert.Same(t, os.Stderr, cmd.Stderr)
+}
+
 func TestNSIsolatedCmd(t *testing.T) {
 	cmd, err := NSIsolatedCmd(t.Context(), "exec", "--", "bash")
 	require.NoError(t, err)

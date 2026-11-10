@@ -4,23 +4,19 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/slug"
 )
 
-// The run's variant suffixes — on the devbox name, the image tag, and the log
-// files. The plain and proxied variants share the image, so the tag only ever
-// carries vncSuffix.
-const (
-	vncSuffix   = "-vnc"
-	plainSuffix = "-plain"
-)
-
-// variantSuffix is the run's variant's suffix; the proxied headless variant's is empty
+// variantSuffix is the run's variant's suffix — on the devbox name and the log
+// files; the proxied headless variant's is empty
 func variantSuffix(serveVNC, noProxy bool) string {
-	switch {
-	case serveVNC:
-		return vncSuffix
-	case noProxy:
-		return plainSuffix
+	suffix := ""
+	if serveVNC {
+		suffix = "-vnc"
+		if !noProxy {
+			suffix += "-proxy" // the egress wall makes the proxied vnc combo its own devbox
+		}
+	} else if noProxy {
+		suffix = "-plain"
 	}
-	return ""
+	return suffix
 }
 
 // devboxName is the devbox's fixed name: the ccbox prefix (keeping the project slug's

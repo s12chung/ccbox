@@ -221,10 +221,6 @@ func TestRunConfig(t *testing.T) {
 }
 
 func TestRunHostConfig(t *testing.T) {
-	// hermetic to this machine's port state: the run assumes the VNC port free
-	refuseHeldPorts = func(*dock.CtxD, nat.PortMap) error { return nil }
-	t.Cleanup(func() { refuseHeldPorts = dock.RefuseHeldPorts })
-
 	opts := RunOptions{
 		RunHostOptions: RunHostOptions{
 			ProjectDir: "/host/proj",
@@ -241,13 +237,26 @@ func TestRunHostConfig(t *testing.T) {
 	assert.Empty(t, hostConfig.CapAdd, "the plain run arrives as the image's user, capless")
 	assert.Equal(t, []string{"/host/proj:/home/ccbox/proj"}, hostConfig.Binds)
 	assert.Equal(t, map[string]string{"/home/ccbox/.cache": tmpfsOpts}, hostConfig.Tmpfs)
-	assert.Equal(t, nat.PortMap{
-		desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}},
-	}, hostConfig.PortBindings, "the unwalled boot may serve the desktop")
+	assert.Empty(t, hostConfig.PortBindings, "the headless run serves no desktop: it claims no host port")
 	require.Len(t, hostConfig.SecurityOpt, 2)
 	assert.Equal(t, "no-new-privileges", hostConfig.SecurityOpt[0])
 	assert.True(t, strings.HasPrefix(hostConfig.SecurityOpt[1], "seccomp="))
 	assert.Empty(t, hostConfig.Sysctls)
+}
+
+func TestRunHostConfig_VNC(t *testing.T) {
+	// hermetic to this machine's port state: the run assumes the VNC port free
+	refuseHeldPorts = func(*dock.CtxD, nat.PortMap) error { return nil }
+	t.Cleanup(func() { refuseHeldPorts = dock.RefuseHeldPorts })
+
+	opts := RunOptions{ServeVNC: true}
+
+	hostConfig, err := runHostConfig(nil, opts)
+
+	require.NoError(t, err)
+	assert.Equal(t, nat.PortMap{
+		desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}},
+	}, hostConfig.PortBindings, "the desktop serves the host's loopback, with or without the egress wall")
 }
 
 func TestRunHostConfig_EgressWall(t *testing.T) {
@@ -262,8 +271,28 @@ func TestRunHostConfig_EgressWall(t *testing.T) {
 	assert.Equal(t, identity.RunCapNames(), []string(hostConfig.CapAdd))
 	assert.Equal(t, []string{"ALL"}, []string(hostConfig.CapDrop))
 	assert.Equal(t, map[string]string{ipForwardSysctl: "0"}, hostConfig.Sysctls)
-	assert.Empty(t, hostConfig.PortBindings, "the proxied boot never serves the desktop: it claims no host port")
+	assert.Empty(t, hostConfig.PortBindings, "the proxied headless run serves no desktop: it claims no host port")
 	require.Len(t, hostConfig.SecurityOpt, 2, "every devbox mounts the seccomp profile")
+}
+
+func TestRunHostConfig_EgressWall_VNC(t *testing.T) {
+	// hermetic to this machine's port state: the run assumes the VNC port free
+	refuseHeldPorts = func(*dock.CtxD, nat.PortMap) error { return nil }
+	t.Cleanup(func() { refuseHeldPorts = dock.RefuseHeldPorts })
+
+	opts := RunOptions{
+		Proxy:    &ProxyOptions{},
+		ServeVNC: true,
+	}
+
+	hostConfig, err := runHostConfig(nil, opts)
+
+	require.NoError(t, err)
+	assert.Equal(t, identity.RunCapNames(), []string(hostConfig.CapAdd), "the egress wall's budget stands beside the desktop's port")
+	assert.Equal(t, map[string]string{ipForwardSysctl: "0"}, hostConfig.Sysctls)
+	assert.Equal(t, nat.PortMap{
+		desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}},
+	}, hostConfig.PortBindings, "the egress wall seals egress, not the published port: the desktop serves the host's loopback")
 }
 
 func plainRun() RunOptions {

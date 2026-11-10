@@ -16,13 +16,14 @@ type guiAppKey struct{}
 var guiappCmd = &cobra.Command{
 	Use:   "guiapp",
 	Short: "Launch the GUI app the run's VNC_CONFIG names",
-	// The children just trust the app this checks in — none runs without it
-	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		vnc = guiapp.Load() // this nearer hook replaces root's, so it loads vnc too
-		if vnc == nil || vnc.GUIApp == nil {
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := rootCmd.PersistentPreRunE(cmd, args); err != nil {
+			return err
+		}
+		if vncInfo == nil || vncInfo.GUIApp == nil {
 			return fmt.Errorf("guiapp: %s names no gui_app", pkginfo.VNCConfigEnvVar)
 		}
-		cmd.SetContext(context.WithValue(cmd.Context(), guiAppKey{}, *vnc.GUIApp))
+		cmd.SetContext(context.WithValue(cmd.Context(), guiAppKey{}, *vncInfo.GUIApp))
 		return nil
 	},
 }

@@ -122,23 +122,21 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	}, c)
 }
 
-func TestConfig_NoProxyFor(t *testing.T) {
+func TestConfig_IsNoProxy(t *testing.T) {
 	tests := []struct {
-		name     string
-		cfg      Config
-		serveVNC bool
-		flag     bool
-		want     bool
+		name string
+		cfg  Config
+		flag bool
+		want bool
 	}{
-		{"defaults to false", Config{}, false, false, false},
-		{"the top level stands alone", Config{NoProxy: true}, false, false, true},
-		{"a vnc run always skips it", Config{}, true, false, true},
-		{"the top level stands on a vnc run without a vnc section", Config{NoProxy: true}, true, false, true},
-		{"the flag overrides the top level", Config{NoProxy: true}, false, true, true},
+		{"defaults to false", Config{}, false, false},
+		{"the top level stands alone", Config{NoProxy: true}, false, true},
+		{"a vnc run proxies like a headless one", Config{}, false, false},
+		{"the flag overrides the top level", Config{NoProxy: true}, true, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.cfg.NoProxyFor(tt.serveVNC, tt.flag))
+			assert.Equal(t, tt.want, tt.cfg.IsNoProxy(tt.flag))
 		})
 	}
 }
