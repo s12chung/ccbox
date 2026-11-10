@@ -2,13 +2,14 @@ FROM ghcr.io/jdx/mise:2026.10.12 AS mise
 
 FROM debian:trixie-slim AS base
 
-# iproute2 and tinyproxy are proxy-critical — iproute2 pins, tinyproxy stays
-# floating for the 1.11.3 pickup: trixie's 1.11.2 carries the strip_return_port
-# overflow, and master's reqs.c hardening is in no release yet
+# iproute2, iptables, and tinyproxy are proxy-critical — iproute2 pins, iptables
+# writes the egress wall's whitelist (nft-backed is fine; the rows are plain
+# argv), tinyproxy stays floating for the 1.11.3 pickup: trixie's 1.11.2 carries
+# the strip_return_port overflow, and master's reqs.c hardening is in no release yet
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
         git curl less make procps unzip bind9-dnsutils \
-        iproute2=6.15.0-1 tinyproxy \
+        iproute2=6.15.0-1 iptables tinyproxy \
     && rm -rf /var/lib/apt/lists/*
 
 # tinyproxy runs as this dedicated uid, configs root-owned

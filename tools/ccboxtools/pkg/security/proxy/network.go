@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -19,6 +20,9 @@ const (
 	parentVeth = "proxy-parent"
 	childVeth  = "proxy-child"
 
+	// host traffic arrives here — the default bridge's iface, where pkg/docker's publish binds land
+	parentIface = "eth0"
+
 	// The sysctls' procfs paths — consts: tests stub the readers, not the paths.
 	ipForwardPath      = "/proc/sys/net/ipv4/ip_forward"
 	parentRPFilterPath = "/proc/sys/net/ipv4/conf/" + parentVeth + "/rp_filter"
@@ -31,6 +35,7 @@ const (
 		" && echo 1 > /run/netns/.proc-pin/sys/net/ipv4/conf/" + childVeth + "/rp_filter" + // per-iface: effective is max(conf.all, conf.iface)
 		" && umount /run/netns/.proc-pin && rmdir /run/netns/.proc-pin"
 	pinParent = "mkdir -p /run/netns/.proc-pin && mount -t proc proc /run/netns/.proc-pin" + //nolint:dupword // fstype and source, two "proc"s
+		" && echo 1 > /run/netns/.proc-pin/sys/net/ipv4/ip_forward" + // the whitelist forwards only the child-open ports into the room
 		" && echo 1 > /run/netns/.proc-pin/sys/net/ipv4/conf/" + parentVeth + "/rp_filter" + // per-iface: conf/all would sweep eth0 too
 		" && umount /run/netns/.proc-pin && rmdir /run/netns/.proc-pin"
 )
@@ -46,7 +51,15 @@ var (
 		}
 		return nil
 	}
-
+	// runIPTables execs the build's `iptables` rows — a var so tests aim it at a recorder.
+	runIPTables = func(ctx context.Context, args ...string) error {
+		//nolint:gosec // the build's fixed iptables rows
+		out, err := exec.CommandContext(ctx, "iptables", args...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("iptables %s: %w\n%s", strings.Join(args, " "), err, out)
+		}
+		return nil
+	}
 	// runPin execs the parent-side pin script — a var so tests aim it at a recorder.
 	runPin = func(ctx context.Context, script string) error {
 		//nolint:gosec // the build's fixed pin scripts
@@ -72,10 +85,11 @@ type (
 	PID func() int
 )
 
-// CreateNetwork brings the egress wall up: the network, tinyproxy through
-// start, and its allowlist watch — in order, failing closed.
-func CreateNetwork(ctx context.Context, start func(ctx context.Context, spawn Spawn, ready Ready) (PID, error)) error {
-	if err := buildNetns(ctx); err != nil {
+// CreateNetwork brings the egress wall up: the network — childPorts open into
+// the child — tinyproxy through start, and its allowlist watch — in order,
+// failing closed.
+func CreateNetwork(ctx context.Context, childPorts []uint16, start func(ctx context.Context, spawn Spawn, ready Ready) (PID, error)) error {
+	if err := buildNetns(ctx, childPorts); err != nil {
 		return err
 	}
 	pid, err := start(ctx, tinyproxy.Cmd, tinyproxy.AwaitListen)
@@ -85,12 +99,17 @@ func CreateNetwork(ctx context.Context, start func(ctx context.Context, spawn Sp
 	return tinyproxy.WatchAllowlist(ctx, pid)
 }
 
-// buildNetns builds the egress wall's network: pure iproute2, no iptables —
-// forwarding pinned off in both netns and rp_filter pinned strict on both
-// cable ends.
-func buildNetns(ctx context.Context) error {
+// buildNetns builds the egress wall's network: the iproute2 cable, the iptables
+// whitelist, the pins — in order, so the drop policy stands before forwarding
+// turns on.
+func buildNetns(ctx context.Context, childPorts []uint16) error {
 	for _, args := range ipArgs {
 		if err := runIP(ctx, args...); err != nil {
+			return fmt.Errorf("egress wall: %w", err)
+		}
+	}
+	for _, args := range ipTablesRows(childPorts) {
+		if err := runIPTables(ctx, args...); err != nil {
 			return fmt.Errorf("egress wall: %w", err)
 		}
 	}
@@ -123,70 +142,108 @@ var ipArgs = [][]string{
 	{"netns", "exec", netnsName, "sh", "-c", pinChild}, // the room's forwarding off, its cable end strict
 }
 
-// pin is one sysctl the egress wall holds: the value each side must answer.
-type pin struct {
-	sysctl     string
-	kind       string // completes the error subject — the side's netns or its veth
-	parentPath string // this mount
-	childPath  string // the same tree, from inside the child netns
-	want       string
-	because    string
+// ipTablesBase is the egress wall's fixed iptables rows.
+//
+//nolint:goconst // the rows read as the shell commands they run; named tokens would obscure them
+var ipTablesBase = [][]string{
+	{"-P", "FORWARD", "DROP"}, // every accept below names its flow exactly
+	{"-A", "FORWARD", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"}, // the DNAT'd flows' replies leave
 }
+
+// ipTablesRows is the egress wall's iptables table — drop policy first, so a
+// partial apply forwards nothing; no IPv6, the cable carries none.
+//
+//nolint:goconst // the rows read as the shell commands they run; named tokens would obscure them
+func ipTablesRows(childPorts []uint16) [][]string {
+	rows := make([][]string, 0, len(ipTablesBase)+2*len(childPorts))
+	rows = append(rows, ipTablesBase...)
+	for _, port := range childPorts {
+		p := strconv.FormatUint(uint64(port), 10)
+		rows = append(rows,
+			[]string{"-A", "FORWARD", "-i", parentIface, "-o", parentVeth, "-d", childIP, "-p", "tcp", "--dport", p, "-j", "ACCEPT"},
+			[]string{"-t", "nat", "-A", "PREROUTING", "-i", parentIface, "-p", "tcp", "--dport", p, "-j", "DNAT", "--to-destination", childIP + ":" + p},
+		)
+	}
+	return rows
+}
+
+// pin is one sysctl one side of the cable must answer: the value the egress wall
+// asserts in that side's netns.
+type pin struct {
+	sysctl  string
+	side    string // whose netns answers the read
+	kind    string // completes the error subject — the side's netns or its veth
+	path    string // this mount; the child's side reads the same tree from inside its netns
+	want    string
+	because string
+}
+
+const (
+	parentSide = "parent"
+	childSide  = "child"
+)
 
 // pins is the assert table, in order: forwarding first, then the cable ends.
 var pins = []pin{
+	// the parent forwards only what the whitelist accepts — the child-open ports
+	{
+		sysctl:  "net.ipv4.ip_forward",
+		side:    parentSide,
+		kind:    "netns",
+		path:    ipForwardPath,
+		want:    "1",
+		because: "the whitelist is the room's only entrance",
+	},
 	// the child can reach the parent's own IPs directly — that's local
 	// delivery, not forwarding; ip_forward=0 doesn't stop it, and only the
 	// boot's own code could ever listen there
 	{
-		sysctl:     "net.ipv4.ip_forward",
-		kind:       "netns",
-		parentPath: ipForwardPath,
-		childPath:  ipForwardPath,
-		want:       "0",
-		because:    "the child's traffic must blackhole, not forward",
+		sysctl:  "net.ipv4.ip_forward",
+		side:    childSide,
+		kind:    "netns",
+		path:    ipForwardPath,
+		want:    "0",
+		because: "the child's traffic must blackhole, not forward",
 	},
 	{
-		sysctl:     "net.ipv4.conf.rp_filter",
-		kind:       "veth",
-		parentPath: parentRPFilterPath,
-		childPath:  childRPFilterPath,
-		want:       "1",
-		because:    "spoofed-source replies would leave unallowlisted",
+		sysctl:  "net.ipv4.conf.rp_filter",
+		side:    parentSide,
+		kind:    "veth",
+		path:    parentRPFilterPath,
+		want:    "1",
+		because: "spoofed-source replies would leave unallowlisted",
+	},
+	{
+		sysctl:  "net.ipv4.conf.rp_filter",
+		side:    childSide,
+		kind:    "veth",
+		path:    childRPFilterPath,
+		want:    "1",
+		because: "spoofed-source replies would leave unallowlisted",
 	},
 }
 
-// requirePins asserts the pins hold — the child's only way out is the
-// parent-local tinyproxy.
+// requirePins asserts the pins hold — the child's only ways out are the
+// parent-local tinyproxy and the child-open ports.
 func requirePins(ctx context.Context) error {
 	for _, pin := range pins {
-		for _, side := range []struct {
-			name string
-			read func(context.Context) ([]byte, error)
-		}{
-			{"parent", pin.readParent},
-			{"child", pin.readChild},
-		} {
-			body, err := side.read(ctx)
-			if err != nil {
-				return fmt.Errorf("egress wall: %w", err)
-			}
-			if answer := strings.TrimSpace(string(body)); answer != pin.want {
-				return fmt.Errorf("egress wall: the %s %s's %s=%s, want %s — %s", side.name, pin.kind, pin.sysctl, answer, pin.want, pin.because)
-			}
+		body, err := pin.read(ctx)
+		if err != nil {
+			return fmt.Errorf("egress wall: %w", err)
+		}
+		if answer := strings.TrimSpace(string(body)); answer != pin.want {
+			return fmt.Errorf("egress wall: the %s %s's %s=%s, want %s — %s", pin.side, pin.kind, pin.sysctl, answer, pin.want, pin.because)
 		}
 	}
 	return nil
 }
 
-// readParent answers the pin's value from this mount.
-func (p pin) readParent(ctx context.Context) ([]byte, error) {
-	return readParentSysctl(ctx, p.parentPath)
-}
-
-// readChild answers the pin's value from inside the child netns.
-func (p pin) readChild(ctx context.Context) ([]byte, error) {
-	return readChildSysctl(ctx, p.childPath)
+// read answers the pin's value from its side's netns.
+func (p pin) read(ctx context.Context) ([]byte, error) {
+	if p.side == childSide {
+		return readChildSysctl(ctx, p.path)
+	}
+	return readParentSysctl(ctx, p.path)
 }
 
 // parentSysctl reads a procfs path from this mount.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,10 +15,11 @@ import (
 
 func TestBuildNetns(t *testing.T) {
 	calls := recordIP(t, func([]string) error { return nil })
+	ipt := recordIPTables(t, func([]string) error { return nil })
 	pins := recordPins(t, func(string) error { return nil })
 	stubSysctl(t, "", "", "")
 
-	require.NoError(t, buildNetns(t.Context()))
+	require.NoError(t, buildNetns(t.Context(), nil))
 
 	require.Len(t, *calls, 12)
 	assert.Equal(t, []string{"netns", "add", netnsName}, (*calls)[0])
@@ -31,8 +33,28 @@ func TestBuildNetns(t *testing.T) {
 	assert.Equal(t, []string{"addr", "add", childIP + "/30", "dev", childVeth}, (*calls)[8][2:], "the child end is addressed before it's raised")
 	assert.Equal(t, []string{"route", "replace", "default", "via", pkginfo.ProxyAddr}, (*calls)[10][2:], "the exit sign comes once the road exists")
 	assert.Equal(t, []string{"netns", "exec", netnsName, "sh", "-c", pinChild}, (*calls)[11], "the child pin is the build's last `ip` row")
+	require.Len(t, *ipt, 2)
+	assert.Equal(t, []string{"-P", "FORWARD", "DROP"}, (*ipt)[0], "the drop policy stands first — a partial apply forwards nothing")
 	require.Len(t, *pins, 1)
-	assert.Equal(t, pinParent, (*pins)[0], "the parent pin runs after the build's `ip` rows — its veth must exist first")
+	assert.Equal(t, pinParent, (*pins)[0], "the parent pin runs last — its veth exists and forwarding starts whitelisted")
+}
+
+func TestBuildNetns_OpensChildPorts(t *testing.T) {
+	ipt := recordIPTables(t, func([]string) error { return nil })
+	recordIP(t, func([]string) error { return nil })
+	recordPins(t, func(string) error { return nil })
+	stubSysctl(t, "", "", "")
+
+	require.NoError(t, buildNetns(t.Context(), []uint16{5900}))
+
+	require.Len(t, *ipt, 4)
+	accept := []string{"-A", "FORWARD", "-i", "eth0", "-o", "proxy-parent", "-d", "169.254.100.2", "-p", "tcp", "--dport", "5900", "-j", "ACCEPT"}
+	dnat := []string{
+		"-t", "nat", "-A", "PREROUTING", "-i", "eth0", "-p", "tcp", "--dport", "5900",
+		"-j", "DNAT", "--to-destination", "169.254.100.2:5900",
+	}
+	assert.Equal(t, accept, (*ipt)[2])
+	assert.Equal(t, dnat, (*ipt)[3])
 }
 
 func TestBuildNetns_StopsAtFailure(t *testing.T) {
@@ -45,41 +67,58 @@ func TestBuildNetns_StopsAtFailure(t *testing.T) {
 	recordPins(t, func(string) error { return nil })
 	stubSysctl(t, "", "", "")
 
-	err := buildNetns(t.Context())
+	err := buildNetns(t.Context(), nil)
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "egress wall")
 	assert.Len(t, *calls, 3, "the failed step's successors stay skipped")
 }
 
+func TestBuildNetns_FailsClosedOnIPTables(t *testing.T) {
+	calls := recordIP(t, func([]string) error { return nil })
+	recordIPTables(t, func([]string) error { return errors.New("boom") })
+	pins := recordPins(t, func(string) error { return nil })
+
+	err := buildNetns(t.Context(), nil)
+
+	require.Error(t, err)
+	require.ErrorContains(t, err, "egress wall")
+	assert.Len(t, *calls, 12, "the whole cable builds before the table applies")
+	assert.Empty(t, *pins, "the parent pin waits for the drop policy — forwarding never turns on unwhitelisted")
+}
+
 func TestBuildNetns_FailsClosedOnPin(t *testing.T) {
 	calls := recordIP(t, func([]string) error { return nil })
+	ipt := recordIPTables(t, func([]string) error { return nil })
 	recordPins(t, func(string) error { return errors.New("boom") })
 
-	err := buildNetns(t.Context())
+	err := buildNetns(t.Context(), nil)
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "egress wall")
 	assert.Len(t, *calls, 12, "the parent pin runs after the whole build")
+	assert.NotEmpty(t, *ipt, "the whitelist applies before the pin — the drop policy stands before forwarding turns on")
 }
 
 func TestBuildNetns_FailsClosedOnForwarding(t *testing.T) {
 	recordIP(t, func([]string) error { return nil })
+	recordIPTables(t, func([]string) error { return nil })
 	recordPins(t, func(string) error { return nil })
-	stubSysctl(t, "parent", ipForwardPath, "1\n")
+	stubSysctl(t, "parent", ipForwardPath, "0\n")
 
-	err := buildNetns(t.Context())
+	err := buildNetns(t.Context(), nil)
 
 	require.Error(t, err)
-	require.ErrorContains(t, err, "ip_forward=1, want 0")
+	require.ErrorContains(t, err, "ip_forward=0, want 1")
 }
 
 func TestBuildNetns_FailsClosedOnRPFilter(t *testing.T) {
 	recordIP(t, func([]string) error { return nil })
+	recordIPTables(t, func([]string) error { return nil })
 	recordPins(t, func(string) error { return nil })
 	stubSysctl(t, "parent", parentRPFilterPath, "0\n")
 
-	err := buildNetns(t.Context())
+	err := buildNetns(t.Context(), nil)
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "rp_filter=0, want 1")
@@ -90,6 +129,34 @@ func TestEgressConsts(t *testing.T) {
 	// the /30's two hosts, parent first: the child's only route out is its veth's peer
 	assert.Equal(t, "169.254.100.1", pkginfo.ProxyAddr)
 	assert.Equal(t, "169.254.100.2", childIP)
+	assert.Equal(t, "eth0", parentIface)
+}
+
+func TestIPTablesRows(t *testing.T) {
+	base := [][]string{
+		{"-P", "FORWARD", "DROP"},
+		{"-A", "FORWARD", "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"},
+	}
+	opening := func(port string) [][]string {
+		return [][]string{
+			{"-A", "FORWARD", "-i", "eth0", "-o", "proxy-parent", "-d", "169.254.100.2", "-p", "tcp", "--dport", port, "-j", "ACCEPT"},
+			{"-t", "nat", "-A", "PREROUTING", "-i", "eth0", "-p", "tcp", "--dport", port, "-j", "DNAT", "--to-destination", "169.254.100.2:" + port},
+		}
+	}
+	tests := []struct {
+		name       string
+		childPorts []uint16
+		want       [][]string
+	}{
+		{"no child-open ports", nil, base},
+		{"one port", []uint16{5900}, slices.Concat(base, opening("5900"))},
+		{"ports stay paired in order", []uint16{5900, 3389}, slices.Concat(base, opening("5900"), opening("3389"))},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ipTablesRows(tt.childPorts))
+		})
+	}
 }
 
 func TestRequirePins(t *testing.T) {
@@ -101,7 +168,7 @@ func TestRequirePins(t *testing.T) {
 		wantErr string
 	}{
 		{"pinned", "", "", "", ""},
-		{"parent forwards", "parent", ipForwardPath, "1\n", "the parent netns's net.ipv4.ip_forward=1, want 0"},
+		{"parent forwards off", "parent", ipForwardPath, "0\n", "the parent netns's net.ipv4.ip_forward=0, want 1"},
 		{"child forwards", "child", ipForwardPath, "1\n", "the child netns's net.ipv4.ip_forward=1, want 0"},
 		{"parent loose", "parent", parentRPFilterPath, "0\n", "the parent veth's net.ipv4.conf.rp_filter=0, want 1"},
 		{"child loose", "child", childRPFilterPath, "0\n", "the child veth's net.ipv4.conf.rp_filter=0, want 1"},
@@ -135,6 +202,19 @@ func recordIP(t *testing.T, fail func(args []string) error) *[][]string {
 	return calls
 }
 
+// recordIPTables stubs buildNetns's `iptables` with a recorder, restored at cleanup.
+func recordIPTables(t *testing.T, fail func(args []string) error) *[][]string {
+	t.Helper()
+	calls := &[][]string{}
+	orig := runIPTables
+	runIPTables = func(_ context.Context, args ...string) error {
+		*calls = append(*calls, args)
+		return fail(args)
+	}
+	t.Cleanup(func() { runIPTables = orig })
+	return calls
+}
+
 // recordPins stubs buildNetns's pin execs with a recorder, restored at cleanup.
 func recordPins(t *testing.T, fail func(script string) error) *[]string {
 	t.Helper()
@@ -154,11 +234,7 @@ func stubSysctl(t *testing.T, side, path, answer string) {
 	t.Helper()
 	reply := func(askedSide, askedPath string) ([]byte, error) {
 		for _, pin := range pins {
-			pinPath := pin.parentPath
-			if askedSide == "child" {
-				pinPath = pin.childPath
-			}
-			if askedPath != pinPath {
+			if askedSide != pin.side || askedPath != pin.path {
 				continue
 			}
 			if askedSide == side && askedPath == path {
