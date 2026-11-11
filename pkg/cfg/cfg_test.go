@@ -247,7 +247,7 @@ func TestAllowlistDefaults_ExcludeRuntimes(t *testing.T) {
 func TestAllowlistDefaults_ExcludeGuiApp(t *testing.T) {
 	// the GUI app's domains enter only through a vnc load's ccbox-set-harness expansion —
 	// a headless run never downloads the app
-	for _, d := range guiapp.App.AllowDomains {
+	for _, d := range guiapp.App.Setup.Proxied.AllowDomains {
 		assert.NotContainsf(t, AllowlistDefaults(), d, "guiapp: %s", d)
 	}
 }

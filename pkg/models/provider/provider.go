@@ -4,7 +4,7 @@
 // NOTE: like pkg/models/cli — Load() runs once at startup (cmd.rootCmd.PersistentPreRunE),
 // after seeding. The built-ins are a compile-time constant, while user providers
 // warn+skip, effectively guaranteeing a workable set onwards. It runs before
-// cli.Load(), whose user clis may alias user providers in allow_domains.
+// cli.Load(), whose user clis may alias user providers in setup.proxied.allow_domains.
 package provider
 
 import (

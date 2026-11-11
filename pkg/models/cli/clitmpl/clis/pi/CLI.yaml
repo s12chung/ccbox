@@ -9,10 +9,12 @@ continue_args: "-c"
 # No picker flag: bare --session errors, so -r needs a session id.
 resume_args: "--session"
 
-env:
-  PI_SKIP_VERSION_CHECK: "1"
+setup:
+  env:
+    PI_SKIP_VERSION_CHECK: "1"
 
-allow_domains:
-  - ccbox-all-providers
-  - pi.dev
-  - radius.pi.dev
+  proxied:
+    allow_domains:
+      - ccbox-all-providers
+      - pi.dev
+      - radius.pi.dev

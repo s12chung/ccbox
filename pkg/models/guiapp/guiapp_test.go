@@ -1,56 +1,40 @@
 package guiapp
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-func TestFor(t *testing.T) {
-	app, err := For(App.Name)
+func TestLookup(t *testing.T) {
+	app, err := lookup(App.Name)
 	require.NoError(t, err)
 	assert.Equal(t, App, app)
 
 	assert.Contains(t, Names(), App.Name)
 
-	_, err = For("emacs")
+	_, err = lookup("emacs")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "is not one of [zcode]")
 }
 
+func TestMustFor(t *testing.T) {
+	assert.Equal(t, App, *MustFor(App.Name))
+	assert.Nil(t, MustFor(""), "the empty name names no app")
+	assert.PanicsWithError(t, "guiapp: emacs is not one of [zcode]", func() { MustFor("emacs") })
+}
+
 func TestAllowDomains(t *testing.T) {
-	assert.Equal(t, App.AllowDomains, AllowDomains(App.Name))
+	assert.Equal(t, App.Setup.Proxied.AllowDomains, AllowDomains(App.Name))
 
 	for _, name := range []string{"", "emacs"} {
 		assert.Emptyf(t, AllowDomains(name), "%q names no app to download", name)
 	}
 }
 
-func TestApp_AllowDomains_Valid(t *testing.T) {
-	for _, d := range App.AllowDomains {
-		assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s: %s", App.Name, d)
-	}
-}
-
-func TestApp_WiresLaunch(t *testing.T) {
-	assert.NotEmpty(t, App.Args, "the launcher prepends the app's own argv")
-	assert.NotEmpty(t, App.DesktopName, "the session menu entry carries the app's branding")
-}
-
-func TestApp_RoundTripsVNCInfo(t *testing.T) {
-	// the container parses the run's VNC_CONFIG through firm validation — the
-	// host-built config must stay valid there
-	body, err := json.Marshal(pkginfo.VNCInfo{GUIApp: &App.GUIPkgInfo})
-	require.NoError(t, err)
-
-	info, err := pkginfo.VNCInfoFromJSON(string(body))
-	require.NoError(t, err)
-	require.NotNil(t, info.GUIApp)
-	assert.Equal(t, App.GUIPkgInfo, *info.GUIApp)
+// App is a declaration — the firm rules are its spec; this is its check
+func TestApp_Valid(t *testing.T) {
+	assert.Nil(t, firm.ValidateAny(App).ToNil())
 }

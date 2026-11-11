@@ -8,13 +8,13 @@ import (
 	"path/filepath"
 	"text/template"
 
-	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/scratch"
 	"github.com/s12chung/ccbox/pkg/util/seed"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 // SafeSeedAgentsMd seeds the shared AGENTS docs when missing: the ccbox-admin variant empty
@@ -50,7 +50,7 @@ func AgentsMd(cliName string, isNoProxy bool) scratch.Binder {
 // AgentsMdScratchMount is the CLI's scratch copy's container path:
 // <ContainerHome>/.ccbox/tmp/agents/<cli_name>/AGENTS.md
 func AgentsMdScratchMount(cliName string) string {
-	return path.Join(cfg.ContainerHome, ".ccbox", "tmp", "agents", cliName, AgentsMdFileName)
+	return path.Join(pkginfo.ContainerHome, ".ccbox", "tmp", "agents", cliName, AgentsMdFileName)
 }
 
 // agentsMdSource is the final AGENTS.md, symlinked from the scratch at

@@ -16,6 +16,9 @@ const (
 	// EnvVar is the container env var carrying a coding CLI's PkgInfo JSON.
 	EnvVar = "CLI_PKGINFO"
 
+	// ContainerHome is the container user's home: the mount targets' root within the container.
+	ContainerHome = "/home/ccbox"
+
 	// ProxyMount is the container's binded read-only dir for the proxy
 	ProxyMount = "/etc/ccbox/proxy"
 	// ProxyAllowFile tinyproxy's baked conf points at allow file

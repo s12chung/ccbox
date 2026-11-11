@@ -554,7 +554,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 		vncConfig, err := Load(dir, Config{}, true)
 		require.NoError(t, err)
 		assert.True(t, vncConfig.ServeVNC())
-		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.AllowDomains), vncConfig.AllowlistExpanded())
+		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), vncConfig.AllowlistExpanded())
 	})
 
 	t.Run("enabled pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
@@ -563,7 +563,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 		c, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
 		assert.True(t, c.ServeVNC())
-		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.AllowDomains), c.AllowlistExpanded())
+		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), c.AllowlistExpanded())
 	})
 }
 
@@ -632,6 +632,27 @@ func TestVNC_InfoJSON(t *testing.T) {
 		body, err := v.InfoJSON()
 		require.NoError(t, err)
 		assert.JSONEq(t, `{}`, body)
+	})
+}
+
+func TestConfig_GUIApp(t *testing.T) {
+	t.Run("the vnc section's gui app resolves", func(t *testing.T) {
+		c, err := Load(t.TempDir(), Config{VNC: &VNC{GUIAppName: guiapp.App.Name}}, true)
+		require.NoError(t, err)
+
+		app := c.GUIApp()
+		assert.Equal(t, &guiapp.App, app)
+	})
+
+	t.Run("no vnc section or an empty gui app name names none", func(t *testing.T) {
+		for _, vnc := range []*VNC{nil, {}} {
+			for _, vncFlag := range []bool{false, true} {
+				c, err := Load(t.TempDir(), Config{VNC: vnc}, vncFlag)
+				require.NoError(t, err)
+
+				assert.Nil(t, c.GUIApp())
+			}
+		}
 	})
 }
 

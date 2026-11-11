@@ -86,8 +86,10 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	assert.True(t, options.ServeVNC)
 	assert.Nil(t, options.Proxy)
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env is set even without a vnc config section")
+	assert.Equal(t, "/home/ccbox/.zcode/v2/credential-secret", options.Env["ZCODE_CREDENTIAL_SECRET_FILE"],
+		"the desktop run's container env carries the GUI app's env")
 	expanded := config.AllowlistExpanded()
-	for _, d := range guiapp.App.AllowDomains {
+	for _, d := range guiapp.App.Setup.Proxied.AllowDomains {
 		assert.Containsf(t, expanded, d, "the GUI app's download domain is allowlisted via the harness alias")
 	}
 }
@@ -162,7 +164,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	s := slug.Path(projectDir)
 
 	// the composite order: the workspace and host dirs, the shared volumes, then the
-	// config's masks and per-CLI binds, then the shared agents doc's scratch bind
+	// config's masks and per-app binds, then the shared agents doc's scratch bind
 	assert.Equal(t, []docker.Mount{
 		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(home, ".ccbox", "codex"), "/home/ccbox/.codex"),
@@ -241,7 +243,7 @@ func TestRunMap_Env(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("DISABLE_AUTOUPDATER", "0")
-	vnc := &cfg.VNC{GUIAppName: guiapp.App.Name}
+	vnc := &cfg.VNC{GUIAppName: guiapp.App.Name, Enabled: true}
 	rm := testRunMap(t, cfg.Config{
 		CLIName:    new("claude"),
 		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN", "DISABLE_AUTOUPDATER"},
@@ -254,6 +256,7 @@ func TestRunMap_Env(t *testing.T) {
 	require.NoError(t, err)
 	vncInfo, err := vnc.InfoJSON()
 	require.NoError(t, err)
+	//nolint:gosec // the map carries env var names, not credentials
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", // from CLI.yaml
 		"DISABLE_AUTOUPDATER":                      "0", // forwarded, overrides CLI.yaml's from above
@@ -262,6 +265,7 @@ func TestRunMap_Env(t *testing.T) {
 		pkginfo.EnvVar:                             pkgInfo,
 		pkginfo.VNCConfigEnvVar:                    vncInfo,
 		"GH_TOKEN":                                 "tok",
+		"ZCODE_CREDENTIAL_SECRET_FILE":             "/home/ccbox/.zcode/v2/credential-secret", // from the GUI app
 	}, env)
 }
 

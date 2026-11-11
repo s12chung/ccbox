@@ -15,9 +15,10 @@ import (
 
 // Modes for the files and directories ccbox writes.
 const (
-	Dir      os.FileMode = 0o755 // directories
-	File     os.FileMode = 0o644 // regular files
-	ExecFile os.FileMode = 0o755 // executable files (e.g. shell scripts)
+	Dir        os.FileMode = 0o755 // directories
+	File       os.FileMode = 0o644 // regular files
+	ExecFile   os.FileMode = 0o755 // executable files (e.g. shell scripts)
+	SecretFile os.FileMode = 0o600 // secret files, owner-only
 )
 
 // Missing returns whether path does not exist
@@ -131,6 +132,31 @@ func ExpandHome(path, home string) string {
 		return path
 	}
 	return filepath.Join(home, strings.TrimPrefix(path, "~"))
+}
+
+// PruneImplied drops each dir implied by a deeper one and duplicate dirs.
+// It requires sorted dirs and compacts in place.
+func PruneImplied(dirs []string) []string {
+	if len(dirs) < 2 {
+		return dirs
+	}
+	out := dirs[:0]
+	// possible is the first index a deeper dir could still sit at
+	possible := 0
+	for i, dir := range dirs {
+		// dir+"/" marks a deeper dir's ("/a/" + "deeper"): shift possible up until it's possible again
+		for possible < len(dirs) && dirs[possible] < dir+"/" {
+			possible++
+		}
+		if possible < len(dirs) && strings.HasPrefix(dirs[possible], dir+"/") {
+			continue // matches possible prefix, skip
+		}
+		if i > 0 && dir == dirs[i-1] { // sorted: duplicates are adjacent
+			continue
+		}
+		out = append(out, dir)
+	}
+	return out
 }
 
 // BlockedCloser wraps f with a no-op Close: for files that must outlive whoever

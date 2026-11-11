@@ -55,7 +55,7 @@ func resetAll(t *testing.T) string {
 }
 
 const userCliYAML = "npm:\n  package: mycli\n\nconfig_home_mount: \".mycli\"\n\n" +
-	"cmd: \"mycli\"\ncontinue_args: \"-c\"\nresume_args: \"--resume\"\n\nallow_domains:\n  - mycli.dev\n"
+	"cmd: \"mycli\"\ncontinue_args: \"-c\"\nresume_args: \"--resume\"\n\nsetup:\n  proxied:\n    allow_domains:\n      - mycli.dev\n"
 
 // writeUserCli writes a user cli at dir/clis/<name> like the embedded clis tree:
 // CLI.yaml plus optional config files under config/.
@@ -79,10 +79,10 @@ func TestLoadUser(t *testing.T) {
 
 		assert.Equal(t, []string{"claude", "codex", "mycli", "opencode", "pi"}, Names())
 
-		c, ok := For("mycli")
+		c, ok := lookup("mycli")
 		require.True(t, ok)
 		assert.Equal(t, ".mycli", c.ConfigHomeMount)
-		assert.Equal(t, []string{"mycli.dev"}, c.AllowDomains)
+		assert.Equal(t, []string{"mycli.dev"}, c.Setup.Proxied.AllowDomains)
 		assert.True(t, c.IsUserDefined())
 		assert.False(t, MustFor("claude").IsUserDefined())
 	})
@@ -111,11 +111,11 @@ func TestLoadUser(t *testing.T) {
 	// provider.Load() precedes cli.Load() (cmd.root): a user cli may alias user providers
 	t.Run("user provider aliases validate in allow_domains", func(t *testing.T) {
 		dir := resetAll(t)
-		writeUserCli(t, dir, "mycli", userCliYAML+"  - ccbox-myprovider-provider\n", nil)
+		writeUserCli(t, dir, "mycli", userCliYAML+"      - ccbox-myprovider-provider\n", nil)
 		resetUserProviders(t, dir)
 
 		all = mustLoadAll()
-		assert.Equal(t, []string{"mycli.dev", "ccbox-myprovider-provider"}, MustFor("mycli").AllowDomains)
+		assert.Equal(t, []string{"mycli.dev", "ccbox-myprovider-provider"}, MustFor("mycli").Setup.Proxied.AllowDomains)
 	})
 }
 
@@ -142,10 +142,10 @@ func TestLoadUser_OverridesEmbedded(t *testing.T) {
 	assert.Len(t, all, 4)
 	assert.Contains(t, Names(), "claude")
 
-	got, ok := For("claude")
+	got, ok := lookup("claude")
 	require.True(t, ok)
 	assert.Equal(t, ".mycli", got.ConfigHomeMount, "the user cli's spec wins")
-	assert.Equal(t, []string{"mycli.dev"}, got.AllowDomains)
+	assert.Equal(t, []string{"mycli.dev"}, got.Setup.Proxied.AllowDomains)
 	assert.True(t, got.IsUserDefined())
 }
 
@@ -254,31 +254,31 @@ func TestParseCLI_Rejects(t *testing.T) {
 			[]string{"ConfigDirEnvKey.Match"},
 		},
 		{
-			"bad env key", validCliYAML + "env:\n  bad-key: \"1\"\n",
+			"bad env key", validCliYAML + "setup:\n  env:\n    bad-key: \"1\"\n",
 			[]string{"Env", "Match"},
 		},
 		{
-			"empty env value", validCliYAML + "env:\n  FOO: \"\"\n",
+			"empty env value", validCliYAML + "setup:\n  env:\n    FOO: \"\"\n",
 			[]string{"Env", "Present"},
 		},
 		{
-			"bad allow domain", validCliYAML + "allow_domains:\n  - \"https://x.dev\"\n",
+			"bad allow domain", validCliYAML + "setup:\n  proxied:\n    allow_domains:\n      - \"https://x.dev\"\n",
 			[]string{"AllowDomains", "DomainOrAlias"},
 		},
 		{
-			"expansion alias in allow_domains", validCliYAML + "allow_domains:\n  - ccbox-defaults\n",
+			"expansion alias in allow_domains", validCliYAML + "setup:\n  proxied:\n    allow_domains:\n      - ccbox-defaults\n",
 			[]string{"AllowDomains", "DomainOrAlias", "is not a domain or one of " + fmt.Sprintf("%v", quoted(provider.Aliases()))},
 		},
 		{
-			"absolute data bind key", validCliYAML + "data_binds:\n  \"/etc/auth.json\": \"{}\"\n",
+			"absolute data bind key", validCliYAML + "setup:\n  data_binds:\n    \"/etc/auth.json\": \"{}\"\n",
 			[]string{"DataBinds", "Match"},
 		},
 		{
-			"dotdot data bind key", validCliYAML + "data_binds:\n  \"../auth.json\": \"{}\"\n",
+			"dotdot data bind key", validCliYAML + "setup:\n  data_binds:\n    \"../auth.json\": \"{}\"\n",
 			[]string{"DataBinds", "Match"},
 		},
 		{
-			"empty data bind key", validCliYAML + "data_binds:\n  \"\": \"{}\"\n",
+			"empty data bind key", validCliYAML + "setup:\n  data_binds:\n    \"\": \"{}\"\n",
 			[]string{"DataBinds", "Match"},
 		},
 		{
@@ -296,14 +296,14 @@ func TestParseCLI_Rejects(t *testing.T) {
 	}
 }
 
-// TestParseCLI_AllowDomainsAliases parses a CLI.yaml whose allow_domains carry the
+// TestParseCLI_AllowDomainsAliases parses a CLI.yaml whose setup.proxied.allow_domains carry the
 // provider aliases: they validate like domains, expanding later at the config layer.
 func TestParseCLI_AllowDomainsAliases(t *testing.T) {
-	body := validCliYAML + "allow_domains:\n  - mycli.dev\n  - ccbox-anthropic-provider\n  - ccbox-all-providers\n"
+	body := validCliYAML + "setup:\n  proxied:\n    allow_domains:\n      - mycli.dev\n      - ccbox-anthropic-provider\n      - ccbox-all-providers\n"
 
 	c, err := parseCLI("mycli", []byte(body), false)
 	require.NoError(t, err)
-	assert.Equal(t, []string{"mycli.dev", "ccbox-anthropic-provider", "ccbox-all-providers"}, c.AllowDomains)
+	assert.Equal(t, []string{"mycli.dev", "ccbox-anthropic-provider", "ccbox-all-providers"}, c.Setup.Proxied.AllowDomains)
 }
 
 // quoted renders each string like firm's OneOf error does
@@ -315,14 +315,14 @@ func quoted(strs []string) []string {
 	return out
 }
 
-func TestFor(t *testing.T) {
+func TestLookup(t *testing.T) {
 	for _, want := range All() {
-		got, ok := For(want.Name)
+		got, ok := lookup(want.Name)
 		assert.True(t, ok, want.Name)
 		assert.Equal(t, want, got)
 	}
 
-	got, ok := For("emacs")
+	got, ok := lookup("emacs")
 	assert.False(t, ok, "unknown name")
 	assert.Zero(t, got)
 }
@@ -398,32 +398,32 @@ func TestEnv(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 		"DISABLE_AUTOUPDATER":                      "1",
-	}, MustFor("claude").Env)
+	}, MustFor("claude").Setup.Env)
 
 	assert.Equal(t, "CODEX_HOME", *MustFor("codex").ConfigDirEnvKey)
-	assert.Empty(t, MustFor("codex").Env)
+	assert.Empty(t, MustFor("codex").Setup.Env)
 
 	assert.Nil(t, MustFor("opencode").ConfigDirEnvKey)
-	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Env)
+	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Setup.Env)
 
 	assert.Nil(t, MustFor("pi").ConfigDirEnvKey)
-	assert.Equal(t, map[string]string{"PI_SKIP_VERSION_CHECK": "1"}, MustFor("pi").Env)
+	assert.Equal(t, map[string]string{"PI_SKIP_VERSION_CHECK": "1"}, MustFor("pi").Setup.Env)
 }
 
 func TestCLI_CLIDataBinds(t *testing.T) {
 	authJSON := "{}"
 	assert.Equal(t,
 		map[string]*string{".local/share/opencode/auth.json": &authJSON},
-		MustFor("opencode").DataBinds)
+		MustFor("opencode").Setup.DataBinds)
 
 	for _, name := range []string{"claude", "codex", "pi"} {
-		assert.Emptyf(t, MustFor(name).DataBinds, "%s has no data binds", name)
+		assert.Emptyf(t, MustFor(name).Setup.DataBinds, "%s has no data binds", name)
 	}
 }
 
 func TestAllowDomains_Valid(t *testing.T) {
 	for _, c := range All() {
-		for _, d := range c.AllowDomains {
+		for _, d := range c.Setup.Proxied.AllowDomains {
 			assert.Nilf(t, firm.Value[string](firmrule.DomainOrAlias(provider.Aliases)).Validate(d).ToNil(), "%s: %s", c.Name, d)
 		}
 	}

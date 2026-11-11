@@ -8,11 +8,6 @@ npm:
 config_home_mount: ".claude"
 config_dir_env_key: "CLAUDE_CONFIG_DIR"
 
-# Off-switches for self-update and background traffic
-env:
-  CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
-  DISABLE_AUTOUPDATER: "1"
-
 # CLIs that sandbox themselves with bubblewrap are buggy in this container without root —
 # pass their no-sandbox flag (see codex). claude needs none.
 cmd: "claude"
@@ -21,10 +16,18 @@ cmd: "claude"
 continue_args: "-c"
 resume_args: "--resume"
 
-# Egress wall allowlist — every domain the CLI hits, incl. login and telemetry.
-allow_domains:
-  - ccbox-anthropic-provider
-  - platform.claude.com
-  - mcp-proxy.anthropic.com
-  - statsig.anthropic.com
-  - sentry.io
+setup:
+  # Off-switches for self-update and background traffic
+  env:
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1"
+    DISABLE_AUTOUPDATER: "1"
+
+  # Egress wall section — setup'd on proxied runs alone
+  proxied:
+    # Every domain the CLI hits, incl. login and telemetry.
+    allow_domains:
+      - ccbox-anthropic-provider
+      - platform.claude.com
+      - mcp-proxy.anthropic.com
+      - statsig.anthropic.com
+      - sentry.io

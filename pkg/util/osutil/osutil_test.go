@@ -3,6 +3,7 @@ package osutil
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -234,6 +235,61 @@ func TestExpandHome(t *testing.T) {
 	assert.Equal(t, "/abs/x", ExpandHome("/abs/x", "/home/me"))
 	assert.Equal(t, "relative/x", ExpandHome("relative/x", "/home/me"))
 	assert.Equal(t, "~x", ExpandHome("~x", "/home/me"), "only the ~/ prefix resolves")
+}
+
+func TestPruneImplied(t *testing.T) {
+	tests := []struct {
+		name string
+		dirs []string
+		want []string
+	}{
+		{
+			name: "a deeper dir implies its ancestors",
+			dirs: []string{"/a", "/a/b", "/a/b/c"},
+			want: []string{"/a/b/c"},
+		},
+		{
+			name: "deeper siblings imply their shared ancestors, unrelated dirs stay",
+			dirs: []string{
+				"/home/x/.config/mycli", "/home/x/.config/mycli/sub", "/home/x/.config/mycli/sub/deep",
+				"/home/x/.other", "/home/x/.zcode/v2",
+			},
+			want: []string{"/home/x/.config/mycli/sub/deep", "/home/x/.other", "/home/x/.zcode/v2"},
+		},
+		{
+			name: "a string prefix is not a path prefix",
+			dirs: []string{"/a/b", "/a/bc"},
+			want: []string{"/a/b", "/a/bc"},
+		},
+		{
+			name: "a string-prefix sibling between an ancestor and its deeper dir doesn't save the ancestor",
+			dirs: []string{"/a", "/a-b", "/a/x"},
+			want: []string{"/a-b", "/a/x"},
+		},
+		{
+			name: "a string-prefix sibling of a kept dir is kept too",
+			dirs: []string{"/a/x", "/a/x!", "/a/y"},
+			want: []string{"/a/x", "/a/x!", "/a/y"},
+		},
+		{
+			name: "duplicates drop around implied dirs",
+			dirs: []string{"/a", "/a", "/a/b", "/a/b", "/a/c", "/a/c"},
+			want: []string{"/a/b", "/a/c"},
+		},
+		{
+			name: "a lone dir returns as-is",
+			dirs: []string{"/a/b"},
+			want: []string{"/a/b"},
+		},
+		{"no dirs", nil, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := PruneImplied(tt.dirs)
+			assert.Equal(t, tt.want, got)
+			assert.True(t, slices.IsSorted(got), "the output stays sorted")
+		})
+	}
 }
 
 func TestBlockedCloser(t *testing.T) {

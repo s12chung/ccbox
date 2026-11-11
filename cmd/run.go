@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -65,7 +66,7 @@ func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() er
 	presentPathsSnapshot := config.ReadOnlyPathsPresent()
 	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
-	if err := seedRunMounts(userdir.Dir()); err != nil {
+	if err := seedRunMounts(userdir.Dir(), proxyOptions == nil); err != nil {
 		return docker.RunOptions{}, nil, err
 	}
 
@@ -102,24 +103,37 @@ func warnCreatedGuardMounts(presentMasksBefore, presentPathsBefore []string) {
 }
 
 // seedRunMounts seeds the run mounts in userDir
-func seedRunMounts(userDir string) error {
+func seedRunMounts(userDir string, noProxy bool) error {
 	c := config.CLI()
 	if err := seed.IfNotExist(clitmpl.UserCLIConfigSeedFS(c.Name, c.IsUserDefined()), cli.UserConfigDir(c.Name)); err != nil {
 		return err
 	}
-	return safeSeedCLIDataBinds(userDir, c)
+	if err := seedDataBinds(dmap.CLIDataDir(userDir, c.Name), c.Setup.DataBindSeedMap(false), osutil.File); err != nil {
+		return err
+	}
+	app := config.GUIApp()
+	if app == nil {
+		return nil
+	}
+	return seedDataBinds(dmap.GUIAppDataDir(userDir, app.Name, noProxy), app.Setup.DataBindSeedMap(noProxy), osutil.SecretFile)
 }
 
-// safeSeedCLIDataBinds seeds cli's data binds under userDir/data/<cli_name>
-func safeSeedCLIDataBinds(userDir string, c cli.CLI) error {
-	for key, content := range c.DataBinds {
-		host := dmap.CLIDataBindPath(userDir, c.Name, key)
+// seedDataBinds seeds a DataBindSeedMap under its dataDir: nil content mkdirs the
+// host dir, content seeds a file, chmod'd fileMode
+func seedDataBinds(dataDir string, seedMap map[string]*string, fileMode os.FileMode) error {
+	for hostPath, content := range seedMap {
+		host := filepath.Join(dataDir, hostPath)
 		if content == nil {
 			if err := os.MkdirAll(host, osutil.Dir); err != nil {
 				return err
 			}
-		} else if err := seed.SafeFile(host, []byte(*content)); err != nil {
-			return err
+		} else {
+			if err := seed.SafeFile(host, []byte(*content)); err != nil {
+				return err
+			}
+			if err := os.Chmod(host, fileMode); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

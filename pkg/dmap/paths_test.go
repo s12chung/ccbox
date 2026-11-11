@@ -9,9 +9,14 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
-func TestCLIDataBindPath(t *testing.T) {
-	assert.Equal(t, "/home/me/.ccbox/data/opencode/.local-share-opencode-auth.json",
-		CLIDataBindPath("/home/me/.ccbox", "opencode", ".local/share/opencode/auth.json"))
+func TestCLIDataDir(t *testing.T) {
+	assert.Equal(t, "/home/me/.ccbox/data/opencode", CLIDataDir("/home/me/.ccbox", "opencode"))
+}
+
+func TestGUIAppDataDir(t *testing.T) {
+	assert.Equal(t, "/home/me/.ccbox/data/zcode/proxy", GUIAppDataDir("/home/me/.ccbox", "zcode", false))
+	assert.Equal(t, "/home/me/.ccbox/data/zcode/no-proxy", GUIAppDataDir("/home/me/.ccbox", "zcode", true),
+		"the modes seed sibling trees, so a proxied seed never leaks into the plain env")
 }
 
 func TestDevboxLogPath(t *testing.T) {

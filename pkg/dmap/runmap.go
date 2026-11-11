@@ -78,17 +78,19 @@ func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	env := mergeempty.Map(cli.Env, forwardEnv(rm.cfg.ForwardEnv))
+	env := mergeempty.Map(cli.Setup.Env, forwardEnv(rm.cfg.ForwardEnv))
 	env = mergeempty.Map(env, map[string]string{pkginfo.EnvVar: pkgInfo})
 	if serveVNC {
 		body, err := rm.vncCfg().InfoJSON()
 		if err != nil {
 			return nil, err
 		}
-		// pkginfo.VNCConfigEnvVar's presence — even `{}` from a config without a vnc section — is the
-		// container's cue to serve the desktop; a headless run sends none, its config's
-		// vnc section left unused, unwarned.
+		// the container serves the desktop whenever pkginfo.VNCConfigEnvVar is set —
+		// even with the `{}` a config without a vnc section sends
 		env[pkginfo.VNCConfigEnvVar] = body
+		if app := rm.cfg.GUIApp(); app != nil {
+			env = mergeempty.Map(env, app.Setup.Env)
+		}
 	}
 	return env, nil
 }

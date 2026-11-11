@@ -31,16 +31,13 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-// ContainerHome is the container user's home: read_only_binds' ~/ mounts sit under it
-const ContainerHome = "/home/ccbox"
-
 // The read_only_binds' gitconfig special entry: the key carries the host's XDG git config
 // dir, and the value mounts it at its default container path
 const (
 	// GitConfigKey is read_only_binds' special key: the host's XDG git config dir
 	GitConfigKey = "gitconfig"
 	// GitConfigMount is the gitconfig entry's container mount (git's default XDG path)
-	GitConfigMount = ContainerHome + "/.config/git"
+	GitConfigMount = pkginfo.ContainerHome + "/.config/git"
 )
 
 // Config is the parsed .ccbox.yaml.
@@ -109,12 +106,22 @@ func init() {
 // ProjectDir is the project dir the config was loaded from
 func (c *Config) ProjectDir() string { return c.projectDir }
 
-// ServeVNC is the resolved run mode: the --vnc flag or the vnc section's enabled
+// ServeVNC is the resolved run mode: the --vnc flag or the vnc section's enabled —
+// vncFlag && c.VNC == nil -> default as if c.VNC.Enabled with no app
 func (c *Config) ServeVNC() bool { return c.serveVNC }
 
 // CLI resolves the config's cli name to its cli.CLI; MustFor is
 // infallible for a loaded config
 func (c *Config) CLI() cli.CLI { return cli.MustFor(*c.CLIName) }
+
+// GUIApp resolves the run's GUI app: nil on a headless run, without a vnc
+// section, or one naming no gui_app; MustFor is infallible for a loaded config
+func (c *Config) GUIApp() *guiapp.GUIApp {
+	if !c.ServeVNC() || c.VNC == nil {
+		return nil
+	}
+	return guiapp.MustFor(c.VNC.GUIAppName)
+}
 
 // merge layers other onto c, resetting the expanded caches
 func (c *Config) merge(other Config) {
@@ -223,7 +230,7 @@ func (c *Config) ReadOnlyBindsExpanded() map[string]string {
 				},
 			},
 			func(key, mount string) (string, string) { // ~/ resolves to their own side's home
-				return osutil.ExpandHome(key, userdir.MustHome()), osutil.ExpandHome(mount, ContainerHome)
+				return osutil.ExpandHome(key, userdir.MustHome()), osutil.ExpandHome(mount, pkginfo.ContainerHome)
 			},
 		)
 	}
@@ -253,10 +260,10 @@ func (c *Config) AllowlistExpanded() []string {
 // domains on a vnc load — only a desktop run downloads the app.
 func (c *Config) SetHarnessDomains() []string {
 	var domains []string
-	for _, d := range c.CLI().AllowDomains {
+	for _, d := range c.CLI().Setup.Proxied.AllowDomains {
 		domains = append(domains, expandDomain(d)...)
 	}
-	if c.serveVNC && c.VNC != nil {
+	if c.ServeVNC() && c.VNC != nil {
 		domains = append(domains, guiapp.AllowDomains(c.VNC.GUIAppName)...)
 	}
 	return domains
@@ -327,11 +334,7 @@ func (c *Config) MarshalYAML() (any, error) {
 // installs and launches
 func (v *VNC) InfoJSON() (string, error) {
 	var info pkginfo.VNCInfo
-	if v.GUIAppName != "" {
-		app, err := guiapp.For(v.GUIAppName)
-		if err != nil {
-			return "", err
-		}
+	if app := guiapp.MustFor(v.GUIAppName); app != nil {
 		info.GUIApp = &app.GUIPkgInfo
 	}
 	body, err := json.Marshal(info)

@@ -27,8 +27,8 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
+	"github.com/s12chung/ccbox/pkg/models/app"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
-	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mapx"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -119,22 +119,14 @@ type CLI struct {
 	// (e.g. CLAUDE_CONFIG_DIR), set per run by pkg/docker.
 	ConfigDirEnvKey *string `yaml:"config_dir_env_key"`
 
-	// Env is fixed container env the CLI requires (updater/traffic toggles), merged into
-	// every run of this CLI.
-	Env map[string]string `yaml:"env"`
-
 	// Cmd is the launch argv prefix; ContinueArgs/ResumeArgs extend it for the
 	// run flags (-c/--resume) in each CLI's own session syntax.
 	Cmd          string `yaml:"cmd"`
 	ContinueArgs string `yaml:"continue_args"`
 	ResumeArgs   string `yaml:"resume_args"`
 
-	// AllowDomains are the egress wall domains this CLI talks to.
-	AllowDomains []string `yaml:"allow_domains"`
-
-	// DataBinds binds host per-CLI data (~/.ccbox/data/<cli>/<path-slug>) into the container.
-	// Key is a $HOME-relative path (file or dir); value is seed content for files, nil for dirs.
-	DataBinds map[string]*string `yaml:"data_binds"`
+	// Setup is what ccbox sets up for this CLI in the container, shared with GUIApp's
+	Setup app.Setup `yaml:"setup"`
 }
 
 func init() {
@@ -148,15 +140,7 @@ func init() {
 
 			"ConfigHomeMount": {firmrule.HomePath},
 			"ConfigDirEnvKey": {firmrule.EnvVar},
-			"Env": {
-				firm.Keys[map[string]string](firmrule.EnvVar),
-				firm.Values[map[string]string](rule.Present{}),
-			},
-			"AllowDomains": {firm.Elems[[]string](firmrule.DomainOrAlias(provider.Aliases))},
-
-			// MaskDir over HomePath: keys are $HOME-relative paths, and MaskDir's
-			// no-leading-".." also bars path.Join escapes out of the home dir
-			"DataBinds": {firm.Keys[map[string]*string](firmrule.MaskDir)},
+			"Setup":           {firm.Backed()},
 		}))
 }
 
@@ -172,13 +156,13 @@ func (c CLI) PkgInfoJSON() (string, error) {
 	return string(body), nil
 }
 
-// For looks up the CLI by name. ok is false for an unknown name.
-func For(name string) (CLI, bool) { return mapx.Get(all, name) }
+// lookup finds the CLI by name. ok is false for an unknown name.
+func lookup(name string) (CLI, bool) { return mapx.Get(all, name) }
 
-// MustFor is For for names already validated (cfg.Load rejects unknown
+// MustFor resolves a name already validated (cfg.Load rejects unknown
 // cli values); it panics on an unknown name.
 func MustFor(name string) CLI {
-	c, ok := For(name)
+	c, ok := lookup(name)
 	if !ok {
 		panic(fmt.Sprintf("cli: unknown cli %q", name))
 	}

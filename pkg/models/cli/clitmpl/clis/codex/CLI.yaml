@@ -10,6 +10,8 @@ cmd: "codex --sandbox danger-full-access"
 continue_args: "resume --last"
 resume_args: "resume"
 
-allow_domains:
-  - ccbox-openai-provider
-  - chatgpt.com
+setup:
+  proxied:
+    allow_domains:
+      - ccbox-openai-provider
+      - chatgpt.com

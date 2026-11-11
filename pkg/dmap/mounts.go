@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/cli"
@@ -21,7 +20,7 @@ import (
 
 // miseDataMount is the user mise data dir's container path, tmpfs-masked so ad-hoc
 // `mise use` installs die with the run instead of persisting to shadow the system installs
-const miseDataMount = cfg.ContainerHome + "/.local/share/mise"
+const miseDataMount = pkginfo.ContainerHome + "/.local/share/mise"
 
 // tmpfsMasks maps each project-relative dir to its masked container path.
 func tmpfsMasks(projectDir string, relDirs []string) []string {
@@ -49,7 +48,7 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 	return slices.Concat(
 		[]docker.Mount{
 			docker.NewBind(projectDir, workspaceMount(projectDir)),
-			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(cfg.ContainerHome, c.ConfigHomeMount)),
+			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(pkginfo.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
 		proxyAllowBinds(noProxy),
@@ -58,7 +57,8 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
-		cliDataBinds(userdir.Dir(), c),
+		dataBinds(CLIDataDir(userdir.Dir(), c.Name), c.Setup.DataBindMounts(true)),
+		rm.guiAppDataBinds(noProxy),
 		cliScratchBind(scratchBind.HostPath, scratchBind.ContainerPath),
 	), clean, nil
 }
@@ -118,20 +118,24 @@ func readOnlyBinds(binds map[string]string) []docker.Mount {
 	return mounts
 }
 
-// cliDataBinds renders cli's data binds as binds under the container home, sorted for a
-// deterministic spec.
-func cliDataBinds(userDir string, c cli.CLI) []docker.Mount {
-	binds := make(map[string]string, len(c.DataBinds))
-	for key := range c.DataBinds {
-		host := CLIDataBindPath(userDir, c.Name, key)
-		binds[host] = key
+// guiAppDataBinds renders the run's GUI app's data binds like the cli's — none
+// without a run naming one; the host side is the run's own mode tree
+func (rm *RunMap) guiAppDataBinds(noProxy bool) []docker.Mount {
+	app := rm.cfg.GUIApp()
+	if app == nil {
+		return nil
 	}
+	return dataBinds(GUIAppDataDir(userdir.Dir(), app.Name, noProxy), app.Setup.DataBindMounts(noProxy))
+}
 
-	dataBinds := make([]docker.Mount, 0, len(binds))
-	for _, host := range slices.Sorted(maps.Keys(binds)) {
-		dataBinds = append(dataBinds, docker.NewBind(host, path.Join(cfg.ContainerHome, binds[host])))
+// dataBinds renders an app's data bind mounts (host path → container path) as
+// binds under its data dir, sorted for a deterministic spec
+func dataBinds(dataDir string, mounts map[string]string) []docker.Mount {
+	out := make([]docker.Mount, 0, len(mounts))
+	for _, hostPath := range slices.Sorted(maps.Keys(mounts)) {
+		out = append(out, docker.NewBind(filepath.Join(dataDir, hostPath), path.Join(pkginfo.ContainerHome, mounts[hostPath])))
 	}
-	return dataBinds
+	return out
 }
 
 // cliScratchBind binds the shared doc's scratch file at its container mount; the cliFile

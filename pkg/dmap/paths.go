@@ -3,15 +3,22 @@ package dmap
 import (
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-// CLIDataBindPath is a data bind's shared host path: userDir/data/<cli_name>/<slug-of-key>
-func CLIDataBindPath(userDir, cliName, key string) string {
-	return filepath.Join(userDir, "data", cliName, slug.Path(key))
+// CLIDataDir is a cli's data dir: userDir/data/<cli_name>; its binds' flattened
+// refs sit under it.
+func CLIDataDir(userDir, cliName string) string { return filepath.Join(userDir, "data", cliName) }
+
+// GUIAppDataDir is a gui app's data dir: userDir/data/<app_name>/<mode> — each mode
+// seeds and mounts its own tree, so a proxied seed never leaks into the plain env.
+func GUIAppDataDir(userDir, appName string, noProxy bool) string {
+	mode := "proxy"
+	if noProxy {
+		mode = "no-proxy"
+	}
+	return filepath.Join(userDir, "data", appName, mode)
 }
 
 // devboxHoldersDir is the devbox's holder flock dir on the host, keyed by its name
@@ -39,5 +46,5 @@ func proxyLogPath(serveVNC bool) string {
 
 // workspaceMount is the in-container workspace path: the WorkingDir and bind target for the project dir.
 func workspaceMount(projectDir string) string {
-	return filepath.Join(cfg.ContainerHome, filepath.Base(projectDir))
+	return filepath.Join(pkginfo.ContainerHome, filepath.Base(projectDir))
 }

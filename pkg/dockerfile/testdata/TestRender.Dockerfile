@@ -66,7 +66,7 @@ RUN rm -rf /root/.cache /root/.npm /tmp; mkdir -m 1777 /tmp; \
 # hadolint ignore=DL3066
 USER ccbox
 
-# data_bind_dirs pre-creates harness CLI mountpoints so their named volumes inherit uid 1000 (else root-owned, unwritable)
+# data_bind_dirs pre-creates the apps' mountpoints so their named volumes inherit uid 1000 (else root-owned, unwritable)
 ARG data_bind_dirs=""
 # Pre-created dirs let the named volumes mapped onto them inherit uid 1000;
 # safe.directory handles repos owned by a non-matching host user - https://github.blog/open-source/git/git-security-vulnerability-announced/

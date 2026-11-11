@@ -5,11 +5,11 @@ import (
 	"io/fs"
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/scratch"
 	"github.com/s12chung/ccbox/pkg/util/slug"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 //go:embed seed
@@ -28,6 +28,6 @@ func PersistDir(projectDir string) scratch.Binder {
 			Content:  scratch.Dir{SeedFS: seedFS()},
 			Sync:     scratch.Direct{},
 		},
-		BindPath: cfg.ContainerHome + "/.ccbox/persist",
+		BindPath: pkginfo.ContainerHome + "/.ccbox/persist",
 	}
 }
