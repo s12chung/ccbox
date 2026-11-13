@@ -53,6 +53,38 @@ func TestAll_AptBuildDepsDisjointFromAptPkgs(t *testing.T) {
 	}
 }
 
+// TestData_Corroborates cross-checks the image-state fields against each other:
+// the data is handwritten, so a stale dir should fail here, not the image build.
+func TestAll_Data_Corroborates(t *testing.T) {
+	for _, r := range All() {
+		t.Run(r.Name, func(t *testing.T) {
+			dirs := slices.Concat(r.CacheVolumes, r.BinEntries)
+
+			// every env'd path is a cache volume or PATH entry: the volumes seed what the env points at
+			for k, v := range r.EnvVars {
+				if !strings.HasPrefix(v, containerHome+"/") {
+					continue // not per-project state (NPM_CONFIG_UPDATE_NOTIFIER=false, RUSTUP_HOME system-side)
+				}
+				assert.Containsf(t, dirs, v, "%s points outside the runtime's dirs", k)
+			}
+
+			// PATH entries hang off a cache volume: the volume seeds the bin dir
+			for _, bin := range r.BinEntries {
+				derived := slices.ContainsFunc(r.CacheVolumes, func(v string) bool { return v == bin || v+"/bin" == bin })
+				assert.Truef(t, derived, "%s hangs off no cache volume", bin)
+			}
+		})
+	}
+}
+
+func TestAll_Domains_Valid(t *testing.T) {
+	for _, r := range All() {
+		for _, d := range r.Domains {
+			assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s: %s", r.Name, d)
+		}
+	}
+}
+
 func TestAllCacheVolumes(t *testing.T) {
 	var want []string
 	for _, r := range All() {
@@ -81,36 +113,4 @@ func TestDomainsFor(t *testing.T) {
 			assert.Falsef(t, ok, "%q is no alias", alias)
 		}
 	})
-}
-
-// TestData_Corroborates cross-checks the image-state fields against each other:
-// the data is handwritten, so a stale dir should fail here, not the image build.
-func TestData_Corroborates(t *testing.T) {
-	for _, r := range All() {
-		t.Run(r.Name, func(t *testing.T) {
-			dirs := slices.Concat(r.CacheVolumes, r.BinEntries)
-
-			// every env'd path is a cache volume or PATH entry: the volumes seed what the env points at
-			for k, v := range r.EnvVars {
-				if !strings.HasPrefix(v, containerHome+"/") {
-					continue // not per-project state (NPM_CONFIG_UPDATE_NOTIFIER=false, RUSTUP_HOME system-side)
-				}
-				assert.Containsf(t, dirs, v, "%s points outside the runtime's dirs", k)
-			}
-
-			// PATH entries hang off a cache volume: the volume seeds the bin dir
-			for _, bin := range r.BinEntries {
-				derived := slices.ContainsFunc(r.CacheVolumes, func(v string) bool { return v == bin || v+"/bin" == bin })
-				assert.Truef(t, derived, "%s hangs off no cache volume", bin)
-			}
-		})
-	}
-}
-
-func TestDomains_Valid(t *testing.T) {
-	for _, r := range All() {
-		for _, d := range r.Domains {
-			assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s: %s", r.Name, d)
-		}
-	}
 }

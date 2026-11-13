@@ -118,15 +118,6 @@ func Aliases() []string {
 	return slices.Sorted(slices.Values(aliases))
 }
 
-// AllDomains concatenates every runtime's domains
-func AllDomains() []string {
-	var domains []string
-	for _, r := range All() {
-		domains = append(domains, r.Domains...)
-	}
-	return domains
-}
-
 // AllCacheVolumes concatenates every runtime's cache volumes
 func AllCacheVolumes() []string {
 	var volumes []string
@@ -134,6 +125,15 @@ func AllCacheVolumes() []string {
 		volumes = append(volumes, r.CacheVolumes...)
 	}
 	return volumes
+}
+
+// AllDomains concatenates every runtime's domains
+func AllDomains() []string {
+	var domains []string
+	for _, r := range All() {
+		domains = append(domains, r.Domains...)
+	}
+	return domains
 }
 
 // DomainsFor resolves an allowlist alias to its runtime's domains — every
