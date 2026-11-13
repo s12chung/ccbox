@@ -31,7 +31,6 @@ var sharedAllowlistDefaults = []string{
 	"bitbucket.org",
 	"codeberg.org",
 	"sourceforge.net",
-	"deb.debian.org",
 
 	// Docker: Hub's registry/auth/CDN subdomains + the other common registries
 	"docker.io",
@@ -42,10 +41,14 @@ var sharedAllowlistDefaults = []string{
 	"mcr.microsoft.com",
 	"registry.k8s.io",
 
-	// Man pages (canonical man text, not cheatsheets)
+	// Debian resources
+	"deb.debian.org",
+	"archive.debian.org",
+
+	// Man pages (canonical man text)
+	"manpages.ubuntu.com",
 	"manpages.debian.org",
 	"man7.org",
 	"man.cx",
 	"linux.die.net",
-	"manpages.ubuntu.com",
 }

@@ -26,5 +26,6 @@ read_only_binds:
 forward_env:
   # - GH_TOKEN
 
-# allowlist: domains the egress wall lets through. Each entry also matches all its subdomains
-allowlist:
+proxy:
+  # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains
+  allowlist:
