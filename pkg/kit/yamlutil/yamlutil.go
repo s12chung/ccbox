@@ -54,18 +54,14 @@ func ReadLayers[T any](paths []string) ([]T, error) {
 	return layers, nil
 }
 
-// ValidatedMerge overlays layers onto a zero T in order — merge folds src into dst, the
-// later layer winning — then firm-validates the result: the many-layers counterpart of
-// ValidatedDecode.
-func ValidatedMerge[T any](layers []T, merge func(dst *T, src T)) (T, error) {
+// MergeLayers overlays layers onto a zero T in order — merge folds src into dst, the
+// later layer winning.
+func MergeLayers[T any](layers []T, merge func(dst *T, src T)) T {
 	var acc T
 	for _, layer := range layers {
 		merge(&acc, layer)
 	}
-	if errMap := firm.ValidateAny(acc); errMap != nil {
-		return acc, errMap
-	}
-	return acc, nil
+	return acc
 }
 
 // decode decodes one yaml body into T, rejecting unknown fields
@@ -135,6 +131,19 @@ func beside(line string, comments []string) (string, error) {
 	default:
 		return line, nil
 	}
+}
+
+// Indent prefixes each non-empty line of s with n spaces — nesting a Value block under
+// an already-indented key.
+func Indent(n int, s string) string {
+	pad := strings.Repeat(" ", n)
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		if line != "" {
+			lines[i] = pad + line
+		}
+	}
+	return strings.Join(lines, "\n")
 }
 
 // besideEntries joins each comment beside its entry line — the block's column-0 lines,

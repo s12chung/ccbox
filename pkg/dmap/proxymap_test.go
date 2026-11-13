@@ -17,8 +17,8 @@ import (
 func TestProxyMap_Options(t *testing.T) {
 	testutil.Home(t)
 	config := &cfg.Config{
-		CLIName:   new("claude"),
-		Allowlist: []string{"user.example.dev", cfg.DefaultsAlias, "example.com"},
+		CLIName: new("claude"),
+		Proxy:   &cfg.Proxy{Enabled: new(true), Allowlist: []string{"user.example.dev", cfg.DefaultsAlias, "example.com"}},
 	}
 	allowContents := allowfile.Render(config.AllowlistExpanded())
 
@@ -54,7 +54,7 @@ func TestProxyMap_Options(t *testing.T) {
 func TestProxyMap_AllowlistDiff(t *testing.T) {
 	testutil.Home(t)
 
-	config := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"new.example.dev", "kept.example.dev"}}
+	config := &cfg.Config{CLIName: new("claude"), Proxy: &cfg.Proxy{Enabled: new(true), Allowlist: []string{"new.example.dev", "kept.example.dev"}}}
 	pm := NewProxyMap(config)
 	fresh := allowfile.Render(config.AllowlistExpanded())
 	changed := func() string {
@@ -66,7 +66,7 @@ func TestProxyMap_AllowlistDiff(t *testing.T) {
 	assert.Equal(t, "+new.example.dev\n+kept.example.dev", changed(),
 		"a missing file diffs from nothing, in bare domains never the file's regex")
 
-	old := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"old.example.dev"}}
+	old := &cfg.Config{CLIName: new("claude"), Proxy: &cfg.Proxy{Allowlist: []string{"old.example.dev"}}}
 	require.NoError(t, NewProxyMap(old).Options().BeforeStart())
 	assert.Equal(t, "-old.example.dev\n+new.example.dev\n+kept.example.dev", changed())
 
@@ -77,10 +77,10 @@ func TestProxyMap_AllowlistDiff(t *testing.T) {
 func TestProxyMap_Options_OnRefresh(t *testing.T) {
 	testutil.Home(t)
 
-	old := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"old.example.dev"}}
+	old := &cfg.Config{CLIName: new("claude"), Proxy: &cfg.Proxy{Allowlist: []string{"old.example.dev"}}}
 	require.NoError(t, NewProxyMap(old).Options().BeforeStart())
 
-	config := &cfg.Config{CLIName: new("claude"), Allowlist: []string{"new.example.dev"}}
+	config := &cfg.Config{CLIName: new("claude"), Proxy: &cfg.Proxy{Allowlist: []string{"new.example.dev"}}}
 	options := NewProxyMap(config).Options()
 	require.NoError(t, options.OnRefresh())
 

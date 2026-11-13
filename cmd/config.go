@@ -128,7 +128,7 @@ var aliasFields = []aliasField{
 	{"tmpfs_masks", cfg.TmpfsDefaults()},
 	{"volume_masks", cfg.VolumeDefaults()},
 	{"read_only_globs", cfg.ReadOnlyDefaults()},
-	{"allowlist", cfg.AllowlistDefaults()},
+	{"proxy.allowlist", cfg.AllowlistDefaults()},
 }
 
 // aliasSections are `ccbox config defaults`' sections: every ccbox- alias's

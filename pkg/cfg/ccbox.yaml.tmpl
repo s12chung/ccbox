@@ -3,9 +3,6 @@
 # cli: which coding CLI the image installs and launches
 cli:{{yaml .CLIName nil}}
 
-# no_proxy: skip the egress wall for direct network access
-no_proxy:{{yaml .NoProxy nil}}
-
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form
@@ -37,9 +34,16 @@ read_only_binds:{{yaml .ReadOnlyBinds nil}}
 forward_env:{{yaml .ForwardEnv nil}}
   # - GH_TOKEN
 
-# allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
-# Run `ccbox config defaults` to see aliases and their expansions.
-allowlist:{{yaml .Allowlist .AllowlistComments}}
-  # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
-  # - ccbox-all-providers # every provider's domains
-  # - example.com
+# proxy: the egress wall's section; a missing section is no proxy unless the user config sets it
+proxy:
+{{- if .Proxy}}
+  enabled:{{yaml .Proxy.Enabled nil}}
+{{- else}}
+  # enabled: false
+{{- end}}
+  # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
+  # Run `ccbox config defaults` to see aliases and their expansions.
+  allowlist:{{yaml .Allowlist .AllowlistComments | indent 2}}
+    # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
+    # - ccbox-all-providers # every provider's domains
+    # - example.com

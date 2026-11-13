@@ -15,6 +15,9 @@ type ExecMode struct {
 	Args     []string // the exec argv (exec), or the resumed session's name (-r)
 }
 
+// IsProxied is the run's egress wall ask in positive form
+func (m ExecMode) IsProxied() bool { return !m.NoProxy }
+
 // ExecMap maps the exec session's mode to the docker pkg exec options
 type ExecMap struct {
 	cli cli.CLI
@@ -23,13 +26,14 @@ type ExecMap struct {
 // NewExecMap returns a new ExecMap
 func NewExecMap(c cli.CLI) *ExecMap { return &ExecMap{cli: c} }
 
-// Options renders the exec session's docker.ExecOptions; noProxy runs plain
-func (em *ExecMap) Options(runOptions docker.RunOptions, mode ExecMode, noProxy bool) docker.ExecOptions {
-	return docker.ExecOptions{RunOptions: runOptions, Cmd: em.cmd(mode, noProxy)}
+// Options renders the exec session's docker.ExecOptions; a plain run skips the
+// wrapper chain
+func (em *ExecMap) Options(runOptions docker.RunOptions, mode ExecMode, isProxied bool) docker.ExecOptions {
+	return docker.ExecOptions{RunOptions: runOptions, Cmd: em.cmd(mode, isProxied)}
 }
 
 // cmd maps the exec mode to the session's argv
-func (em *ExecMap) cmd(mode ExecMode, noProxy bool) []string {
+func (em *ExecMap) cmd(mode ExecMode, isProxied bool) []string {
 	var argv []string
 	if mode.Shell {
 		argv = mode.Args
@@ -39,7 +43,7 @@ func (em *ExecMap) cmd(mode ExecMode, noProxy bool) []string {
 	} else {
 		argv = em.cli.SessionCmd(mode.Continue, mode.Resume, mode.Args)
 	}
-	if noProxy {
+	if !isProxied {
 		return append([]string{"ccboxtools", "exec", "--"}, argv...)
 	}
 	// the container user is root, so the wrapper chain does the session's drop

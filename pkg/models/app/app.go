@@ -55,8 +55,8 @@ func init() {
 }
 
 // binds overlays the proxied data binds onto the plain ones under the egress wall.
-func (s Setup) binds(noProxy bool) map[string]*string {
-	if noProxy {
+func (s Setup) binds(isProxied bool) map[string]*string {
+	if !isProxied {
 		return s.DataBinds
 	}
 	return mergeempty.Map(s.DataBinds, s.Proxied.DataBinds)
@@ -64,8 +64,8 @@ func (s Setup) binds(noProxy bool) map[string]*string {
 
 // DataBindSeedMap is binds re-keyed into the seeds' host paths: the path slugged —
 // nested under a bound dir, the dir's slug joined with the rest of the path as-is.
-func (s Setup) DataBindSeedMap(noProxy bool) map[string]*string {
-	binds := s.binds(noProxy)
+func (s Setup) DataBindSeedMap(isProxied bool) map[string]*string {
+	binds := s.binds(isProxied)
 	out := make(map[string]*string, len(binds))
 	for containerPath, content := range binds {
 		hostPath := slug.Path(containerPath)
@@ -79,8 +79,8 @@ func (s Setup) DataBindSeedMap(noProxy bool) map[string]*string {
 
 // DataBindMounts pairs each bind's host path with its container bind: a seeded
 // file with an ancestor dir mounted is skipped, as the ancestor dir is mounted
-func (s Setup) DataBindMounts(noProxy bool) map[string]string {
-	binds := s.binds(noProxy)
+func (s Setup) DataBindMounts(isProxied bool) map[string]string {
+	binds := s.binds(isProxied)
 	out := make(map[string]string, len(binds))
 	for containerPath, content := range binds {
 		if ancestorPath := ancestorDir(binds, containerPath); content == nil || ancestorPath == "" {
@@ -92,8 +92,8 @@ func (s Setup) DataBindMounts(noProxy bool) map[string]string {
 
 // DataBindContainerDirs lists the dirs to pre-create for the data binds,
 // home-relative — each dir bind itself and each file bind's parent.
-func (s Setup) DataBindContainerDirs(noProxy bool) []string {
-	binds := s.binds(noProxy)
+func (s Setup) DataBindContainerDirs(isProxied bool) []string {
+	binds := s.binds(isProxied)
 	dirs := make([]string, 0, len(binds))
 	for containerPath, content := range binds {
 		if content == nil {

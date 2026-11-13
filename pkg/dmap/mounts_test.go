@@ -48,8 +48,8 @@ func testRunMap(t *testing.T, flags cfg.Config) *RunMap {
 func TestProxyAllowBinds(t *testing.T) {
 	bind := docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly()
 
-	assert.Equal(t, []docker.Mount{bind}, proxyAllowBinds(false))
-	assert.Empty(t, proxyAllowBinds(true))
+	assert.Equal(t, []docker.Mount{bind}, proxyAllowBinds(true))
+	assert.Empty(t, proxyAllowBinds(false))
 }
 
 func TestVolumes(t *testing.T) {
@@ -139,11 +139,11 @@ func TestDataBinds(t *testing.T) {
 				path.Join(pkginfo.ContainerHome, ".local/share/opencode/auth.json")),
 			docker.NewBind(filepath.Join(CLIDataDir(userDir, "opencode"), ".local-share-opencode-sessions.json"),
 				path.Join(pkginfo.ContainerHome, ".local/share/opencode/sessions.json")),
-		}, dataBinds(CLIDataDir(userDir, c.Name), c.Setup.DataBindMounts(true)))
+		}, dataBinds(CLIDataDir(userDir, c.Name), c.Setup.DataBindMounts(false)))
 	})
 
 	t.Run("no binds when the app has none", func(t *testing.T) {
-		assert.Empty(t, dataBinds(CLIDataDir("/home/me/.ccbox", "mycli"), app.Setup{}.DataBindMounts(true)))
+		assert.Empty(t, dataBinds(CLIDataDir("/home/me/.ccbox", "mycli"), app.Setup{}.DataBindMounts(false)))
 	})
 }
 
@@ -157,20 +157,20 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	}
 
 	t.Run("renders the gui app's binds like the cli's — the bound dir carries its seeds", func(t *testing.T) {
-		binds := newVncRunMap(t, guiapp.App.Name).guiAppDataBinds(false)
+		binds := newVncRunMap(t, guiapp.App.Name).guiAppDataBinds(true)
 		assert.Equal(t, []docker.Mount{
 			docker.NewBind(
-				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", false), ".zcode-v2"),
+				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", true), ".zcode-v2"),
 				path.Join(pkginfo.ContainerHome, ".zcode/v2"),
 			),
 		}, binds, "the app's atomic rewrites rename within the bound dir")
 	})
 
 	t.Run("the plain run mounts the no-proxy tree's plain binds", func(t *testing.T) {
-		binds := newVncRunMap(t, guiapp.App.Name).guiAppDataBinds(true)
+		binds := newVncRunMap(t, guiapp.App.Name).guiAppDataBinds(false)
 		assert.Equal(t, []docker.Mount{
 			docker.NewBind(
-				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", true), ".zcode-v2"),
+				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", false), ".zcode-v2"),
 				path.Join(pkginfo.ContainerHome, ".zcode/v2"),
 			),
 		}, binds)
@@ -180,12 +180,12 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 		config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude"), VNC: &cfg.VNC{GUIAppName: guiapp.App.Name}}, false)
 		require.NoError(t, err)
 
-		binds := NewRunMap(config, nil, false).guiAppDataBinds(false)
+		binds := NewRunMap(config, nil, false).guiAppDataBinds(true)
 		assert.Empty(t, binds)
 	})
 
 	t.Run("none without a gui app", func(t *testing.T) {
-		binds := newVncRunMap(t, "").guiAppDataBinds(false)
+		binds := newVncRunMap(t, "").guiAppDataBinds(true)
 		assert.Empty(t, binds)
 	})
 }

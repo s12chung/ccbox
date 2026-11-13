@@ -3,9 +3,6 @@
 # cli: which coding CLI the image installs and launches
 cli: claude
 
-# no_proxy: skip the egress wall for direct network access
-no_proxy: false
-
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form
@@ -43,12 +40,15 @@ forward_env:
   - COLORTERM
   # - GH_TOKEN
 
-# allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
-# Run `ccbox config defaults` to see aliases and their expansions.
-allowlist:
-  - ccbox-defaults # shared tooling domains
-  - ccbox-all-runtimes # every runtime's domains (node, python, go, rust)
-  - ccbox-set-harness # the selected CLI's — and on --vnc, the GUI app's
-  # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
-  # - ccbox-all-providers # every provider's domains
-  # - example.com
+# proxy: the egress wall's section; a missing section is no proxy unless the user config sets it
+proxy:
+  enabled: true
+  # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
+  # Run `ccbox config defaults` to see aliases and their expansions.
+  allowlist:
+    - ccbox-defaults # shared tooling domains
+    - ccbox-all-runtimes # every runtime's domains (node, python, go, rust)
+    - ccbox-set-harness # the selected CLI's — and on --vnc, the GUI app's
+    # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
+    # - ccbox-all-providers # every provider's domains
+    # - example.com

@@ -23,8 +23,8 @@ func NewRunMap(cfg *cfg.Config, cacheVolumes []string, tagByProject bool) *RunMa
 
 // RunOptions renders the run's full docker.RunOptions; nil proxyOptions runs plain
 func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
-	serveVNC, noProxy := rm.cfg.ServeVNC(), proxyOptions == nil
-	hostOptions, clean, err := rm.HostOptions(serveVNC, noProxy)
+	serveVNC, isProxied := rm.cfg.ServeVNC(), proxyOptions != nil
+	hostOptions, clean, err := rm.HostOptions(serveVNC, isProxied)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
@@ -33,7 +33,7 @@ func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (doc
 		return docker.RunOptions{}, clean, err
 	}
 
-	name := devboxName(rm.cfg.ProjectDir(), serveVNC, noProxy)
+	name := devboxName(rm.cfg.ProjectDir(), serveVNC, isProxied)
 	return docker.RunOptions{
 		RunHostOptions: hostOptions,
 		Name:           name,
@@ -42,15 +42,15 @@ func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (doc
 		Proxy:          proxyOptions,
 		ServeVNC:       serveVNC,
 		HoldersDir:     devboxHoldersDir(name),
-		LogFile:        devboxLogPath(serveVNC, noProxy),
+		LogFile:        devboxLogPath(serveVNC, isProxied),
 	}, clean, nil
 }
 
 // HostOptions renders the run's host options for docker.Run; vnc mounts the
 // GUI app's install volume, which seeds from the desktop variant's image.
-func (rm *RunMap) HostOptions(serveVNC, noProxy bool) (docker.RunHostOptions, func() error, error) {
+func (rm *RunMap) HostOptions(serveVNC, isProxied bool) (docker.RunHostOptions, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
-	binds, clean, err := rm.binds(serveVNC, noProxy)
+	binds, clean, err := rm.binds(serveVNC, isProxied)
 	if err != nil {
 		return docker.RunHostOptions{}, clean, err
 	}
@@ -63,14 +63,6 @@ func (rm *RunMap) HostOptions(serveVNC, noProxy bool) (docker.RunHostOptions, fu
 	}, clean, nil
 }
 
-// vncCfg returns the config's vnc section — an empty one when the config carries none
-func (rm *RunMap) vncCfg() *cfg.VNC {
-	if rm.cfg.VNC == nil {
-		return &cfg.VNC{}
-	}
-	return rm.cfg.VNC
-}
-
 // Env renders the container's env in one map.
 func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	cli := rm.cfg.CLI()
@@ -81,7 +73,7 @@ func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	env := mergeempty.Map(cli.Setup.Env, forwardEnv(rm.cfg.ForwardEnv))
 	env = mergeempty.Map(env, map[string]string{pkginfo.EnvVar: pkgInfo})
 	if serveVNC {
-		body, err := rm.vncCfg().InfoJSON()
+		body, err := rm.cfg.VNC.InfoJSON()
 		if err != nil {
 			return nil, err
 		}

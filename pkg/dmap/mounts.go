@@ -33,12 +33,12 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 }
 
 // binds composes the run's binds and volumes in a deterministic order
-func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, error) {
+func (rm *RunMap) binds(serveVNC, isProxied bool) ([]docker.Mount, func() error, error) {
 	c := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
 	var scratchBind, persistBind klean.ShareBind
 	clean, err := klean.Share{
-		share.AgentsMd(c.Name, noProxy),
+		share.AgentsMd(c.Name, isProxied),
 		share.PersistDir(projectDir),
 	}.Begin(&scratchBind, &persistBind)
 	if err != nil {
@@ -51,20 +51,20 @@ func (rm *RunMap) binds(serveVNC, noProxy bool) ([]docker.Mount, func() error, e
 			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(pkginfo.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
-		proxyAllowBinds(noProxy),
+		proxyAllowBinds(isProxied),
 		volumes(globalVolumes(serveVNC), true),
 		volumes(cacheVolumeNames(projectDir, rm.cacheVolumes), false),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
-		dataBinds(CLIDataDir(userdir.Dir(), c.Name), c.Setup.DataBindMounts(true)),
-		rm.guiAppDataBinds(noProxy),
+		dataBinds(CLIDataDir(userdir.Dir(), c.Name), c.Setup.DataBindMounts(false)),
+		rm.guiAppDataBinds(isProxied),
 		cliScratchBind(scratchBind.HostPath, scratchBind.ContainerPath),
 	), clean, nil
 }
 
-func proxyAllowBinds(noProxy bool) []docker.Mount {
-	if noProxy {
+func proxyAllowBinds(isProxied bool) []docker.Mount {
+	if !isProxied {
 		return nil
 	}
 	return []docker.Mount{docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly()}
@@ -120,12 +120,12 @@ func readOnlyBinds(binds map[string]string) []docker.Mount {
 
 // guiAppDataBinds renders the run's GUI app's data binds like the cli's — none
 // without a run naming one; the host side is the run's own mode tree
-func (rm *RunMap) guiAppDataBinds(noProxy bool) []docker.Mount {
+func (rm *RunMap) guiAppDataBinds(isProxied bool) []docker.Mount {
 	app := rm.cfg.GUIApp()
 	if app == nil {
 		return nil
 	}
-	return dataBinds(GUIAppDataDir(userdir.Dir(), app.Name, noProxy), app.Setup.DataBindMounts(noProxy))
+	return dataBinds(GUIAppDataDir(userdir.Dir(), app.Name, isProxied), app.Setup.DataBindMounts(isProxied))
 }
 
 // dataBinds renders an app's data bind mounts (host path → container path) as

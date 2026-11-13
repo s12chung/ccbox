@@ -66,7 +66,7 @@ func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() er
 	presentPathsSnapshot := config.ReadOnlyPathsPresent()
 	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
 
-	if err := seedRunMounts(userdir.Dir(), proxyOptions == nil); err != nil {
+	if err := seedRunMounts(userdir.Dir(), proxyOptions != nil); err != nil {
 		return docker.RunOptions{}, nil, err
 	}
 
@@ -103,19 +103,19 @@ func warnCreatedGuardMounts(presentMasksBefore, presentPathsBefore []string) {
 }
 
 // seedRunMounts seeds the run mounts in userDir
-func seedRunMounts(userDir string, noProxy bool) error {
+func seedRunMounts(userDir string, isProxied bool) error {
 	c := config.CLI()
 	if err := seed.IfNotExist(clitmpl.UserCLIConfigSeedFS(c.Name, c.IsUserDefined()), cli.UserConfigDir(c.Name)); err != nil {
 		return err
 	}
-	if err := seedDataBinds(dmap.CLIDataDir(userDir, c.Name), c.Setup.DataBindSeedMap(false), osutil.File); err != nil {
+	if err := seedDataBinds(dmap.CLIDataDir(userDir, c.Name), c.Setup.DataBindSeedMap(true), osutil.File); err != nil {
 		return err
 	}
 	app := config.GUIApp()
 	if app == nil {
 		return nil
 	}
-	return seedDataBinds(dmap.GUIAppDataDir(userDir, app.Name, noProxy), app.Setup.DataBindSeedMap(noProxy), osutil.SecretFile)
+	return seedDataBinds(dmap.GUIAppDataDir(userDir, app.Name, isProxied), app.Setup.DataBindSeedMap(isProxied), osutil.SecretFile)
 }
 
 // seedDataBinds seeds a DataBindSeedMap under its dataDir: nil content mkdirs the

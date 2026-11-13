@@ -14,7 +14,7 @@ func TestEnvString_BaseWins(t *testing.T) {
 		"GH_TOKEN":   "gh",
 		"GOFLAGS":    "-mod=mod",
 		"http_proxy": "evil",
-	}, false)
+	}, true)
 
 	// o.Env sorted, then the proxy vars last — so the base http_proxy is the
 	// final (winning) value.
@@ -30,7 +30,7 @@ func TestEnvString_BaseWins(t *testing.T) {
 }
 
 func TestEnvString_NoProxy(t *testing.T) {
-	got := envString(map[string]string{"GH_TOKEN": "gh"}, true)
+	got := envString(map[string]string{"GH_TOKEN": "gh"}, false)
 	// No proxy, no proxy vars — just the caller's env.
 	assert.Equal(t, []string{"GH_TOKEN=gh"}, got)
 }

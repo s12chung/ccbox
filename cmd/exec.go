@@ -20,7 +20,8 @@ var execCmd = &cobra.Command{
 	Args:                  cobra.ArbitraryArgs,
 	DisableFlagsInUseLine: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return execSession(cmd.Context(), dmap.ExecMode{Shell: true, NoProxy: execMode.NoProxy, Args: args})
+		execMode.Shell, execMode.Args = true, args
+		return execSession(cmd.Context(), execMode)
 	},
 }
 
@@ -28,7 +29,7 @@ var execCmd = &cobra.Command{
 // config and --no-proxy; always the flags-and-settings variant's devbox
 func execSession(ctx context.Context, mode dmap.ExecMode) error {
 	var proxyOptions *docker.ProxyOptions
-	if !config.IsNoProxy(mode.NoProxy) {
+	if config.Proxy.IsProxied(mode.IsProxied()) {
 		proxyOptions = dmap.NewProxyMap(config).Options()
 	}
 	runOptions, clean, err := prepareRun(proxyOptions)
@@ -47,7 +48,7 @@ func execSession(ctx context.Context, mode dmap.ExecMode) error {
 			return err
 		}
 	}
-	return docker.Exec(ctxD, dmap.NewExecMap(config.CLI()).Options(runOptions, mode, proxyOptions == nil))
+	return docker.Exec(ctxD, dmap.NewExecMap(config.CLI()).Options(runOptions, mode, proxyOptions != nil))
 }
 
 func init() {

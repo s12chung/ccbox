@@ -27,14 +27,14 @@ func TestRunMap_RunOptions(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	config, err := cfg.Load(t.TempDir(), cfg.Config{
-		CLIName:   new("claude"),
-		Allowlist: []string{cfg.DefaultsAlias, "example.com"},
+		CLIName: new("claude"),
+		Proxy:   &cfg.Proxy{Allowlist: []string{cfg.DefaultsAlias, "example.com"}},
 	}, false)
 	require.NoError(t, err)
 	rm := NewRunMap(config, runtime.AllCacheVolumes(), false)
 
 	// the pieces RunOptions composes
-	hostOptions, hostClean, err := rm.HostOptions(false, false)
+	hostOptions, hostClean, err := rm.HostOptions(false, true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
 	env, err := rm.Env(false)
@@ -48,9 +48,9 @@ func TestRunMap_RunOptions(t *testing.T) {
 	assert.Equal(t, hostOptions, options.RunHostOptions)
 	assert.Equal(t, env, options.Env)
 	assert.Equal(t, "dev:tag", options.Tag)
-	assert.Equal(t, devboxName(config.ProjectDir(), false, false), options.Name)
+	assert.Equal(t, devboxName(config.ProjectDir(), false, true), options.Name)
 	assert.Equal(t, devboxHoldersDir(options.Name), options.HoldersDir)
-	assert.Equal(t, devboxLogPath(false, false), options.LogFile)
+	assert.Equal(t, devboxLogPath(false, true), options.LogFile)
 	assert.False(t, options.ServeVNC)
 	assert.Nil(t, options.Foreground, "the foreground view is the command's, not the map's")
 	require.NotNil(t, options.Proxy)
@@ -69,9 +69,9 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 
 	// the base layer carries the gui_app, as a project's config would
 	config, err := cfg.Load(t.TempDir(), cfg.Config{
-		CLIName:   new("claude"),
-		VNC:       &cfg.VNC{GUIAppName: guiapp.App.Name},
-		Allowlist: []string{cfg.DefaultsAlias, cfg.SetHarnessAlias},
+		CLIName: new("claude"),
+		VNC:     &cfg.VNC{GUIAppName: guiapp.App.Name},
+		Proxy:   &cfg.Proxy{Allowlist: []string{cfg.DefaultsAlias, cfg.SetHarnessAlias}},
 	}, true)
 	require.NoError(t, err)
 
@@ -81,8 +81,8 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	defer func() { require.NoError(t, clean()) }()
 
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
-	assert.Equal(t, devboxName(config.ProjectDir(), true, true), options.Name)
-	assert.Equal(t, devboxLogPath(true, true), options.LogFile)
+	assert.Equal(t, devboxName(config.ProjectDir(), true, false), options.Name)
+	assert.Equal(t, devboxLogPath(true, false), options.LogFile)
 	assert.True(t, options.ServeVNC)
 	assert.Nil(t, options.Proxy)
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env is set even without a vnc config section")
@@ -109,8 +109,8 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 
 	serveVNC := true
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the tag carries the vnc suffix only — the egress wall is runtime-only")
-	assert.Equal(t, devboxName(config.ProjectDir(), serveVNC, false), options.Name, "the egress wall makes the proxied vnc combo its own devbox")
-	assert.Equal(t, devboxLogPath(serveVNC, false), options.LogFile)
+	assert.Equal(t, devboxName(config.ProjectDir(), serveVNC, true), options.Name, "the egress wall makes the proxied vnc combo its own devbox")
+	assert.Equal(t, devboxLogPath(serveVNC, true), options.LogFile)
 	assert.True(t, options.ServeVNC)
 	assert.NotNil(t, options.Proxy)
 }
@@ -121,8 +121,8 @@ func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 
 	projectDir := t.TempDir()
 	config, err := cfg.Load(projectDir, cfg.Config{
-		CLIName:   new("claude"),
-		Allowlist: []string{cfg.DefaultsAlias, "example.com"},
+		CLIName: new("claude"),
+		Proxy:   &cfg.Proxy{Allowlist: []string{cfg.DefaultsAlias, "example.com"}},
 	}, false)
 	require.NoError(t, err)
 
@@ -155,7 +155,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -198,7 +198,7 @@ func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {
 	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, clean()) }()
 
@@ -212,7 +212,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -229,7 +229,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, false)
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true, false)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true, true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -243,7 +243,7 @@ func TestRunMap_Env(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("DISABLE_AUTOUPDATER", "0")
-	vnc := &cfg.VNC{GUIAppName: guiapp.App.Name, Enabled: true}
+	vnc := &cfg.VNC{GUIAppName: guiapp.App.Name, Enabled: new(true)}
 	rm := testRunMap(t, cfg.Config{
 		CLIName:    new("claude"),
 		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN", "DISABLE_AUTOUPDATER"},

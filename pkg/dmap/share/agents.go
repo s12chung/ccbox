@@ -32,15 +32,15 @@ func SafeSeedAgentsMd() error {
 // AgentsMd returns the Binder for CLI's AGENTS doc. Real copy is at realCliFile
 // as part of the CLIConfigDir's bind (hence ShareBind.HostPath = ""). If real copy
 // doesn't exist, a symlinked copy is at AgentsMdScratchMount's path and that scratch
-// is bound (with the ShareBind.HostPath set and bound to BindPath). isNoProxy renders
-// the admin doc's network section for a direct-network run.
-func AgentsMd(cliName string, isNoProxy bool) scratch.Binder {
+// is bound (with the ShareBind.HostPath set and bound to BindPath). isProxied renders
+// the admin doc's network section, which a direct-network run drops.
+func AgentsMd(cliName string, isProxied bool) scratch.Binder {
 	mount := AgentsMdScratchMount(cliName)
 	return scratch.Binder{
 		Share: scratch.Share{
 			Name:     "agents",
 			RealPath: realCliFile(cliName),
-			Content:  scratch.File{Source: func() ([]byte, error) { return agentsMdSource(cliName, isNoProxy) }},
+			Content:  scratch.File{Source: func() ([]byte, error) { return agentsMdSource(cliName, isProxied) }},
 			Sync:     scratch.Symlink{Mount: mount},
 		},
 		BindPath: mount,
@@ -56,14 +56,14 @@ func AgentsMdScratchMount(cliName string) string {
 // agentsMdSource is the final AGENTS.md, symlinked from the scratch at
 // AgentsMdScratchMount. In this priority order: the CLI's ccbox-admin variant, the
 // shared doc, then the shared doc's ccbox-admin variant
-func agentsMdSource(cliName string, isNoProxy bool) ([]byte, error) {
+func agentsMdSource(cliName string, isProxied bool) ([]byte, error) {
 	if osutil.Present(cliAdminPath(cliName)) {
-		return readAgentsMd(cliAdminPath(cliName), isNoProxy)
+		return readAgentsMd(cliAdminPath(cliName), isProxied)
 	}
 	if osutil.Present(userAgentsMdPath()) {
 		return os.ReadFile(userAgentsMdPath()) // #nosec G304 -- the shared doc's own path
 	}
-	return readAgentsMd(userAgentsAdminMdPath(), isNoProxy)
+	return readAgentsMd(userAgentsAdminMdPath(), isProxied)
 }
 
 var (
@@ -89,19 +89,19 @@ const (
 )
 
 // readAgentsMd reads a ccbox-admin variant at path, with the rendered admin doc prepended
-func readAgentsMd(path string, isNoProxy bool) ([]byte, error) {
+func readAgentsMd(path string, isProxied bool) ([]byte, error) {
 	body, err := os.ReadFile(path) // #nosec G304 -- the ccbox-admin variant's own path
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte(adminMd(isNoProxy)), body...), nil
+	return append([]byte(adminMd(isProxied)), body...), nil
 }
 
 // adminMd renders the admin doc; a direct-network run drops the network section.
 // The template is static, so execute errors are unreachable.
-func adminMd(isNoProxy bool) string {
+func adminMd(isProxied bool) string {
 	var b bytes.Buffer
-	must.Do(adminMdTmpl.Execute(&b, struct{ IsNoProxy bool }{isNoProxy}))
+	must.Do(adminMdTmpl.Execute(&b, struct{ IsProxied bool }{isProxied}))
 	return b.String()
 }
 

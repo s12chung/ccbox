@@ -63,13 +63,13 @@ func buildTarget(serveVNC bool) string {
 // dataBindDirsArgKey
 func dataBindDirs(clis []cli.CLI, apps map[string]guiapp.GUIApp) []string {
 	dirs := make([]string, 0, len(clis)+len(apps))
-	// with proxy, more container dirs and stays consistent
-	const noProxy = false
+	// the proxied ask is the superset — the image carries both variants' dirs
+	const isProxied = true
 	for _, c := range clis {
-		dirs = append(dirs, c.Setup.DataBindContainerDirs(noProxy)...)
+		dirs = append(dirs, c.Setup.DataBindContainerDirs(isProxied)...)
 	}
 	for _, guiApp := range apps {
-		dirs = append(dirs, guiApp.Setup.DataBindContainerDirs(noProxy)...)
+		dirs = append(dirs, guiApp.Setup.DataBindContainerDirs(isProxied)...)
 	}
 	for i, dir := range dirs {
 		dirs[i] = path.Join(pkginfo.ContainerHome, dir)

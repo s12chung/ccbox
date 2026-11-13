@@ -311,7 +311,7 @@ func runConfig(hostOptions RunOptions) *container.Config {
 		Image:      hostOptions.Tag,
 		Labels:     map[string]string{ccboxProjectLabelKey: hostOptions.ProjectDir},
 		WorkingDir: hostOptions.WorkspaceMount,
-		Env:        envString(hostOptions.Env, hostOptions.Proxy == nil),
+		Env:        envString(hostOptions.Env, hostOptions.Proxy != nil),
 	}
 	if hostOptions.Proxy != nil {
 		// the egress wall's devbox stays root to build, prove, and supervise tinyproxy —

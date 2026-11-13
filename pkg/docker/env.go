@@ -9,9 +9,9 @@ import (
 
 // envString renders env as KEY=VALUE in sorted-key order, the proxy vars last — overriding
 // user-supplied settings; the container reads their presence as the egress wall being on
-func envString(env map[string]string, noProxy bool) []string {
+func envString(env map[string]string, isProxied bool) []string {
 	renderedEnv := sortedEnv(env)
-	if noProxy {
+	if !isProxied {
 		return renderedEnv
 	}
 	return append(renderedEnv, []string{

@@ -59,13 +59,13 @@ func TestConfig_ValidateErrors(t *testing.T) {
 		TmpfsMasks:    []string{"/etc"},
 		ReadOnlyGlobs: []string{"../escape"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"},
-		Allowlist:     []string{"X.AI"},
+		Proxy:         &Proxy{Allowlist: []string{"X.AI"}},
 	}
 	errMap := firm.ValidateAny(c)
 	require.NotEmpty(t, errMap)
 	// ShowValue appends the failing element, bindErr the failing mount, to each error
 	assert.Equal(t, strings.Join([]string{
-		`cfg.Config.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
+		`cfg.Config.Proxy.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
 			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
 		`cfg.Config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
 		`cfg.Config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
@@ -79,14 +79,16 @@ func TestConfig_ValidateErrors(t *testing.T) {
 func TestConfig_mergeOverlays(t *testing.T) {
 	c := Config{
 		CLIName:       new("claude"),
-		NoProxy:       true,
-		VNC:           &VNC{GUIAppName: "zcode", Enabled: true},
+		VNC:           &VNC{GUIAppName: "zcode", Enabled: new(true)},
 		TmpfsMasks:    []string{"dist"},
 		VolumeMasks:   []string{"target"},
 		ReadOnlyGlobs: []string{".env"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
 		ForwardEnv:    []string{"FOO", "BAR"},
-		Allowlist:     []string{"ccbox-defaults"},
+		Proxy: &Proxy{
+			Enabled:   new(true),
+			Allowlist: []string{"ccbox-defaults"},
+		},
 	}
 	other := Config{
 		CLIName:       new("codex"),
@@ -96,18 +98,17 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		ReadOnlyGlobs: []string{".envrc"},
 		ReadOnlyBinds: map[string]string{"~/fonts": "/mnt/fonts", "~/certs": "/home/ccbox/certs"},
 		ForwardEnv:    []string{"FOO"},
-		Allowlist:     []string{"example.com"},
+		Proxy:         &Proxy{Allowlist: []string{"example.com"}},
 	}
 
 	c.merge(other)
 
 	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
 	assert.Equal(t, Config{
-		CLIName: new("codex"), // a set later layer wins
-		NoProxy: true,         // a zero later layer keeps: a scalar can't be unset, only overridden
-		VNC: &VNC{ // the empty section merges per field: the later layer's unset gui_app keeps the earlier's
+		CLIName: new("codex"),
+		VNC: &VNC{ // the empty section merges per field: the later layer's unset fields keep the earlier's
 			GUIAppName: "zcode",
-			Enabled:    true,
+			Enabled:    new(true),
 		},
 		TmpfsMasks:    []string{"dist", "build"},
 		VolumeMasks:   []string{"target", "cache"},
@@ -118,25 +119,30 @@ func TestConfig_mergeOverlays(t *testing.T) {
 			"~/certs":    "/home/ccbox/certs",
 		},
 		ForwardEnv: []string{"FOO", "BAR", "FOO"}, // lists append
-		Allowlist:  []string{"ccbox-defaults", "example.com"},
+		Proxy: &Proxy{ // both layers set: per field; a nil later layer would keep the whole section
+			Enabled:   new(true),                                 // a nil later field inherits, an explicit value wins
+			Allowlist: []string{"ccbox-defaults", "example.com"}, // lists append
+		},
 	}, c)
 }
 
-func TestConfig_IsNoProxy(t *testing.T) {
+func TestProxy_IsProxied(t *testing.T) {
 	tests := []struct {
 		name string
 		cfg  Config
 		flag bool
 		want bool
 	}{
-		{"defaults to false", Config{}, false, false},
-		{"the top level stands alone", Config{NoProxy: true}, false, true},
-		{"a vnc run proxies like a headless one", Config{}, false, false},
-		{"the flag overrides the top level", Config{NoProxy: true}, true, true},
+		{"a missing section is no proxy", Config{}, true, false},
+		{"the section's enabled stands alone", Config{Proxy: &Proxy{Enabled: new(true)}}, true, true},
+		{"a vnc run proxies like a headless one", Config{Proxy: &Proxy{Enabled: new(true)}}, true, true},
+		{"the flag overrides the section", Config{Proxy: &Proxy{Enabled: new(true)}}, false, false},
+		{"an unset enabled is no proxy", Config{Proxy: &Proxy{}}, true, false},
+		{"an explicit false is no proxy", Config{Proxy: &Proxy{Enabled: new(false)}}, true, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.cfg.IsNoProxy(tt.flag))
+			assert.Equal(t, tt.want, tt.cfg.Proxy.IsProxied(tt.flag))
 		})
 	}
 }
@@ -185,6 +191,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 			useHome(t) // no user file: the project body stands alone
 			writeConfig(t, tt.projectDir, projectConfigFileName, tt.body)
 			tt.want.projectDir = tt.projectDir
+			tt.want.Proxy, tt.want.VNC = &Proxy{}, &VNC{} // Load loads the section-less bodies as empty sections
 
 			c, err := Load(tt.projectDir, Config{}, false)
 			require.NoError(t, err)
@@ -507,12 +514,13 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 
 	t.Run("aliases expand in place, literals kept, repeats collapse", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+
-			"allowlist:\n"+
-			"  - ccbox-anthropic-provider\n"+
-			"  - example.com\n"+
-			"  - ccbox-defaults\n"+
-			"  - ccbox-anthropic-provider\n"+
-			"  - ccbox-set-harness\n")
+			"proxy:\n"+
+			"  allowlist:\n"+
+			"    - ccbox-anthropic-provider\n"+
+			"    - example.com\n"+
+			"    - ccbox-defaults\n"+
+			"    - ccbox-anthropic-provider\n"+
+			"    - ccbox-set-harness\n")
 
 		c, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
@@ -524,7 +532,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("ccbox-all-providers resolves every provider's domains", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nallowlist:\n  - ccbox-all-providers\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  allowlist:\n    - ccbox-all-providers\n")
 
 		allProviders, ok := provider.DomainsFor(provider.AllProvidersAlias)
 		require.True(t, ok)
@@ -534,7 +542,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("ccbox-all-runtimes resolves every runtime's domains", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nallowlist:\n  - ccbox-all-runtimes\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  allowlist:\n    - ccbox-all-runtimes\n")
 
 		allRuntimes, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
 		require.True(t, ok)
@@ -544,7 +552,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("the GUI app's domains enter only through the harness alias on a vnc load", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nallowlist:\n  - ccbox-set-harness\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
 
 		headlessConfig, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
@@ -558,7 +566,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("enabled pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\nallowlist:\n  - ccbox-set-harness\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
 
 		c, err := Load(dir, Config{}, false)
 		require.NoError(t, err)
@@ -576,15 +584,17 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	mkDirs(t, home, ".config/git")
 	c := &Config{
 		CLIName:       new("claude"),
-		NoProxy:       true,
 		VNC:           &VNC{GUIAppName: guiapp.App.Name},
 		TmpfsMasks:    []string{DefaultsAlias, "dist", "build"},
 		VolumeMasks:   []string{DefaultsAlias, "target", "cache"},
 		ReadOnlyGlobs: []string{DefaultsAlias, ".env"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
 		ForwardEnv:    []string{"FOO"},
-		Allowlist:     []string{"user.example.dev", DefaultsAlias, "example.com"},
-		projectDir:    dir,
+		Proxy: &Proxy{
+			Enabled:   new(true),
+			Allowlist: []string{"user.example.dev", DefaultsAlias, "example.com"},
+		},
+		projectDir: dir,
 	}
 
 	out, err := yaml.Marshal(c)
@@ -597,7 +607,6 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	want := Config{
 		CLIName:       new("claude"),
-		NoProxy:       true,
 		VNC:           &VNC{GUIAppName: guiapp.App.Name},
 		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
 		VolumeMasks:   []string{"node_modules", "target"},
@@ -606,7 +615,10 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 			filepath.Join(home, ".config", "git"): GitConfigMount,
 		},
 		ForwardEnv: []string{"FOO"},
-		Allowlist:  append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),
+		Proxy: &Proxy{ // allowlist resolved: the alias expanded in place
+			Enabled:   new(true),
+			Allowlist: append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),
+		},
 	}
 	assert.Equal(t, want, got)
 }

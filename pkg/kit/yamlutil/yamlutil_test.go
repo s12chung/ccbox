@@ -115,34 +115,6 @@ func TestValidatedDecode(t *testing.T) {
 	}
 }
 
-func TestValidatedMerge(t *testing.T) {
-	tests := []struct {
-		name    string
-		layers  []decoded
-		want    decoded
-		wantErr string
-	}{
-		{"folds layers in order", []decoded{{Name: "web"}, {}, {Name: "db"}}, decoded{Name: "db"}, ""},
-		{"invalid layer errors", []decoded{{Name: "BAD"}}, decoded{}, "does not match"},
-		{"invalid layer after folding", []decoded{{Name: "web"}, {Name: "BAD"}}, decoded{}, "does not match"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := ValidatedMerge(tt.layers, func(dst *decoded, src decoded) {
-				if src.Name != "" {
-					dst.Name = src.Name
-				}
-			})
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestReadLayers(t *testing.T) {
 	dir := t.TempDir()
 	write := func(name, body string) string {
@@ -169,6 +141,17 @@ func TestReadLayers(t *testing.T) {
 			require.ErrorContains(t, err, "parse "+bad+":")
 		})
 	}
+}
+
+func TestMergeLayers(t *testing.T) {
+	merge := func(dst *decoded, src decoded) {
+		if src.Name != "" {
+			dst.Name = src.Name
+		}
+	}
+
+	got := MergeLayers([]decoded{{Name: "web"}, {}, {Name: "db"}}, merge)
+	assert.Equal(t, decoded{Name: "db"}, got, "folds layers onto a zero value, the later layer winning")
 }
 
 type entry struct {
@@ -208,6 +191,13 @@ func TestValue_MultilineEntries(t *testing.T) {
     cmds:
       - initdb
       - start`, got)
+}
+
+func TestIndent(t *testing.T) {
+	assert.Equal(t, "\n    - a\n    - b", Indent(2, "\n  - a\n  - b"), "prefixes each line, nesting a Value block under an indented key")
+	assert.Equal(t, "\n  - a\n\n  - b", Indent(2, "\n- a\n\n- b"), "empty lines stay bare")
+	assert.Equal(t, "  plain", Indent(2, "plain"))
+	assert.Equal(t, "no change", Indent(0, "no change"))
 }
 
 func TestCommentFirstEntry(t *testing.T) {

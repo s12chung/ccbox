@@ -5,6 +5,8 @@ package cfg
 import (
 	"path/filepath"
 
+	"github.com/s12chung/firm"
+
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
@@ -63,7 +65,10 @@ func userSeedConfig(cli string) *Config {
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		Allowlist:     []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
+		Proxy: &Proxy{
+			Enabled:   new(true),
+			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
+		},
 	}
 }
 
@@ -86,11 +91,19 @@ func Load(projectDir string, flags Config, vncFlag bool) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	c, err := yamlutil.ValidatedMerge(append(layers, flags), (*Config).merge)
-	if err != nil {
-		return nil, err
+	c := yamlutil.MergeLayers(append(layers, flags), (*Config).merge)
+	if errMap := firm.ValidateAny(c); errMap != nil {
+		return nil, errMap
+	}
+
+	// to avoid nil checks
+	if c.Proxy == nil {
+		c.Proxy = &Proxy{}
+	}
+	if c.VNC == nil {
+		c.VNC = &VNC{}
 	}
 	c.projectDir = projectDir
-	c.serveVNC = vncFlag || (c.VNC != nil && c.VNC.Enabled)
+	c.serveVNC = vncFlag || c.VNC.IsEnabled()
 	return &c, nil
 }

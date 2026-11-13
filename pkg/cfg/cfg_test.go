@@ -115,7 +115,11 @@ func TestSeedConfig(t *testing.T) {
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		Allowlist:     []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
+		VNC:           &VNC{},
+		Proxy: &Proxy{
+			Enabled:   new(true),
+			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
+		},
 
 		projectDir: dir,
 	}
@@ -285,12 +289,12 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 
 func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("allowlist: []\n"), osutil.File))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("proxy:\n  allowlist: []\n"), osutil.File))
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
 	// lists append: [] adds nothing, the seed's aliases stay
-	assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias}, c.Allowlist)
+	assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias}, c.Proxy.Allowlist)
 }
 
 func TestLoad_LayersFiles(t *testing.T) {
@@ -300,13 +304,13 @@ func TestLoad_LayersFiles(t *testing.T) {
 	bodies := map[string]string{             // one entry per configFiles term
 		"user": "cli: opencode\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
-			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  gui_app: zcode\nallowlist:\n  - user.example.dev\n",
+			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  gui_app: zcode\nproxy:\n  allowlist:\n    - user.example.dev\n",
 		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
-			"forward_env:\n  - FOO\n  - BAZ\nallowlist:\n  - ccbox-defaults\n",
+			"forward_env:\n  - FOO\n  - BAZ\nproxy:\n  allowlist:\n    - ccbox-defaults\n",
 		"projectLocal": "cli: codex\ntmpfs_masks:\n  - cache\n" +
 			"read_only_binds:\n  ~/certs: /mnt/certs\n" +
-			"forward_env:\n  - QUX\nallowlist:\n  - example.com\n",
+			"forward_env:\n  - QUX\nproxy:\n  allowlist:\n    - example.com\n",
 	}
 	for _, cf := range configFiles {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
@@ -333,22 +337,23 @@ func TestLoad_LayersFiles(t *testing.T) {
 		"~/certs":   "/mnt/certs",
 	}, c.ReadOnlyBinds)
 
-	assert.Equal(t, []string{"user.example.dev", DefaultsAlias, "example.com"}, c.Allowlist)
+	// the proxy section's lists append too, layer order
+	assert.Equal(t, []string{"user.example.dev", DefaultsAlias, "example.com"}, c.Proxy.Allowlist)
 }
 
 func TestLoad_SingleFileOnly(t *testing.T) {
 	for _, cf := range configFiles { // the other files are absent
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: pi\nallowlist:\n  - example.com\n")
+			writeConfig(t, dir, cf.name, "cli: pi\nproxy:\n  allowlist:\n    - example.com\n")
 
 			c, err := Load(dir, Config{}, false)
 			require.NoError(t, err)
 			assert.Equal(t, "pi", *c.CLIName)
 			if cf.term == "user" { // the user file replaces the seed wholesale
-				assert.Equal(t, []string{"example.com"}, c.Allowlist) // no alias → no defaults pulled in
+				assert.Equal(t, []string{"example.com"}, c.Proxy.Allowlist) // no alias → no defaults pulled in
 			} else { // the user seed's aliases still underlie the project/local file
-				assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias, "example.com"}, c.Allowlist)
+				assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias, "example.com"}, c.Proxy.Allowlist)
 			}
 		})
 	}
@@ -361,16 +366,52 @@ func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
-	assert.Equal(t, &VNC{Enabled: true}, c.VNC)
+	assert.Equal(t, &VNC{Enabled: new(true)}, c.VNC)
 }
 
-func TestLoad_NoProxy(t *testing.T) {
+func TestLoad_VNC(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, projectConfigFileName, "no_proxy: true\n")
+	writeConfig(t, dir, userConfigFileName, "cli: claude\nvnc:\n  enabled: true\n")
+	writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: false\n")
 
 	c, err := Load(dir, Config{}, false)
 	require.NoError(t, err)
-	assert.True(t, c.NoProxy)
+	assert.Equal(t, &VNC{Enabled: new(false)}, c.VNC) // the explicit false wins over the user layer's true
+	assert.False(t, c.ServeVNC())
+}
+
+func TestLoad_Proxy(t *testing.T) {
+	t.Run("a missing section loads as an empty one", func(t *testing.T) {
+		useHome(t) // no user file: no section anywhere
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+
+		c, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		assert.Equal(t, &Proxy{}, c.Proxy)
+	})
+
+	t.Run("the section's enabled loads as written", func(t *testing.T) {
+		useHome(t) // no user file: the project's section stands alone
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: false\n")
+
+		c, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		assert.Equal(t, &Proxy{Enabled: new(false)}, c.Proxy)
+	})
+
+	t.Run("the section's enabled overrides the seed", func(t *testing.T) {
+		dir := t.TempDir() // TestMain's seed is the user layer
+		writeConfig(t, dir, projectConfigFileName, "proxy:\n  enabled: false\n")
+
+		c, err := Load(dir, Config{}, false)
+		require.NoError(t, err)
+		assert.Equal(t, &Proxy{
+			Enabled:   new(false),
+			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias}, // unset inherits
+		}, c.Proxy)
+	})
 }
 
 func TestLoad_InvalidErrors(t *testing.T) {
@@ -414,11 +455,11 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 			"unknown gui_app", "vnc:\n  gui_app: emacs\n",
 			[]string{"GUIAppName", `is not one of ["zcode" ""]`},
 		},
-		{"bad allow domain", "allowlist:\n  - \"https://x.dev\"\n", []string{"Allowlist", "DomainOrAlias"}},
-		{"bare TLD allow domain", "allowlist:\n  - com\n", []string{"Allowlist", "DomainOrAlias"}},
-		{"allow domain with a newline", "allowlist:\n  - \"foo.com\\n\"\n", []string{"Allowlist", "DomainOrAlias"}},
+		{"bad allow domain", "proxy:\n  allowlist:\n    - \"https://x.dev\"\n", []string{"Allowlist", "DomainOrAlias"}},
+		{"bare TLD allow domain", "proxy:\n  allowlist:\n    - com\n", []string{"Allowlist", "DomainOrAlias"}},
+		{"allow domain with a newline", "proxy:\n  allowlist:\n    - \"foo.com\\n\"\n", []string{"Allowlist", "DomainOrAlias"}},
 		{
-			"unknown allowlist alias", "allowlist:\n  - ccbox-bogus-alias\n",
+			"unknown allowlist alias", "proxy:\n  allowlist:\n    - ccbox-bogus-alias\n",
 			[]string{"Allowlist", "DomainOrAlias", "is not a domain or one of " + fmt.Sprintf("%v", quotedAllowlistAliases())},
 		},
 		{"bad bind key", "read_only_binds:\n  fonts: /mnt\n", []string{"ReadOnlyBinds.[fonts]", "must be gitconfig or a host path"}},

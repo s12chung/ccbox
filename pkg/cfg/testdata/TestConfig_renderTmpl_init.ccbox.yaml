@@ -3,9 +3,6 @@
 # cli: which coding CLI the image installs and launches
 cli:
 
-# no_proxy: skip the egress wall for direct network access
-no_proxy: false
-
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form
@@ -37,9 +34,12 @@ read_only_binds:
 forward_env:
   # - GH_TOKEN
 
-# allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
-# Run `ccbox config defaults` to see aliases and their expansions.
-allowlist:
-  # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
-  # - ccbox-all-providers # every provider's domains
-  # - example.com
+# proxy: the egress wall's section; a missing section is no proxy unless the user config sets it
+proxy:
+  # enabled: false
+  # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
+  # Run `ccbox config defaults` to see aliases and their expansions.
+  allowlist:
+    # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
+    # - ccbox-all-providers # every provider's domains
+    # - example.com

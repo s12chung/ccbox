@@ -29,7 +29,7 @@ func resetUserDir(t *testing.T) string {
 const claudeMount = "/home/ccbox/.ccbox/tmp/agents/claude/AGENTS.md"
 
 func claudeShare() scratch.Binder {
-	return AgentsMd("claude", false)
+	return AgentsMd("claude", true)
 }
 
 // claudeTarget is the CLI doc symlink's target
@@ -161,10 +161,10 @@ func TestAgentsMd_PromotesPrefixed(t *testing.T) {
 			writeFile(t, tc.doc(userDir), tc.body)
 
 			claudeShareBegin(t, func(string) {
-				writeFile(t, claudeScratch(userDir), adminMd(false)+tc.body+", edited")
+				writeFile(t, claudeScratch(userDir), adminMd(true)+tc.body+", edited")
 			})
 
-			assert.Equal(t, adminMd(false)+tc.body+", edited", readFile(t, claudeCliFile(userDir)))
+			assert.Equal(t, adminMd(true)+tc.body+", edited", readFile(t, claudeCliFile(userDir)))
 		})
 	}
 }
@@ -175,13 +175,13 @@ func TestAgentsMd_PromotesPrefixed(t *testing.T) {
 func TestAdminMd(t *testing.T) {
 	for _, tt := range []struct {
 		name      string // fixture name: testdata/TestAdminMd_<name>.md
-		isNoProxy bool
+		isProxied bool
 	}{
-		{"proxy", false},   // the network section renders
-		{"no-proxy", true}, // the network section is dropped
+		{"proxy", true},     // the network section renders
+		{"no-proxy", false}, // the network section is dropped
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adminMd(tt.isNoProxy)
+			got := adminMd(tt.isProxied)
 
 			path := filepath.Join("testdata", "TestAdminMd_"+tt.name+".md")
 			if os.Getenv("UPDATE_FIXTURES") != "" {
@@ -219,12 +219,12 @@ func TestAgentsMd_Begin(t *testing.T) {
 				writeFile(t, userAgentsAdminMd(userDir), "admin rules")
 			},
 			binds: true,
-			body:  adminMd(false) + "admin rules",
+			body:  adminMd(true) + "admin rules",
 		},
 		{
 			caseName: "SeededDefault",
 			binds:    true,
-			body:     adminMd(false),
+			body:     adminMd(true),
 		},
 		{
 			caseName: "EmptyUserDocOverridesAdmin",
@@ -241,7 +241,7 @@ func TestAgentsMd_Begin(t *testing.T) {
 				writeFile(t, claudeAdminMd(userDir), "cli rules")
 			},
 			binds: true,
-			body:  adminMd(false) + "cli rules",
+			body:  adminMd(true) + "cli rules",
 		},
 		{
 			caseName: "SkipsWhenCliFileExists",

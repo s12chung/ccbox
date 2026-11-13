@@ -41,7 +41,7 @@ func TestAliasSections(t *testing.T) {
 		"#     - secrets",
 		"#     - **/*.key",
 		"#     - **/id_rsa*",
-		"#   allowlist:",
+		"#   proxy.allowlist:",
 		"#     - jdx.dev",
 		"#     - mise.en.dev",
 		"#     - tuf-repo-cdn.sigstore.dev",

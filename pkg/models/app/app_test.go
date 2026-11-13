@@ -54,14 +54,14 @@ func TestSetup_DataBindSeedMap(t *testing.T) {
 		".zcode-v2":                   nil,
 		".zcode-v2/credential-secret": new("sec"),
 		".other-auth.json":            new("{}"),
-	}, s.DataBindSeedMap(true), "the plain refs alone")
+	}, s.DataBindSeedMap(false), "the plain refs alone")
 	assert.Equal(t, map[string]*string{
 		".zcode-v2":                   nil,
 		".zcode-v2/credential-secret": new("sec"),
 		".other-auth.json":            new("{}"),
 		".zcode-v2/setting.json":      new("{}"),
-	}, s.DataBindSeedMap(false), "the proxied seed nests under the bound dir's ref")
-	assert.Empty(t, Setup{}.DataBindSeedMap(false))
+	}, s.DataBindSeedMap(true), "the proxied seed nests under the bound dir's ref")
+	assert.Empty(t, Setup{}.DataBindSeedMap(true))
 
 	nested := Setup{DataBinds: map[string]*string{
 		".mycli":            nil,
@@ -70,7 +70,7 @@ func TestSetup_DataBindSeedMap(t *testing.T) {
 	assert.Equal(t, map[string]*string{
 		".mycli":            nil,
 		".mycli/sub/secret": new("s"),
-	}, nested.DataBindSeedMap(true), "the rest of the path stays real — the bind carries it 1:1")
+	}, nested.DataBindSeedMap(false), "the rest of the path stays real — the bind carries it 1:1")
 
 	deep := Setup{DataBinds: map[string]*string{
 		".local/share/opencode/auth.json":     new("a"), // no bound ancestor
@@ -79,7 +79,7 @@ func TestSetup_DataBindSeedMap(t *testing.T) {
 	assert.Equal(t, map[string]*string{
 		".local-share-opencode-auth.json":     new("a"),
 		".local-share-opencode-sessions.json": new("s"),
-	}, deep.DataBindSeedMap(true), "deep files with no bound ancestor: each path slugs flat, distinctly")
+	}, deep.DataBindSeedMap(false), "deep files with no bound ancestor: each path slugs flat, distinctly")
 }
 
 func TestSetup_DataBindMounts(t *testing.T) {
@@ -104,8 +104,8 @@ func TestSetup_DataBindMounts(t *testing.T) {
 		".mycli--auth":       ".mycli-auth",
 		".other-deep-a.json": ".other/deep/a.json",
 		".other-deep-b.json": ".other/deep/b.json",
-	}, s.DataBindMounts(true))
-	assert.Equal(t, s.DataBindMounts(true), s.DataBindMounts(false),
+	}, s.DataBindMounts(false))
+	assert.Equal(t, s.DataBindMounts(false), s.DataBindMounts(true),
 		"the proxied seed nests under the bound dir, carried like the rest")
 }
 
@@ -130,7 +130,7 @@ func TestSetup_DataBindContainerDirs(t *testing.T) {
 		".other/nested",
 		".other/deep",
 		".other/deep/b",
-	}, s.DataBindContainerDirs(true), "home-relative: dir binds and file bind parents")
+	}, s.DataBindContainerDirs(false), "home-relative: dir binds and file bind parents")
 
 	assert.ElementsMatch(t, []string{
 		".mycli",
@@ -140,5 +140,5 @@ func TestSetup_DataBindContainerDirs(t *testing.T) {
 		".other/deep",
 		".other/deep/b",
 		".other/proxy", // the proxied overlay
-	}, s.DataBindContainerDirs(false))
+	}, s.DataBindContainerDirs(true))
 }
