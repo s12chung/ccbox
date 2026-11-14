@@ -15,7 +15,6 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/cmdgen"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/dial"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/handshake"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/supervise"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/vnc/vncdeps"
 )
@@ -125,6 +124,5 @@ func SetupDesktop(ctx context.Context, vncInfo *pkginfo.VNCInfo) (DesktopCmd, er
 			return DesktopCmd{}, err
 		}
 	}
-	log.Info("starting vnc (some errors below are harmless)")
 	return DesktopCmd{}, nil
 }

@@ -24,6 +24,8 @@ if [ "$#" -eq 0 ]; then
   # no -auth: the session lands without an Xauthority file. -localhost=0: the
   # published port arrives on eth0 — exposure stays host-loopback-only
   # (pkg/docker/run.go), keeping the weak VncAuth password off the network
+  # the server grumbles at container life (X11 dir, DRI3) before it listens
+  echo "starting vnc (some errors below are harmless)"
   exec /usr/bin/Xtigervnc "$DISPLAY" -localhost=0 \
     -geometry "$VNC_RESOLUTION" -depth "$VNC_COL_DEPTH" \
     -PasswordFile "$HOME/.vnc/passwd" -SecurityTypes VncAuth,TLSVnc
