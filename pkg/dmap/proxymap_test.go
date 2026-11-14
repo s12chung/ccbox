@@ -24,7 +24,7 @@ func TestProxyMap_Options(t *testing.T) {
 
 	options := NewProxyMap(config).Options()
 	assert.Equal(t, proxyLiveDir(), options.HostDir)
-	assert.Equal(t, proxyLogPath(false), options.LogFile)
+	assert.Equal(t, proxyLogPath(config.ProjectDir(), false), options.LogFile)
 	require.True(t, osutil.Missing(proxyLiveDir()), "rendering alone writes nothing")
 
 	require.NotNil(t, options.BeforeStart)

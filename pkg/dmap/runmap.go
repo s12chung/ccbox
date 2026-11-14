@@ -42,7 +42,7 @@ func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (doc
 		Proxy:          proxyOptions,
 		ServeVNC:       serveVNC,
 		HoldersDir:     devboxHoldersDir(name),
-		LogFile:        devboxLogPath(serveVNC, isProxied),
+		LogFile:        devboxLogPath(rm.cfg.ProjectDir(), serveVNC, isProxied),
 	}, clean, nil
 }
 

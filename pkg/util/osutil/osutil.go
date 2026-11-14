@@ -48,8 +48,11 @@ func SafeWriteFile(path string, body []byte) error {
 	return os.WriteFile(path, body, File)
 }
 
-// OpenAppend opens path for appending, creating it when missing
+// OpenAppend opens path for appending, creating it and its parent dir when missing
 func OpenAppend(path string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(path), Dir); err != nil {
+		return nil, err
+	}
 	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, File) // #nosec G304 -- the caller's file
 }
 

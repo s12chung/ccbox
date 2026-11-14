@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
@@ -27,8 +28,8 @@ func devboxHoldersDir(name string) string {
 }
 
 // devboxLogPath is the devbox's own host log file, outliving any single run — one file per variant
-func devboxLogPath(serveVNC, isProxied bool) string {
-	return filepath.Join(userdir.Dir(), "devbox"+variantSuffix(serveVNC, isProxied)+".log")
+func devboxLogPath(projectDir string, serveVNC, isProxied bool) string {
+	return logPath(projectDir, "devbox"+variantSuffix(serveVNC, isProxied)+".log")
 }
 
 // proxyLiveDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
@@ -40,8 +41,13 @@ func proxyAllowPath() string { return filepath.Join(proxyLiveDir(), pkginfo.Prox
 
 // proxyLogPath is tinyproxy's host log file, outliving any single run — the proxy
 // only serves the proxied variant, so there is no plain variant's file
-func proxyLogPath(serveVNC bool) string {
-	return filepath.Join(userdir.Dir(), "proxy"+variantSuffix(serveVNC, true)+".log")
+func proxyLogPath(projectDir string, serveVNC bool) string {
+	return logPath(projectDir, "proxy"+variantSuffix(serveVNC, true)+".log")
+}
+
+// logPath is a run's host log file: userdir/logs/<project-slug>/<filename>
+func logPath(projectDir, filename string) string {
+	return filepath.Join(userdir.Dir(), "logs", slug.Path(projectDir), filename)
 }
 
 // workspaceMount is the in-container workspace path: the WorkingDir and bind target for the project dir.

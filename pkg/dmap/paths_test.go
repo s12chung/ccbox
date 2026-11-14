@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -21,10 +22,13 @@ func TestGUIAppDataDir(t *testing.T) {
 
 func TestDevboxLogPath(t *testing.T) {
 	home := testutil.Home(t)
-	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox.log"), devboxLogPath(false, true))
-	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-plain.log"), devboxLogPath(false, false))
-	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-plain-vnc.log"), devboxLogPath(true, false))
-	assert.Equal(t, filepath.Join(home, ".ccbox", "devbox-vnc.log"), devboxLogPath(true, true), "the egress wall makes proxied vnc its own variant")
+	projectDir := "/Users/me/myproj"
+	logsDir := filepath.Join(home, ".ccbox", "logs", slug.Path(projectDir))
+	assert.Equal(t, filepath.Join(logsDir, "devbox.log"), devboxLogPath(projectDir, false, true))
+	assert.Equal(t, filepath.Join(logsDir, "devbox-plain.log"), devboxLogPath(projectDir, false, false))
+	assert.Equal(t, filepath.Join(logsDir, "devbox-plain-vnc.log"), devboxLogPath(projectDir, true, false))
+	assert.Equal(t, filepath.Join(logsDir, "devbox-vnc.log"), devboxLogPath(projectDir, true, true),
+		"the egress wall makes proxied vnc its own variant")
 }
 
 func TestProxyLiveDir(t *testing.T) {
@@ -39,8 +43,10 @@ func TestProxyAllowPath(t *testing.T) {
 
 func TestProxyLogPath(t *testing.T) {
 	home := testutil.Home(t)
-	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy.log"), proxyLogPath(false))
-	assert.Equal(t, filepath.Join(home, ".ccbox", "proxy-vnc.log"), proxyLogPath(true))
+	projectDir := "/Users/me/myproj"
+	logsDir := filepath.Join(home, ".ccbox", "logs", slug.Path(projectDir))
+	assert.Equal(t, filepath.Join(logsDir, "proxy.log"), proxyLogPath(projectDir, false))
+	assert.Equal(t, filepath.Join(logsDir, "proxy-vnc.log"), proxyLogPath(projectDir, true))
 }
 
 func TestWorkspaceMount(t *testing.T) {

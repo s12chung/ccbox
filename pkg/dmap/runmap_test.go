@@ -51,7 +51,7 @@ proxy:
 	assert.Equal(t, "dev:tag", options.Tag)
 	assert.Equal(t, devboxName(config.ProjectDir(), false, true), options.Name)
 	assert.Equal(t, devboxHoldersDir(options.Name), options.HoldersDir)
-	assert.Equal(t, devboxLogPath(false, true), options.LogFile)
+	assert.Equal(t, devboxLogPath(config.ProjectDir(), false, true), options.LogFile)
 	assert.False(t, options.ServeVNC)
 	assert.Nil(t, options.Foreground, "the foreground view is the command's, not the map's")
 	require.NotNil(t, options.Proxy)
@@ -61,7 +61,7 @@ proxy:
 	options.Proxy.BeforeStart = nil
 	options.Proxy.OnRefresh = nil
 	options.Proxy.OnStop = nil
-	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir(), LogFile: proxyLogPath(false)}, *options.Proxy)
+	assert.Equal(t, docker.ProxyOptions{HostDir: proxyLiveDir(), LogFile: proxyLogPath(config.ProjectDir(), false)}, *options.Proxy)
 }
 
 func TestRunMap_RunOptions_VNC(t *testing.T) {
@@ -86,7 +86,7 @@ proxy:
 
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
 	assert.Equal(t, devboxName(config.ProjectDir(), true, false), options.Name)
-	assert.Equal(t, devboxLogPath(true, false), options.LogFile)
+	assert.Equal(t, devboxLogPath(config.ProjectDir(), true, false), options.LogFile)
 	assert.True(t, options.ServeVNC)
 	assert.Nil(t, options.Proxy)
 	assert.Contains(t, options.Env, pkginfo.VNCConfigEnvVar, "the VNC env is set even without a vnc config section")
@@ -114,7 +114,7 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	serveVNC := true
 	assert.Equal(t, "dev:tag-vnc", options.Tag, "the tag carries the vnc suffix only — the egress wall is runtime-only")
 	assert.Equal(t, devboxName(config.ProjectDir(), serveVNC, true), options.Name, "the egress wall makes the proxied vnc combo its own devbox")
-	assert.Equal(t, devboxLogPath(serveVNC, true), options.LogFile)
+	assert.Equal(t, devboxLogPath(config.ProjectDir(), serveVNC, true), options.LogFile)
 	assert.True(t, options.ServeVNC)
 	assert.NotNil(t, options.Proxy)
 }
