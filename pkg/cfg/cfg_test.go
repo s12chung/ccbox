@@ -238,9 +238,9 @@ func TestConfig_ValidateErrors(t *testing.T) {
 	}
 	c := config{
 		CLIName:       new("claude"),
-		TmpfsMasks:    []string{"/etc"},
-		ReadOnlyGlobs: []string{"../escape"},
-		ReadOnlyBinds: map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"},
+		TmpfsMasks:    new([]string{"/etc"}),
+		ReadOnlyGlobs: new([]string{"../escape"}),
+		ReadOnlyBinds: new(map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"}),
 		Proxy:         &proxy{Allowlist: []string{"X.AI"}},
 	}
 	errMap := firm.ValidateAny(c)
@@ -292,11 +292,11 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	c := config{
 		CLIName:       new("claude"),
 		VNC:           &vnc{GUIAppName: "zcode", Enabled: new(true)},
-		TmpfsMasks:    []string{"dist"},
-		VolumeMasks:   []string{"target"},
-		ReadOnlyGlobs: []string{".env"},
-		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
-		ForwardEnv:    []string{"FOO", "BAR"},
+		TmpfsMasks:    new([]string{"dist"}),
+		VolumeMasks:   new([]string{"target"}),
+		ReadOnlyGlobs: new([]string{".env"}),
+		ReadOnlyBinds: new(map[string]string{GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"}),
+		ForwardEnv:    new([]string{"FOO", "BAR"}),
 		Proxy: &proxy{
 			Enabled:   new(true),
 			Allowlist: []string{"ccbox-defaults"},
@@ -305,11 +305,11 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	other := config{
 		CLIName:       new("codex"),
 		VNC:           &vnc{},
-		TmpfsMasks:    []string{"build"},
-		VolumeMasks:   []string{"cache"},
-		ReadOnlyGlobs: []string{".envrc"},
-		ReadOnlyBinds: map[string]string{"~/fonts": "/mnt/fonts", "~/certs": "/home/ccbox/certs"},
-		ForwardEnv:    []string{"FOO"},
+		TmpfsMasks:    new([]string{"build"}),
+		VolumeMasks:   new([]string{"cache"}),
+		ReadOnlyGlobs: new([]string{".envrc"}),
+		ReadOnlyBinds: new(map[string]string{"~/fonts": "/mnt/fonts", "~/certs": "/home/ccbox/certs"}),
+		ForwardEnv:    new([]string{"FOO"}),
 		Proxy:         &proxy{Allowlist: []string{"example.com"}},
 	}
 
@@ -322,15 +322,15 @@ func TestConfig_mergeOverlays(t *testing.T) {
 			GUIAppName: "zcode",
 			Enabled:    new(true),
 		},
-		TmpfsMasks:    []string{"dist", "build"},
-		VolumeMasks:   []string{"target", "cache"},
-		ReadOnlyGlobs: []string{".env", ".envrc"},
-		ReadOnlyBinds: map[string]string{ // maps merge per key, the later layer's entry wins
+		TmpfsMasks:    new([]string{"dist", "build"}),
+		VolumeMasks:   new([]string{"target", "cache"}),
+		ReadOnlyGlobs: new([]string{".env", ".envrc"}),
+		ReadOnlyBinds: new(map[string]string{ // maps merge per key, the later layer's entry wins
 			GitConfigKey: firmrule.EnabledValue,
 			"~/fonts":    "/mnt/fonts",
 			"~/certs":    "/home/ccbox/certs",
-		},
-		ForwardEnv: []string{"FOO", "BAR", "FOO"}, // lists append
+		}),
+		ForwardEnv: new([]string{"FOO", "BAR", "FOO"}), // lists append
 		Proxy: &proxy{ // both layers set: per field; a nil later layer would keep the whole section
 			Enabled:   new(true),                                 // a nil later field inherits, an explicit value wins
 			Allowlist: []string{"ccbox-defaults", "example.com"}, // lists append

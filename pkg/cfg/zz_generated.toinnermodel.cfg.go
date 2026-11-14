@@ -10,11 +10,21 @@ func (x *config) toInnerModel() Config {
 	if x.VNC != nil {
 		out.VNC = x.VNC.toInnerModel()
 	}
-	out.TmpfsMasks = x.TmpfsMasks
-	out.VolumeMasks = x.VolumeMasks
-	out.ReadOnlyGlobs = x.ReadOnlyGlobs
-	out.ReadOnlyBinds = x.ReadOnlyBinds
-	out.ForwardEnv = x.ForwardEnv
+	if x.TmpfsMasks != nil {
+		out.TmpfsMasks = *x.TmpfsMasks
+	}
+	if x.VolumeMasks != nil {
+		out.VolumeMasks = *x.VolumeMasks
+	}
+	if x.ReadOnlyGlobs != nil {
+		out.ReadOnlyGlobs = *x.ReadOnlyGlobs
+	}
+	if x.ReadOnlyBinds != nil {
+		out.ReadOnlyBinds = *x.ReadOnlyBinds
+	}
+	if x.ForwardEnv != nil {
+		out.ForwardEnv = *x.ForwardEnv
+	}
 	if x.Proxy != nil {
 		out.Proxy = x.Proxy.toInnerModel()
 	}

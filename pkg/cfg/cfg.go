@@ -22,6 +22,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/ptrx"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
@@ -66,14 +67,14 @@ func LoadedPaths(projectDir string) ([]string, []string) {
 //
 //toinnermodel:gen
 type config struct {
-	CLIName       *string           `yaml:"cli"`             // coding CLI to install + launch
-	VNC           *vnc              `yaml:"vnc"`             // the desktop's session: its GUI app
-	TmpfsMasks    []string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks   []string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyGlobs []string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
-	ReadOnlyBinds map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
-	ForwardEnv    []string          `yaml:"forward_env"`     // host env vars forwarded into the container
-	Proxy         *proxy            `yaml:"proxy"`           // the egress wall's section
+	CLIName       *string            `yaml:"cli"`             // coding CLI to install + launch
+	VNC           *vnc               `yaml:"vnc"`             // the desktop's session: its GUI app
+	TmpfsMasks    *[]string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks   *[]string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyGlobs *[]string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
+	ReadOnlyBinds *map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
+	ForwardEnv    *[]string          `yaml:"forward_env"`     // host env vars forwarded into the container
+	Proxy         *proxy             `yaml:"proxy"`           // the egress wall's section
 }
 
 func init() {
@@ -139,11 +140,11 @@ func Init(projectDir string) error {
 func userSeedConfig(cliName string) *config {
 	return &config{
 		CLIName:       new(cliName),
-		ForwardEnv:    []string{"TERM", "COLORTERM"},
-		TmpfsMasks:    []string{DefaultsAlias},
-		VolumeMasks:   []string{DefaultsAlias},
-		ReadOnlyGlobs: []string{DefaultsAlias},
-		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
+		ForwardEnv:    new([]string{"TERM", "COLORTERM"}),
+		TmpfsMasks:    new([]string{DefaultsAlias}),
+		VolumeMasks:   new([]string{DefaultsAlias}),
+		ReadOnlyGlobs: new([]string{DefaultsAlias}),
+		ReadOnlyBinds: new(map[string]string{GitConfigKey: firmrule.EnabledValue}),
 		Proxy: &proxy{
 			Enabled:   new(true),
 			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
@@ -198,9 +199,9 @@ func (c *config) renderTmpl() ([]byte, error) {
 	var b bytes.Buffer
 	data := configTmpl{
 		config:                *c,
-		TmpfsMasksComments:    yamlutil.CommentFirstEntry(c.TmpfsMasks, defaultsExpansionComment(tmpfsDefaults)),
-		VolumeMasksComments:   yamlutil.CommentFirstEntry(c.VolumeMasks, defaultsExpansionComment(volumeDefaults)),
-		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(c.ReadOnlyGlobs, defaultsExpansionComment(readOnlyDefaults)),
+		TmpfsMasksComments:    yamlutil.CommentFirstEntry(ptrx.Deref(c.TmpfsMasks), defaultsExpansionComment(tmpfsDefaults)),
+		VolumeMasksComments:   yamlutil.CommentFirstEntry(ptrx.Deref(c.VolumeMasks), defaultsExpansionComment(volumeDefaults)),
+		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(ptrx.Deref(c.ReadOnlyGlobs), defaultsExpansionComment(readOnlyDefaults)),
 		Allowlist:             allowlist,
 		AllowlistComments:     allowlistComments,
 	}

@@ -43,10 +43,13 @@ func Ptr[T any](a, b *T) *T {
 	return deepcopy.Of(winner)
 }
 
-// Merge overlays src's set fields over dst in place: lists append, maps merge per key,
-// struct pointers set on both sides recurse per field, a set scalar or pointer wins — a field
-// zero in src keeps dst's. Unexported fields are unwritable by reflection, so dst keeps its
-// own. Every write deep-copies src, so the merge never aliases it.
+// Merge overlays src's set fields over dst in place:
+//   - both sides set: pointers merge through their pointees, lists append, maps merge
+//     per key — anything else, src's value wins
+//   - a field zero in src keeps dst's
+//
+// Unexported fields are unwritable by reflection, so dst keeps its own. Every write
+// deep-copies src, so the merge never aliases it.
 func Merge[T any](dst *T, src T) {
 	overlay(reflect.ValueOf(dst).Elem(), reflect.ValueOf(src))
 }
@@ -68,9 +71,12 @@ func Struct[T any](a, b *T) *T {
 	return &out
 }
 
-// overlay writes src's set fields over dst's, recursing into struct pointers set on both
-// sides — lists append and maps merge per key, like Slice and Map
+// overlay writes src's set fields over dst's in place — Merge's rules, recursing by shape
 func overlay(dst, src reflect.Value) {
+	if src.Kind() != reflect.Struct {
+		overlaySet(dst, src)
+		return
+	}
 	for i := range src.NumField() {
 		d, s := dst.Field(i), src.Field(i)
 		if !d.CanSet() {
@@ -83,31 +89,40 @@ func overlay(dst, src reflect.Value) {
 			d.Set(deepcopy.Value(s)) // dst unset: src's, fresh
 			continue
 		}
-		switch {
-		case s.Kind() == reflect.Pointer && s.Elem().Kind() == reflect.Struct:
-			overlay(d.Elem(), s.Elem()) // nested sections merge per field
-			continue
-		case s.Kind() == reflect.Slice:
-			merged := reflect.MakeSlice(s.Type(), 0, d.Len()+s.Len())
-			for i := range d.Len() {
-				merged = reflect.Append(merged, deepcopy.Value(d.Index(i)))
-			}
-			for i := range s.Len() {
-				merged = reflect.Append(merged, deepcopy.Value(s.Index(i)))
-			}
-			d.Set(merged)
-			continue
-		case s.Kind() == reflect.Map:
-			merged := reflect.MakeMapWithSize(s.Type(), d.Len()+s.Len())
-			for _, k := range d.MapKeys() {
-				merged.SetMapIndex(k, deepcopy.Value(d.MapIndex(k)))
-			}
-			for _, k := range s.MapKeys() { // last write wins: src beats dst on collisions
-				merged.SetMapIndex(k, deepcopy.Value(s.MapIndex(k)))
-			}
-			d.Set(merged)
-			continue
+		overlay(d, s) // both set: merge by shape
+	}
+}
+
+func overlaySet(d, s reflect.Value) {
+	switch {
+	case s.Kind() == reflect.Pointer: // through the pointee, by its shape
+		switch s.Elem().Kind() {
+		case reflect.Struct:
+			overlay(d.Elem(), s.Elem()) // a wrapped struct merges per field
+		case reflect.Slice, reflect.Map:
+			overlaySet(d.Elem(), s.Elem()) // merge by shape through dst's own pointer
+		default:
+			d.Set(deepcopy.Value(s)) // a set scalar wins, fresh — dst's pointee keeps its own storage
 		}
+	case s.Kind() == reflect.Slice: // appends dst's then src's, fresh
+		merged := reflect.MakeSlice(s.Type(), 0, d.Len()+s.Len())
+		for i := range d.Len() {
+			merged = reflect.Append(merged, deepcopy.Value(d.Index(i)))
+		}
+		for i := range s.Len() {
+			merged = reflect.Append(merged, deepcopy.Value(s.Index(i)))
+		}
+		d.Set(merged)
+	case s.Kind() == reflect.Map: // merge per key, src's collisions winning
+		merged := reflect.MakeMapWithSize(s.Type(), d.Len()+s.Len())
+		for _, k := range d.MapKeys() {
+			merged.SetMapIndex(k, deepcopy.Value(d.MapIndex(k)))
+		}
+		for _, k := range s.MapKeys() {
+			merged.SetMapIndex(k, deepcopy.Value(s.MapIndex(k)))
+		}
+		d.Set(merged)
+	default:
 		d.Set(deepcopy.Value(s)) // fresh copy, so the merged layers never alias
 	}
 }

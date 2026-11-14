@@ -141,7 +141,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 func loadBindsConfig(t *testing.T, binds map[string]string) *Config {
 	t.Helper()
 	dir := t.TempDir()
-	body, err := yaml.Marshal(config{CLIName: new("claude"), ReadOnlyBinds: binds})
+	body, err := yaml.Marshal(config{CLIName: new("claude"), ReadOnlyBinds: new(binds)})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), body, osutil.File))
 
@@ -525,13 +525,13 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	want := config{
 		CLIName:       new("claude"),
 		VNC:           &vnc{Enabled: new(false), GUIAppName: guiapp.App.Name}, // the loaded view's plain Enabled renders on or off
-		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
-		VolumeMasks:   []string{"node_modules", "target"},
-		ReadOnlyGlobs: []string{"secrets"},
-		ReadOnlyBinds: map[string]string{ // the gitconfig dir is present here: kept, resolved
+		TmpfsMasks:    new(append(append([]string{}, tmpfsDefaults...), "dist")),
+		VolumeMasks:   new([]string{"node_modules", "target"}),
+		ReadOnlyGlobs: new([]string{"secrets"}),
+		ReadOnlyBinds: new(map[string]string{ // the gitconfig dir is present here: kept, resolved
 			filepath.Join(home, ".config", "git"): GitConfigMount,
-		},
-		ForwardEnv: []string{"FOO"},
+		}),
+		ForwardEnv: new([]string{"FOO"}),
 		Proxy: &proxy{ // allowlist resolved: the alias expanded in place
 			Enabled:   new(true),
 			Allowlist: append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),

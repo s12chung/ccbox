@@ -60,6 +60,7 @@ func TestStruct(t *testing.T) {
 		N *nested
 		L []string
 		M map[string]int
+		W *[]string
 	}
 
 	assert.Nil(t, Struct[section](nil, nil)) // both nil → nil
@@ -109,6 +110,16 @@ func TestStruct(t *testing.T) {
 	out.L[1] = "y"
 	assert.Equal(t, []string{"a"}, al)
 	assert.Equal(t, []string{"b"}, bl)
+
+	// a pointer-wrapped list set on both sides appends through dst's own pointer, like a
+	// bare one — fresh, not aliased to either input
+	awl, bwl := []string{"a"}, []string{"b"}
+	out = Struct(&section{W: &awl}, &section{W: &bwl})
+	require.NotNil(t, out.W)
+	assert.Equal(t, []string{"a", "b"}, *out.W)
+	(*out.W)[0] = "x"
+	assert.Equal(t, []string{"a"}, awl)
+	assert.Equal(t, []string{"b"}, bwl)
 
 	// maps set on both sides merge per key, b winning — deep-copied too
 	am := map[string]int{"k": 1}

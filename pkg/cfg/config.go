@@ -274,11 +274,11 @@ func (c *Config) MarshalYAML() (any, error) {
 	return config{
 		CLIName:       new(c.CLIName),
 		VNC:           &vnc{Enabled: new(c.VNC.Enabled), GUIAppName: c.VNC.GUIAppName},
-		TmpfsMasks:    c.TmpfsMasksPresent(),
-		VolumeMasks:   c.VolumeMasksPresent(),
-		ReadOnlyGlobs: c.ReadOnlyPathsPresent(),
-		ReadOnlyBinds: c.ReadOnlyBindsPresent(),
-		ForwardEnv:    c.ForwardEnv,
+		TmpfsMasks:    new(c.TmpfsMasksPresent()),
+		VolumeMasks:   new(c.VolumeMasksPresent()),
+		ReadOnlyGlobs: new(c.ReadOnlyPathsPresent()),
+		ReadOnlyBinds: new(c.ReadOnlyBindsPresent()),
+		ForwardEnv:    new(c.ForwardEnv),
 		Proxy:         &proxy{Enabled: new(c.Proxy.Enabled), Allowlist: c.Proxy.Allowlist},
 	}, nil
 }
