@@ -280,7 +280,8 @@ vnc:
 		pkginfo.EnvVar:                             pkgInfo,
 		pkginfo.VNCConfigEnvVar:                    vncInfo,
 		"GH_TOKEN":                                 "tok",
-		"ZCODE_CREDENTIAL_SECRET_FILE":             "/home/ccbox/.zcode/v2/credential-secret", // from the GUI app
+		"XDG_DATA_DIRS":                            "/home/ccbox/.ccbox/xdg/share:/usr/local/share:/usr/share", // from the GUI app
+		"ZCODE_CREDENTIAL_SECRET_FILE":             "/home/ccbox/.zcode/v2/credential-secret",                  // from the GUI app
 	}, env)
 }
 

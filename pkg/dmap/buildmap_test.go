@@ -45,14 +45,19 @@ func TestDataBindDirs(t *testing.T) {
 		}
 
 		assert.Equal(t,
-			[]string{"/home/ccbox/.local/share/mycli/store", "/home/ccbox/.local/share/opencode/a_dir.json", "/home/ccbox/.zcode/v2"},
+			[]string{
+				"/home/ccbox/.ccbox/xdg/share/applications",
+				"/home/ccbox/.local/share/mycli/store",
+				"/home/ccbox/.local/share/opencode/a_dir.json",
+				"/home/ccbox/.zcode/v2",
+			},
 			dataBindDirs(clis, guiapp.Apps))
 	})
 
 	t.Run("the gui app's dirs are always in — the desktop variant alone mounts them", func(t *testing.T) {
 		clis := []cli.CLI{{PkgInfo: pkginfo.PkgInfo{Name: "mycli"}}}
 
-		assert.Equal(t, []string{"/home/ccbox/.zcode/v2"}, dataBindDirs(clis, guiapp.Apps))
+		assert.Equal(t, []string{"/home/ccbox/.ccbox/xdg/share/applications", "/home/ccbox/.zcode/v2"}, dataBindDirs(clis, guiapp.Apps))
 	})
 
 	t.Run("the proxied overlays go in too", func(t *testing.T) {
@@ -61,7 +66,9 @@ func TestDataBindDirs(t *testing.T) {
 			Proxied:   app.Proxied{DataBinds: map[string]*string{".mycli/proxy/store": nil}},
 		}}}
 
-		assert.Equal(t, []string{"/home/ccbox/.mycli/proxy/store", "/home/ccbox/.mycli/store", "/home/ccbox/.zcode/v2"}, dataBindDirs(clis, guiapp.Apps))
+		assert.Equal(t,
+			[]string{"/home/ccbox/.ccbox/xdg/share/applications", "/home/ccbox/.mycli/proxy/store", "/home/ccbox/.mycli/store", "/home/ccbox/.zcode/v2"},
+			dataBindDirs(clis, guiapp.Apps))
 	})
 
 	t.Run("skips home-root file binds — home is already there", func(t *testing.T) {
@@ -69,7 +76,7 @@ func TestDataBindDirs(t *testing.T) {
 			".mycli-store": new("{}"), // home-root file: home is its parent
 		}}}}
 
-		assert.Equal(t, []string{"/home/ccbox/.zcode/v2"}, dataBindDirs(clis, guiapp.Apps),
-			"the home-root file adds no dir — only the gui app's stands")
+		assert.Equal(t, []string{"/home/ccbox/.ccbox/xdg/share/applications", "/home/ccbox/.zcode/v2"}, dataBindDirs(clis, guiapp.Apps),
+			"the home-root file adds no dir — only the gui app's stand")
 	})
 }

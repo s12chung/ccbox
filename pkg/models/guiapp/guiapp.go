@@ -58,10 +58,15 @@ var App = GUIApp{
 	},
 	Setup: app.Setup{
 		// zcode 3.18.x defaults to the OS keyring, which the container lacks
-		Env: map[string]string{"ZCODE_CREDENTIAL_SECRET_FILE": pkginfo.ContainerHome + "/.zcode/v2/credential-secret"},
+		Env: map[string]string{
+			"ZCODE_CREDENTIAL_SECRET_FILE": pkginfo.ContainerHome + "/.zcode/v2/credential-secret",
+			// so the app's deep-link registration finds the seeded system-level entry
+			"XDG_DATA_DIRS": pkginfo.ContainerHome + "/.ccbox/xdg/share:/usr/local/share:/usr/share",
+		},
 		DataBinds: map[string]*string{
 			".zcode/v2":                   nil, // bind from the dir because the app causes EBUSY on files
 			".zcode/v2/credential-secret": new(randomSecret()),
+			".ccbox/xdg/share/applications/zcode.desktop": new(systemDesktopEntry),
 		},
 		Proxied: app.Proxied{
 			// zcode.z.ai for the version manifest, cdn-zcode the deb; the rest is for oauth
@@ -105,6 +110,19 @@ func MustFor(name string) *GUIApp {
 // AllowDomains resolves the named app's download domains — empty when the
 // name names no app
 func AllowDomains(name string) []string { return Apps[name].Setup.Proxied.AllowDomains }
+
+// systemDesktopEntry seeds the system-level zcode.desktop the app's deep-link
+// registration defers to — without one, it rewrites the menu entry to launch
+// the raw binary, which dies without --no-sandbox
+const systemDesktopEntry = `[Desktop Entry]
+Name=ZCode
+Exec=/usr/local/bin/ccboxtools guiapp exec %U
+Terminal=false
+Type=Application
+Icon=zcode
+Categories=Development;
+MimeType=x-scheme-handler/zcode;
+`
 
 // randomSecret is the app's file-backed secret — never rewritten, so stored
 // credentials stay decryptable

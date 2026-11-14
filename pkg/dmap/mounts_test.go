@@ -174,6 +174,10 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 		binds := newVncRunMap(t, guiapp.App.Name).guiAppDataBinds(true)
 		assert.Equal(t, []docker.Mount{
 			docker.NewBind(
+				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", true), ".ccbox-xdg-share-applications-zcode.desktop"),
+				path.Join(pkginfo.ContainerHome, ".ccbox/xdg/share/applications/zcode.desktop"),
+			),
+			docker.NewBind(
 				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", true), ".zcode-v2"),
 				path.Join(pkginfo.ContainerHome, ".zcode/v2"),
 			),
@@ -183,6 +187,10 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	t.Run("the plain run mounts the no-proxy tree's plain binds", func(t *testing.T) {
 		binds := newVncRunMap(t, guiapp.App.Name).guiAppDataBinds(false)
 		assert.Equal(t, []docker.Mount{
+			docker.NewBind(
+				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", false), ".ccbox-xdg-share-applications-zcode.desktop"),
+				path.Join(pkginfo.ContainerHome, ".ccbox/xdg/share/applications/zcode.desktop"),
+			),
 			docker.NewBind(
 				filepath.Join(GUIAppDataDir(userdir.Dir(), "zcode", false), ".zcode-v2"),
 				path.Join(pkginfo.ContainerHome, ".zcode/v2"),
