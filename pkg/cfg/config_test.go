@@ -1,15 +1,12 @@
 package cfg
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/s12chung/firm"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -19,7 +16,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
-	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -30,7 +26,7 @@ func TestConfig_ProjectDir(t *testing.T) {
 	useHome(t) // no user file
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
 	assert.Equal(t, dir, c.ProjectDir())
 }
@@ -40,90 +36,12 @@ func TestConfig_CLI(t *testing.T) {
 	useHome(t) // no user file
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
 	assert.Equal(t, cli.MustFor("claude"), c.CLI())
 
-	bare := Config{CLIName: new("emacs")}
+	bare := Config{CLIName: "emacs"}
 	assert.PanicsWithValue(t, `cli: unknown cli "emacs"`, func() { bare.CLI() })
-}
-
-func TestConfig_ValidateErrors(t *testing.T) {
-	aliases := allowlistAliases()
-	quoted := make([]string, len(aliases))
-	for i, a := range aliases {
-		quoted[i] = strconv.Quote(a)
-	}
-	c := Config{
-		CLIName:       new("claude"),
-		TmpfsMasks:    []string{"/etc"},
-		ReadOnlyGlobs: []string{"../escape"},
-		ReadOnlyBinds: map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"},
-		Proxy:         &Proxy{Allowlist: []string{"X.AI"}},
-	}
-	errMap := firm.ValidateAny(c)
-	require.NotEmpty(t, errMap)
-	// ShowValue appends the failing element, bindErr the failing mount, to each error
-	assert.Equal(t, strings.Join([]string{
-		`cfg.Config.Proxy.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
-			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
-		`cfg.Config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
-		`cfg.Config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
-		`cfg.Config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
-			`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$: "../escape"`,
-		`cfg.Config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
-			`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$: "/etc"`,
-	}, ", "), errMap.Error())
-}
-
-func TestConfig_mergeOverlays(t *testing.T) {
-	c := Config{
-		CLIName:       new("claude"),
-		VNC:           &VNC{GUIAppName: "zcode", Enabled: new(true)},
-		TmpfsMasks:    []string{"dist"},
-		VolumeMasks:   []string{"target"},
-		ReadOnlyGlobs: []string{".env"},
-		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
-		ForwardEnv:    []string{"FOO", "BAR"},
-		Proxy: &Proxy{
-			Enabled:   new(true),
-			Allowlist: []string{"ccbox-defaults"},
-		},
-	}
-	other := Config{
-		CLIName:       new("codex"),
-		VNC:           &VNC{},
-		TmpfsMasks:    []string{"build"},
-		VolumeMasks:   []string{"cache"},
-		ReadOnlyGlobs: []string{".envrc"},
-		ReadOnlyBinds: map[string]string{"~/fonts": "/mnt/fonts", "~/certs": "/home/ccbox/certs"},
-		ForwardEnv:    []string{"FOO"},
-		Proxy:         &Proxy{Allowlist: []string{"example.com"}},
-	}
-
-	c.merge(other)
-
-	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
-	assert.Equal(t, Config{
-		CLIName: new("codex"),
-		VNC: &VNC{ // the empty section merges per field: the later layer's unset fields keep the earlier's
-			GUIAppName: "zcode",
-			Enabled:    new(true),
-		},
-		TmpfsMasks:    []string{"dist", "build"},
-		VolumeMasks:   []string{"target", "cache"},
-		ReadOnlyGlobs: []string{".env", ".envrc"},
-		ReadOnlyBinds: map[string]string{ // maps merge per key, the later layer's entry wins
-			GitConfigKey: firmrule.EnabledValue,
-			"~/fonts":    "/mnt/fonts",
-			"~/certs":    "/home/ccbox/certs",
-		},
-		ForwardEnv: []string{"FOO", "BAR", "FOO"}, // lists append
-		Proxy: &Proxy{ // both layers set: per field; a nil later layer would keep the whole section
-			Enabled:   new(true),                                 // a nil later field inherits, an explicit value wins
-			Allowlist: []string{"ccbox-defaults", "example.com"}, // lists append
-		},
-	}, c)
 }
 
 func TestProxy_IsProxied(t *testing.T) {
@@ -133,12 +51,10 @@ func TestProxy_IsProxied(t *testing.T) {
 		flag bool
 		want bool
 	}{
-		{"a missing section is no proxy", Config{}, true, false},
-		{"the section's enabled stands alone", Config{Proxy: &Proxy{Enabled: new(true)}}, true, true},
-		{"a vnc run proxies like a headless one", Config{Proxy: &Proxy{Enabled: new(true)}}, true, true},
-		{"the flag overrides the section", Config{Proxy: &Proxy{Enabled: new(true)}}, false, false},
-		{"an unset enabled is no proxy", Config{Proxy: &Proxy{}}, true, false},
-		{"an explicit false is no proxy", Config{Proxy: &Proxy{Enabled: new(false)}}, true, false},
+		{"a missing section loads as the zero one — no proxy", Config{}, true, false},
+		{"the section's enabled stands alone", Config{Proxy: Proxy{Enabled: true}}, true, true},
+		{"a vnc run proxies like a headless one", Config{Proxy: Proxy{Enabled: true}}, true, true},
+		{"the flag overrides the section", Config{Proxy: Proxy{Enabled: true}}, false, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -161,7 +77,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 		{
 			"an all-nil config expands every list to nothing", t.TempDir(),
 			"cli: claude\n",
-			Config{CLIName: new("claude")},
+			Config{CLIName: "claude"},
 			nil, nil, nil, nil,
 		},
 		{
@@ -170,7 +86,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 				"tmpfs_masks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
 				"read_only_globs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
 			Config{
-				CLIName:       new("claude"),
+				CLIName:       "claude",
 				TmpfsMasks:    []string{DefaultsAlias, "dist", DefaultsAlias},
 				ReadOnlyGlobs: []string{DefaultsAlias, ".env", DefaultsAlias},
 			},
@@ -182,7 +98,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 		{
 			"an explicit empty list stays empty like an unset one", t.TempDir(),
 			"cli: claude\nvolume_masks: []\n",
-			Config{CLIName: new("claude"), VolumeMasks: []string{}},
+			Config{CLIName: "claude", VolumeMasks: []string{}},
 			nil, nil, nil, nil,
 		},
 	}
@@ -191,9 +107,8 @@ func TestConfig_ListsExpanded(t *testing.T) {
 			useHome(t) // no user file: the project body stands alone
 			writeConfig(t, tt.projectDir, projectConfigFileName, tt.body)
 			tt.want.projectDir = tt.projectDir
-			tt.want.Proxy, tt.want.VNC = &Proxy{}, &VNC{} // Load loads the section-less bodies as empty sections
 
-			c, err := Load(tt.projectDir, Config{}, false)
+			c, err := Load(tt.projectDir, nil, false)
 			require.NoError(t, err)
 			assert.Equal(t, &tt.want, c)
 			assert.Equal(t, tt.wantTmpfsExpanded, c.TmpfsMasksExpanded())
@@ -210,7 +125,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 	mkDirs(t, dir, "dist")
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\ntmpfs_masks:\n  - dist\n")
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
 
 	expanded := c.TmpfsMasksExpanded()
@@ -225,7 +140,12 @@ func TestConfig_AccessorsCache(t *testing.T) {
 // loadBindsConfig loads a config whose read_only_binds are the given raw map
 func loadBindsConfig(t *testing.T, binds map[string]string) *Config {
 	t.Helper()
-	c, err := Load(t.TempDir(), Config{CLIName: new("claude"), ReadOnlyBinds: binds}, false)
+	dir := t.TempDir()
+	body, err := yaml.Marshal(config{CLIName: new("claude"), ReadOnlyBinds: binds})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), body, osutil.File))
+
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
 	return c
 }
@@ -321,7 +241,7 @@ func TestConfig_MasksPresent(t *testing.T) {
 			mkDirs(t, dir, tt.dirs...)
 			writeConfig(t, dir, projectConfigFileName, tt.body)
 
-			c, err := Load(dir, Config{}, false)
+			c, err := Load(dir, nil, false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksPresent())
 			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksPresent())
@@ -367,7 +287,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 			if tt.projectBody != "" {
 				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectConfigFileName), []byte(tt.projectBody), osutil.File))
 			}
-			c, err := Load(tt.projectDir, Config{}, false)
+			c, err := Load(tt.projectDir, nil, false)
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksAbsent())
 			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksAbsent())
@@ -386,7 +306,7 @@ func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 	body += bodySb18.String()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), osutil.File))
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
 	return c
 }
@@ -460,7 +380,7 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), osutil.File))
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
 
 	// the expansion keeps the masked entries — the absent node_modules too — but their
@@ -522,7 +442,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 			"    - ccbox-anthropic-provider\n"+
 			"    - ccbox-set-harness\n")
 
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
 		// the harness alias's api.anthropic.com collapses into the provider alias's —
 		// one expansion, in place
@@ -536,7 +456,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 
 		allProviders, ok := provider.DomainsFor(provider.AllProvidersAlias)
 		require.True(t, ok)
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
 		assert.Equal(t, allProviders, c.AllowlistExpanded())
 	})
@@ -546,7 +466,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 
 		allRuntimes, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
 		require.True(t, ok)
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
 		assert.Equal(t, allRuntimes, c.AllowlistExpanded())
 	})
@@ -554,12 +474,12 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	t.Run("the GUI app's domains enter only through the harness alias on a vnc load", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
 
-		headlessConfig, err := Load(dir, Config{}, false)
+		headlessConfig, err := Load(dir, nil, false)
 		require.NoError(t, err)
 		assert.False(t, headlessConfig.ServeVNC())
 		assert.Equal(t, harnessDomains, headlessConfig.AllowlistExpanded())
 
-		vncConfig, err := Load(dir, Config{}, true)
+		vncConfig, err := Load(dir, nil, true)
 		require.NoError(t, err)
 		assert.True(t, vncConfig.ServeVNC())
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), vncConfig.AllowlistExpanded())
@@ -568,7 +488,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	t.Run("enabled pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
 
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
 		assert.True(t, c.ServeVNC())
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), c.AllowlistExpanded())
@@ -583,15 +503,15 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	home := os.Getenv("HOME")       // TestMain's temp home
 	mkDirs(t, home, ".config/git")
 	c := &Config{
-		CLIName:       new("claude"),
-		VNC:           &VNC{GUIAppName: guiapp.App.Name},
+		CLIName:       "claude",
+		VNC:           VNC{GUIAppName: guiapp.App.Name},
 		TmpfsMasks:    []string{DefaultsAlias, "dist", "build"},
 		VolumeMasks:   []string{DefaultsAlias, "target", "cache"},
 		ReadOnlyGlobs: []string{DefaultsAlias, ".env"},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
 		ForwardEnv:    []string{"FOO"},
-		Proxy: &Proxy{
-			Enabled:   new(true),
+		Proxy: Proxy{
+			Enabled:   true,
 			Allowlist: []string{"user.example.dev", DefaultsAlias, "example.com"},
 		},
 		projectDir: dir,
@@ -600,14 +520,11 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	out, err := yaml.Marshal(c)
 	require.NoError(t, err)
 
-	// round-trip the marshal back: masks resolved (alias expanded in place, present
-	// filtered), globs resolved to their matches, binds resolved to the host's present
-	// dirs, allowlist resolved, the rest passed through
-	var got Config
+	var got config
 	require.NoError(t, yaml.Unmarshal(out, &got))
-	want := Config{
+	want := config{
 		CLIName:       new("claude"),
-		VNC:           &VNC{GUIAppName: guiapp.App.Name},
+		VNC:           &vnc{Enabled: new(false), GUIAppName: guiapp.App.Name}, // the loaded view's plain Enabled renders on or off
 		TmpfsMasks:    append(append([]string{}, tmpfsDefaults...), "dist"),
 		VolumeMasks:   []string{"node_modules", "target"},
 		ReadOnlyGlobs: []string{"secrets"},
@@ -615,7 +532,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 			filepath.Join(home, ".config", "git"): GitConfigMount,
 		},
 		ForwardEnv: []string{"FOO"},
-		Proxy: &Proxy{ // allowlist resolved: the alias expanded in place
+		Proxy: &proxy{ // allowlist resolved: the alias expanded in place
 			Enabled:   new(true),
 			Allowlist: append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),
 		},
@@ -649,7 +566,10 @@ func TestVNC_InfoJSON(t *testing.T) {
 
 func TestConfig_GUIApp(t *testing.T) {
 	t.Run("the vnc section's gui app resolves", func(t *testing.T) {
-		c, err := Load(t.TempDir(), Config{VNC: &VNC{GUIAppName: guiapp.App.Name}}, true)
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "vnc:\n  gui_app: "+guiapp.App.Name+"\n")
+
+		c, err := Load(dir, nil, true)
 		require.NoError(t, err)
 
 		app := c.GUIApp()
@@ -657,42 +577,17 @@ func TestConfig_GUIApp(t *testing.T) {
 	})
 
 	t.Run("no vnc section or an empty gui app name names none", func(t *testing.T) {
-		for _, vnc := range []*VNC{nil, {}} {
+		for _, body := range []string{"", "vnc: {}\n"} {
 			for _, vncFlag := range []bool{false, true} {
-				c, err := Load(t.TempDir(), Config{VNC: vnc}, vncFlag)
+				dir := t.TempDir()
+				if body != "" {
+					writeConfig(t, dir, projectConfigFileName, body)
+				}
+				c, err := Load(dir, nil, vncFlag)
 				require.NoError(t, err)
 
 				assert.Nil(t, c.GUIApp())
 			}
 		}
 	})
-}
-
-// TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
-// which `make lint` yq-checks as YAML. Regenerate with:
-// `UPDATE_FIXTURES=1 go test ./pkg/cfg/ -run TestConfig_renderTmpl`
-func TestConfig_renderTmpl(t *testing.T) {
-	for _, tt := range []struct {
-		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml
-		c    Config
-	}{
-		{"init", Config{}},                       // `ccbox config init`'s fill-in scaffold
-		{"user-seed", *userSeedConfig("claude")}, // the safe-seeded user-level config
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.c.renderTmpl()
-			require.NoError(t, err)
-
-			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
-			if os.Getenv("UPDATE_FIXTURES") != "" {
-				require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
-				require.NoError(t, os.WriteFile(path, got, osutil.File))
-			}
-
-			// #nosec G304 -- the package's own fixture path
-			want, err := os.ReadFile(path)
-			require.NoError(t, err)
-			assert.Equal(t, want, got)
-		})
-	}
 }

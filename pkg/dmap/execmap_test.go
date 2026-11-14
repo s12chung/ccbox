@@ -4,15 +4,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/proxy"
 )
 
 func TestExecMap_Cmd(t *testing.T) {
-	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, false)
-	require.NoError(t, err)
+	config := loadConfig(t, "cli: claude\n")
 	em := NewExecMap(config.CLI())
 
 	assert.Equal(t, execArgv("claude"), em.cmd(ExecMode{}, true))

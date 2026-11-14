@@ -15,7 +15,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/app"
 	"github.com/s12chung/ccbox/pkg/models/cli"
@@ -33,16 +32,33 @@ func TestTmpfsMasks(t *testing.T) {
 		tmpfsMasks("/Users/me/proj", []string{".idea", "dist"}))
 }
 
-// testRunMap builds a RunMap over a fresh temp home and a fresh temp project's config.
-func testRunMap(t *testing.T, flags cfg.Config) *RunMap {
+// writeConfigYaml writes body as the project's .ccbox.yaml in a fresh temp project,
+// returning the project dir
+func writeConfigYaml(t *testing.T, body string) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
+	return dir
+}
+
+// loadConfig loads cfg over a fresh temp project whose .ccbox.yaml carries body —
+// testutil.Home keeps the user-level layer out of the way
+func loadConfig(t *testing.T, body string) *cfg.Config {
 	t.Helper()
 	testutil.Home(t)
-	if flags.CLIName == nil {
-		flags.CLIName = new("codex")
-	}
-	config, err := cfg.Load(t.TempDir(), flags, false)
+	config, err := cfg.Load(writeConfigYaml(t, body), nil, false)
 	require.NoError(t, err)
-	return NewRunMap(config, runtime.AllCacheVolumes(), false)
+	return config
+}
+
+// testRunMap builds a RunMap over a fresh temp project whose .ccbox.yaml carries body;
+// the cli defaults to codex when body doesn't name one.
+func testRunMap(t *testing.T, body string) *RunMap {
+	t.Helper()
+	if !strings.Contains(body, "cli:") {
+		body = "cli: codex\n" + body
+	}
+	return NewRunMap(loadConfig(t, body), runtime.AllCacheVolumes(), false)
 }
 
 func TestProxyAllowBinds(t *testing.T) {
@@ -100,10 +116,7 @@ func TestReadOnlyBinds(t *testing.T) {
 		home := testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 
-		config, err := cfg.Load(t.TempDir(), cfg.Config{
-			CLIName:       new("codex"),
-			ReadOnlyBinds: map[string]string{cfg.GitConfigKey: firmrule.EnabledValue},
-		}, false)
+		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), nil, false)
 		require.NoError(t, err)
 
 		assert.Equal(t, []docker.Mount{
@@ -114,10 +127,7 @@ func TestReadOnlyBinds(t *testing.T) {
 	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
 		testutil.Home(t)
 
-		config, err := cfg.Load(t.TempDir(), cfg.Config{
-			CLIName:       new("codex"),
-			ReadOnlyBinds: map[string]string{cfg.GitConfigKey: firmrule.EnabledValue},
-		}, false)
+		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), nil, false)
 		require.NoError(t, err)
 
 		assert.Empty(t, readOnlyBinds(config.ReadOnlyBindsPresent()))
@@ -151,7 +161,11 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	// newVncRunMap maps a vnc run naming guiApp
 	newVncRunMap := func(t *testing.T, guiApp string) *RunMap {
 		t.Helper()
-		config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude"), VNC: &cfg.VNC{GUIAppName: guiApp}}, true)
+		body := "cli: claude\n"
+		if guiApp != "" {
+			body += "vnc:\n  gui_app: " + guiApp + "\n"
+		}
+		config, err := cfg.Load(writeConfigYaml(t, body), nil, true)
 		require.NoError(t, err)
 		return NewRunMap(config, nil, false)
 	}
@@ -177,8 +191,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	})
 
 	t.Run("none without a vnc run", func(t *testing.T) {
-		config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude"), VNC: &cfg.VNC{GUIAppName: guiapp.App.Name}}, false)
-		require.NoError(t, err)
+		config := loadConfig(t, "cli: claude\nvnc:\n  gui_app: "+guiapp.App.Name+"\n")
 
 		binds := NewRunMap(config, nil, false).guiAppDataBinds(true)
 		assert.Empty(t, binds)

@@ -1,32 +1,23 @@
 package cfg
 
 import (
-	"bytes"
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
-	"strings"
-	"text/template"
 
 	"github.com/gobwas/glob"
-	"github.com/s12chung/firm"
-	"github.com/s12chung/firm/rule"
 
 	"github.com/s12chung/ccbox/pkg/cfg/expand"
-	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/git"
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
-	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mapx"
-	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
@@ -40,16 +31,16 @@ const (
 	GitConfigMount = pkginfo.ContainerHome + "/.config/git"
 )
 
-// Config is the parsed .ccbox.yaml.
+// Config is the loaded .ccbox.yaml
 type Config struct {
-	CLIName       *string           `yaml:"cli"`             // coding CLI to install + launch
-	VNC           *VNC              `yaml:"vnc"`             // the desktop's session: its GUI app
-	TmpfsMasks    []string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks   []string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyGlobs []string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
-	ReadOnlyBinds map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
-	ForwardEnv    []string          `yaml:"forward_env"`     // host env vars forwarded into the container
-	Proxy         *Proxy            `yaml:"proxy"`           // the egress wall's section; nil is no proxy
+	CLIName       string            // coding CLI to install + launch
+	VNC           VNC               // the desktop's session: its GUI app
+	TmpfsMasks    []string          // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks   []string          // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyGlobs []string          // project-relative globs to re-mount read-only
+	ReadOnlyBinds map[string]string // host dir → container mount dir, bound read-only
+	ForwardEnv    []string          // host env vars forwarded into the container
+	Proxy         Proxy             // the egress wall's section
 
 	// projectDir anchors the masks' present-filters
 	projectDir string
@@ -64,66 +55,28 @@ type Config struct {
 	expandedAllowlist     []string
 }
 
-func init() {
-	firm.MustRegisterType(firm.NewDefinition[Config]().
-		NotNil("CLIName").
-		Validates(firm.RuleMap{
-			"CLIName": {rule.OneOf[string]{ValuesFunc: cli.Names}},
-			"VNC":     {firm.Backed()},
-
-			"TmpfsMasks":    {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
-			"VolumeMasks":   {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
-			"ReadOnlyGlobs": {firm.Elems[[]string](rule.ShowValue(firmrule.MaskGlob))},
-
-			// host dir → container mount dir, bound read-only
-			"ReadOnlyBinds": {firm.KeyValues[map[string]string](firmrule.Bind{
-				Specials: []string{GitConfigKey},
-			})},
-
-			"ForwardEnv": {firm.Elems[[]string](rule.ShowValue(firmrule.EnvVar))},
-			"Proxy":      {firm.Backed()},
-		}))
-}
-
 // VNC is the desktop's session: the GUI app it installs and launches.
 type VNC struct {
 	// Enabled always runs with VNC served — the --vnc flag's config form
-	Enabled *bool `yaml:"enabled,omitempty"`
+	Enabled bool
 	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
-	GUIAppName string `yaml:"gui_app,omitempty"`
+	GUIAppName string
 }
 
-// IsEnabled reads Enabled nil-safely: unset is off.
-func (v *VNC) IsEnabled() bool { return v != nil && v.Enabled != nil && *v.Enabled }
+// IsEnabled reports whether the session runs with VNC served
+func (v *VNC) IsEnabled() bool { return v.Enabled }
 
-func init() {
-	firm.MustRegisterType(firm.NewDefinition[VNC]().
-		Validates(firm.RuleMap{
-			"GUIAppName": {rule.OneOf[string]{
-				Values: append(guiapp.Names(), ""), // empty name means no GUI app to run
-			}},
-		}))
-}
-
-// Proxy is the egress wall's section; nil is no proxy — the seeded file pins its
-// enabled default.
+// Proxy is the egress wall's section — the seeded file pins its enabled default.
 type Proxy struct {
 	// Enabled runs with the egress wall
-	Enabled *bool `yaml:"enabled,omitempty"`
+	Enabled bool
 	// Allowlist is the domains the egress wall lets through; each entry also matches
 	// all its subdomains
-	Allowlist []string `yaml:"allowlist"`
+	Allowlist []string
 }
 
-// IsEnabled reads Enabled nil-safely: unset is off.
-func (p *Proxy) IsEnabled() bool { return p != nil && p.Enabled != nil && *p.Enabled }
-
-func init() {
-	firm.MustRegisterType(firm.NewDefinition[Proxy]().
-		Validates(firm.RuleMap{
-			"Allowlist": {firm.Elems[[]string](rule.ShowValue(firmrule.DomainOrAlias(allowlistAliases)))},
-		}))
-}
+// IsEnabled reports whether the egress wall runs
+func (p *Proxy) IsEnabled() bool { return p.Enabled }
 
 // IsProxied resolves the run's egress wall: the exec mode's proxied ask per the
 // section's enabled — a vnc run proxies exactly like a headless one
@@ -138,7 +91,7 @@ func (c *Config) ServeVNC() bool { return c.serveVNC }
 
 // CLI resolves the config's cli name to its cli.CLI; MustFor is
 // infallible for a loaded config
-func (c *Config) CLI() cli.CLI { return cli.MustFor(*c.CLIName) }
+func (c *Config) CLI() cli.CLI { return cli.MustFor(c.CLIName) }
 
 // GUIApp resolves the run's GUI app: nil on a headless run or a vnc section naming
 // no gui_app; MustFor is infallible for a loaded config
@@ -147,16 +100,6 @@ func (c *Config) GUIApp() *guiapp.GUIApp {
 		return nil
 	}
 	return guiapp.MustFor(c.VNC.GUIAppName)
-}
-
-// merge layers other onto c, resetting the expanded caches
-func (c *Config) merge(other Config) {
-	mergeempty.Merge(c, other) // unexported fields are not merged
-	c.expandedTmpfsMasks = nil
-	c.expandedVolumeMasks = nil
-	c.expandedReadOnlyGlobs = nil
-	c.expandedReadOnlyBinds = nil
-	c.expandedAllowlist = nil
 }
 
 // TmpfsMasksExpanded expands the DefaultsAlias alias in TmpfsMasks to defaults
@@ -324,21 +267,19 @@ func expandDomain(entry string) []string {
 	return []string{entry}
 }
 
-// MarshalYAML renders the effective config: masks resolved to the project's present
-// dirs, read_only_globs to their matched paths, read_only_binds to the host's present dirs,
-// list aliases expanded — what `ccbox config` prints.
+// MarshalYAML renders the effective config back in the input view's yaml-facing
+// shape — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
 	c.Proxy.Allowlist = c.AllowlistExpanded()
-	type noMarshalYamlDefined Config
-	return noMarshalYamlDefined{
-		CLIName:       c.CLIName,
-		VNC:           c.VNC,
+	return config{
+		CLIName:       new(c.CLIName),
+		VNC:           &vnc{Enabled: new(c.VNC.Enabled), GUIAppName: c.VNC.GUIAppName},
 		TmpfsMasks:    c.TmpfsMasksPresent(),
 		VolumeMasks:   c.VolumeMasksPresent(),
 		ReadOnlyGlobs: c.ReadOnlyPathsPresent(),
 		ReadOnlyBinds: c.ReadOnlyBindsPresent(),
 		ForwardEnv:    c.ForwardEnv,
-		Proxy:         c.Proxy,
+		Proxy:         &proxy{Enabled: new(c.Proxy.Enabled), Allowlist: c.Proxy.Allowlist},
 	}, nil
 }
 
@@ -354,61 +295,6 @@ func (v *VNC) InfoJSON() (string, error) {
 		return "", fmt.Errorf("vnc config: %w", err)
 	}
 	return string(body), nil
-}
-
-var (
-	// configTmplSrc is the ccbox.yaml template
-	//
-	//go:embed ccbox.yaml.tmpl
-	configTmplSrc string
-	tmpl          = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
-		"yaml":   yamlutil.Value,
-		"indent": yamlutil.Indent,
-	}).Parse(configTmplSrc))
-)
-
-// configTmpl wraps Config with per-entry comments for the fields that have them; the template
-// passes nil for the rest, whose yaml calls render bare
-type configTmpl struct {
-	Config
-
-	TmpfsMasksComments    []string
-	VolumeMasksComments   []string
-	ReadOnlyGlobsComments []string
-	AllowlistComments     []string
-	Allowlist             []string
-}
-
-func (c *Config) renderTmpl() ([]byte, error) {
-	var allowlist, allowlistComments []string
-	if c.Proxy != nil {
-		allowlist = c.Proxy.Allowlist
-		allowlistComments = yamlutil.EntryToComments(c.Proxy.Allowlist, map[string]string{
-			DefaultsAlias:            "shared tooling domains",
-			runtime.AllRuntimesAlias: "every runtime's domains (node, python, go, rust)",
-			SetHarnessAlias:          "the selected CLI's — and on --vnc, the GUI app's",
-		})
-	}
-	var b bytes.Buffer
-	data := configTmpl{
-		Config:                *c,
-		TmpfsMasksComments:    yamlutil.CommentFirstEntry(c.TmpfsMasks, defaultsExpansionComment(tmpfsDefaults)),
-		VolumeMasksComments:   yamlutil.CommentFirstEntry(c.VolumeMasks, defaultsExpansionComment(volumeDefaults)),
-		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(c.ReadOnlyGlobs, defaultsExpansionComment(readOnlyDefaults)),
-		Allowlist:             allowlist,
-		AllowlistComments:     allowlistComments,
-	}
-	if err := tmpl.Execute(&b, data); err != nil {
-		return nil, fmt.Errorf("render Config template: %w", err)
-	}
-	return b.Bytes(), nil
-}
-
-func defaultsExpansionComment(defaults []string) string {
-	if len(defaults) > 3 {
-		return strings.Join(defaults[:3], ", ") + ", etc., see `ccbox config defaults` for expansions"
-	}
-	return strings.Join(defaults, ", ")
 }
 
 func absentDirs(projectDir string, dirs []string) []string {

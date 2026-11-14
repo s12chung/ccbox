@@ -11,7 +11,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
-	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
@@ -26,10 +25,12 @@ func TestRunMap_RunOptions(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	config, err := cfg.Load(t.TempDir(), cfg.Config{
-		CLIName: new("claude"),
-		Proxy:   &cfg.Proxy{Allowlist: []string{cfg.DefaultsAlias, "example.com"}},
-	}, false)
+	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
+proxy:
+  allowlist:
+    - ccbox-defaults
+    - example.com
+`), nil, false)
 	require.NoError(t, err)
 	rm := NewRunMap(config, runtime.AllCacheVolumes(), false)
 
@@ -68,11 +69,14 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	// the base layer carries the gui_app, as a project's config would
-	config, err := cfg.Load(t.TempDir(), cfg.Config{
-		CLIName: new("claude"),
-		VNC:     &cfg.VNC{GUIAppName: guiapp.App.Name},
-		Proxy:   &cfg.Proxy{Allowlist: []string{cfg.DefaultsAlias, cfg.SetHarnessAlias}},
-	}, true)
+	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
+vnc:
+  gui_app: `+guiapp.App.Name+`
+proxy:
+  allowlist:
+    - ccbox-defaults
+    - ccbox-set-harness
+`), nil, true)
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", nil)
@@ -99,7 +103,7 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	// the --vnc flag on a config without a vnc section, as `ccbox proxy --vnc` arrives
-	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, true)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), nil, true)
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", NewProxyMap(config).Options())
@@ -119,11 +123,13 @@ func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	projectDir := t.TempDir()
-	config, err := cfg.Load(projectDir, cfg.Config{
-		CLIName: new("claude"),
-		Proxy:   &cfg.Proxy{Allowlist: []string{cfg.DefaultsAlias, "example.com"}},
-	}, false)
+	projectDir := writeConfigYaml(t, `cli: claude
+proxy:
+  allowlist:
+    - ccbox-defaults
+    - example.com
+`)
+	config, err := cfg.Load(projectDir, nil, false)
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), true).RunOptions("dev:tag", nil)
@@ -138,7 +144,18 @@ func TestRunMap_HostOptions(t *testing.T) {
 	home := testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	projectDir := t.TempDir()
+	projectDir := writeConfigYaml(t, `cli: codex
+tmpfs_masks:
+  - dist
+volume_masks:
+  - node_modules
+read_only_globs:
+  - .env
+read_only_binds:
+  gitconfig: enabled
+  ~/fonts: /home/ccbox/fonts
+`)
+
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), osutil.Dir))
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "node_modules"), osutil.Dir))
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".env"), nil, osutil.File))
@@ -146,13 +163,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "fonts"), osutil.Dir))
 
-	config, err := cfg.Load(projectDir, cfg.Config{
-		CLIName:       new("codex"),
-		TmpfsMasks:    []string{"dist"},
-		VolumeMasks:   []string{"node_modules"},
-		ReadOnlyGlobs: []string{".env"},
-		ReadOnlyBinds: map[string]string{cfg.GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
-	}, false)
+	config, err := cfg.Load(projectDir, nil, false)
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
@@ -195,7 +206,7 @@ func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), nil, false)
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
@@ -209,7 +220,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("codex")}, false)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), nil, false)
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
@@ -226,7 +237,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	config, err := cfg.Load(t.TempDir(), cfg.Config{CLIName: new("claude")}, false)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), nil, false)
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true, true)
@@ -243,18 +254,22 @@ func TestRunMap_Env(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("DISABLE_AUTOUPDATER", "0")
-	vnc := &cfg.VNC{GUIAppName: guiapp.App.Name, Enabled: new(true)}
-	rm := testRunMap(t, cfg.Config{
-		CLIName:    new("claude"),
-		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN", "DISABLE_AUTOUPDATER"},
-		VNC:        vnc,
-	})
+	rm := testRunMap(t, `cli: claude
+forward_env:
+  - TERM
+  - COLORTERM
+  - GH_TOKEN
+  - DISABLE_AUTOUPDATER
+vnc:
+  enabled: true
+  gui_app: `+guiapp.App.Name+`
+`)
 	env, err := rm.Env(true)
 	require.NoError(t, err)
 
 	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
 	require.NoError(t, err)
-	vncInfo, err := vnc.InfoJSON()
+	vncInfo, err := rm.cfg.VNC.InfoJSON()
 	require.NoError(t, err)
 	//nolint:gosec // the map carries env var names, not credentials
 	assert.Equal(t, map[string]string{
@@ -273,10 +288,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 	t.Setenv("TERM", "")
 	t.Setenv("COLORTERM", "")
-	rm := testRunMap(t, cfg.Config{
-		CLIName:    new("claude"),
-		ForwardEnv: []string{"TERM", "COLORTERM", "GH_TOKEN"},
-	})
+	rm := testRunMap(t, "cli: claude\nforward_env:\n  - TERM\n  - COLORTERM\n  - GH_TOKEN\n")
 
 	env, err := rm.Env(false)
 	require.NoError(t, err)
@@ -286,7 +298,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 }
 
 func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
-	rm := testRunMap(t, cfg.Config{CLIName: new("claude")})
+	rm := testRunMap(t, "cli: claude\n")
 
 	env, err := rm.Env(false)
 	require.NoError(t, err)
@@ -294,7 +306,7 @@ func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 }
 
 func TestRunMap_Env_EmptyVNC(t *testing.T) {
-	rm := testRunMap(t, cfg.Config{CLIName: new("claude")})
+	rm := testRunMap(t, "cli: claude\n")
 
 	env, err := rm.Env(true)
 	require.NoError(t, err)

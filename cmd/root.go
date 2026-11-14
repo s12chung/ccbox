@@ -77,7 +77,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 		var err error
-		config, err = cfg.Load(mustGetwd(), cfg.Config{CLIName: flagCLI}, runVNC)
+		config, err = cfg.Load(mustGetwd(), flagCLI, runVNC)
 		if err != nil {
 			return err
 		}

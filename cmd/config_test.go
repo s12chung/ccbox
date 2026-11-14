@@ -18,7 +18,7 @@ import (
 
 func TestAliasSections(t *testing.T) {
 	cliName := "pi"
-	config = &cfg.Config{CLIName: &cliName}
+	config = &cfg.Config{CLIName: cliName}
 	t.Cleanup(func() { config = nil })
 
 	assert.Equal(t, []string{
@@ -131,13 +131,14 @@ func TestConfirmReadOnlyPaths(t *testing.T) {
 			require.NoError(t, os.WriteFile(filepath.Join(d, ".env"), []byte("K=v"), osutil.File))
 		}
 	}
-	// loadReadOnlyConfig loads config over dir, whose flags carry the glob —
+	// loadReadOnlyConfig loads config over dir, whose .ccbox.yaml carries the glob —
 	// testutil.Home keeps the user-level layer out of the match count
 	loadReadOnlyConfig := func(t *testing.T, dir string) {
 		t.Helper()
 		testutil.Home(t)
-		cliName := "claude"
-		c, err := cfg.Load(dir, cfg.Config{CLIName: &cliName, ReadOnlyGlobs: []string{"**/.env"}}, false)
+		body := "cli: claude\nread_only_globs:\n  - \"**/.env\"\n"
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
+		c, err := cfg.Load(dir, nil, false)
 		require.NoError(t, err)
 		config = c
 		t.Cleanup(func() { config = nil })

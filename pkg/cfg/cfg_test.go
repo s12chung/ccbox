@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/s12chung/firm"
@@ -15,9 +16,9 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
-	"github.com/s12chung/ccbox/pkg/models/guiapp"
-	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
+	"github.com/s12chung/ccbox/pkg/util/deepcopy"
+	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
@@ -57,7 +58,7 @@ func writeConfig(t *testing.T, dir string, name string, body string) string {
 
 func loadConfigYAML(t *testing.T, projectDir string) string {
 	t.Helper()
-	c, err := Load(projectDir, Config{}, false)
+	c, err := Load(projectDir, nil, false)
 	require.NoError(t, err)
 	out, err := yaml.Marshal(c)
 	require.NoError(t, err)
@@ -109,15 +110,14 @@ func TestSeedConfig(t *testing.T) {
 
 	// the seed is the defaults' carrier
 	want := Config{
-		CLIName:       new("claude"),
+		CLIName:       "claude",
 		ForwardEnv:    []string{"TERM", "COLORTERM"},
 		TmpfsMasks:    []string{DefaultsAlias},
 		VolumeMasks:   []string{DefaultsAlias},
 		ReadOnlyGlobs: []string{DefaultsAlias},
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		VNC:           &VNC{},
-		Proxy: &Proxy{
-			Enabled:   new(true),
+		Proxy: Proxy{
+			Enabled:   true,
 			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
 		},
 
@@ -125,7 +125,7 @@ func TestSeedConfig(t *testing.T) {
 	}
 
 	t.Run("seed alone loads the default config", func(t *testing.T) {
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
 		assert.Equal(t, &want, c)
 	})
@@ -133,7 +133,7 @@ func TestSeedConfig(t *testing.T) {
 	t.Run("an empty project file is unset like a missing one", func(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, osutil.File))
 
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
 		assert.Equal(t, &want, c)
 	})
@@ -228,45 +228,121 @@ func TestInit_RefusesExisting(t *testing.T) {
 	assert.ErrorIs(t, Init(dir), seed.ErrExists)
 }
 
-func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
-	// the defaults are tooling only: providers live under their own aliases —
-	// ccbox-all-providers resolves every one of them
-	providerDomains, ok := provider.DomainsFor(provider.AllProvidersAlias)
-	require.True(t, ok)
-	for _, d := range providerDomains {
-		assert.NotContainsf(t, AllowlistDefaults(), d, "provider domain %s", d)
+// TestConfig_ValidateErrors pins the input view's validation errors — the key paths
+// a failed load shows the user
+func TestConfig_ValidateErrors(t *testing.T) {
+	aliases := allowlistAliases()
+	quoted := make([]string, len(aliases))
+	for i, a := range aliases {
+		quoted[i] = strconv.Quote(a)
+	}
+	c := config{
+		CLIName:       new("claude"),
+		TmpfsMasks:    []string{"/etc"},
+		ReadOnlyGlobs: []string{"../escape"},
+		ReadOnlyBinds: map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"},
+		Proxy:         &proxy{Allowlist: []string{"X.AI"}},
+	}
+	errMap := firm.ValidateAny(c)
+	require.NotEmpty(t, errMap)
+	// ShowValue appends the failing element, bindErr the failing mount, to each error
+	assert.Equal(t, strings.Join([]string{
+		`cfg.config.Proxy.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
+			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
+		`cfg.config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
+		`cfg.config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
+		`cfg.config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
+			`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$: "../escape"`,
+		`cfg.config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
+			`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$: "/etc"`,
+	}, ", "), errMap.Error())
+}
+
+// TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
+// which `make lint` yq-checks as YAML. Regenerate with:
+// `UPDATE_FIXTURES=1 go test ./pkg/cfg/ -run TestConfig_renderTmpl`
+func TestConfig_renderTmpl(t *testing.T) {
+	for _, tt := range []struct {
+		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml
+		c    config
+	}{
+		{"init", config{}},                       // `ccbox config init`'s fill-in scaffold
+		{"user-seed", *userSeedConfig("claude")}, // the safe-seeded user-level config
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.c.renderTmpl()
+			require.NoError(t, err)
+
+			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
+			if os.Getenv("UPDATE_FIXTURES") != "" {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+				require.NoError(t, os.WriteFile(path, got, osutil.File))
+			}
+
+			// #nosec G304 -- the package's own fixture path
+			want, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
 	}
 }
 
-func TestAllowlistDefaults_ExcludeRuntimes(t *testing.T) {
-	// the defaults are tooling only: the runtimes live under their own aliases —
-	// ccbox-all-runtimes resolves every one of them
-	runtimeDomains, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
-	require.True(t, ok)
-	for _, d := range runtimeDomains {
-		assert.NotContainsf(t, AllowlistDefaults(), d, "runtime domain %s", d)
+// TestConfig_mergeOverlays pins the input view's fold: lists append, maps merge per key
+func TestConfig_mergeOverlays(t *testing.T) {
+	c := config{
+		CLIName:       new("claude"),
+		VNC:           &vnc{GUIAppName: "zcode", Enabled: new(true)},
+		TmpfsMasks:    []string{"dist"},
+		VolumeMasks:   []string{"target"},
+		ReadOnlyGlobs: []string{".env"},
+		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue, "~/fonts": "/home/ccbox/fonts"},
+		ForwardEnv:    []string{"FOO", "BAR"},
+		Proxy: &proxy{
+			Enabled:   new(true),
+			Allowlist: []string{"ccbox-defaults"},
+		},
 	}
-}
+	other := config{
+		CLIName:       new("codex"),
+		VNC:           &vnc{},
+		TmpfsMasks:    []string{"build"},
+		VolumeMasks:   []string{"cache"},
+		ReadOnlyGlobs: []string{".envrc"},
+		ReadOnlyBinds: map[string]string{"~/fonts": "/mnt/fonts", "~/certs": "/home/ccbox/certs"},
+		ForwardEnv:    []string{"FOO"},
+		Proxy:         &proxy{Allowlist: []string{"example.com"}},
+	}
 
-func TestAllowlistDefaults_ExcludeGuiApp(t *testing.T) {
-	// the GUI app's domains enter only through a vnc load's ccbox-set-harness expansion —
-	// a headless run never downloads the app
-	for _, d := range guiapp.App.Setup.Proxied.AllowDomains {
-		assert.NotContainsf(t, AllowlistDefaults(), d, "guiapp: %s", d)
-	}
-}
+	mergeempty.Merge(&c, other)
 
-func TestAllowlistDefaults_DomainsValid(t *testing.T) {
-	for _, d := range AllowlistDefaults() {
-		assert.Nilf(t, firm.Value[string](firmrule.Domain).Validate(d).ToNil(), "%s", d)
-	}
+	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
+	assert.Equal(t, config{
+		CLIName: new("codex"),
+		VNC: &vnc{ // the empty section merges per field: the later layer's unset fields keep the earlier's
+			GUIAppName: "zcode",
+			Enabled:    new(true),
+		},
+		TmpfsMasks:    []string{"dist", "build"},
+		VolumeMasks:   []string{"target", "cache"},
+		ReadOnlyGlobs: []string{".env", ".envrc"},
+		ReadOnlyBinds: map[string]string{ // maps merge per key, the later layer's entry wins
+			GitConfigKey: firmrule.EnabledValue,
+			"~/fonts":    "/mnt/fonts",
+			"~/certs":    "/home/ccbox/certs",
+		},
+		ForwardEnv: []string{"FOO", "BAR", "FOO"}, // lists append
+		Proxy: &proxy{ // both layers set: per field; a nil later layer would keep the whole section
+			Enabled:   new(true),                                 // a nil later field inherits, an explicit value wins
+			Allowlist: []string{"ccbox-defaults", "example.com"}, // lists append
+		},
+	}, c)
 }
 
 func TestLoad_UnsetRequiredErrors(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
 
-	_, err := Load(dir, Config{}, false)
+	_, err := Load(dir, nil, false)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "CLIName.Nil: CLIName is nil")
 }
@@ -280,7 +356,7 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nread_only_binds:\n  fonts: enabled\n")
 
-			_, err := Load(dir, Config{}, false)
+			_, err := Load(dir, nil, false)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "ReadOnlyBinds.[fonts]") // the error names the entry
 		})
@@ -291,7 +367,7 @@ func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("proxy:\n  allowlist: []\n"), osutil.File))
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
 	// lists append: [] adds nothing, the seed's aliases stay
 	assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias}, c.Proxy.Allowlist)
@@ -316,13 +392,12 @@ func TestLoad_LayersFiles(t *testing.T) {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
 	}
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
-	assert.Equal(t, "codex", *c.CLIName) // later layer wins
+	assert.Equal(t, "codex", c.CLIName) // later layer wins
 
 	// per-field merge: the local layer's unset section leaves the user's gui_app standing
-	require.NotNil(t, c.VNC)
-	assert.Equal(t, &VNC{GUIAppName: "zcode"}, c.VNC)
+	assert.Equal(t, VNC{GUIAppName: "zcode"}, c.VNC)
 
 	// lists append raw, lowest layer first, the seed's aliases carried as-is
 	assert.Equal(t, []string{DefaultsAlias, "dist", "build", "cache"}, c.TmpfsMasks)
@@ -347,9 +422,9 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 			dir := t.TempDir()
 			writeConfig(t, dir, cf.name, "cli: pi\nproxy:\n  allowlist:\n    - example.com\n")
 
-			c, err := Load(dir, Config{}, false)
+			c, err := Load(dir, nil, false)
 			require.NoError(t, err)
-			assert.Equal(t, "pi", *c.CLIName)
+			assert.Equal(t, "pi", c.CLIName)
 			if cf.term == "user" { // the user file replaces the seed wholesale
 				assert.Equal(t, []string{"example.com"}, c.Proxy.Allowlist) // no alias → no defaults pulled in
 			} else { // the user seed's aliases still underlie the project/local file
@@ -364,9 +439,9 @@ func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: true\n")
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
-	assert.Equal(t, &VNC{Enabled: new(true)}, c.VNC)
+	assert.Equal(t, VNC{Enabled: true}, c.VNC)
 }
 
 func TestLoad_VNC(t *testing.T) {
@@ -374,9 +449,9 @@ func TestLoad_VNC(t *testing.T) {
 	writeConfig(t, dir, userConfigFileName, "cli: claude\nvnc:\n  enabled: true\n")
 	writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: false\n")
 
-	c, err := Load(dir, Config{}, false)
+	c, err := Load(dir, nil, false)
 	require.NoError(t, err)
-	assert.Equal(t, &VNC{Enabled: new(false)}, c.VNC) // the explicit false wins over the user layer's true
+	assert.Equal(t, VNC{Enabled: false}, c.VNC) // the explicit false wins over the user layer's true
 	assert.False(t, c.ServeVNC())
 }
 
@@ -386,9 +461,9 @@ func TestLoad_Proxy(t *testing.T) {
 		dir := t.TempDir()
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
-		assert.Equal(t, &Proxy{}, c.Proxy)
+		assert.Equal(t, Proxy{}, c.Proxy)
 	})
 
 	t.Run("the section's enabled loads as written", func(t *testing.T) {
@@ -396,19 +471,19 @@ func TestLoad_Proxy(t *testing.T) {
 		dir := t.TempDir()
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: false\n")
 
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
-		assert.Equal(t, &Proxy{Enabled: new(false)}, c.Proxy)
+		assert.Equal(t, Proxy{Enabled: false}, c.Proxy)
 	})
 
 	t.Run("the section's enabled overrides the seed", func(t *testing.T) {
 		dir := t.TempDir() // TestMain's seed is the user layer
 		writeConfig(t, dir, projectConfigFileName, "proxy:\n  enabled: false\n")
 
-		c, err := Load(dir, Config{}, false)
+		c, err := Load(dir, nil, false)
 		require.NoError(t, err)
-		assert.Equal(t, &Proxy{
-			Enabled:   new(false),
+		assert.Equal(t, Proxy{
+			Enabled:   false,
 			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias}, // unset inherits
 		}, c.Proxy)
 	})
@@ -420,7 +495,7 @@ func TestLoad_InvalidErrors(t *testing.T) {
 			dir := t.TempDir()
 			path := writeConfig(t, dir, cf.name, "tmpfs_masks: [")
 
-			_, err := Load(dir, Config{}, false)
+			_, err := Load(dir, nil, false)
 			require.Error(t, err)
 			assert.ErrorContains(t, err, path) // the error names the offending file
 		})
@@ -486,7 +561,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(tt.body), osutil.File))
 
-			_, err := Load(dir, Config{}, false)
+			_, err := Load(dir, nil, false)
 			require.Error(t, err)
 			for _, want := range tt.want {
 				assert.ErrorContains(t, err, want)
@@ -504,7 +579,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nbogus: true\n")
 
-			_, err := Load(dir, Config{}, false)
+			_, err := Load(dir, nil, false)
 			require.ErrorContains(t, err, "field bogus not found")
 			assert.ErrorContains(t, err, cf.name) // the error names the offending file
 		})
@@ -516,14 +591,14 @@ func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), osutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectLocalConfigFileName), []byte("cli: codex\n"), osutil.File))
 
-	c, err := Load(dir, Config{CLIName: new("pi")}, false)
+	c, err := Load(dir, new("pi"), false)
 	require.NoError(t, err)
-	assert.Equal(t, "pi", *c.CLIName) // a set flag wins over both files
+	assert.Equal(t, "pi", c.CLIName) // a set flag wins over both files
 
-	c, err = Load(dir, Config{}, false)
+	c, err = Load(dir, nil, false)
 	require.NoError(t, err)
-	assert.Equal(t, "codex", *c.CLIName) // an unset flag keeps the files' layering
+	assert.Equal(t, "codex", c.CLIName) // an unset flag keeps the files' layering
 
-	_, err = Load(dir, Config{CLIName: new("emacs")}, false)
+	_, err = Load(dir, new("emacs"), false)
 	assert.ErrorContains(t, err, "is not one of") // the flag value validates like a file's
 }

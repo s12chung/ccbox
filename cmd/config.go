@@ -140,7 +140,7 @@ func aliasSections() []printutil.Section {
 			return printutil.Section{Header: f.fieldName + ":", Items: f.defaults, Depth: 1}
 		}),
 		[]printutil.Section{{
-			Header: cfg.SetHarnessAlias + " (cli " + *config.CLIName +
+			Header: cfg.SetHarnessAlias + " (cli " + config.CLIName +
 				"; a --vnc load adds the desktop's GUI app):",
 			Items: config.SetHarnessDomains(),
 		}},

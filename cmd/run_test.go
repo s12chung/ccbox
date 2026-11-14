@@ -102,10 +102,10 @@ func TestSeedRunMounts(t *testing.T) {
 	setConfig := func(t *testing.T, serveVNC bool) {
 		t.Helper()
 		testutil.Home(t)
-		loaded, err := cfg.Load(t.TempDir(), cfg.Config{
-			CLIName: new("opencode"),
-			VNC:     &cfg.VNC{GUIAppName: guiapp.App.Name},
-		}, serveVNC)
+		dir := t.TempDir()
+		body := "cli: opencode\nvnc:\n  gui_app: " + guiapp.App.Name + "\n"
+		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
+		loaded, err := cfg.Load(dir, nil, serveVNC)
 		require.NoError(t, err)
 		saved := config
 		t.Cleanup(func() { config = saved })
@@ -131,7 +131,7 @@ func TestSeedRunMounts(t *testing.T) {
 
 	t.Run("a vnc run without a gui app seeds no app binds", func(t *testing.T) {
 		setConfig(t, true)
-		config.VNC = &cfg.VNC{}
+		config.VNC = cfg.VNC{}
 		userDir := t.TempDir()
 
 		require.NoError(t, seedRunMounts(userDir, false))

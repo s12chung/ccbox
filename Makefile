@@ -7,7 +7,14 @@ build:
 	go build -o $(BIN)
 	GOARCH=$(GOARCH) $(BIN) doctor tools
 
-lint: lint.terms
+generate:
+	go generate ./pkg/cfg
+	cd tools/ccboxtools && go generate ./pkg/util/seccomputil
+
+generate.check: generate
+	git diff --exit-code -- pkg/cfg/zz_generated.toinnermodel.cfg.go tools/ccboxtools/pkg/util/seccomputil/seccomp_default.json
+
+lint: generate lint.terms
 	hadolint pkg/dockerfile/testdata/TestRender.Dockerfile
 	shellcheck docker/desktop.sh docker/web-browser pkg/models/cli/clitmpl/clis/claude/config/statusline.sh tests/test_helper.bash tests/*.bats
 	find pkg/models/cli/clitmpl/clis -name '*.json' -exec jq empty {} +
@@ -20,7 +27,7 @@ lint: lint.terms
 lint.terms:
 	go run ./tools/termlint
 
-ci: lint test
+ci: generate.check lint test
 test.all: test test.docker
 
 test: lint
