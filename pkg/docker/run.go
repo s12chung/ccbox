@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"slices"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -20,6 +21,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/pkg/util/stream"
 	"github.com/s12chung/ccbox/pkg/util/term"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -62,11 +64,6 @@ type RunHostOptions struct {
 type Foreground struct {
 	Writer io.Writer
 	Stop   chan struct{} // made by Run: closed when the devbox's log stream ends
-}
-
-func (o RunOptions) matchesContainer(labels map[string]string) bool {
-	return labels[ccboxProjectLabelKey] == o.ProjectDir &&
-		(labels[ccboxHasProxyLabelKey] == trueVolValue) == (o.Proxy != nil)
 }
 
 func (o RunOptions) streamOptions() (stream.Options, error) {
@@ -228,23 +225,77 @@ func claimDevbox(ctxD *dock.CtxD, o RunOptions) (*container.InspectResponse, err
 	if err = errs.Swallow(err, dock.ErrNotRunning); err != nil {
 		return nil, err
 	}
-	if own != nil && !o.matchesContainer(own.Config.Labels) {
-		return nil, conflictErr(o.Name, own.Config.Labels)
+	if own != nil {
+		if err = o.conflictErr(own); err != nil {
+			return nil, err
+		}
 	}
 	return own, nil
 }
 
-// conflictErr refuses the run: a devbox under the run's own name is already running
-// with diverging labels — the error names it and how to clear it
-func conflictErr(name string, labels map[string]string) error {
-	proxy := "without the proxy"
-	if labels[ccboxProjectLabelKey] == "" {
-		proxy = "of an older ccbox, its proxy state unknown"
-	} else if labels[ccboxHasProxyLabelKey] == trueVolValue {
-		proxy = "with the proxy"
+// conflictErr refuses the run when a devbox under the run's own name is already
+// running off diverging flags + config
+func (o RunOptions) conflictErr(own *container.InspectResponse) error {
+	labels := own.Config.Labels
+	var divergences []string
+	if labels[ccboxProjectLabelKey] != o.ProjectDir {
+		divergences = append(divergences, "not matching the project label")
+	}
+	if (labels[ccboxHasProxyLabelKey] == trueVolValue) != (o.Proxy != nil) {
+		proxy := "without the proxy"
+		if o.Proxy != nil {
+			proxy = "with the proxy"
+		}
+		divergences = append(divergences, proxy)
+	}
+	if !o.matchesPortBindings(own.HostConfig.PortBindings) {
+		divergences = append(divergences, fmt.Sprintf("published %s (command asks %s)",
+			portsPhrase(own.HostConfig.PortBindings), portsPhrase(o.portBindingsTCP())))
+	}
+	if len(divergences) == 0 {
+		return nil
 	}
 	return fmt.Errorf("devbox %s is already running for this project, %s — exit its session or `docker rm -f %s`",
-		name, proxy, name)
+		o.Name, strings.Join(divergences, " and "), o.Name)
+}
+
+// portsPhrase renders the map's tcp ports ascending — "3000, 5900"; "none" without any
+func portsPhrase(bindings nat.PortMap) string {
+	ports := make([]string, 0, len(bindings))
+	for port := range bindings {
+		ports = append(ports, port.Port())
+	}
+	if len(ports) == 0 {
+		return "none"
+	}
+	return strings.Join(slicex.SortNumbers(ports), ", ")
+}
+
+// matchesPortBindings reports the devbox's published bindings match the run's asks
+func (o RunOptions) matchesPortBindings(bindings nat.PortMap) bool {
+	want := o.portBindingsTCP()
+	if len(want) != len(bindings) {
+		return false
+	}
+	for port, wantBindings := range want {
+		if !slices.Equal(wantBindings, bindings[port]) {
+			return false
+		}
+	}
+	return true
+}
+
+// portBindingsTCP renders the run's published bindings
+func (o RunOptions) portBindingsTCP() nat.PortMap {
+	ports := slices.Clone(o.PortBindingsTCP)
+	if o.ServeVNC {
+		ports = append(ports, desktopVNCPort)
+	}
+	bindings := nat.PortMap{}
+	for _, port := range ports {
+		bindings[nat.Port(port+"/tcp")] = []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
+	}
+	return bindings
 }
 
 // startDevbox replaces any stale devbox with a fresh one off the run's options
@@ -303,14 +354,7 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		hostConfig.Sysctls = map[string]string{ipForwardSysctl: "0"}
 	}
 
-	ports := slices.Clone(hostOptions.PortBindingsTCP)
-	if hostOptions.ServeVNC {
-		ports = append(ports, desktopVNCPort)
-	}
-	hostConfig.PortBindings = nat.PortMap{}
-	for _, port := range ports {
-		hostConfig.PortBindings[nat.Port(port+"/tcp")] = []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
-	}
+	hostConfig.PortBindings = hostOptions.portBindingsTCP()
 	if err := refuseHeldPorts(ctxD, hostConfig.PortBindings); err != nil {
 		return nil, err
 	}

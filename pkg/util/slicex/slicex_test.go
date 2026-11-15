@@ -38,3 +38,9 @@ func TestMap(t *testing.T) {
 	assert.Nil(t, Map([]int{}, strconv.Itoa))
 	assert.Nil(t, Map([]int(nil), strconv.Itoa))
 }
+
+func TestSortNumbers(t *testing.T) {
+	assert.Equal(t, []string{"80", "3000", "5900"}, SortNumbers([]string{"5900", "80", "3000"}))
+	assert.Equal(t, []string{"9700", "12345"}, SortNumbers([]string{"12345", "9700"}))
+	assert.Nil(t, SortNumbers(nil))
+}

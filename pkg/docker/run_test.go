@@ -22,44 +22,114 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/logmux"
 )
 
-func TestRunOptions_MatchesContainer(t *testing.T) {
+func TestRunOptions_ConflictErr(t *testing.T) {
+	loopback := func(port string) []nat.PortBinding {
+		return []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
+	}
+	labeledRun := func(hasProxy bool, bindings nat.PortMap) *container.InspectResponse {
+		labels := map[string]string{ccboxProjectLabelKey: "/host/proj"}
+		if hasProxy {
+			labels[ccboxHasProxyLabelKey] = trueVolValue
+		}
+		return inspectRun(labels, bindings)
+	}
+	conflict := func(divergences string) string {
+		return "devbox ccbox-proj is already running for this project, " + divergences + " — exit its session or `docker rm -f ccbox-proj`"
+	}
 	tests := []struct {
-		name    string
-		o       RunOptions
-		cLabels map[string]string
-		matches bool
+		name string
+		o    RunOptions
+		c    *container.InspectResponse
+		want string // empty: the devbox answers the run's asks
 	}{
 		{
-			name:    "Plain",
-			o:       plainRun(),
-			cLabels: map[string]string{ccboxProjectLabelKey: "/host/proj"},
-			matches: true,
+			name: "Plain",
+			o:    plainRun(),
+			c:    labeledRun(false, nil),
 		},
 		{
 			name: "Proxy",
 			o:    proxyRun(),
-			cLabels: map[string]string{
-				ccboxProjectLabelKey:  "/host/proj",
-				ccboxHasProxyLabelKey: trueVolValue,
-			},
-			matches: true,
+			c:    labeledRun(true, nil),
 		},
 		{
-			name:    "DifferingProxy",
-			o:       plainRun(),
-			cLabels: map[string]string{ccboxProjectLabelKey: "/host/proj", ccboxHasProxyLabelKey: trueVolValue},
+			name: "Ports",
+			o:    withPorts(plainRun(), []string{"3000", "7200"}),
+			c: labeledRun(false, nat.PortMap{
+				"3000/tcp": loopback("3000"),
+				"7200/tcp": loopback("7200"),
+			}),
 		},
 		{
 			name: "UnlabeledPreLabel",
 			o:    plainRun(),
+			c:    inspectRun(nil, nil),
+			want: conflict("not matching the project label"),
+		},
+		{
+			name: "UnlabeledPreLabel_Proxy",
+			o:    proxyRun(),
+			c:    inspectRun(nil, nil),
+			want: conflict("not matching the project label and with the proxy"),
+		},
+		{
+			name: "DifferingProxy",
+			o:    plainRun(),
+			c:    labeledRun(true, nil),
+			want: conflict("without the proxy"),
+		},
+		{
+			name: "DifferingPorts",
+			o:    withPorts(plainRun(), []string{"3000"}),
+			c:    labeledRun(false, nil),
+			want: conflict("published none (command asks 3000)"),
+		},
+		{
+			name: "DifferingBinding",
+			o:    withPorts(plainRun(), []string{"3000"}),
+			c:    labeledRun(false, nat.PortMap{"3000/tcp": []nat.PortBinding{{HostPort: "3000"}}}),
+			want: conflict("published 3000 (command asks 3000)"),
+		},
+		{
+			name: "ProxyAndPorts",
+			o:    withPorts(proxyRun(), []string{"3000"}),
+			c:    labeledRun(false, nil),
+			want: conflict("with the proxy and published none (command asks 3000)"),
+		},
+		{
+			name: "SwappedPorts",
+			o:    withPorts(plainRun(), []string{"3000"}),
+			c: labeledRun(false, nat.PortMap{
+				"12345/tcp": {{HostIP: "127.0.0.1", HostPort: "12345"}},
+				"9700/tcp":  {{HostIP: "127.0.0.1", HostPort: "9700"}},
+			}),
+			want: conflict("published 9700, 12345 (command asks 3000)"),
 		},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.matches, tt.o.matchesContainer(tt.cLabels))
+			err := tt.o.conflictErr(tt.c)
+			if tt.want == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tt.want)
+			}
 		})
 	}
+}
+
+// inspectRun fakes the devbox's inspect: its labels and published bindings
+func inspectRun(labels map[string]string, bindings nat.PortMap) *container.InspectResponse {
+	return &container.InspectResponse{
+		ContainerJSONBase: &container.ContainerJSONBase{HostConfig: &container.HostConfig{PortBindings: bindings}},
+		Config:            &container.Config{Labels: labels},
+	}
+}
+
+// withPorts aims o's run at the given published ports
+func withPorts(o RunOptions, ports []string) RunOptions {
+	o.PortBindingsTCP = ports
+	return o
 }
 
 func TestRunOptions_StreamOptions(t *testing.T) {

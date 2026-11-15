@@ -1,7 +1,10 @@
 // Package slicex holds slice utilities beyond the standard slices package.
 package slicex
 
-import "slices"
+import (
+	"slices"
+	"strconv"
+)
 
 // Minus returns a's entries absent from b, keeping order.
 func Minus[E comparable](a, b []E) []E {
@@ -57,4 +60,14 @@ func Map[E, R any](s []E, f func(E) R) []R {
 		out[i] = f(e)
 	}
 	return out
+}
+
+// SortNumbers returns s's digit strings in numeric order — "80" sorts after "3000".
+func SortNumbers(s []string) []string {
+	numbers := make([]int, len(s))
+	for i, entry := range s {
+		numbers[i], _ = strconv.Atoi(entry) // digit strings only
+	}
+	slices.Sort(numbers)
+	return Map(numbers, strconv.Itoa)
 }
