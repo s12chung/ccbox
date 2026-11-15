@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"slices"
 	"sync"
 	"syscall"
 
@@ -39,6 +40,10 @@ type RunOptions struct {
 	Tag      string
 	Env      map[string]string // container env minus the proxy vars
 	ServeVNC bool
+
+	// PortBindingsTCP publishes each port on localhost, host port = container port,
+	// beside the desktop's own binding
+	PortBindingsTCP []string
 
 	HoldersDir string      // the host dir of the devbox's holder flock entries
 	LogFile    string      // the host file the devbox's own log lines append to
@@ -297,8 +302,14 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		hostConfig.CapAdd = identity.RunCapNames()
 		hostConfig.Sysctls = map[string]string{ipForwardSysctl: "0"}
 	}
+
+	ports := slices.Clone(hostOptions.PortBindingsTCP)
 	if hostOptions.ServeVNC {
-		hostConfig.PortBindings = nat.PortMap{desktopVNCPort + "/tcp": {{HostIP: "127.0.0.1", HostPort: desktopVNCPort}}}
+		ports = append(ports, desktopVNCPort)
+	}
+	hostConfig.PortBindings = nat.PortMap{}
+	for _, port := range ports {
+		hostConfig.PortBindings[nat.Port(port+"/tcp")] = []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
 	}
 	if err := refuseHeldPorts(ctxD, hostConfig.PortBindings); err != nil {
 		return nil, err

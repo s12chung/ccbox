@@ -3,6 +3,11 @@
 # cli: which coding CLI the image installs and launches
 cli: claude
 
+# default_variant: the devbox a no-flags ask boots (--vnc, --no-proxy)
+default_variant:
+  # port_bindings: # binds tcp ports on localhost, container port = host port
+  #   tcp: "3000,8000,5173"
+
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form

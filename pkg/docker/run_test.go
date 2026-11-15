@@ -295,6 +295,45 @@ func TestRunHostConfig_EgressWall_VNC(t *testing.T) {
 	}, hostConfig.PortBindings, "the egress wall seals egress, not the published port: the desktop serves the host's loopback")
 }
 
+func TestRunHostConfig_PortBindings(t *testing.T) {
+	// hermetic to this machine's port state: the run assumes published ports free
+	refuseHeldPorts = func(*dock.CtxD, nat.PortMap) error { return nil }
+	t.Cleanup(func() { refuseHeldPorts = dock.RefuseHeldPorts })
+
+	loopback := func(port string) []nat.PortBinding {
+		return []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
+	}
+	tests := []struct {
+		name string
+		o    RunOptions
+		want nat.PortMap
+	}{
+		{"headless and proxied variants claim none", RunOptions{Proxy: &ProxyOptions{}}, nat.PortMap{}},
+		{
+			"the user's ports alone",
+			RunOptions{PortBindingsTCP: []string{"3000", "7200"}},
+			nat.PortMap{"3000/tcp": loopback("3000"), "7200/tcp": loopback("7200")},
+		},
+		{
+			"the desktop's binding stands beside the user's ports",
+			RunOptions{ServeVNC: true, PortBindingsTCP: []string{"3000"}},
+			nat.PortMap{desktopVNCPort + "/tcp": loopback(desktopVNCPort), "3000/tcp": loopback("3000")},
+		},
+		{
+			"a 5900 publish collapses into the desktop's identical binding",
+			RunOptions{ServeVNC: true, PortBindingsTCP: []string{desktopVNCPort}},
+			nat.PortMap{desktopVNCPort + "/tcp": loopback(desktopVNCPort)},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostConfig, err := runHostConfig(nil, tt.o)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, hostConfig.PortBindings)
+		})
+	}
+}
+
 func plainRun() RunOptions {
 	return RunOptions{
 		RunHostOptions: RunHostOptions{ProjectDir: "/host/proj"},

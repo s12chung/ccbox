@@ -58,7 +58,7 @@ func writeConfig(t *testing.T, dir string, name string, body string) string {
 
 func loadConfigYAML(t *testing.T, projectDir string) string {
 	t.Helper()
-	c, err := Load(projectDir, nil, false)
+	c, err := Load(projectDir, Flags{})
 	require.NoError(t, err)
 	out, err := yaml.Marshal(c)
 	require.NoError(t, err)
@@ -121,11 +121,12 @@ func TestSeedConfig(t *testing.T) {
 			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
 		},
 
-		projectDir: dir,
+		projectDir:   dir,
+		serveProxied: true, // the default ask on the proxy-enabled seed
 	}
 
 	t.Run("seed alone loads the default config", func(t *testing.T) {
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, &want, c)
 	})
@@ -133,7 +134,7 @@ func TestSeedConfig(t *testing.T) {
 	t.Run("an empty project file is unset like a missing one", func(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, osutil.File))
 
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, &want, c)
 	})
@@ -342,7 +343,7 @@ func TestLoad_UnsetRequiredErrors(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
 
-	_, err := Load(dir, nil, false)
+	_, err := Load(dir, Flags{})
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "CLIName.Nil: CLIName is nil")
 }
@@ -356,7 +357,7 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nread_only_binds:\n  fonts: enabled\n")
 
-			_, err := Load(dir, nil, false)
+			_, err := Load(dir, Flags{})
 			require.Error(t, err)
 			assert.ErrorContains(t, err, "ReadOnlyBinds.[fonts]") // the error names the entry
 		})
@@ -367,7 +368,7 @@ func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("proxy:\n  allowlist: []\n"), osutil.File))
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	// lists append: [] adds nothing, the seed's aliases stay
 	assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias}, c.Proxy.Allowlist)
@@ -392,7 +393,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
 	}
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	assert.Equal(t, "codex", c.CLIName) // later layer wins
 
@@ -422,7 +423,7 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 			dir := t.TempDir()
 			writeConfig(t, dir, cf.name, "cli: pi\nproxy:\n  allowlist:\n    - example.com\n")
 
-			c, err := Load(dir, nil, false)
+			c, err := Load(dir, Flags{})
 			require.NoError(t, err)
 			assert.Equal(t, "pi", c.CLIName)
 			if cf.term == "user" { // the user file replaces the seed wholesale
@@ -439,7 +440,7 @@ func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: true\n")
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	assert.Equal(t, VNC{Enabled: true}, c.VNC)
 }
@@ -449,7 +450,7 @@ func TestLoad_VNC(t *testing.T) {
 	writeConfig(t, dir, userConfigFileName, "cli: claude\nvnc:\n  enabled: true\n")
 	writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: false\n")
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	assert.Equal(t, VNC{Enabled: false}, c.VNC) // the explicit false wins over the user layer's true
 	assert.False(t, c.ServeVNC())
@@ -461,7 +462,7 @@ func TestLoad_Proxy(t *testing.T) {
 		dir := t.TempDir()
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, Proxy{}, c.Proxy)
 	})
@@ -471,7 +472,7 @@ func TestLoad_Proxy(t *testing.T) {
 		dir := t.TempDir()
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: false\n")
 
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, Proxy{Enabled: false}, c.Proxy)
 	})
@@ -480,7 +481,7 @@ func TestLoad_Proxy(t *testing.T) {
 		dir := t.TempDir() // TestMain's seed is the user layer
 		writeConfig(t, dir, projectConfigFileName, "proxy:\n  enabled: false\n")
 
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, Proxy{
 			Enabled:   false,
@@ -495,7 +496,7 @@ func TestLoad_InvalidErrors(t *testing.T) {
 			dir := t.TempDir()
 			path := writeConfig(t, dir, cf.name, "tmpfs_masks: [")
 
-			_, err := Load(dir, nil, false)
+			_, err := Load(dir, Flags{})
 			require.Error(t, err)
 			assert.ErrorContains(t, err, path) // the error names the offending file
 		})
@@ -561,7 +562,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 			dir := t.TempDir()
 			require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(tt.body), osutil.File))
 
-			_, err := Load(dir, nil, false)
+			_, err := Load(dir, Flags{})
 			require.Error(t, err)
 			for _, want := range tt.want {
 				assert.ErrorContains(t, err, want)
@@ -579,7 +580,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 			}
 			writeConfig(t, dir, cf.name, "cli: claude\nbogus: true\n")
 
-			_, err := Load(dir, nil, false)
+			_, err := Load(dir, Flags{})
 			require.ErrorContains(t, err, "field bogus not found")
 			assert.ErrorContains(t, err, cf.name) // the error names the offending file
 		})
@@ -591,14 +592,103 @@ func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), osutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectLocalConfigFileName), []byte("cli: codex\n"), osutil.File))
 
-	c, err := Load(dir, new("pi"), false)
+	c, err := Load(dir, Flags{CLI: new("pi")})
 	require.NoError(t, err)
 	assert.Equal(t, "pi", c.CLIName) // a set flag wins over both files
 
-	c, err = Load(dir, nil, false)
+	c, err = Load(dir, Flags{})
 	require.NoError(t, err)
 	assert.Equal(t, "codex", c.CLIName) // an unset flag keeps the files' layering
 
-	_, err = Load(dir, new("emacs"), false)
+	_, err = Load(dir, Flags{CLI: new("emacs")})
 	assert.ErrorContains(t, err, "is not one of") // the flag value validates like a file's
+}
+
+func TestLoad_PortBindingsTCP(t *testing.T) {
+	const portsYAML = "default_variant:\n  port_bindings:\n    tcp: 3000, 7200\n" // spaced csv: the loaded ports come out trimmed
+
+	t.Run("the section binds the default ask's devbox, the other asks' do not", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+portsYAML)
+
+		c, err := Load(dir, Flags{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3000", "7200"}, c.PortBindingsTCP())
+
+		c, err = Load(dir, Flags{VNC: true})
+		require.NoError(t, err)
+		assert.Nil(t, c.PortBindingsTCP(), "a --vnc ask boots another devbox")
+
+		c, err = Load(dir, Flags{NoProxy: true})
+		require.NoError(t, err)
+		assert.Nil(t, c.PortBindingsTCP(), "a --no-proxy ask boots another devbox")
+	})
+
+	t.Run("config-enabled vnc makes the no-flags ask the default one", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n"+portsYAML)
+
+		c, err := Load(dir, Flags{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3000", "7200"}, c.PortBindingsTCP())
+	})
+
+	t.Run("the flag's list applies on any ask, over the files'", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+portsYAML)
+
+		c, err := Load(dir, Flags{PortBindingsTCP: new("8080"), VNC: true})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"8080"}, c.PortBindingsTCP())
+
+		c, err = Load(dir, Flags{PortBindingsTCP: new("8080"), NoProxy: true})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"8080"}, c.PortBindingsTCP())
+	})
+
+	// the proxy command forces the egress wall on: on a proxy-disabled config, its ask boots
+	// another devbox — a plain run's does not
+	t.Run("the proxy command's forced ask on a proxy-disabled config boots another devbox", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: false\n"+portsYAML)
+
+		c, err := Load(dir, Flags{ProxyCmd: true})
+		require.NoError(t, err)
+		assert.Nil(t, c.PortBindingsTCP())
+
+		c, err = Load(dir, Flags{NoProxy: true})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3000", "7200"}, c.PortBindingsTCP())
+	})
+
+	t.Run("a later layer replaces the earlier layer's list wholesale", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, userConfigFileName, "cli: claude\nproxy:\n  enabled: true\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\ndefault_variant:\n  port_bindings:\n    tcp: 8080\n")
+
+		c, err := Load(dir, Flags{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"8080"}, c.PortBindingsTCP())
+
+		// the project layer unset: the user's list stands
+		dir = t.TempDir()
+		writeConfig(t, dir, userConfigFileName, "cli: claude\nproxy:\n  enabled: true\n"+portsYAML)
+		c, err = Load(dir, Flags{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3000", "7200"}, c.PortBindingsTCP())
+	})
+
+	t.Run("the flag value validates like a file's", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+		for _, tcp := range []string{"70000", "3000,3000", "x"} {
+			_, err := Load(dir, Flags{PortBindingsTCP: new(tcp)})
+			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)
+		}
+
+		writeConfig(t, dir, projectLocalConfigFileName, "default_variant:\n  port_bindings:\n    tcp: 0\n")
+		_, err := Load(dir, Flags{})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "PortList")
+	})
 }

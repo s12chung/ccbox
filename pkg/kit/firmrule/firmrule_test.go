@@ -154,3 +154,32 @@ func TestBind(t *testing.T) {
 		assert.NotNil(t, Bind{}.TypeCheck(reflect.TypeOf(true)))
 	})
 }
+
+func TestPortList(t *testing.T) {
+	v := firm.Value[string](PortList{})
+
+	t.Run("valid csv lists, trimmed", func(t *testing.T) {
+		for _, s := range []string{"", "3000", "1", "65535", "3000,7200", " 3000 , 7200 "} {
+			assert.Nilf(t, v.Validate(s).ToNil(), "want %q valid", s)
+		}
+	})
+	t.Run("out-of-range, non-numeric, and empty entries fail", func(t *testing.T) {
+		for _, s := range []string{"0", "65536", "-1", "x", "3000,x", "3000,", ",3000", "3000,,7200"} {
+			errMap := v.Validate(s)
+			require.NotEmptyf(t, errMap, "want %q invalid", s)
+			assert.Containsf(t, errMap.Error(), "PortList", s)
+		}
+	})
+	t.Run("duplicates fail", func(t *testing.T) {
+		errMap := v.Validate("3000,7200,3000")
+		require.NotEmpty(t, errMap)
+		assert.Contains(t, errMap.Error(), `must not repeat ports, got "3000"`)
+	})
+	t.Run("the full string names the bad entry", func(t *testing.T) {
+		assert.Equal(t, `string.PortList: value must be a comma-separated list of ports 1-65535, got "65536"`, v.Validate("3000,65536").Error())
+	})
+	t.Run("type checks to a string", func(t *testing.T) {
+		assert.Nil(t, PortList{}.TypeCheck(reflect.TypeFor[string]()))
+		assert.NotNil(t, PortList{}.TypeCheck(reflect.TypeFor[int]()))
+	})
+}

@@ -30,7 +30,7 @@ proxy:
   allowlist:
     - ccbox-defaults
     - example.com
-`), nil, false)
+`), cfg.Flags{})
 	require.NoError(t, err)
 	rm := NewRunMap(config, runtime.AllCacheVolumes(), false)
 
@@ -38,7 +38,7 @@ proxy:
 	hostOptions, hostClean, err := rm.HostOptions(false, true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
-	env, err := rm.Env(false)
+	env, err := rm.Env(false, []string{})
 	require.NoError(t, err)
 
 	options, clean, err := rm.RunOptions("dev:tag", NewProxyMap(config).Options())
@@ -76,7 +76,7 @@ proxy:
   allowlist:
     - ccbox-defaults
     - ccbox-set-harness
-`), nil, true)
+`), cfg.Flags{VNC: true})
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", nil)
@@ -103,7 +103,7 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	// the --vnc flag on a config without a vnc section, as `ccbox proxy --vnc` arrives
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), nil, true)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true})
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", NewProxyMap(config).Options())
@@ -119,6 +119,75 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	assert.NotNil(t, options.Proxy)
 }
 
+func TestRunMap_RunOptions_PortBindings(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+		"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n"+
+		"proxy:\n  enabled: true\n"), cfg.Flags{})
+	require.NoError(t, err)
+
+	// the default ask — the config's section applies to its devbox
+	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", NewProxyMap(config).Options())
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+	assert.Equal(t, []string{"3000", "7200"}, options.PortBindingsTCP)
+	assert.Equal(t, "3000,7200", options.Env[pkginfo.PortBindingsTCPEnvVar], "the egress wall's boot opens each into the workload's netns")
+}
+
+func TestRunMap_RunOptions_PortBindings_OtherAsks(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd())
+
+	// the --no-proxy ask boots another devbox: the config's section doesn't apply to it
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+		"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n"+
+		"proxy:\n  enabled: true\n"), cfg.Flags{NoProxy: true})
+	require.NoError(t, err)
+
+	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", nil)
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+	assert.Empty(t, options.PortBindingsTCP)
+}
+
+func TestRunMap_RunOptions_PortBindings_FlagsSetDefaultVariant(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd())
+
+	// a --vnc ask on a vnc-enabled config lands on the config's own default variant
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+		"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n"+
+		"vnc:\n  enabled: true\n"+
+		"proxy:\n  enabled: true\n"), cfg.Flags{VNC: true})
+	require.NoError(t, err)
+
+	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", NewProxyMap(config).Options())
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+	assert.True(t, options.ServeVNC)
+	assert.Equal(t, []string{"3000", "7200"}, options.PortBindingsTCP)
+}
+
+func TestRunMap_RunOptions_PortBindings_FlagOnAnyAsk(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd())
+
+	// the --port-bindings-tcp flag on a --vnc ask, as `ccbox run --vnc --port-bindings-tcp 8080` arrives
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, PortBindingsTCP: new("8080")})
+	require.NoError(t, err)
+
+	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", nil)
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+	assert.Equal(t, []string{"8080"}, options.PortBindingsTCP)
+}
+
 func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
@@ -129,7 +198,7 @@ proxy:
     - ccbox-defaults
     - example.com
 `)
-	config, err := cfg.Load(projectDir, nil, false)
+	config, err := cfg.Load(projectDir, cfg.Flags{})
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), true).RunOptions("dev:tag", nil)
@@ -163,7 +232,7 @@ read_only_binds:
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 	require.NoError(t, os.MkdirAll(filepath.Join(home, "fonts"), osutil.Dir))
 
-	config, err := cfg.Load(projectDir, nil, false)
+	config, err := cfg.Load(projectDir, cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
@@ -206,7 +275,7 @@ func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), nil, false)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
@@ -220,7 +289,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), nil, false)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
@@ -237,7 +306,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), nil, false)
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true, true)
@@ -264,7 +333,7 @@ vnc:
   enabled: true
   gui_app: `+guiapp.App.Name+`
 `)
-	env, err := rm.Env(true)
+	env, err := rm.Env(true, nil)
 	require.NoError(t, err)
 
 	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
@@ -291,7 +360,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 	t.Setenv("COLORTERM", "")
 	rm := testRunMap(t, "cli: claude\nforward_env:\n  - TERM\n  - COLORTERM\n  - GH_TOKEN\n")
 
-	env, err := rm.Env(false)
+	env, err := rm.Env(false, nil)
 	require.NoError(t, err)
 	assert.NotContains(t, env, "TERM")
 	assert.NotContains(t, env, "COLORTERM")
@@ -301,7 +370,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 	rm := testRunMap(t, "cli: claude\n")
 
-	env, err := rm.Env(false)
+	env, err := rm.Env(false, nil)
 	require.NoError(t, err)
 	assert.NotContains(t, env, pkginfo.VNCConfigEnvVar)
 }
@@ -309,7 +378,19 @@ func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 func TestRunMap_Env_EmptyVNC(t *testing.T) {
 	rm := testRunMap(t, "cli: claude\n")
 
-	env, err := rm.Env(true)
+	env, err := rm.Env(true, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "an empty vnc section serves the desktop with no GUI app")
+}
+
+func TestRunMap_Env_PortBindings(t *testing.T) {
+	rm := testRunMap(t, "cli: claude\n")
+
+	env, err := rm.Env(false, []string{"3000", "7200"})
+	require.NoError(t, err)
+	assert.Equal(t, "3000,7200", env[pkginfo.PortBindingsTCPEnvVar])
+
+	env, err = rm.Env(false, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, env, pkginfo.PortBindingsTCPEnvVar)
 }

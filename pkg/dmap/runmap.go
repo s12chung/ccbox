@@ -2,6 +2,7 @@ package dmap
 
 import (
 	"os"
+	"strings"
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/docker"
@@ -28,21 +29,23 @@ func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (doc
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
-	env, err := rm.Env(serveVNC)
+	portBindingsTCP := rm.cfg.PortBindingsTCP()
+	env, err := rm.Env(serveVNC, portBindingsTCP)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
 
 	name := devboxName(rm.cfg.ProjectDir(), serveVNC, isProxied)
 	return docker.RunOptions{
-		RunHostOptions: hostOptions,
-		Name:           name,
-		Tag:            tag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
-		Env:            env,
-		Proxy:          proxyOptions,
-		ServeVNC:       serveVNC,
-		HoldersDir:     devboxHoldersDir(name),
-		LogFile:        devboxLogPath(rm.cfg.ProjectDir(), serveVNC, isProxied),
+		RunHostOptions:  hostOptions,
+		Name:            name,
+		Tag:             tag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
+		Env:             env,
+		Proxy:           proxyOptions,
+		ServeVNC:        serveVNC,
+		PortBindingsTCP: portBindingsTCP,
+		HoldersDir:      devboxHoldersDir(name),
+		LogFile:         devboxLogPath(rm.cfg.ProjectDir(), serveVNC, isProxied),
 	}, clean, nil
 }
 
@@ -64,7 +67,7 @@ func (rm *RunMap) HostOptions(serveVNC, isProxied bool) (docker.RunHostOptions, 
 }
 
 // Env renders the container's env in one map.
-func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
+func (rm *RunMap) Env(serveVNC bool, portBindingsTCP []string) (map[string]string, error) {
 	cli := rm.cfg.CLI()
 	pkgInfo, err := cli.PkgInfoJSON()
 	if err != nil {
@@ -72,6 +75,9 @@ func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	}
 	env := mergeempty.Map(cli.Setup.Env, forwardEnv(rm.cfg.ForwardEnv))
 	env = mergeempty.Map(env, map[string]string{pkginfo.EnvVar: pkgInfo})
+	if len(portBindingsTCP) > 0 {
+		env[pkginfo.PortBindingsTCPEnvVar] = strings.Join(portBindingsTCP, ",")
+	}
 	if serveVNC {
 		body, err := rm.cfg.VNC.InfoJSON()
 		if err != nil {

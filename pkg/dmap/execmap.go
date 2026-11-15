@@ -15,9 +15,6 @@ type ExecMode struct {
 	Args     []string // the exec argv (exec), or the resumed session's name (-r)
 }
 
-// IsProxied is the run's egress wall ask in positive form
-func (m ExecMode) IsProxied() bool { return !m.NoProxy }
-
 // ExecMap maps the exec session's mode to the docker pkg exec options
 type ExecMap struct {
 	cli cli.CLI

@@ -68,3 +68,34 @@ func TestExecArgv(t *testing.T) {
 		})
 	}
 }
+
+func TestChildPorts(t *testing.T) {
+	vncInfo := &pkginfo.VNCInfo{}
+	tests := []struct {
+		name    string
+		body    string
+		vncInfo *pkginfo.VNCInfo
+		want    []uint16
+		wantErr bool
+	}{
+		{"no env, no vnc", "", nil, nil, false},
+		{"vnc only", "", vncInfo, []uint16{pkginfo.VNCPort}, false},
+		{"bound only", "3000,7200", nil, []uint16{3000, 7200}, false},
+		{"bound and vnc", "3000,7200", vncInfo, []uint16{3000, 7200, pkginfo.VNCPort}, false},
+		{"bound vnc port", "3000,5900", vncInfo, []uint16{3000, 5900}, false},
+		{"garbage", "3000,http", nil, nil, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(pkginfo.PortBindingsTCPEnvVar, tt.body)
+
+			ports, err := childPorts(tt.vncInfo)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, ports)
+		})
+	}
+}

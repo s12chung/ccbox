@@ -67,22 +67,24 @@ func LoadedPaths(projectDir string) ([]string, []string) {
 //
 //toinnermodel:gen
 type config struct {
-	CLIName       *string            `yaml:"cli"`             // coding CLI to install + launch
-	VNC           *vnc               `yaml:"vnc"`             // the desktop's session: its GUI app
-	TmpfsMasks    *[]string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks   *[]string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyGlobs *[]string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
-	ReadOnlyBinds *map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
-	ForwardEnv    *[]string          `yaml:"forward_env"`     // host env vars forwarded into the container
-	Proxy         *proxy             `yaml:"proxy"`           // the egress wall's section
+	CLIName        *string            `yaml:"cli"`             // coding CLI to install + launch
+	DefaultVariant *defaultVariant    `yaml:"default_variant"` // the default variant ask's section — the devbox with no run flags
+	VNC            *vnc               `yaml:"vnc"`             // the desktop's session: its GUI app
+	TmpfsMasks     *[]string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks    *[]string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyGlobs  *[]string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
+	ReadOnlyBinds  *map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
+	ForwardEnv     *[]string          `yaml:"forward_env"`     // host env vars forwarded into the container
+	Proxy          *proxy             `yaml:"proxy"`           // the egress wall's section
 }
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[config]().
 		NotNil("CLIName").
 		Validates(firm.RuleMap{
-			"CLIName": {rule.OneOf[string]{ValuesFunc: cli.Names}},
-			"VNC":     {firm.Backed()},
+			"CLIName":        {rule.OneOf[string]{ValuesFunc: cli.Names}},
+			"DefaultVariant": {firm.Backed()},
+			"VNC":            {firm.Backed()},
 
 			"TmpfsMasks":    {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
 			"VolumeMasks":   {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
@@ -95,6 +97,31 @@ func init() {
 
 			"ForwardEnv": {firm.Elems[[]string](rule.ShowValue(firmrule.EnvVar))},
 			"Proxy":      {firm.Backed()},
+		}))
+}
+
+// defaultVariant is the default variant ask's section — the devbox with no run flags
+type defaultVariant struct {
+	// PortBindings binds tcp ports on localhost, container port = host port
+	PortBindings *portBindings `yaml:"port_bindings"`
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[defaultVariant]().
+		Validates(firm.RuleMap{
+			"PortBindings": {firm.Backed()},
+		}))
+}
+
+type portBindings struct {
+	// TCP is the comma-separated ports to bind
+	TCP string `yaml:"tcp"`
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[portBindings]().
+		Validates(firm.RuleMap{
+			"TCP": {firmrule.PortList{}},
 		}))
 }
 
@@ -218,18 +245,58 @@ func defaultsExpansionComment(defaults []string) string {
 	return strings.Join(defaults, ", ")
 }
 
-// Load reads the layerPaths, the CLI flag the top layer, and validates
-func Load(projectDir string, cliFlag *string, vncFlag bool) (*Config, error) {
+// Flags are the run flags Load folds into the config as its top layer — an unset
+// flag is nil, keeping the files' layering
+type Flags struct {
+	CLI             *string // --cli: the coding CLI to install + launch
+	VNC             bool    // --vnc: serve the desktop session
+	NoProxy         bool    // --no-proxy: run without the egress wall — `ccbox run`'s own ask
+	ProxyCmd        bool    // the proxy command's ask: the egress wall forced on
+	PortBindingsTCP *string // --port-bindings-tcp: bind tcp ports on any variant ask
+}
+
+func (f Flags) toLayer() config {
+	c := config{CLIName: f.CLI}
+	if f.PortBindingsTCP != nil {
+		c.DefaultVariant = &defaultVariant{PortBindings: &portBindings{TCP: *f.PortBindingsTCP}}
+	}
+	return c
+}
+
+// Load reads the layerPaths, the flags the top layer, and validates
+func Load(projectDir string, flags Flags) (*Config, error) {
 	layers, err := yamlutil.ReadLayers[config](layerPaths(projectDir))
 	if err != nil {
 		return nil, err
 	}
-	merged := yamlutil.MergeLayers(append(layers, config{CLIName: cliFlag}), mergeempty.Merge[config])
+	merged := yamlutil.MergeLayers(append(layers, flags.toLayer()), mergeempty.Merge[config])
 	if errMap := firm.ValidateAny(merged); errMap != nil {
 		return nil, errMap
 	}
 	s := merged.toInnerModel()
 	s.projectDir = projectDir
-	s.serveVNC = vncFlag || s.VNC.IsEnabled()
+	s.serveVNC = flags.VNC || s.VNC.Enabled
+	s.serveProxied = flags.ProxyCmd || (!flags.NoProxy && s.Proxy.Enabled)
+
+	portBindingsTCP := ""
+	if s.isDefaultVariant() {
+		portBindingsTCP = s.DefaultVariant.PortBindings.TCP
+	}
+	if flags.PortBindingsTCP != nil {
+		portBindingsTCP = *flags.PortBindingsTCP
+	}
+	s.portBindingsTCP = splitPorts(portBindingsTCP)
 	return &s, nil
+}
+
+// splitPorts splits the csv into its trimmed ports — infallible post-validation
+func splitPorts(tcp string) []string {
+	if tcp == "" {
+		return nil
+	}
+	ports := strings.Split(tcp, ",")
+	for i, entry := range ports {
+		ports[i] = strings.TrimSpace(entry)
+	}
+	return ports
 }

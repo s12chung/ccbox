@@ -48,6 +48,7 @@ const (
 
 	bindName          = "Bind"
 	domainOrAliasName = "DomainOrAlias"
+	portListName      = "PortList"
 )
 
 // Bind validates a read_only_binds key-value pair for rule.KeyValues
@@ -73,6 +74,47 @@ func (b Bind) ValidateValue(value reflect.Value) firm.ErrorMap {
 		}
 	}
 	return nil
+}
+
+// PortList validates a comma-separated tcp port list: each entry trimmed, a port
+// 1-65535, no duplicates — "" is the unset list
+type PortList struct{}
+
+// TypeCheck restricts the rule to strings
+func (PortList) TypeCheck(typ reflect.Type) *firm.RuleTypeError {
+	if typ.Kind() != reflect.String {
+		return firm.NewRuleTypeError(portListName, typ, "is not a string")
+	}
+	return nil
+}
+
+// ValidateValue validates the list (assumes TypeCheck is called)
+func (PortList) ValidateValue(value reflect.Value) firm.ErrorMap {
+	tcp, ok := reflect.TypeAssert[string](value)
+	if !ok || tcp == "" {
+		return nil
+	}
+	seen := map[string]bool{}
+	for entry := range strings.SplitSeq(tcp, ",") {
+		port := strings.TrimSpace(entry)
+		portN, err := strconv.Atoi(port)
+		switch {
+		case err != nil || portN < 1 || portN > 65535:
+			return portListErr("must be a comma-separated list of ports 1-65535, got {{.Port}}", port)
+		case seen[port]:
+			return portListErr("must not repeat ports, got {{.Port}}", port)
+		}
+		seen[port] = true
+	}
+	return nil
+}
+
+// portListErr names the list's bad entry, quoted so empty ones show
+func portListErr(template, port string) firm.ErrorMap {
+	return firm.ErrorMap{portListName: firm.TemplateError{
+		TemplateFields: map[string]string{"Port": strconv.Quote(port)},
+		Template:       template,
+	}}
 }
 
 // DomainOrAlias validates for domains or aliases, resolving the alias list at

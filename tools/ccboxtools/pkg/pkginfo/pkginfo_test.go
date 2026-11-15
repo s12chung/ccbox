@@ -39,6 +39,34 @@ func TestPkgInfo_Validate(t *testing.T) {
 	}
 }
 
+func TestNpm_Validate(t *testing.T) {
+	tests := []struct {
+		name string
+		pkg  string
+		want []string
+	}{
+		{"scoped", "@anthropic-ai/claude-code", nil},
+		{"plain", "opencode-ai", nil},
+		{"empty", "", []string{"Package.Match"}},
+		{"uppercase", "MyCLI", []string{"Package.Match"}},
+		{"unscoped slash", "foo/bar", []string{"Package.Match"}},
+		{"scope without name", "@scope", []string{"Package.Match"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			errMap := firm.ValidateAny(Npm{Package: tt.pkg})
+			if tt.want == nil {
+				assert.Nil(t, errMap.ToNil())
+				return
+			}
+			require.NotEmpty(t, errMap)
+			for _, want := range tt.want {
+				assert.Contains(t, errMap.Error(), want)
+			}
+		})
+	}
+}
+
 func TestPkgInfoFromJSON(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		p, err := FromJSON(`{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"}}`)
@@ -79,4 +107,31 @@ func TestFromJSON_BadSelector(t *testing.T) {
 	_, err := FromJSON(body)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Version.JQExpr")
+}
+
+func TestPortBindingsTCP(t *testing.T) {
+	tests := []struct {
+		name    string
+		body    string
+		want    []uint16
+		wantErr string
+	}{
+		{"empty", "", nil, ""},
+		{"one", "3000", []uint16{3000}, ""},
+		{"csv", "3000,5900,7200", []uint16{3000, 5900, 7200}, ""},
+		{"garbage", "3000,http", nil, "parse PORT_BINDINGS_TCP=3000,http"},
+		{"overflows a port", "65536", nil, "parse PORT_BINDINGS_TCP=65536"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ports, err := PortBindingsTCP(tt.body)
+			if tt.wantErr == "" {
+				require.NoError(t, err)
+				assert.Equal(t, tt.want, ports)
+				return
+			}
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }

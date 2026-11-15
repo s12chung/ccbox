@@ -33,20 +33,21 @@ const (
 
 // Config is the loaded .ccbox.yaml
 type Config struct {
-	CLIName       string            // coding CLI to install + launch
-	VNC           VNC               // the desktop's session: its GUI app
-	TmpfsMasks    []string          // project-relative dirs to mask with a writable tmpfs
-	VolumeMasks   []string          // project-relative dirs to mask with a persistent per-project volume
-	ReadOnlyGlobs []string          // project-relative globs to re-mount read-only
-	ReadOnlyBinds map[string]string // host dir → container mount dir, bound read-only
-	ForwardEnv    []string          // host env vars forwarded into the container
-	Proxy         Proxy             // the egress wall's section
+	CLIName        string            // coding CLI to install + launch
+	DefaultVariant DefaultVariant    // the default variant ask's section — the devbox with no run flags
+	VNC            VNC               // the desktop's session: its GUI app
+	TmpfsMasks     []string          // project-relative dirs to mask with a writable tmpfs
+	VolumeMasks    []string          // project-relative dirs to mask with a persistent per-project volume
+	ReadOnlyGlobs  []string          // project-relative globs to re-mount read-only
+	ReadOnlyBinds  map[string]string // host dir → container mount dir, bound read-only
+	ForwardEnv     []string          // host env vars forwarded into the container
+	Proxy          Proxy             // the egress wall's section
 
-	// projectDir anchors the masks' present-filters
-	projectDir string
-	// serveVNC is the resolved run mode — the --vnc flag or the vnc section's enabled;
-	// only it gates the GUI app's domains into SetHarnessAlias's expansion
-	serveVNC bool
+	projectDir      string   // stored projectDir
+	serveVNC        bool     // the resolved run mode
+	serveProxied    bool     // the resolved egress wall
+	portBindingsTCP []string // resolved tcp ports
+
 	// cache the DefaultsAlias expansions of raw lists and the read_only_binds' path resolutions
 	expandedTmpfsMasks    []string
 	expandedVolumeMasks   []string
@@ -63,8 +64,17 @@ type VNC struct {
 	GUIAppName string
 }
 
-// IsEnabled reports whether the session runs with VNC served
-func (v *VNC) IsEnabled() bool { return v.Enabled }
+// DefaultVariant is the default variant ask's section — the devbox with no run flags.
+type DefaultVariant struct {
+	// PortBindings binds tcp ports on localhost, container port = host port
+	PortBindings PortBindings
+}
+
+// PortBindings is the tcp port bindings' section.
+type PortBindings struct {
+	// TCP is the comma-separated ports to bind on localhost
+	TCP string
+}
 
 // Proxy is the egress wall's section — the seeded file pins its enabled default.
 type Proxy struct {
@@ -75,19 +85,25 @@ type Proxy struct {
 	Allowlist []string
 }
 
-// IsEnabled reports whether the egress wall runs
-func (p *Proxy) IsEnabled() bool { return p.Enabled }
-
-// IsProxied resolves the run's egress wall: the exec mode's proxied ask per the
-// section's enabled — a vnc run proxies exactly like a headless one
-func (p *Proxy) IsProxied(flag bool) bool { return flag && p.IsEnabled() }
-
 // ProjectDir is the project dir the config was loaded from
 func (c *Config) ProjectDir() string { return c.projectDir }
 
 // ServeVNC is the resolved run mode: the --vnc flag or the vnc section's enabled —
 // the flag alone acts as an enabled section with no app
 func (c *Config) ServeVNC() bool { return c.serveVNC }
+
+// ServeProxied is the resolved egress wall: the proxy command forces it on, else
+// the --no-proxy flag and the proxy section's enabled
+func (c *Config) ServeProxied() bool { return c.serveProxied }
+
+// PortBindingsTCP is the run's tcp ports to bind
+func (c *Config) PortBindingsTCP() []string { return c.portBindingsTCP }
+
+// isDefaultVariant reports whether the resolved asks boot the config's own devbox —
+// the default variant's
+func (c *Config) isDefaultVariant() bool {
+	return c.serveVNC == c.VNC.Enabled && c.serveProxied == c.Proxy.Enabled
+}
 
 // CLI resolves the config's cli name to its cli.CLI; MustFor is
 // infallible for a loaded config
@@ -272,15 +288,24 @@ func expandDomain(entry string) []string {
 func (c *Config) MarshalYAML() (any, error) {
 	c.Proxy.Allowlist = c.AllowlistExpanded()
 	return config{
-		CLIName:       new(c.CLIName),
-		VNC:           &vnc{Enabled: new(c.VNC.Enabled), GUIAppName: c.VNC.GUIAppName},
-		TmpfsMasks:    new(c.TmpfsMasksPresent()),
-		VolumeMasks:   new(c.VolumeMasksPresent()),
-		ReadOnlyGlobs: new(c.ReadOnlyPathsPresent()),
-		ReadOnlyBinds: new(c.ReadOnlyBindsPresent()),
-		ForwardEnv:    new(c.ForwardEnv),
-		Proxy:         &proxy{Enabled: new(c.Proxy.Enabled), Allowlist: c.Proxy.Allowlist},
+		CLIName:        new(c.CLIName),
+		DefaultVariant: c.marshalDefaultVariant(),
+		VNC:            &vnc{Enabled: new(c.VNC.Enabled), GUIAppName: c.VNC.GUIAppName},
+		TmpfsMasks:     new(c.TmpfsMasksPresent()),
+		VolumeMasks:    new(c.VolumeMasksPresent()),
+		ReadOnlyGlobs:  new(c.ReadOnlyPathsPresent()),
+		ReadOnlyBinds:  new(c.ReadOnlyBindsPresent()),
+		ForwardEnv:     new(c.ForwardEnv),
+		Proxy:          &proxy{Enabled: new(c.Proxy.Enabled), Allowlist: c.Proxy.Allowlist},
 	}, nil
+}
+
+// marshalDefaultVariant renders the section the default ask binds, omitted when none
+func (c *Config) marshalDefaultVariant() *defaultVariant {
+	if c.DefaultVariant.PortBindings.TCP == "" {
+		return nil
+	}
+	return &defaultVariant{PortBindings: &portBindings{TCP: c.DefaultVariant.PortBindings.TCP}}
 }
 
 // InfoJSON renders the section as the VNCConfigEnvVar JSON: the GUI app the run

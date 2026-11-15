@@ -26,7 +26,7 @@ func TestConfig_ProjectDir(t *testing.T) {
 	useHome(t) // no user file
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	assert.Equal(t, dir, c.ProjectDir())
 }
@@ -36,31 +36,12 @@ func TestConfig_CLI(t *testing.T) {
 	useHome(t) // no user file
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	assert.Equal(t, cli.MustFor("claude"), c.CLI())
 
 	bare := Config{CLIName: "emacs"}
 	assert.PanicsWithValue(t, `cli: unknown cli "emacs"`, func() { bare.CLI() })
-}
-
-func TestProxy_IsProxied(t *testing.T) {
-	tests := []struct {
-		name string
-		cfg  Config
-		flag bool
-		want bool
-	}{
-		{"a missing section loads as the zero one — no proxy", Config{}, true, false},
-		{"the section's enabled stands alone", Config{Proxy: Proxy{Enabled: true}}, true, true},
-		{"a vnc run proxies like a headless one", Config{Proxy: Proxy{Enabled: true}}, true, true},
-		{"the flag overrides the section", Config{Proxy: Proxy{Enabled: true}}, false, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.want, tt.cfg.Proxy.IsProxied(tt.flag))
-		})
-	}
 }
 
 func TestConfig_ListsExpanded(t *testing.T) {
@@ -108,7 +89,7 @@ func TestConfig_ListsExpanded(t *testing.T) {
 			writeConfig(t, tt.projectDir, projectConfigFileName, tt.body)
 			tt.want.projectDir = tt.projectDir
 
-			c, err := Load(tt.projectDir, nil, false)
+			c, err := Load(tt.projectDir, Flags{})
 			require.NoError(t, err)
 			assert.Equal(t, &tt.want, c)
 			assert.Equal(t, tt.wantTmpfsExpanded, c.TmpfsMasksExpanded())
@@ -125,7 +106,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 	mkDirs(t, dir, "dist")
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\ntmpfs_masks:\n  - dist\n")
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 
 	expanded := c.TmpfsMasksExpanded()
@@ -145,7 +126,7 @@ func loadBindsConfig(t *testing.T, binds map[string]string) *Config {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), body, osutil.File))
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	return c
 }
@@ -241,7 +222,7 @@ func TestConfig_MasksPresent(t *testing.T) {
 			mkDirs(t, dir, tt.dirs...)
 			writeConfig(t, dir, projectConfigFileName, tt.body)
 
-			c, err := Load(dir, nil, false)
+			c, err := Load(dir, Flags{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksPresent())
 			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksPresent())
@@ -287,7 +268,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 			if tt.projectBody != "" {
 				require.NoError(t, os.WriteFile(filepath.Join(tt.projectDir, projectConfigFileName), []byte(tt.projectBody), osutil.File))
 			}
-			c, err := Load(tt.projectDir, nil, false)
+			c, err := Load(tt.projectDir, Flags{})
 			require.NoError(t, err)
 			assert.Equal(t, tt.wantTmpfsMasks, c.TmpfsMasksAbsent())
 			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksAbsent())
@@ -306,7 +287,7 @@ func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 	body += bodySb18.String()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), osutil.File))
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	return c
 }
@@ -380,7 +361,7 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), osutil.File))
 
-	c, err := Load(dir, nil, false)
+	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 
 	// the expansion keeps the masked entries — the absent node_modules too — but their
@@ -442,7 +423,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 			"    - ccbox-anthropic-provider\n"+
 			"    - ccbox-set-harness\n")
 
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		// the harness alias's api.anthropic.com collapses into the provider alias's —
 		// one expansion, in place
@@ -456,7 +437,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 
 		allProviders, ok := provider.DomainsFor(provider.AllProvidersAlias)
 		require.True(t, ok)
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, allProviders, c.AllowlistExpanded())
 	})
@@ -466,7 +447,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 
 		allRuntimes, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
 		require.True(t, ok)
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, allRuntimes, c.AllowlistExpanded())
 	})
@@ -474,12 +455,12 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	t.Run("the GUI app's domains enter only through the harness alias on a vnc load", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
 
-		headlessConfig, err := Load(dir, nil, false)
+		headlessConfig, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.False(t, headlessConfig.ServeVNC())
 		assert.Equal(t, harnessDomains, headlessConfig.AllowlistExpanded())
 
-		vncConfig, err := Load(dir, nil, true)
+		vncConfig, err := Load(dir, Flags{VNC: true})
 		require.NoError(t, err)
 		assert.True(t, vncConfig.ServeVNC())
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), vncConfig.AllowlistExpanded())
@@ -488,7 +469,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	t.Run("enabled pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
 
-		c, err := Load(dir, nil, false)
+		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.True(t, c.ServeVNC())
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), c.AllowlistExpanded())
@@ -503,13 +484,14 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	home := os.Getenv("HOME")       // TestMain's temp home
 	mkDirs(t, home, ".config/git")
 	c := &Config{
-		CLIName:       "claude",
-		VNC:           VNC{GUIAppName: guiapp.App.Name},
-		TmpfsMasks:    []string{DefaultsAlias, "dist", "build"},
-		VolumeMasks:   []string{DefaultsAlias, "target", "cache"},
-		ReadOnlyGlobs: []string{DefaultsAlias, ".env"},
-		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
-		ForwardEnv:    []string{"FOO"},
+		CLIName:        "claude",
+		DefaultVariant: DefaultVariant{PortBindings: PortBindings{TCP: "3000, 7200"}},
+		VNC:            VNC{GUIAppName: guiapp.App.Name},
+		TmpfsMasks:     []string{DefaultsAlias, "dist", "build"},
+		VolumeMasks:    []string{DefaultsAlias, "target", "cache"},
+		ReadOnlyGlobs:  []string{DefaultsAlias, ".env"},
+		ReadOnlyBinds:  map[string]string{GitConfigKey: firmrule.EnabledValue},
+		ForwardEnv:     []string{"FOO"},
 		Proxy: Proxy{
 			Enabled:   true,
 			Allowlist: []string{"user.example.dev", DefaultsAlias, "example.com"},
@@ -523,11 +505,12 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	var got config
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	want := config{
-		CLIName:       new("claude"),
-		VNC:           &vnc{Enabled: new(false), GUIAppName: guiapp.App.Name}, // the loaded view's plain Enabled renders on or off
-		TmpfsMasks:    new(append(append([]string{}, tmpfsDefaults...), "dist")),
-		VolumeMasks:   new([]string{"node_modules", "target"}),
-		ReadOnlyGlobs: new([]string{"secrets"}),
+		CLIName:        new("claude"),
+		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000, 7200"}}, // the csv renders as-is
+		VNC:            &vnc{Enabled: new(false), GUIAppName: guiapp.App.Name},          // the loaded view's plain Enabled renders on or off
+		TmpfsMasks:     new(append(append([]string{}, tmpfsDefaults...), "dist")),
+		VolumeMasks:    new([]string{"node_modules", "target"}),
+		ReadOnlyGlobs:  new([]string{"secrets"}),
 		ReadOnlyBinds: new(map[string]string{ // the gitconfig dir is present here: kept, resolved
 			filepath.Join(home, ".config", "git"): GitConfigMount,
 		}),
@@ -569,7 +552,7 @@ func TestConfig_GUIApp(t *testing.T) {
 		dir := t.TempDir()
 		writeConfig(t, dir, projectConfigFileName, "vnc:\n  gui_app: "+guiapp.App.Name+"\n")
 
-		c, err := Load(dir, nil, true)
+		c, err := Load(dir, Flags{VNC: true})
 		require.NoError(t, err)
 
 		app := c.GUIApp()
@@ -583,7 +566,7 @@ func TestConfig_GUIApp(t *testing.T) {
 				if body != "" {
 					writeConfig(t, dir, projectConfigFileName, body)
 				}
-				c, err := Load(dir, nil, vncFlag)
+				c, err := Load(dir, Flags{VNC: vncFlag})
 				require.NoError(t, err)
 
 				assert.Nil(t, c.GUIApp())

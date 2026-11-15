@@ -7,6 +7,9 @@ func (x *config) toInnerModel() Config {
 	if x.CLIName != nil {
 		out.CLIName = *x.CLIName
 	}
+	if x.DefaultVariant != nil {
+		out.DefaultVariant = x.DefaultVariant.toInnerModel()
+	}
 	if x.VNC != nil {
 		out.VNC = x.VNC.toInnerModel()
 	}
@@ -28,6 +31,20 @@ func (x *config) toInnerModel() Config {
 	if x.Proxy != nil {
 		out.Proxy = x.Proxy.toInnerModel()
 	}
+	return out
+}
+
+func (x *defaultVariant) toInnerModel() DefaultVariant {
+	var out DefaultVariant
+	if x.PortBindings != nil {
+		out.PortBindings = x.PortBindings.toInnerModel()
+	}
+	return out
+}
+
+func (x *portBindings) toInnerModel() PortBindings {
+	var out PortBindings
+	out.TCP = x.TCP
 	return out
 }
 

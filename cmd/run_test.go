@@ -105,7 +105,7 @@ func TestSeedRunMounts(t *testing.T) {
 		dir := t.TempDir()
 		body := "cli: opencode\nvnc:\n  gui_app: " + guiapp.App.Name + "\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
-		loaded, err := cfg.Load(dir, nil, serveVNC)
+		loaded, err := cfg.Load(dir, cfg.Flags{VNC: serveVNC})
 		require.NoError(t, err)
 		saved := config
 		t.Cleanup(func() { config = saved })

@@ -46,7 +46,7 @@ func writeConfigYaml(t *testing.T, body string) string {
 func loadConfig(t *testing.T, body string) *cfg.Config {
 	t.Helper()
 	testutil.Home(t)
-	config, err := cfg.Load(writeConfigYaml(t, body), nil, false)
+	config, err := cfg.Load(writeConfigYaml(t, body), cfg.Flags{})
 	require.NoError(t, err)
 	return config
 }
@@ -116,7 +116,7 @@ func TestReadOnlyBinds(t *testing.T) {
 		home := testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 
-		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), nil, false)
+		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
 		require.NoError(t, err)
 
 		assert.Equal(t, []docker.Mount{
@@ -127,7 +127,7 @@ func TestReadOnlyBinds(t *testing.T) {
 	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
 		testutil.Home(t)
 
-		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), nil, false)
+		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
 		require.NoError(t, err)
 
 		assert.Empty(t, readOnlyBinds(config.ReadOnlyBindsPresent()))
@@ -165,7 +165,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 		if guiApp != "" {
 			body += "vnc:\n  gui_app: " + guiApp + "\n"
 		}
-		config, err := cfg.Load(writeConfigYaml(t, body), nil, true)
+		config, err := cfg.Load(writeConfigYaml(t, body), cfg.Flags{VNC: true})
 		require.NoError(t, err)
 		return NewRunMap(config, nil, false)
 	}

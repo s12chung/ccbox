@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/s12chung/firm"
@@ -15,6 +16,9 @@ import (
 const (
 	// EnvVar is the container env var carrying a coding CLI's PkgInfo JSON.
 	EnvVar = "CLI_PKGINFO"
+
+	// PortBindingsTCPEnvVar is the container env var carrying the run's tcp port bindings as csv
+	PortBindingsTCPEnvVar = "PORT_BINDINGS_TCP"
 
 	// ContainerHome is the container user's home: the mount targets' root within the container.
 	ContainerHome = "/home/ccbox"
@@ -51,6 +55,11 @@ type PkgInfo struct {
 	ReleaseURL *ReleaseURL `json:"version_url" yaml:"version_url"`
 }
 
+// Npm installs from the npm registry's "latest" dist-tag.
+type Npm struct {
+	Package string `json:"package" yaml:"package"`
+}
+
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[PkgInfo]().
 		ValidatesSelf(rule.OneNotNil{Fields: []string{"Npm", "ReleaseURL"}}).
@@ -59,6 +68,10 @@ func init() {
 			"Npm":        {firm.Backed()},
 			"ReleaseURL": {firm.Backed()},
 		}))
+	firm.MustRegisterType(firm.NewDefinition[Npm]().Validates(firm.RuleMap{
+		// npm package name, scoped or not, e.g. @anthropic-ai/claude-code
+		"Package": {rule.Match{Regexp: regexp.MustCompile(`^(@[a-z0-9-]+/)?[a-z0-9][a-z0-9._-]*$`)}},
+	}))
 }
 
 // FromJSON parses CLI_PKGINFO JSON, rejecting unknown fields and invalid values.
@@ -73,4 +86,21 @@ func FromJSON(body string) (PkgInfo, error) {
 		return PkgInfo{}, fmt.Errorf("pkginfo: %w", errMap)
 	}
 	return p, nil
+}
+
+// PortBindingsTCP parses the PortBindingsTCPEnvVar csv — an empty var names none.
+func PortBindingsTCP(body string) ([]uint16, error) {
+	if body == "" {
+		return nil, nil
+	}
+	entries := strings.Split(body, ",")
+	ports := make([]uint16, 0, len(entries))
+	for _, entry := range entries {
+		port, err := strconv.ParseUint(entry, 10, 16)
+		if err != nil {
+			return nil, fmt.Errorf("pkginfo: parse %s=%s: %w", PortBindingsTCPEnvVar, body, err)
+		}
+		ports = append(ports, uint16(port))
+	}
+	return ports, nil
 }

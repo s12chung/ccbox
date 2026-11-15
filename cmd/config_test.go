@@ -138,7 +138,7 @@ func TestConfirmReadOnlyPaths(t *testing.T) {
 		testutil.Home(t)
 		body := "cli: claude\nread_only_globs:\n  - \"**/.env\"\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
-		c, err := cfg.Load(dir, nil, false)
+		c, err := cfg.Load(dir, cfg.Flags{})
 		require.NoError(t, err)
 		config = c
 		t.Cleanup(func() { config = nil })
