@@ -34,7 +34,7 @@ func run(dir string) error {
 		return err
 	}
 
-	walk := pair.NewWalk(pkg.StructMap)
+	walk := pair.NewWalk(pkg)
 	var pairs []pair.Pair
 	var errs []error
 	for _, marked := range pkg.MarkedStructs {

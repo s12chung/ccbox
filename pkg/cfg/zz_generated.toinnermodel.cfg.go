@@ -8,10 +8,12 @@ func (x *config) toInnerModel() Config {
 		out.CLIName = *x.CLIName
 	}
 	if x.DefaultVariant != nil {
-		out.DefaultVariant = x.DefaultVariant.toInnerModel()
+		defaultVariant := x.DefaultVariant.toInnerModel()
+		out.DefaultVariant = &defaultVariant
 	}
 	if x.VNC != nil {
-		out.VNC = x.VNC.toInnerModel()
+		vnc := x.VNC.toInnerModel()
+		out.VNC = &vnc
 	}
 	if x.TmpfsMasks != nil {
 		out.TmpfsMasks = *x.TmpfsMasks
@@ -29,7 +31,8 @@ func (x *config) toInnerModel() Config {
 		out.ForwardEnv = *x.ForwardEnv
 	}
 	if x.Proxy != nil {
-		out.Proxy = x.Proxy.toInnerModel()
+		proxy := x.Proxy.toInnerModel()
+		out.Proxy = &proxy
 	}
 	return out
 }
@@ -44,24 +47,18 @@ func (x *defaultVariant) toInnerModel() DefaultVariant {
 
 func (x *portBindings) toInnerModel() PortBindings {
 	var out PortBindings
-	out.TCP = x.TCP
+	out.TCP = splitPorts(x.TCP)
 	return out
 }
 
 func (x *vnc) toInnerModel() VNC {
 	var out VNC
-	if x.Enabled != nil {
-		out.Enabled = *x.Enabled
-	}
 	out.GUIAppName = x.GUIAppName
 	return out
 }
 
 func (x *proxy) toInnerModel() Proxy {
 	var out Proxy
-	if x.Enabled != nil {
-		out.Enabled = *x.Enabled
-	}
 	out.Allowlist = x.Allowlist
 	return out
 }

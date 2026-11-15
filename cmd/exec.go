@@ -29,7 +29,7 @@ var execCmd = &cobra.Command{
 // config and --no-proxy; always the flags-and-settings variant's devbox
 func execSession(ctx context.Context, mode dmap.ExecMode) error {
 	var proxyOptions *docker.ProxyOptions
-	if config.ServeProxied() {
+	if config.Proxy != nil {
 		proxyOptions = dmap.NewProxyMap(config).Options()
 	}
 	runOptions, clean, err := prepareRun(proxyOptions)
@@ -44,7 +44,7 @@ func execSession(ctx context.Context, mode dmap.ExecMode) error {
 		return err
 	}
 	if !running {
-		if err := build(ctx, config.ServeVNC()); err != nil {
+		if err := build(ctx, config.VNC != nil); err != nil {
 			return err
 		}
 	}

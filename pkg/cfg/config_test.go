@@ -416,6 +416,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	t.Run("aliases expand in place, literals kept, repeats collapse", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+
 			"proxy:\n"+
+			"  enabled: true\n"+
 			"  allowlist:\n"+
 			"    - ccbox-anthropic-provider\n"+
 			"    - example.com\n"+
@@ -433,7 +434,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("ccbox-all-providers resolves every provider's domains", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  allowlist:\n    - ccbox-all-providers\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-providers\n")
 
 		allProviders, ok := provider.DomainsFor(provider.AllProvidersAlias)
 		require.True(t, ok)
@@ -443,7 +444,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("ccbox-all-runtimes resolves every runtime's domains", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  allowlist:\n    - ccbox-all-runtimes\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-runtimes\n")
 
 		allRuntimes, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
 		require.True(t, ok)
@@ -453,25 +454,27 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("the GUI app's domains enter only through the harness alias on a vnc load", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
 
 		headlessConfig, err := Load(dir, Flags{})
 		require.NoError(t, err)
-		assert.False(t, headlessConfig.ServeVNC())
+		assert.Nil(t, headlessConfig.VNC)
 		assert.Equal(t, harnessDomains, headlessConfig.AllowlistExpanded())
 
+		// the flag turns the section on: its gui_app stands, its domains enter
 		vncConfig, err := Load(dir, Flags{VNC: true})
 		require.NoError(t, err)
-		assert.True(t, vncConfig.ServeVNC())
+		assert.Equal(t, &VNC{GUIAppName: "zcode"}, vncConfig.VNC)
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), vncConfig.AllowlistExpanded())
 	})
 
-	t.Run("enabled pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  allowlist:\n    - ccbox-set-harness\n")
+	t.Run("a present vnc section pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+
+			"vnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
-		assert.True(t, c.ServeVNC())
+		assert.NotNil(t, c.VNC)
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), c.AllowlistExpanded())
 	})
 }
@@ -485,15 +488,14 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	mkDirs(t, home, ".config/git")
 	c := &Config{
 		CLIName:        "claude",
-		DefaultVariant: DefaultVariant{PortBindings: PortBindings{TCP: "3000, 7200"}},
-		VNC:            VNC{GUIAppName: guiapp.App.Name},
+		DefaultVariant: &DefaultVariant{PortBindings: PortBindings{TCP: []string{"3000", "7200"}}},
+		VNC:            &VNC{GUIAppName: guiapp.App.Name},
 		TmpfsMasks:     []string{DefaultsAlias, "dist", "build"},
 		VolumeMasks:    []string{DefaultsAlias, "target", "cache"},
 		ReadOnlyGlobs:  []string{DefaultsAlias, ".env"},
 		ReadOnlyBinds:  map[string]string{GitConfigKey: firmrule.EnabledValue},
 		ForwardEnv:     []string{"FOO"},
-		Proxy: Proxy{
-			Enabled:   true,
+		Proxy: &Proxy{
 			Allowlist: []string{"user.example.dev", DefaultsAlias, "example.com"},
 		},
 		projectDir: dir,
@@ -506,8 +508,8 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	want := config{
 		CLIName:        new("claude"),
-		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000, 7200"}}, // the csv renders as-is
-		VNC:            &vnc{Enabled: new(false), GUIAppName: guiapp.App.Name},          // the loaded view's plain Enabled renders on or off
+		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000,7200"}}, // the loaded ports render as csv
+		VNC:            &vnc{Enabled: new(true), GUIAppName: guiapp.App.Name},          // the printed key pins the section on
 		TmpfsMasks:     new(append(append([]string{}, tmpfsDefaults...), "dist")),
 		VolumeMasks:    new([]string{"node_modules", "target"}),
 		ReadOnlyGlobs:  new([]string{"secrets"}),

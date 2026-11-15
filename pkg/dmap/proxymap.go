@@ -27,7 +27,7 @@ func (pm *ProxyMap) Options() *docker.ProxyOptions {
 	writeAllowFile := func() error { return osutil.AtomicWriteFile(proxyAllowPath(), allowContents) }
 	return &docker.ProxyOptions{
 		HostDir:     proxyLiveDir(),
-		LogFile:     proxyLogPath(pm.cfg.ProjectDir(), pm.cfg.ServeVNC()),
+		LogFile:     proxyLogPath(pm.cfg.ProjectDir(), pm.cfg.VNC != nil),
 		BeforeStart: writeAllowFile,
 		OnRefresh: func() error {
 			changed, err := pm.allowlistDiff(allowContents)

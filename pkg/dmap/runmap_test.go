@@ -27,6 +27,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 
 	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
 proxy:
+  enabled: true
   allowlist:
     - ccbox-defaults
     - example.com
@@ -71,8 +72,10 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	// the base layer carries the gui_app, as a project's config would
 	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
 vnc:
+  enabled: true
   gui_app: `+guiapp.App.Name+`
 proxy:
+  enabled: true
   allowlist:
     - ccbox-defaults
     - ccbox-set-harness
@@ -103,7 +106,7 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
 
 	// the --vnc flag on a config without a vnc section, as `ccbox proxy --vnc` arrives
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, ProxyCmd: true})
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", NewProxyMap(config).Options())
@@ -376,7 +379,7 @@ func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 }
 
 func TestRunMap_Env_EmptyVNC(t *testing.T) {
-	rm := testRunMap(t, "cli: claude\n")
+	rm := testRunMap(t, "cli: claude\nvnc:\n  enabled: true\n")
 
 	env, err := rm.Env(true, nil)
 	require.NoError(t, err)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 
 	"github.com/gobwas/glob"
 
@@ -34,19 +35,16 @@ const (
 // Config is the loaded .ccbox.yaml
 type Config struct {
 	CLIName        string            // coding CLI to install + launch
-	DefaultVariant DefaultVariant    // the default variant ask's section — the devbox with no run flags
-	VNC            VNC               // the desktop's session: its GUI app
+	DefaultVariant *DefaultVariant   // the default variant ask's section — the devbox the config's own ask boots
+	VNC            *VNC              // the desktop's session: its GUI app; nil on a headless run
 	TmpfsMasks     []string          // project-relative dirs to mask with a writable tmpfs
 	VolumeMasks    []string          // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyGlobs  []string          // project-relative globs to re-mount read-only
 	ReadOnlyBinds  map[string]string // host dir → container mount dir, bound read-only
 	ForwardEnv     []string          // host env vars forwarded into the container
-	Proxy          Proxy             // the egress wall's section
+	Proxy          *Proxy            // the egress wall's section; nil runs without it
 
-	projectDir      string   // stored projectDir
-	serveVNC        bool     // the resolved run mode
-	serveProxied    bool     // the resolved egress wall
-	portBindingsTCP []string // resolved tcp ports
+	projectDir string // stored projectDir
 
 	// cache the DefaultsAlias expansions of raw lists and the read_only_binds' path resolutions
 	expandedTmpfsMasks    []string
@@ -56,15 +54,15 @@ type Config struct {
 	expandedAllowlist     []string
 }
 
-// VNC is the desktop's session: the GUI app it installs and launches.
+// VNC is the desktop's session: the GUI app it installs and launches. A nil VNC
+// runs headless.
 type VNC struct {
-	// Enabled always runs with VNC served — the --vnc flag's config form
-	Enabled bool
 	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
 	GUIAppName string
 }
 
-// DefaultVariant is the default variant ask's section — the devbox with no run flags.
+// DefaultVariant is the default variant ask's section — the devbox the config's
+// own ask boots. A nil section binds no ports.
 type DefaultVariant struct {
 	// PortBindings binds tcp ports on localhost, container port = host port
 	PortBindings PortBindings
@@ -72,14 +70,13 @@ type DefaultVariant struct {
 
 // PortBindings is the tcp port bindings' section.
 type PortBindings struct {
-	// TCP is the comma-separated ports to bind on localhost
-	TCP string
+	// TCP is the ports to bind on localhost
+	TCP []string
 }
 
-// Proxy is the egress wall's section — the seeded file pins its enabled default.
+// Proxy is the egress wall's section — the seeded file carries the on default. A
+// nil Proxy runs without it.
 type Proxy struct {
-	// Enabled runs with the egress wall
-	Enabled bool
 	// Allowlist is the domains the egress wall lets through; each entry also matches
 	// all its subdomains
 	Allowlist []string
@@ -88,21 +85,9 @@ type Proxy struct {
 // ProjectDir is the project dir the config was loaded from
 func (c *Config) ProjectDir() string { return c.projectDir }
 
-// ServeVNC is the resolved run mode: the --vnc flag or the vnc section's enabled —
-// the flag alone acts as an enabled section with no app
-func (c *Config) ServeVNC() bool { return c.serveVNC }
-
-// ServeProxied is the resolved egress wall: the proxy command forces it on, else
-// the --no-proxy flag and the proxy section's enabled
-func (c *Config) ServeProxied() bool { return c.serveProxied }
-
-// PortBindingsTCP is the run's tcp ports to bind
-func (c *Config) PortBindingsTCP() []string { return c.portBindingsTCP }
-
-// isDefaultVariant reports whether the resolved asks boot the config's own devbox —
-// the default variant's
-func (c *Config) isDefaultVariant() bool {
-	return c.serveVNC == c.VNC.Enabled && c.serveProxied == c.Proxy.Enabled
+// isDefaultVariant returns true if the resolved VNC and Proxy enabledness matches filesConfig
+func (c *Config) isDefaultVariant(filesConfig Config) bool {
+	return (c.VNC != nil) == (filesConfig.VNC != nil) && (c.Proxy != nil) == (filesConfig.Proxy != nil)
 }
 
 // CLI resolves the config's cli name to its cli.CLI; MustFor is
@@ -112,10 +97,18 @@ func (c *Config) CLI() cli.CLI { return cli.MustFor(c.CLIName) }
 // GUIApp resolves the run's GUI app: nil on a headless run or a vnc section naming
 // no gui_app; MustFor is infallible for a loaded config
 func (c *Config) GUIApp() *guiapp.GUIApp {
-	if !c.ServeVNC() {
+	if c.VNC == nil {
 		return nil
 	}
 	return guiapp.MustFor(c.VNC.GUIAppName)
+}
+
+// PortBindingsTCP is the run's tcp ports to bind — nil off the default variant's ask
+func (c *Config) PortBindingsTCP() []string {
+	if c.DefaultVariant == nil {
+		return nil
+	}
+	return c.DefaultVariant.PortBindings.TCP
 }
 
 // TmpfsMasksExpanded expands the DefaultsAlias alias in TmpfsMasks to defaults
@@ -254,7 +247,7 @@ func (c *Config) SetHarnessDomains() []string {
 	for _, d := range c.CLI().Setup.Proxied.AllowDomains {
 		domains = append(domains, expandDomain(d)...)
 	}
-	if c.ServeVNC() {
+	if c.VNC != nil {
 		domains = append(domains, guiapp.AllowDomains(c.VNC.GUIAppName)...)
 	}
 	return domains
@@ -286,26 +279,31 @@ func expandDomain(entry string) []string {
 // MarshalYAML renders the effective config back in the input view's yaml-facing
 // shape — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
-	c.Proxy.Allowlist = c.AllowlistExpanded()
-	return config{
+	out := config{
 		CLIName:        new(c.CLIName),
 		DefaultVariant: c.marshalDefaultVariant(),
-		VNC:            &vnc{Enabled: new(c.VNC.Enabled), GUIAppName: c.VNC.GUIAppName},
 		TmpfsMasks:     new(c.TmpfsMasksPresent()),
 		VolumeMasks:    new(c.VolumeMasksPresent()),
 		ReadOnlyGlobs:  new(c.ReadOnlyPathsPresent()),
 		ReadOnlyBinds:  new(c.ReadOnlyBindsPresent()),
 		ForwardEnv:     new(c.ForwardEnv),
-		Proxy:          &proxy{Enabled: new(c.Proxy.Enabled), Allowlist: c.Proxy.Allowlist},
-	}, nil
+	}
+	if c.VNC != nil {
+		out.VNC = &vnc{Enabled: new(true), GUIAppName: c.VNC.GUIAppName}
+	}
+	if c.Proxy != nil {
+		out.Proxy = &proxy{Enabled: new(true), Allowlist: c.AllowlistExpanded()}
+	}
+	return out, nil
 }
 
-// marshalDefaultVariant renders the section the default ask binds, omitted when none
+// marshalDefaultVariant renders the section the default ask binds, omitted when it
+// binds no ports
 func (c *Config) marshalDefaultVariant() *defaultVariant {
-	if c.DefaultVariant.PortBindings.TCP == "" {
+	if c.DefaultVariant == nil || len(c.DefaultVariant.PortBindings.TCP) == 0 {
 		return nil
 	}
-	return &defaultVariant{PortBindings: &portBindings{TCP: c.DefaultVariant.PortBindings.TCP}}
+	return &defaultVariant{PortBindings: &portBindings{TCP: strings.Join(c.DefaultVariant.PortBindings.TCP, ",")}}
 }
 
 // InfoJSON renders the section as the VNCConfigEnvVar JSON: the GUI app the run

@@ -100,6 +100,17 @@ func init() {
 		}))
 }
 
+// dropDisabled enforces that section or Enabled nils mean disabled
+func (c *config) dropDisabled() *config {
+	if c.VNC == nil || c.VNC.Enabled == nil || !*c.VNC.Enabled {
+		c.VNC = nil
+	}
+	if c.Proxy == nil || c.Proxy.Enabled == nil || !*c.Proxy.Enabled {
+		c.Proxy = nil
+	}
+	return c
+}
+
 // defaultVariant is the default variant ask's section — the devbox with no run flags
 type defaultVariant struct {
 	// PortBindings binds tcp ports on localhost, container port = host port
@@ -115,7 +126,21 @@ func init() {
 
 type portBindings struct {
 	// TCP is the comma-separated ports to bind
+	//
+	//toinnermodel:convert splitPorts
 	TCP string `yaml:"tcp"`
+}
+
+// splitPorts splits the csv into its trimmed ports — infallible post-validation
+func splitPorts(tcp string) []string {
+	if tcp == "" {
+		return nil
+	}
+	ports := strings.Split(tcp, ",")
+	for i, entry := range ports {
+		ports[i] = strings.TrimSpace(entry)
+	}
+	return ports
 }
 
 func init() {
@@ -125,9 +150,11 @@ func init() {
 		}))
 }
 
-// vnc is the desktop's session: the GUI app it installs and launches.
+// vnc is the vnc section
 type vnc struct {
-	// Enabled always runs with VNC served — the --vnc flag's config form
+	// Enabled always runs with VNC served
+	//
+	//toinnermodel:skip
 	Enabled *bool `yaml:"enabled,omitempty"`
 	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
 	GUIAppName string `yaml:"gui_app,omitempty"`
@@ -145,6 +172,8 @@ func init() {
 // proxy is the egress wall's section
 type proxy struct {
 	// Enabled runs with the egress wall
+	//
+	//toinnermodel:skip
 	Enabled *bool `yaml:"enabled,omitempty"`
 	// Allowlist is the domains the egress wall lets through; each entry also matches
 	// all its subdomains
@@ -257,6 +286,14 @@ type Flags struct {
 
 func (f Flags) toLayer() config {
 	c := config{CLIName: f.CLI}
+	if f.ProxyCmd {
+		c.Proxy = &proxy{Enabled: new(true)}
+	} else if f.NoProxy {
+		c.Proxy = &proxy{Enabled: new(false)}
+	}
+	if f.VNC {
+		c.VNC = &vnc{Enabled: new(true)}
+	}
 	if f.PortBindingsTCP != nil {
 		c.DefaultVariant = &defaultVariant{PortBindings: &portBindings{TCP: *f.PortBindingsTCP}}
 	}
@@ -269,34 +306,19 @@ func Load(projectDir string, flags Flags) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	merged := yamlutil.MergeLayers(append(layers, flags.toLayer()), mergeempty.Merge[config])
+	filesConfig := yamlutil.MergeLayers(layers, mergeempty.Merge[config])
+
+	merged := yamlutil.MergeLayers([]config{filesConfig, flags.toLayer()}, mergeempty.Merge[config])
 	if errMap := firm.ValidateAny(merged); errMap != nil {
 		return nil, errMap
 	}
-	s := merged.toInnerModel()
+
+	s := merged.dropDisabled().toInnerModel()
 	s.projectDir = projectDir
-	s.serveVNC = flags.VNC || s.VNC.Enabled
-	s.serveProxied = flags.ProxyCmd || (!flags.NoProxy && s.Proxy.Enabled)
-
-	portBindingsTCP := ""
-	if s.isDefaultVariant() {
-		portBindingsTCP = s.DefaultVariant.PortBindings.TCP
+	if flags.PortBindingsTCP == nil {
+		if !s.isDefaultVariant(filesConfig.dropDisabled().toInnerModel()) {
+			s.DefaultVariant = nil
+		}
 	}
-	if flags.PortBindingsTCP != nil {
-		portBindingsTCP = *flags.PortBindingsTCP
-	}
-	s.portBindingsTCP = splitPorts(portBindingsTCP)
 	return &s, nil
-}
-
-// splitPorts splits the csv into its trimmed ports — infallible post-validation
-func splitPorts(tcp string) []string {
-	if tcp == "" {
-		return nil
-	}
-	ports := strings.Split(tcp, ",")
-	for i, entry := range ports {
-		ports[i] = strings.TrimSpace(entry)
-	}
-	return ports
 }

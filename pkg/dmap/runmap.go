@@ -24,13 +24,12 @@ func NewRunMap(cfg *cfg.Config, cacheVolumes []string, tagByProject bool) *RunMa
 
 // RunOptions renders the run's full docker.RunOptions; nil proxyOptions runs plain
 func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
-	serveVNC, isProxied := rm.cfg.ServeVNC(), proxyOptions != nil
+	serveVNC, isProxied := rm.cfg.VNC != nil, proxyOptions != nil
 	hostOptions, clean, err := rm.HostOptions(serveVNC, isProxied)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
-	portBindingsTCP := rm.cfg.PortBindingsTCP()
-	env, err := rm.Env(serveVNC, portBindingsTCP)
+	env, err := rm.Env(serveVNC, rm.cfg.PortBindingsTCP())
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
@@ -43,7 +42,7 @@ func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (doc
 		Env:             env,
 		Proxy:           proxyOptions,
 		ServeVNC:        serveVNC,
-		PortBindingsTCP: portBindingsTCP,
+		PortBindingsTCP: rm.cfg.PortBindingsTCP(),
 		HoldersDir:      devboxHoldersDir(name),
 		LogFile:         devboxLogPath(rm.cfg.ProjectDir(), serveVNC, isProxied),
 	}, clean, nil

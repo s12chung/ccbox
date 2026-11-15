@@ -20,8 +20,7 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
-// runVNC serves the desktop session (`--vnc`); Load resolves it with the vnc
-// section's enabled, and the runs follow the resolved mode
+// runVNC serves the desktop session (`--vnc`)
 var runVNC bool
 
 // runCmd boots the devbox container and streams its logs to the foreground
@@ -45,7 +44,7 @@ func init() {
 // run builds the image then boots the devbox, streaming its logs to the foreground —
 // the run and proxy commands' shared tail
 func run(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
-	if err := build(ctx, config.ServeVNC()); err != nil {
+	if err := build(ctx, config.VNC != nil); err != nil {
 		return err
 	}
 	options, clean, err := prepareRun(proxyOptions)

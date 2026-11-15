@@ -103,8 +103,10 @@ func newStatement(fieldPair pair.FieldPair) statement {
 		return assign{pair.Field}
 	case pair.Deref:
 		return deref{pair.Field}
+	case pair.Convert:
+		return convert{pair.Field, pair.Fn}
 	case pair.StructType:
-		return structType{pair.Field}
+		return structType{pair.Field, pair.TwinType}
 	default:
 		panic(fmt.Sprintf("render: unknown field pairing %T", fieldPair))
 	}
@@ -124,14 +126,43 @@ func (s deref) write(b *bytes.Buffer) {
 	fmt.Fprintf(b, "\tif x.%s != nil {\n\t\tout.%s = *x.%s\n\t}\n", s.field.Name, s.field.Name, s.field.Name)
 }
 
+// convert passes an input field through the marker-named package func
+type convert struct {
+	field source.Field
+	fn    string
+}
+
+func (s convert) write(b *bytes.Buffer) {
+	fmt.Fprintf(b, "\tout.%s = %s(x.%s)\n", s.field.Name, s.fn, s.field.Name)
+}
+
 // structType converts a struct field — pointer or value — via its toInnerModel;
-// only the pointer nil-guards
-type structType struct{ field source.Field }
+// only the pointer nil-guards, and a pointer target takes the conversion's address
+type structType struct {
+	field    source.Field
+	twinType string
+}
 
 func (s structType) write(b *bytes.Buffer) {
-	if strings.HasPrefix(s.field.Type, "*") {
-		fmt.Fprintf(b, "\tif x.%s != nil {\n\t\tout.%s = x.%s.toInnerModel()\n\t}\n", s.field.Name, s.field.Name, s.field.Name)
+	if !strings.HasPrefix(s.field.Type, "*") {
+		fmt.Fprintf(b, "\tout.%s = x.%s.toInnerModel()\n", s.field.Name, s.field.Name)
 		return
 	}
-	fmt.Fprintf(b, "\tout.%s = x.%s.toInnerModel()\n", s.field.Name, s.field.Name)
+	if strings.HasPrefix(s.twinType, "*") {
+		target := loweredTarget(s.field.Name)
+		fmt.Fprintf(b, "\tif x.%s != nil {\n\t\t%s := x.%s.toInnerModel()\n\t\tout.%s = &%s\n\t}\n",
+			s.field.Name, target, s.field.Name, s.field.Name, target)
+		return
+	}
+	fmt.Fprintf(b, "\tif x.%s != nil {\n\t\tout.%s = x.%s.toInnerModel()\n\t}\n", s.field.Name, s.field.Name, s.field.Name)
+}
+
+// loweredTarget names the pointer target's local: the field name with its leading
+// uppercase run lowered — VNC -> vnc, DefaultVariant -> defaultVariant
+func loweredTarget(name string) string {
+	upper := 0
+	for upper < len(name) && 'A' <= name[upper] && name[upper] <= 'Z' {
+		upper++
+	}
+	return strings.ToLower(name[:upper]) + name[upper:]
 }

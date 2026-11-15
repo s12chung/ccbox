@@ -15,25 +15,28 @@ import (
 )
 
 const (
-	// markerGen in a struct's doc group marks an input struct to generate for —
-	// nested structTypes need no mark
-	markerGen = "//toinnermodel:gen"
+	markerPrefix = "//toinnermodel:" // the marker head
+
+	markerGen     = "gen"     // marks struct to generate, nested structTypes need no mark
+	markerSkip    = "skip"    // drop the field from pairing
+	markerConvert = "convert" // call a func to convert to the innerModel field
 
 	// GeneratedPrefix prefixes the tool's generated file, one per package
 	GeneratedPrefix = "zz_generated.toinnermodel."
 )
 
 // Pkg is a package as toinnermodel-gen sees it: its name, the marked structs, and
-// every struct by name — pair resolves innerModels and structTypes against the map
+// every struct and package-level func by name
 type Pkg struct {
 	Name          string
 	MarkedStructs []Struct
 	StructMap     map[string]Struct
+	FuncMap       map[string]Func
 }
 
 // Scan parses dir's Go sources, skipping tests and the generated file.
 func Scan(dir string) (Pkg, error) {
-	p := Pkg{StructMap: map[string]Struct{}}
+	p := Pkg{StructMap: map[string]Struct{}, FuncMap: map[string]Func{}}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return Pkg{}, err
@@ -55,18 +58,50 @@ func Scan(dir string) (Pkg, error) {
 	return p, nil
 }
 
-// scanFile records the file's structs, keeping the annotated ones marked
+// scanFile records the file's structs, keeping the annotated ones marked, and the
+// package-level funcs the convert markers may name
 func (p *Pkg) scanFile(file *ast.File) {
 	p.Name = file.Name.Name
 	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.TYPE {
-			continue
-		}
-		for _, spec := range gen.Specs {
-			p.scanTypeSpec(gen, spec)
+		switch decl := decl.(type) {
+		case *ast.FuncDecl:
+			p.scanFunc(decl)
+		case *ast.GenDecl:
+			if decl.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range decl.Specs {
+				p.scanTypeSpec(decl, spec)
+			}
 		}
 	}
+}
+
+// scanFunc records one package-level func; a method never answers to a marker
+func (p *Pkg) scanFunc(fn *ast.FuncDecl) {
+	if fn.Recv != nil {
+		return
+	}
+	p.FuncMap[fn.Name.Name] = Func{In: fieldTypes(fn.Type.Params), Out: fieldTypes(fn.Type.Results)}
+}
+
+// fieldTypes lists the field list's types, one per name
+func fieldTypes(fl *ast.FieldList) []string {
+	if fl == nil {
+		return nil
+	}
+	var list []string
+	for _, astField := range fl.List {
+		typ := types.ExprString(astField.Type)
+		if len(astField.Names) == 0 {
+			list = append(list, typ)
+			continue
+		}
+		for range astField.Names {
+			list = append(list, typ)
+		}
+	}
+	return list
 }
 
 // scanTypeSpec records one struct spec as data; the marker sits on the doc group above it
@@ -95,11 +130,36 @@ func fieldsOf(st *ast.StructType) []Field {
 			fields = append(fields, Field{Name: strings.TrimPrefix(typ, "*"), Type: typ})
 			continue
 		}
+		skip, convertFn := fieldMarkers(astField.Doc, astField.Comment)
 		for _, name := range astField.Names {
-			fields = append(fields, Field{Name: name.Name, Type: typ})
+			fields = append(fields, Field{Name: name.Name, Type: typ, Skip: skip, ConvertFn: convertFn})
 		}
 	}
 	return fields
+}
+
+// fieldMarkers reads the field's doc and line comments for the tool's markers
+func fieldMarkers(doc, line *ast.CommentGroup) (bool, string) {
+	var skip bool
+	var convertFn string
+	for _, group := range []*ast.CommentGroup{doc, line} {
+		if group == nil {
+			continue
+		}
+		for _, c := range group.List {
+			directive, ok := strings.CutPrefix(strings.TrimSpace(c.Text), markerPrefix)
+			if !ok {
+				continue
+			}
+			switch name, arg, _ := strings.Cut(directive, " "); name {
+			case markerSkip:
+				skip = true
+			case markerConvert:
+				convertFn = strings.TrimSpace(arg)
+			}
+		}
+	}
+	return skip, convertFn
 }
 
 func hasMarker(doc *ast.CommentGroup) bool {
@@ -107,7 +167,7 @@ func hasMarker(doc *ast.CommentGroup) bool {
 		return false
 	}
 	return slices.ContainsFunc(doc.List, func(c *ast.Comment) bool {
-		return strings.TrimSpace(c.Text) == markerGen
+		return strings.TrimSpace(c.Text) == markerPrefix+markerGen
 	})
 }
 
@@ -125,8 +185,18 @@ type Struct struct {
 	Fields []Field
 }
 
-// Field is one struct field: its name and type as written
+// Field is one struct field: its name and type as written, and its markers' asks
 type Field struct {
 	Name string
 	Type string // e.g. "string", "*vnc"
+	// Skip drops the field from the pairing: the innerModel names no twin
+	Skip bool
+	// ConvertFn names the package func converting the field's type to the twin's
+	ConvertFn string
+}
+
+// Func is a package-level func as toinnermodel-gen sees it: its arg and result types
+type Func struct {
+	In  []string
+	Out []string
 }

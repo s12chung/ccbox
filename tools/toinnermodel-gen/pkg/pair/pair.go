@@ -14,28 +14,33 @@ import (
 // the path — a repeat is a cycle
 type Walk struct {
 	structs map[string]strut
+	funcs   map[string]source.Func
 	path    map[string]bool
 }
 
 // NewWalk wraps every scanned struct for pairing, keyed the same
-func NewWalk(structs map[string]source.Struct) Walk {
-	w := Walk{structs: make(map[string]strut, len(structs))}
-	for name, strct := range structs {
+func NewWalk(pkg source.Pkg) Walk {
+	w := Walk{structs: make(map[string]strut, len(pkg.StructMap)), funcs: pkg.FuncMap}
+	for name, strct := range pkg.StructMap {
 		w.structs[name] = strut{strct}
 	}
 	return w
 }
 
-// structTypeOf resolves a struct-typed shape's pairing — the same struct,
-// modulo case; anything looser is a guess
+// structTypeOf resolves a struct-typed shape's pairing — the same struct, modulo
+// case, pointers carried across; anything looser is a guess
 func (w Walk) structTypeOf(in, out string) (strut, strut, bool) {
+	if strings.HasPrefix(out, "*") && !strings.HasPrefix(in, "*") {
+		return strut{}, strut{}, false // a value input has no pointer to land on
+	}
 	name := strings.TrimPrefix(in, "*")
+	outName := strings.TrimPrefix(out, "*")
 	structType, ok := w.structs[name]
 	if !ok {
 		return strut{}, strut{}, false
 	}
-	structTypeInnerModel, ok := w.structs[out]
-	if !ok || name == out || !strings.EqualFold(name, out) {
+	structTypeInnerModel, ok := w.structs[outName]
+	if !ok || name == outName || !strings.EqualFold(name, outName) {
 		return strut{}, strut{}, false
 	}
 	return structType, structTypeInnerModel, true
@@ -80,6 +85,9 @@ func (marked strut) pair(innerModel strut, w Walk) (Pair, error) {
 	pair := Pair{Marked: marked.Struct, InnerModel: innerModel.Struct}
 	var errs []error
 	for _, f := range marked.Fields {
+		if f.Skip {
+			continue // no twin: a retired field parses, never converts
+		}
 		twinField, ok := innerModel.field(f.Name)
 		if !ok {
 			errs = append(errs, fmt.Errorf("toinnermodel-gen: %s.%s: no field %s on innerModel %s", marked.Name, f.Name, f.Name, innerModel.Name))
@@ -101,6 +109,9 @@ type field struct{ source.Field }
 // pair pairs field with twinField, choosing the setting from the shape pair
 func (markedField field) pair(twinField field, w Walk) (FieldPair, error) {
 	in, out := markedField.Type, twinField.Type
+	if markedField.ConvertFn != "" {
+		return markedField.convert(in, out, w)
+	}
 	switch {
 	case in == out:
 		return Assign{Field: markedField.Field}, nil
@@ -114,14 +125,27 @@ func (markedField field) pair(twinField field, w Walk) (FieldPair, error) {
 	// a structType already on the path is a cycle — pairing it again recurses
 	// forever
 	if !w.enter(structType.Name) {
-		return StructType{Field: markedField.Field}, nil
+		return StructType{Field: markedField.Field, TwinType: twinField.Type}, nil
 	}
 	defer w.exit(structType.Name)
 	structTypePair, err := structType.pair(structTypeInnerModel, w)
 	if err != nil {
 		return nil, err
 	}
-	return StructType{Field: markedField.Field, Pair: &structTypePair}, nil
+	return StructType{Field: markedField.Field, TwinType: twinField.Type, Pair: &structTypePair}, nil
+}
+
+// convert checks the marker-named package func takes the input type and returns the twin's
+func (markedField field) convert(in, out string, w Walk) (FieldPair, error) {
+	fn, ok := w.funcs[markedField.ConvertFn]
+	if !ok {
+		return nil, fmt.Errorf("toinnermodel-gen: %s: no func %s in the package", markedField.Name, markedField.ConvertFn)
+	}
+	if len(fn.In) != 1 || len(fn.Out) != 1 || fn.In[0] != in || fn.Out[0] != out {
+		return nil, fmt.Errorf("toinnermodel-gen: %s: %s is func(%s) (%s), want func(%s) (%s)",
+			markedField.Name, markedField.ConvertFn, strings.Join(fn.In, ", "), strings.Join(fn.Out, ", "), in, out)
+	}
+	return Convert{Field: markedField.Field, Fn: markedField.ConvertFn}, nil
 }
 
 // Pair is one marked struct's conversion: its innerModel and one FieldPair per field
@@ -144,11 +168,20 @@ type Deref struct{ Field source.Field }
 
 func (Deref) isFieldPair() {}
 
-// StructType converts an input struct — pointer or value — to the target via
-// its toInnerModel, nil-guarded on a pointer. Pair is the struct's own, nil on a cycle
-type StructType struct {
+// Convert converts an input field via the marker-named package func
+type Convert struct {
 	Field source.Field
-	Pair  *Pair
+	Fn    string
+}
+
+func (Convert) isFieldPair() {}
+
+// StructType converts an input struct — pointer or value — to the target via
+// its toInnerModel, nil-guarded on a pointer.
+type StructType struct {
+	Field    source.Field
+	TwinType string // twin field's type — the shape the conversion lands on
+	Pair     *Pair  // nil on cycle
 }
 
 func (StructType) isFieldPair() {}

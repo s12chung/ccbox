@@ -18,6 +18,9 @@ func TestPair(t *testing.T) {
 			{Name: "StructType", Type: "*inner"},
 			{Name: "Filter", Type: "*filter"},
 			{Name: "Inner", Type: "inner"},
+			{Name: "Outer", Type: "*outer"},
+			{Name: "Ports", Type: "string", ConvertFn: "splitPorts"},
+			{Name: "Retired", Type: "*bool", Skip: true},
 		}},
 		"Full": {Name: "Full", Fields: []source.Field{
 			{Name: "Plain", Type: "string"},
@@ -26,13 +29,20 @@ func TestPair(t *testing.T) {
 			{Name: "StructType", Type: "Inner"},
 			{Name: "Filter", Type: "Filter"},
 			{Name: "Inner", Type: "Inner"},
+			{Name: "Outer", Type: "*Outer"},
+			{Name: "Ports", Type: "[]string"},
 		}},
 		"inner":  {Name: "inner", Fields: []source.Field{{Name: "Flag", Type: "*bool"}}},
 		"Inner":  {Name: "Inner", Fields: []source.Field{{Name: "Flag", Type: "bool"}}},
 		"filter": {Name: "filter", Fields: []source.Field{{Name: "Term", Type: "string"}}},
 		"Filter": {Name: "Filter", Fields: []source.Field{{Name: "Term", Type: "string"}}},
+		"outer":  {Name: "outer", Fields: []source.Field{{Name: "Term", Type: "string"}}},
+		"Outer":  {Name: "Outer", Fields: []source.Field{{Name: "Term", Type: "string"}}},
 	}
-	w := NewWalk(structs)
+	funcs := map[string]source.Func{
+		"splitPorts": {In: []string{"string"}, Out: []string{"[]string"}},
+	}
+	w := NewWalk(source.Pkg{StructMap: structs, FuncMap: funcs})
 	pair, err := w.Pair(structs["full"])
 	require.NoError(t, err)
 
@@ -43,21 +53,28 @@ func TestPair(t *testing.T) {
 			Assign{Field: fld("Plain", "string")},
 			Assign{Field: fld("Kept", "*string")},
 			Deref{Field: fld("Flag", "*bool")},
-			StructType{Field: fld("StructType", "*inner"), Pair: &Pair{
+			StructType{Field: fld("StructType", "*inner"), TwinType: "Inner", Pair: &Pair{
 				Marked:     structs["inner"],
 				InnerModel: structs["Inner"],
 				Fields:     []FieldPair{Deref{Field: fld("Flag", "*bool")}},
 			}},
-			StructType{Field: fld("Filter", "*filter"), Pair: &Pair{
+			StructType{Field: fld("Filter", "*filter"), TwinType: "Filter", Pair: &Pair{
 				Marked:     structs["filter"],
 				InnerModel: structs["Filter"],
 				Fields:     []FieldPair{Assign{Field: fld("Term", "string")}},
 			}},
-			StructType{Field: fld("Inner", "inner"), Pair: &Pair{
+			StructType{Field: fld("Inner", "inner"), TwinType: "Inner", Pair: &Pair{
 				Marked:     structs["inner"],
 				InnerModel: structs["Inner"],
 				Fields:     []FieldPair{Deref{Field: fld("Flag", "*bool")}},
 			}},
+			StructType{Field: fld("Outer", "*outer"), TwinType: "*Outer", Pair: &Pair{
+				Marked:     structs["outer"],
+				InnerModel: structs["Outer"],
+				Fields:     []FieldPair{Assign{Field: fld("Term", "string")}},
+			}},
+			Convert{Field: structs["full"].Fields[7], Fn: "splitPorts"},
+			// Retired is skipped — renders nothing
 		},
 	}, pair)
 }
@@ -75,7 +92,7 @@ func TestPair_StructTypes(t *testing.T) {
 		"own":    {Name: "own", Fields: []source.Field{{Name: "Term", Type: "string"}}},
 		"Own":    {Name: "Own", Fields: []source.Field{{Name: "Term", Type: "string"}}},
 	}
-	w := NewWalk(structs)
+	w := NewWalk(source.Pkg{StructMap: structs})
 	pair, err := w.Pair(structs["alpha"])
 	require.NoError(t, err)
 
@@ -108,7 +125,7 @@ func TestPair_Cycles(t *testing.T) {
 		"B": {Name: "B", Fields: []source.Field{{Name: "A", Type: "A"}}},
 	}
 
-	pair, err := NewWalk(structs).Pair(structs["a"])
+	pair, err := NewWalk(source.Pkg{StructMap: structs}).Pair(structs["a"])
 	require.NoError(t, err)
 	require.Len(t, pair.Fields, 1)
 	b := asStructType(t, pair.Fields[0])
@@ -126,10 +143,12 @@ func TestPair_Refusals(t *testing.T) {
 		"shapes": {Name: "shapes", Fields: []source.Field{
 			{Name: "Double", Type: "**string"},
 			{Name: "Value", Type: "string"},
+			{Name: "Ptr", Type: "inner"},
 		}},
 		"Shapes": {Name: "Shapes", Fields: []source.Field{
 			{Name: "Double", Type: "*string"},
 			{Name: "Value", Type: "*string"},
+			{Name: "Ptr", Type: "*inner"},
 		}},
 		"outer":  {Name: "outer", Fields: []source.Field{{Name: "Orphan", Type: "*orphan"}}},
 		"Outer":  {Name: "Outer", Fields: []source.Field{{Name: "Orphan", Type: "Orphan"}}},
@@ -138,8 +157,19 @@ func TestPair_Refusals(t *testing.T) {
 		"Nested": {Name: "Nested", Fields: []source.Field{{Name: "Inner", Type: "Inner"}}},
 		"inner":  {Name: "inner", Fields: []source.Field{{Name: "Extra", Type: "string"}}},
 		"Inner":  {Name: "Inner"},
+		"converter": {Name: "converter", Fields: []source.Field{
+			{Name: "Missing", Type: "string", ConvertFn: "missing"},
+			{Name: "Shifted", Type: "string", ConvertFn: "splitPorts"},
+		}},
+		"Converter": {Name: "Converter", Fields: []source.Field{
+			{Name: "Missing", Type: "[]string"},
+			{Name: "Shifted", Type: "int"},
+		}},
 	}
-	w := NewWalk(structs)
+	funcs := map[string]source.Func{
+		"splitPorts": {In: []string{"string"}, Out: []string{"[]string"}},
+	}
+	w := NewWalk(source.Pkg{StructMap: structs, FuncMap: funcs})
 	tests := []struct {
 		name  string
 		input string
@@ -158,7 +188,7 @@ func TestPair_Refusals(t *testing.T) {
 		{
 			"unsupported shapes refuse",
 			"shapes",
-			[]string{"unsupported shape **string -> *string", "unsupported shape string -> *string"},
+			[]string{"unsupported shape **string -> *string", "unsupported shape string -> *string", "unsupported shape inner -> *inner"},
 		},
 		{
 			"a structType with no innerModel struct refuses",
@@ -169,6 +199,11 @@ func TestPair_Refusals(t *testing.T) {
 			"a nested structType's refusal bubbles up",
 			"nested",
 			[]string{"no field Extra on innerModel Inner"},
+		},
+		{
+			"a convert func missing or mismatched refuses",
+			"converter",
+			[]string{"no func missing in the package", "splitPorts is func(string) ([]string), want func(string) (int)"},
 		},
 	}
 	for _, tt := range tests {

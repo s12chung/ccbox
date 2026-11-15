@@ -131,7 +131,7 @@ func TestSeedRunMounts(t *testing.T) {
 
 	t.Run("a vnc run without a gui app seeds no app binds", func(t *testing.T) {
 		setConfig(t, true)
-		config.VNC = cfg.VNC{}
+		config.VNC = &cfg.VNC{}
 		userDir := t.TempDir()
 
 		require.NoError(t, seedRunMounts(userDir, false))
