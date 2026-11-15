@@ -47,8 +47,7 @@ func (pm *ProxyMap) Options() *docker.ProxyOptions {
 	}
 }
 
-// allowlistDiff diffs in bare domains — like the config, never the file's regex. A missing
-// file diffs from nothing.
+// allowlistDiff diffs in bare domains. A missing file diffs from nothing.
 func (pm *ProxyMap) allowlistDiff(fresh []byte) (string, error) {
 	body, err := os.ReadFile(proxyAllowPath()) // #nosec G304 -- the proxy's own live file
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
@@ -62,5 +61,5 @@ func (pm *ProxyMap) allowlistDiff(fresh []byte) (string, error) {
 	if err != nil {
 		return "", err // unreachable: fresh is the map's own render
 	}
-	return diff.Lines(liveDomains, freshDomains), nil
+	return diff.Sets(liveDomains, freshDomains), nil
 }

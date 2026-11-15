@@ -6,6 +6,51 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestSets(t *testing.T) {
+	tests := []struct {
+		name     string
+		oldLines []string
+		newLines []string
+		want     string
+	}{
+		{
+			name:     "Reordered",
+			oldLines: []string{"a", "b"},
+			newLines: []string{"b", "a"},
+			want:     "",
+		},
+		{
+			name:     "DuplicateCountChange",
+			oldLines: []string{"a", "a", "b"},
+			newLines: []string{"a", "b"},
+			want:     "-a",
+		},
+		{
+			name:     "MixedSorted",
+			oldLines: []string{"a", "b", "e"},
+			newLines: []string{"a", "c", "e"},
+			want:     "-b\n+c",
+		},
+		{
+			name:     "EmptyBoth",
+			oldLines: nil,
+			newLines: nil,
+			want:     "",
+		},
+		{
+			name:     "RemovedSorted",
+			oldLines: []string{"b", "a"},
+			newLines: nil,
+			want:     "-a\n-b",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, Sets(tt.oldLines, tt.newLines))
+		})
+	}
+}
+
 func TestLines(t *testing.T) {
 	tests := []struct {
 		name     string

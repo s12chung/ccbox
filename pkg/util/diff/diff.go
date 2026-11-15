@@ -34,6 +34,11 @@ func Lines(oldLines, newLines []string) string {
 	return strings.TrimSuffix(b.String(), "\n")
 }
 
+// Sets renders oldLines→newLines as a diff treating both slices as multisets.
+func Sets(oldLines, newLines []string) string {
+	return Lines(slices.Sorted(slices.Values(oldLines)), slices.Sorted(slices.Values(newLines)))
+}
+
 // lcs returns the longest common subsequence of the two line slices
 func lcs(a, b []string) []string {
 	// lengths[i][j] counts the lcs of a[i:] and b[j:]

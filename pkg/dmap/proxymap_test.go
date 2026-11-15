@@ -63,15 +63,24 @@ func TestProxyMap_AllowlistDiff(t *testing.T) {
 		return r
 	}
 
-	assert.Equal(t, "+new.example.dev\n+kept.example.dev", changed(),
+	assert.Equal(t, "+kept.example.dev\n+new.example.dev", changed(),
 		"a missing file diffs from nothing, in bare domains never the file's regex")
 
 	old := &cfg.Config{CLIName: "claude", Proxy: cfg.Proxy{Allowlist: []string{"old.example.dev"}}}
 	require.NoError(t, NewProxyMap(old).Options().BeforeStart())
-	assert.Equal(t, "-old.example.dev\n+new.example.dev\n+kept.example.dev", changed())
+	assert.Equal(t, "-old.example.dev\n+kept.example.dev\n+new.example.dev", changed())
 
 	require.NoError(t, NewProxyMap(config).Options().OnRefresh())
 	assert.Empty(t, changed(), "an unchanged allowlist diffs nothing")
+
+	reordered := &cfg.Config{CLIName: "claude", Proxy: cfg.Proxy{Allowlist: []string{"kept.example.dev", "new.example.dev"}}}
+	require.NoError(t, NewProxyMap(reordered).Options().BeforeStart())
+	assert.Empty(t, changed(), "a reordered allowlist diffs nothing: domain order carries no meaning")
+
+	mixed := &cfg.Config{CLIName: "claude", Proxy: cfg.Proxy{Allowlist: []string{"kept.example.dev", "gone.example.dev"}}}
+	require.NoError(t, NewProxyMap(mixed).Options().BeforeStart())
+	assert.Equal(t, "-gone.example.dev\n+new.example.dev", changed(),
+		"a combined reorder, add, and remove renders as sorted changes")
 }
 
 func TestProxyMap_Options_OnRefresh(t *testing.T) {
