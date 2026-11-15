@@ -23,7 +23,7 @@ func NewRunMap(cfg *cfg.Config, cacheVolumes []string, tagByProject bool) *RunMa
 }
 
 // RunOptions renders the run's full docker.RunOptions; nil proxyOptions runs plain
-func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
+func (rm *RunMap) RunOptions(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
 	serveVNC, isProxied := rm.cfg.VNC != nil, proxyOptions != nil
 	hostOptions, clean, err := rm.HostOptions(serveVNC, isProxied)
 	if err != nil {
@@ -38,7 +38,7 @@ func (rm *RunMap) RunOptions(tag string, proxyOptions *docker.ProxyOptions) (doc
 	return docker.RunOptions{
 		RunHostOptions:  hostOptions,
 		Name:            name,
-		Tag:             tag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
+		Tag:             docker.ImageTag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
 		Env:             env,
 		Proxy:           proxyOptions,
 		ServeVNC:        serveVNC,

@@ -12,7 +12,6 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
-	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
@@ -30,7 +29,6 @@ var embedBuildContext embed.FS // Dockerfile + docker/* — the build context
 
 // Shared flags.
 var (
-	flagTag             string
 	flagCLI             *string
 	flagPortBindingsTCP *string
 )
@@ -111,7 +109,6 @@ func init() {
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume")
 
 	pf := rootCmd.PersistentFlags()
-	pf.StringVar(&flagTag, "tag", docker.DefaultTag, "devbox image tag")
 	pf.Var(flagptr.String(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
 	pf.Var(flagptr.String(&flagPortBindingsTCP), "port-bindings-tcp", "bind tcp ports on localhost, host = container port")
 	// unreachable error: "cli" is registered above

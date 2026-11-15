@@ -15,15 +15,14 @@ import (
 
 // BuildMap maps the build command's inputs to the docker pkg build options
 type BuildMap struct {
-	tag          string
 	projectDir   string
 	tagByProject bool
 	serveVNC     bool
 }
 
 // NewBuildMap returns a new BuildMap; serveVNC builds the image's desktop variant
-func NewBuildMap(tag, projectDir string, tagByProject, serveVNC bool) *BuildMap {
-	return &BuildMap{tag: tag, projectDir: projectDir, tagByProject: tagByProject, serveVNC: serveVNC}
+func NewBuildMap(projectDir string, tagByProject, serveVNC bool) *BuildMap {
+	return &BuildMap{projectDir: projectDir, tagByProject: tagByProject, serveVNC: serveVNC}
 }
 
 // dataBindDirsArgKey is the image build-arg naming the apps' data-bind parent dirs (Dockerfile)
@@ -32,7 +31,7 @@ const dataBindDirsArgKey = "data_bind_dirs"
 // Options renders the image build's docker.BuildOptions
 func (bm *BuildMap) Options() docker.BuildOptions {
 	return docker.BuildOptions{
-		Tag:    bm.tag + tagSuffix(bm.projectDir, bm.tagByProject, bm.serveVNC),
+		Tag:    docker.ImageTag + tagSuffix(bm.projectDir, bm.tagByProject, bm.serveVNC),
 		Target: buildTarget(bm.serveVNC),
 		BuildArgs: map[string]string{
 			dataBindDirsArgKey: strings.Join(dataBindDirs(cli.All(), guiapp.Apps), " "),

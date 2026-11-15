@@ -42,14 +42,14 @@ proxy:
 	env, err := rm.Env(false, []string{})
 	require.NoError(t, err)
 
-	options, clean, err := rm.RunOptions("dev:tag", NewProxyMap(config).Options())
+	options, clean, err := rm.RunOptions(NewProxyMap(config).Options())
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
 	assert.Equal(t, hostOptions, options.RunHostOptions)
 	assert.Equal(t, env, options.Env)
-	assert.Equal(t, "dev:tag", options.Tag)
+	assert.Equal(t, docker.ImageTag, options.Tag)
 	assert.Equal(t, devboxName(config.ProjectDir(), false, true), options.Name)
 	assert.Equal(t, devboxHoldersDir(options.Name), options.HoldersDir)
 	assert.Equal(t, devboxLogPath(config.ProjectDir(), false, true), options.LogFile)
@@ -82,12 +82,12 @@ proxy:
 `), cfg.Flags{VNC: true})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", nil)
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions(nil)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
-	assert.Equal(t, "dev:tag-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
+	assert.Equal(t, docker.ImageTag+"-vnc", options.Tag, "the run uses the desktop variant's image: the resolved load, not a flag")
 	assert.Equal(t, devboxName(config.ProjectDir(), true, false), options.Name)
 	assert.Equal(t, devboxLogPath(config.ProjectDir(), true, false), options.LogFile)
 	assert.True(t, options.ServeVNC)
@@ -109,13 +109,13 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, ProxyCmd: true})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions("dev:tag", NewProxyMap(config).Options())
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions(NewProxyMap(config).Options())
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
 	serveVNC := true
-	assert.Equal(t, "dev:tag-vnc", options.Tag, "the tag carries the vnc suffix only — the egress wall is runtime-only")
+	assert.Equal(t, docker.ImageTag+"-vnc", options.Tag, "the tag carries the vnc suffix only — the egress wall is runtime-only")
 	assert.Equal(t, devboxName(config.ProjectDir(), serveVNC, true), options.Name, "the egress wall makes the proxied vnc combo its own devbox")
 	assert.Equal(t, devboxLogPath(config.ProjectDir(), serveVNC, true), options.LogFile)
 	assert.True(t, options.ServeVNC)
@@ -132,7 +132,7 @@ func TestRunMap_RunOptions_PortBindings(t *testing.T) {
 	require.NoError(t, err)
 
 	// the default ask — the config's section applies to its devbox
-	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", NewProxyMap(config).Options())
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options())
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -150,7 +150,7 @@ func TestRunMap_RunOptions_PortBindings_OtherAsks(t *testing.T) {
 		"proxy:\n  enabled: true\n"), cfg.Flags{NoProxy: true})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", nil)
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(nil)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -168,7 +168,7 @@ func TestRunMap_RunOptions_PortBindings_FlagsSetDefaultVariant(t *testing.T) {
 		"proxy:\n  enabled: true\n"), cfg.Flags{VNC: true})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", NewProxyMap(config).Options())
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options())
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -184,7 +184,7 @@ func TestRunMap_RunOptions_PortBindings_FlagOnAnyAsk(t *testing.T) {
 	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, PortBindingsTCP: new("8080")})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, nil, false).RunOptions("dev:tag", nil)
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(nil)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -204,12 +204,12 @@ proxy:
 	config, err := cfg.Load(projectDir, cfg.Flags{})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), true).RunOptions("dev:tag", nil)
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), true).RunOptions(nil)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
-	assert.Equal(t, "dev:tag"+slug.Path(projectDir), options.Tag)
+	assert.Equal(t, docker.ImageTag+slug.Path(projectDir), options.Tag)
 }
 
 func TestRunMap_HostOptions(t *testing.T) {

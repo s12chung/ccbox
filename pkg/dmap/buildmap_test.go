@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/app"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
@@ -14,22 +15,22 @@ import (
 )
 
 func TestBuildMap_Options(t *testing.T) {
-	options := NewBuildMap("tag", t.TempDir(), false, false).Options()
-	assert.Equal(t, "tag", options.Tag)
+	options := NewBuildMap(t.TempDir(), false, false).Options()
+	assert.Equal(t, docker.ImageTag, options.Tag)
 	assert.Equal(t, "base", options.Target)
 	assert.Equal(t, map[string]string{dataBindDirsArgKey: strings.Join(dataBindDirs(cli.All(), guiapp.Apps), " ")}, options.BuildArgs)
 }
 
 func TestBuildMap_Options_VNC(t *testing.T) {
-	options := NewBuildMap("tag", t.TempDir(), false, true).Options()
-	assert.Equal(t, "tag-vnc", options.Tag)
+	options := NewBuildMap(t.TempDir(), false, true).Options()
+	assert.Equal(t, docker.ImageTag+"-vnc", options.Tag)
 	assert.Equal(t, "vnc", options.Target)
 }
 
 func TestBuildMap_Options_TagByProject(t *testing.T) {
 	projectDir := t.TempDir()
-	options := NewBuildMap("tag", projectDir, true, false).Options()
-	assert.Equal(t, "tag"+slug.Path(projectDir), options.Tag)
+	options := NewBuildMap(projectDir, true, false).Options()
+	assert.Equal(t, docker.ImageTag+slug.Path(projectDir), options.Tag)
 }
 
 func TestDataBindDirs(t *testing.T) {

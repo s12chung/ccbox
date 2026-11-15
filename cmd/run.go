@@ -69,7 +69,7 @@ func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() er
 		return docker.RunOptions{}, nil, err
 	}
 
-	options, clean, err := dmap.NewRunMap(config, miseRuntimes.CacheVolumes(), tagByProject).RunOptions(flagTag, proxyOptions)
+	options, clean, err := dmap.NewRunMap(config, miseRuntimes.CacheVolumes(), tagByProject).RunOptions(proxyOptions)
 	if err != nil {
 		log.WarnErr("clean run files", clean()) // a render failure cleans its begun shares
 		return docker.RunOptions{}, nil, err

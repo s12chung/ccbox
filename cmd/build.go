@@ -44,6 +44,6 @@ func build(ctx context.Context, serveVNC bool) error {
 		return err
 	}
 
-	buildMap := dmap.NewBuildMap(flagTag, projectDir, tagByProject, serveVNC)
+	buildMap := dmap.NewBuildMap(projectDir, tagByProject, serveVNC)
 	return docker.Build(ctx, buildContext, buildMap.Options())
 }

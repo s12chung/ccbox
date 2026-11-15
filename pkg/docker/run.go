@@ -317,14 +317,14 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	return hostConfig, nil
 }
 
-func runConfig(hostOptions RunOptions) *container.Config {
+func runConfig(o RunOptions) *container.Config {
 	cfg := &container.Config{
-		Image:      hostOptions.Tag,
-		Labels:     map[string]string{ccboxProjectLabelKey: hostOptions.ProjectDir},
-		WorkingDir: hostOptions.WorkspaceMount,
-		Env:        envString(hostOptions.Env, hostOptions.Proxy != nil),
+		Image:      o.Tag,
+		Labels:     map[string]string{ccboxProjectLabelKey: o.ProjectDir},
+		WorkingDir: o.WorkspaceMount,
+		Env:        envString(o.Env, o.Proxy != nil),
 	}
-	if hostOptions.Proxy != nil {
+	if o.Proxy != nil {
 		// the egress wall's devbox stays root to build, prove, and supervise tinyproxy —
 		// workloads still arrive dropped, via the drop chain.
 		//
