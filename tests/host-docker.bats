@@ -10,6 +10,16 @@ image="s12chung/ccbox:latest"
 nnp_name=""
 server_pid=""
 
+# both variants' images build warm up front, so no test's boot waits on one
+setup_file() {
+    require_docker
+    local out="$BATS_FILE_TMPDIR/build.out"
+    if ! { "${BIN:-dist/ccbox}" build && "${BIN:-dist/ccbox}" build --vnc; } >"$out" 2>&1; then
+        cat "$out"
+        return 1
+    fi
+}
+
 teardown() {
     if [ -n "$server_pid" ]; then
         kill "$server_pid" >/dev/null 2>&1 || true
@@ -62,7 +72,7 @@ vnc_banner() {
         stage_fail() { echo "== $1 failed — exit $2 ($3)"; exit "$2"; }
         # request 1 retries the boot out: until the server lands, a published
         # port may still close empty (curl 52) instead of refusing
-        curl -s --retry 15 --retry-delay 1 --retry-all-errors "http://127.0.0.1:$port/" \
+        curl -s --retry 20 --retry-delay 1 --retry-all-errors "http://127.0.0.1:$port/" \
             || stage_fail "request 1" $? "refused = the port was never published; empty reply = the boot never served"
         vnc_banner || stage_fail "vnc banner" $? "5900 is published only by a --vnc variant"
         # the server is up once request 1 lands — no retry
