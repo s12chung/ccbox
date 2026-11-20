@@ -36,6 +36,7 @@ const (
 type Config struct {
 	CLIName        string            // coding CLI to install + launch
 	DefaultVariant *DefaultVariant   // the default variant ask's section — the devbox the config's own ask boots
+	HostGateway    *HostGateway      // the host tcp ports' section; nil names no ports
 	VNC            *VNC              // the desktop's session: its GUI app; nil on a headless run
 	TmpfsMasks     []string          // project-relative dirs to mask with a writable tmpfs
 	VolumeMasks    []string          // project-relative dirs to mask with a persistent per-project volume
@@ -74,6 +75,13 @@ type PortBindings struct {
 	TCP []string
 }
 
+// HostGateway is the host tcp ports' section — what the devbox may reach on the
+// host. A nil section names no ports.
+type HostGateway struct {
+	// TCP is the host ports to reach at host.docker.internal
+	TCP []string
+}
+
 // Proxy is the egress wall's section — the seeded file carries the on default. A
 // nil Proxy runs without it.
 type Proxy struct {
@@ -109,6 +117,14 @@ func (c *Config) PortBindingsTCP() []string {
 		return nil
 	}
 	return c.DefaultVariant.PortBindings.TCP
+}
+
+// HostGatewayTCP is the host tcp ports the devbox may reach — nil without the section
+func (c *Config) HostGatewayTCP() []string {
+	if c.HostGateway == nil {
+		return nil
+	}
+	return c.HostGateway.TCP
 }
 
 // TmpfsMasksExpanded expands the DefaultsAlias alias in TmpfsMasks to defaults
@@ -282,6 +298,7 @@ func (c *Config) MarshalYAML() (any, error) {
 	out := config{
 		CLIName:        new(c.CLIName),
 		DefaultVariant: c.marshalDefaultVariant(),
+		HostGateway:    c.marshalHostGateway(),
 		TmpfsMasks:     new(c.TmpfsMasksPresent()),
 		VolumeMasks:    new(c.VolumeMasksPresent()),
 		ReadOnlyGlobs:  new(c.ReadOnlyPathsPresent()),
@@ -304,6 +321,14 @@ func (c *Config) marshalDefaultVariant() *defaultVariant {
 		return nil
 	}
 	return &defaultVariant{PortBindings: &portBindings{TCP: strings.Join(c.DefaultVariant.PortBindings.TCP, ",")}}
+}
+
+// marshalHostGateway renders the section, omitted when it names no ports
+func (c *Config) marshalHostGateway() *hostGateway {
+	if len(c.HostGatewayTCP()) == 0 {
+		return nil
+	}
+	return &hostGateway{TCP: strings.Join(c.HostGatewayTCP(), ",")}
 }
 
 // InfoJSON renders the section as the VNCConfigEnvVar JSON: the GUI app the run

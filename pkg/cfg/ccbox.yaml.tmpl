@@ -8,6 +8,11 @@ default_variant:
   # port_bindings: # binds tcp ports on localhost, container port = host port
   #   tcp: "3000,8000,5173"
 
+# host_gateway: host tcp ports the devbox may reach at host.docker.internal:<port> —
+# use for services your devbox needs access to (such as a database).
+# host_gateway:
+#   tcp: "5432" # PostgreSQL
+
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   # enabled: true # always runs with VNC served — the --vnc flag's config form

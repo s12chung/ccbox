@@ -78,10 +78,10 @@ var (
 )
 
 // CreateNetworkAndForkChild brings the egress wall up, failing closed —
-// childPorts open into the child — and returns the tinyproxy supervisee for
-// the caller's run loop.
-func CreateNetworkAndForkChild(ctx context.Context, childPorts []uint16) (*supervise.Respawnable, error) {
-	if err := buildNetns(ctx, childPorts); err != nil {
+// portBindings open into the child, gatewayPorts open onto the host — and returns
+// the tinyproxy supervisee for the caller's run loop.
+func CreateNetworkAndForkChild(ctx context.Context, portBindings, gatewayPorts []uint16) (*supervise.Respawnable, error) {
+	if err := buildNetns(ctx, portBindings, gatewayPorts); err != nil {
 		return nil, err
 	}
 	tproxy := &supervise.Respawnable{
@@ -102,13 +102,17 @@ func CreateNetworkAndForkChild(ctx context.Context, childPorts []uint16) (*super
 // buildNetns builds the egress wall's network: the iproute2 cable, the iptables
 // whitelist, the pins — in order, so the drop policy stands before forwarding
 // turns on.
-func buildNetns(ctx context.Context, childPorts []uint16) error {
+func buildNetns(ctx context.Context, portBindings, gatewayPorts []uint16) error {
 	for _, args := range ipArgs {
 		if err := runIP(ctx, args...); err != nil {
 			return fmt.Errorf("egress wall: %w", err)
 		}
 	}
-	for _, args := range ipTablesRows(childPorts) {
+	rows, err := ipTablesRows(portBindings, gatewayPorts)
+	if err != nil {
+		return err
+	}
+	for _, args := range rows {
 		if err := runIPTables(ctx, args...); err != nil {
 			return fmt.Errorf("egress wall: %w", err)
 		}
@@ -154,18 +158,53 @@ var ipTablesBase = [][]string{
 // partial apply forwards nothing; no IPv6, the cable carries none.
 //
 //nolint:goconst // the rows read as the shell commands they run; named tokens would obscure them
-func ipTablesRows(childPorts []uint16) [][]string {
-	rows := make([][]string, 0, len(ipTablesBase)+2*len(childPorts))
+func ipTablesRows(portBindings, gatewayPorts []uint16) ([][]string, error) {
+	rows := make([][]string, 0, len(ipTablesBase)+2*(len(portBindings)+len(gatewayPorts)))
 	rows = append(rows, ipTablesBase...)
-	for _, port := range childPorts {
+	for _, port := range portBindings {
 		p := strconv.FormatUint(uint64(port), 10)
 		rows = append(rows,
 			[]string{"-A", "FORWARD", "-i", parentIface, "-o", parentVeth, "-d", childIP, "-p", "tcp", "--dport", p, "-j", "ACCEPT"},
 			[]string{"-t", "nat", "-A", "PREROUTING", "-i", parentIface, "-p", "tcp", "--dport", p, "-j", "DNAT", "--to-destination", childIP + ":" + p},
 		)
 	}
-	return rows
+	if len(gatewayPorts) > 0 {
+		gwIP, err := hostGatewayIP()
+		if err != nil {
+			return nil, err
+		}
+		for _, port := range gatewayPorts {
+			p := strconv.FormatUint(uint64(port), 10)
+			rows = append(rows,
+				[]string{"-A", "FORWARD", "-i", parentVeth, "-o", parentIface, "-d", gwIP, "-p", "tcp", "--dport", p, "-j", "ACCEPT"},
+				// the room's link-local source is a martian on the host — masquerade it
+				[]string{"-t", "nat", "-A", "POSTROUTING", "-o", parentIface, "-d", gwIP, "-p", "tcp", "--dport", p, "-j", "MASQUERADE"},
+			)
+		}
+	}
+	return rows, nil
 }
+
+// the gateway rows' /etc/hosts read — package vars so tests aim them at stubs.
+var (
+	hostsPath = "/etc/hosts"
+
+	// hostGatewayIP answers HostGatewayHost's address; no entry refuses the
+	// boot — the ask would silently reach nothing
+	hostGatewayIP = func() (string, error) {
+		body, err := os.ReadFile(hostsPath) // #nosec G304 -- the fixed hosts file
+		if err != nil {
+			return "", fmt.Errorf("egress wall: read %s: %w", hostsPath, err)
+		}
+		for line := range strings.SplitSeq(string(body), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 && fields[1] == pkginfo.HostGatewayHost {
+				return fields[0], nil
+			}
+		}
+		return "", fmt.Errorf("egress wall: no %s in %s — the run's host_gateway ask resolves it", pkginfo.HostGatewayHost, hostsPath)
+	}
+)
 
 // pin is one sysctl one side of the cable must answer: the value the egress wall
 // asserts in that side's netns.
@@ -185,14 +224,14 @@ const (
 
 // pins is the assert table, in order: forwarding first, then the cable ends.
 var pins = []pin{
-	// the parent forwards only what the whitelist accepts — the child-open ports
+	// the parent forwards only what the whitelist accepts — the room's only door
 	{
 		sysctl:  "net.ipv4.ip_forward",
 		side:    parentSide,
 		kind:    "netns",
 		path:    ipForwardPath,
 		want:    "1",
-		because: "the whitelist is the room's only entrance",
+		because: "the whitelist is the room's only door, in and out",
 	},
 	// the child can reach the parent's own IPs directly — that's local
 	// delivery, not forwarding; ip_forward=0 doesn't stop it, and only the
@@ -224,7 +263,7 @@ var pins = []pin{
 }
 
 // requirePins asserts the pins hold — the child's only ways out are the
-// parent-local tinyproxy and the child-open ports.
+// parent-local tinyproxy, the port bindings, and the gateway ports.
 func requirePins(ctx context.Context) error {
 	for _, pin := range pins {
 		body, err := pin.read(ctx)

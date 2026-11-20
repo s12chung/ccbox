@@ -47,6 +47,9 @@ type RunOptions struct {
 	// beside the desktop's own binding
 	PortBindingsTCP []string
 
+	// HostGatewayTCP names the host tcp ports the devbox may reach at host.docker.internal
+	HostGatewayTCP []string
+
 	HoldersDir string      // the host dir of the devbox's holder flock entries
 	LogFile    string      // the host file the devbox's own log lines append to
 	Foreground *Foreground // the run's live view of the devbox's logs; nil for the exec sessions
@@ -252,6 +255,10 @@ func (o RunOptions) conflictErr(own *container.InspectResponse) error {
 		divergences = append(divergences, fmt.Sprintf("published %s (command asks %s)",
 			portsPhrase(own.HostConfig.PortBindings), portsPhrase(o.portBindingsTCP())))
 	}
+	if !o.matchesHostGateway(own.Config.Env) {
+		divergences = append(divergences, fmt.Sprintf("opened host gateway %s (command asks %s)",
+			portsCSV(hostGatewayPorts(own.Config.Env)), portsCSV(o.HostGatewayTCP)))
+	}
 	if len(divergences) == 0 {
 		return nil
 	}
@@ -259,12 +266,17 @@ func (o RunOptions) conflictErr(own *container.InspectResponse) error {
 		o.Name, strings.Join(divergences, " and "), o.Name)
 }
 
-// portsPhrase renders the map's tcp ports ascending — "3000, 5900"; "none" without any
+// portsPhrase renders the map's tcp ports
 func portsPhrase(bindings nat.PortMap) string {
 	ports := make([]string, 0, len(bindings))
 	for port := range bindings {
 		ports = append(ports, port.Port())
 	}
+	return portsCSV(ports)
+}
+
+// portsCSV renders the ports ascending — "3000, 5900"; "none" without any
+func portsCSV(ports []string) string {
 	if len(ports) == 0 {
 		return "none"
 	}
@@ -296,6 +308,21 @@ func (o RunOptions) portBindingsTCP() nat.PortMap {
 		bindings[nat.Port(port+"/tcp")] = []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
 	}
 	return bindings
+}
+
+// matchesHostGateway reports the devbox's host-gateway env answers the run's ask
+func (o RunOptions) matchesHostGateway(env []string) bool {
+	return slices.Equal(slicex.SortNumbers(hostGatewayPorts(env)), slicex.SortNumbers(o.HostGatewayTCP))
+}
+
+// hostGatewayPorts reads the devbox env's host-gateway ports csv — nil without the var
+func hostGatewayPorts(env []string) []string {
+	for _, entry := range env {
+		if value, ok := strings.CutPrefix(entry, pkginfo.HostGatewayTCPEnvVar+"="); ok {
+			return strings.Split(value, ",")
+		}
+	}
+	return nil
 }
 
 // startDevbox replaces any stale devbox with a fresh one off the run's options
@@ -357,6 +384,11 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 	hostConfig.PortBindings = hostOptions.portBindingsTCP()
 	if err := refuseHeldPorts(ctxD, hostConfig.PortBindings); err != nil {
 		return nil, err
+	}
+	if len(hostOptions.HostGatewayTCP) > 0 {
+		// host.docker.internal resolves to the host's bridge address — the plain run
+		// routes it direct, the egress wall's rows forward the asked ports
+		hostConfig.ExtraHosts = []string{pkginfo.HostGatewayHost + ":host-gateway"}
 	}
 	return hostConfig, nil
 }

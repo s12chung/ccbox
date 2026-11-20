@@ -14,6 +14,12 @@ func envString(env map[string]string, isProxied bool) []string {
 	if !isProxied {
 		return renderedEnv
 	}
+	noProxy := "localhost,127.0.0.1,::1"
+	if _, ok := env[pkginfo.HostGatewayTCPEnvVar]; ok {
+		// the host gateway's flows bypass tinyproxy — its http must too, else the
+		// allowlist refuses it
+		noProxy += "," + pkginfo.HostGatewayHost
+	}
 	return append(renderedEnv, []string{
 		// the target is the fixed IP: no name resolves inside the child netns, whose
 		// loopback isn't the parent's
@@ -21,8 +27,8 @@ func envString(env map[string]string, isProxied bool) []string {
 		"https_proxy=http://" + pkginfo.ProxyAddr + ":" + strconv.Itoa(pkginfo.ProxyPort),
 		// Loopback never leaves the container, so route it direct — else local dev servers
 		// and browsers hit the proxy and get refused.
-		"no_proxy=localhost,127.0.0.1,::1",
-		"NO_PROXY=localhost,127.0.0.1,::1",
+		"no_proxy=" + noProxy,
+		"NO_PROXY=" + noProxy,
 	}...)
 }
 

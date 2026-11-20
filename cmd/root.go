@@ -31,6 +31,7 @@ var embedBuildContext embed.FS // Dockerfile + docker/* — the build context
 var (
 	flagCLI             *string
 	flagPortBindingsTCP *string
+	flagHostGatewayTCP  *string
 )
 
 // loaded once together before any command runs
@@ -80,6 +81,7 @@ var rootCmd = &cobra.Command{
 			CLI:             flagCLI,
 			VNC:             runVNC,
 			PortBindingsTCP: flagPortBindingsTCP,
+			HostGatewayTCP:  flagHostGatewayTCP,
 			NoProxy:         execMode.NoProxy || cmd == runCmd,
 			ProxyCmd:        cmd == proxyCmd,
 		})
@@ -111,6 +113,7 @@ func init() {
 	pf := rootCmd.PersistentFlags()
 	pf.Var(flagptr.String(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
 	pf.Var(flagptr.String(&flagPortBindingsTCP), "port-bindings-tcp", "bind tcp ports on localhost, host = container port")
+	pf.Var(flagptr.String(&flagHostGatewayTCP), "host-gateway-tcp", "open tcp ports on the host to the devbox at host.docker.internal")
 	// unreachable error: "cli" is registered above
 	must.Do(rootCmd.RegisterFlagCompletionFunc("cli", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		// a closure, so that cli.Load() runs first in PersistentPreRunE

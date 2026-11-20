@@ -748,3 +748,62 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 		assert.ErrorContains(t, err, "PortList")
 	})
 }
+
+func TestLoad_HostGatewayTCP(t *testing.T) {
+	const portsYAML = "host_gateway:\n  tcp: 5432,6379\n"
+
+	t.Run("the section applies to every ask", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+portsYAML)
+
+		for _, flags := range []Flags{{}, {VNC: true}, {VNC: true, PortBindingsTCP: new("8080")}} {
+			c, err := Load(dir, flags)
+			require.NoError(t, err)
+			assert.Equal(t, []string{"5432", "6379"}, c.HostGatewayTCP())
+		}
+	})
+
+	t.Run("the flag's list overrides the files' on any ask", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+portsYAML)
+
+		c, err := Load(dir, Flags{HostGatewayTCP: new("3306")})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3306"}, c.HostGatewayTCP())
+
+		c, err = Load(dir, Flags{HostGatewayTCP: new("3306"), VNC: true})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3306"}, c.HostGatewayTCP())
+	})
+
+	t.Run("a later layer replaces the earlier layer's list wholesale", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_gateway:\n  tcp: 3306\n")
+
+		c, err := Load(dir, Flags{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"3306"}, c.HostGatewayTCP())
+
+		// the project layer unset: the user's list stands
+		dir = t.TempDir()
+		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+portsYAML)
+		c, err = Load(dir, Flags{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"5432", "6379"}, c.HostGatewayTCP())
+	})
+
+	t.Run("the flag value validates like a file's", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+		for _, tcp := range []string{"70000", "5432,5432", "x"} {
+			_, err := Load(dir, Flags{HostGatewayTCP: new(tcp)})
+			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)
+		}
+
+		writeConfig(t, dir, projectLocalConfigFileName, "host_gateway:\n  tcp: 0\n")
+		_, err := Load(dir, Flags{})
+		require.Error(t, err)
+		assert.ErrorContains(t, err, "PortList")
+	})
+}

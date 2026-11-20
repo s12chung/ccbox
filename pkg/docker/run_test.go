@@ -26,12 +26,12 @@ func TestRunOptions_ConflictErr(t *testing.T) {
 	loopback := func(port string) []nat.PortBinding {
 		return []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
 	}
-	labeledRun := func(hasProxy bool, bindings nat.PortMap) *container.InspectResponse {
+	labeledRun := func(hasProxy bool, bindings nat.PortMap, env ...string) *container.InspectResponse {
 		labels := map[string]string{ccboxProjectLabelKey: "/host/proj"}
 		if hasProxy {
 			labels[ccboxHasProxyLabelKey] = trueVolValue
 		}
-		return inspectRun(labels, bindings)
+		return inspectRun(labels, bindings, env...)
 	}
 	conflict := func(divergences string) string {
 		return "devbox ccbox-proj is already running for this project, " + divergences + " — exit its session or `docker rm -f ccbox-proj`"
@@ -59,6 +59,18 @@ func TestRunOptions_ConflictErr(t *testing.T) {
 				"3000/tcp": loopback("3000"),
 				"7200/tcp": loopback("7200"),
 			}),
+		},
+		{
+			name: "HostGateway",
+			o:    withHostGateway(plainRun(), []string{"5432"}),
+			c: labeledRun(false, nil,
+				pkginfo.HostGatewayTCPEnvVar+"=5432"),
+		},
+		{
+			name: "HostGatewayOrderless",
+			o:    withHostGateway(plainRun(), []string{"5432", "6379"}),
+			c: labeledRun(false, nil,
+				pkginfo.HostGatewayTCPEnvVar+"=6379,5432"),
 		},
 		{
 			name: "UnlabeledPreLabel",
@@ -105,6 +117,19 @@ func TestRunOptions_ConflictErr(t *testing.T) {
 			}),
 			want: conflict("published 9700, 12345 (command asks 3000)"),
 		},
+		{
+			name: "DifferingHostGateway",
+			o:    withHostGateway(plainRun(), []string{"3306"}),
+			c: labeledRun(false, nil,
+				pkginfo.HostGatewayTCPEnvVar+"=5432,6379"),
+			want: conflict("opened host gateway 5432, 6379 (command asks 3306)"),
+		},
+		{
+			name: "ProxyAndHostGateway",
+			o:    withHostGateway(proxyRun(), []string{"3306"}),
+			c:    labeledRun(false, nil),
+			want: conflict("with the proxy and opened host gateway none (command asks 3306)"),
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -118,17 +143,23 @@ func TestRunOptions_ConflictErr(t *testing.T) {
 	}
 }
 
-// inspectRun fakes the devbox's inspect: its labels and published bindings
-func inspectRun(labels map[string]string, bindings nat.PortMap) *container.InspectResponse {
+// inspectRun fakes the devbox's inspect: its labels, published bindings, and env
+func inspectRun(labels map[string]string, bindings nat.PortMap, env ...string) *container.InspectResponse {
 	return &container.InspectResponse{
 		ContainerJSONBase: &container.ContainerJSONBase{HostConfig: &container.HostConfig{PortBindings: bindings}},
-		Config:            &container.Config{Labels: labels},
+		Config:            &container.Config{Labels: labels, Env: env},
 	}
 }
 
 // withPorts aims o's run at the given published ports
 func withPorts(o RunOptions, ports []string) RunOptions {
 	o.PortBindingsTCP = ports
+	return o
+}
+
+// withHostGateway aims o's run at the given host-gateway ports
+func withHostGateway(o RunOptions, ports []string) RunOptions {
+	o.HostGatewayTCP = ports
 	return o
 }
 
@@ -400,6 +431,26 @@ func TestRunHostConfig_PortBindings(t *testing.T) {
 			hostConfig, err := runHostConfig(nil, tt.o)
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, hostConfig.PortBindings)
+		})
+	}
+}
+
+func TestRunHostConfig_HostGateway(t *testing.T) {
+	entry := []string{pkginfo.HostGatewayHost + ":host-gateway"}
+	tests := []struct {
+		name string
+		o    RunOptions
+		want []string
+	}{
+		{"no ask, no entry", RunOptions{}, nil},
+		{"the ask writes the hosts entry on a plain run", RunOptions{HostGatewayTCP: []string{"5432"}}, entry},
+		{"and on a proxied one", RunOptions{Proxy: &ProxyOptions{}, HostGatewayTCP: []string{"5432", "6379"}}, entry},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hostConfig, err := runHostConfig(nil, tt.o)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, hostConfig.ExtraHosts)
 		})
 	}
 }

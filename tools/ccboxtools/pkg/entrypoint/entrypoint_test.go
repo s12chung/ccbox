@@ -69,33 +69,39 @@ func TestExecArgv(t *testing.T) {
 	}
 }
 
-func TestChildPorts(t *testing.T) {
-	vncInfo := &pkginfo.VNCInfo{}
+func TestPortBindingsAndGateway(t *testing.T) {
 	tests := []struct {
-		name    string
-		body    string
-		vncInfo *pkginfo.VNCInfo
-		want    []uint16
-		wantErr bool
+		name         string
+		body         string
+		gatewayBody  string
+		serveVNC     bool
+		wantBindings []uint16
+		wantGateway  []uint16
+		wantErr      bool
 	}{
-		{"no env, no vnc", "", nil, nil, false},
-		{"vnc only", "", vncInfo, []uint16{pkginfo.VNCPort}, false},
-		{"bound only", "3000,7200", nil, []uint16{3000, 7200}, false},
-		{"bound and vnc", "3000,7200", vncInfo, []uint16{3000, 7200, pkginfo.VNCPort}, false},
-		{"bound vnc port", "3000,5900", vncInfo, []uint16{3000, 5900}, false},
-		{"garbage", "3000,http", nil, nil, true},
+		{"no env, no vnc", "", "", false, nil, nil, false},
+		{"vnc only", "", "", true, []uint16{pkginfo.VNCPort}, nil, false},
+		{"bound only", "3000,7200", "", false, []uint16{3000, 7200}, nil, false},
+		{"bound and vnc", "3000,7200", "", true, []uint16{3000, 7200, pkginfo.VNCPort}, nil, false},
+		{"bound vnc port", "3000,5900", "", true, []uint16{3000, 5900}, nil, false},
+		{"gateway ports", "", "5432", false, nil, []uint16{5432}, false},
+		{"bound and gateway", "3000", "5432,6379", false, []uint16{3000}, []uint16{5432, 6379}, false},
+		{"garbage", "3000,http", "", false, nil, nil, true},
+		{"garbage gateway", "", "http", false, nil, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Setenv(pkginfo.PortBindingsTCPEnvVar, tt.body)
+			t.Setenv(pkginfo.HostGatewayTCPEnvVar, tt.gatewayBody)
 
-			ports, err := childPorts(tt.vncInfo)
+			portBindings, gatewayPorts, err := portBindingsAndGateway(tt.serveVNC)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
-			assert.Equal(t, tt.want, ports)
+			assert.Equal(t, tt.wantBindings, portBindings)
+			assert.Equal(t, tt.wantGateway, gatewayPorts)
 		})
 	}
 }

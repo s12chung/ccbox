@@ -39,7 +39,7 @@ proxy:
 	hostOptions, hostClean, err := rm.HostOptions(false, true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
-	env, err := rm.Env(false, []string{})
+	env, err := rm.Env(false, []string{}, []string{})
 	require.NoError(t, err)
 
 	options, clean, err := rm.RunOptions(NewProxyMap(config).Options())
@@ -191,6 +191,25 @@ func TestRunMap_RunOptions_PortBindings_FlagOnAnyAsk(t *testing.T) {
 	assert.Equal(t, []string{"8080"}, options.PortBindingsTCP)
 }
 
+func TestRunMap_RunOptions_HostGateway(t *testing.T) {
+	testutil.Home(t)
+	require.NoError(t, share.SafeSeedAgentsMd())
+
+	// the flag's ask over the section, as `ccbox run --host-gateway-tcp 3306,6379` arrives —
+	// proxied, where the egress wall's boot forwards each onto the host
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+		"host_gateway:\n  tcp: 5432\n"+"proxy:\n  enabled: true\n"), cfg.Flags{HostGatewayTCP: new("3306,6379")})
+	require.NoError(t, err)
+
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options())
+	require.NoError(t, err)
+	require.NotNil(t, clean)
+	defer func() { require.NoError(t, clean()) }()
+	assert.Equal(t, []string{"3306", "6379"}, options.HostGatewayTCP)
+	assert.Equal(t, "3306,6379", options.Env[pkginfo.HostGatewayTCPEnvVar],
+		"the egress wall's boot forwards each onto the host")
+}
+
 func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
@@ -336,7 +355,7 @@ vnc:
   enabled: true
   gui_app: `+guiapp.App.Name+`
 `)
-	env, err := rm.Env(true, nil)
+	env, err := rm.Env(true, nil, nil)
 	require.NoError(t, err)
 
 	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
@@ -363,7 +382,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 	t.Setenv("COLORTERM", "")
 	rm := testRunMap(t, "cli: claude\nforward_env:\n  - TERM\n  - COLORTERM\n  - GH_TOKEN\n")
 
-	env, err := rm.Env(false, nil)
+	env, err := rm.Env(false, nil, nil)
 	require.NoError(t, err)
 	assert.NotContains(t, env, "TERM")
 	assert.NotContains(t, env, "COLORTERM")
@@ -373,7 +392,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 	rm := testRunMap(t, "cli: claude\n")
 
-	env, err := rm.Env(false, nil)
+	env, err := rm.Env(false, nil, nil)
 	require.NoError(t, err)
 	assert.NotContains(t, env, pkginfo.VNCConfigEnvVar)
 }
@@ -381,7 +400,7 @@ func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 func TestRunMap_Env_EmptyVNC(t *testing.T) {
 	rm := testRunMap(t, "cli: claude\nvnc:\n  enabled: true\n")
 
-	env, err := rm.Env(true, nil)
+	env, err := rm.Env(true, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "an empty vnc section serves the desktop with no GUI app")
 }
@@ -389,11 +408,23 @@ func TestRunMap_Env_EmptyVNC(t *testing.T) {
 func TestRunMap_Env_PortBindings(t *testing.T) {
 	rm := testRunMap(t, "cli: claude\n")
 
-	env, err := rm.Env(false, []string{"3000", "7200"})
+	env, err := rm.Env(false, []string{"3000", "7200"}, nil)
 	require.NoError(t, err)
 	assert.Equal(t, "3000,7200", env[pkginfo.PortBindingsTCPEnvVar])
 
-	env, err = rm.Env(false, nil)
+	env, err = rm.Env(false, nil, nil)
 	require.NoError(t, err)
 	assert.NotContains(t, env, pkginfo.PortBindingsTCPEnvVar)
+}
+
+func TestRunMap_Env_HostGateway(t *testing.T) {
+	rm := testRunMap(t, "cli: claude\n")
+
+	env, err := rm.Env(false, nil, []string{"5432", "6379"})
+	require.NoError(t, err)
+	assert.Equal(t, "5432,6379", env[pkginfo.HostGatewayTCPEnvVar], "the egress wall's boot forwards each onto the host")
+
+	env, err = rm.Env(false, nil, nil)
+	require.NoError(t, err)
+	assert.NotContains(t, env, pkginfo.HostGatewayTCPEnvVar)
 }

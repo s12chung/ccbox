@@ -69,6 +69,7 @@ func LoadedPaths(projectDir string) ([]string, []string) {
 type config struct {
 	CLIName        *string            `yaml:"cli"`             // coding CLI to install + launch
 	DefaultVariant *defaultVariant    `yaml:"default_variant"` // the default variant ask's section — the devbox with no run flags
+	HostGateway    *hostGateway       `yaml:"host_gateway"`    // the host tcp ports' section
 	VNC            *vnc               `yaml:"vnc"`             // the desktop's session: its GUI app
 	TmpfsMasks     *[]string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
 	VolumeMasks    *[]string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
@@ -84,6 +85,7 @@ func init() {
 		Validates(firm.RuleMap{
 			"CLIName":        {rule.OneOf[string]{ValuesFunc: cli.Names}},
 			"DefaultVariant": {firm.Backed()},
+			"HostGateway":    {firm.Backed()},
 			"VNC":            {firm.Backed()},
 
 			"TmpfsMasks":    {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
@@ -145,6 +147,21 @@ func splitPorts(tcp string) []string {
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[portBindings]().
+		Validates(firm.RuleMap{
+			"TCP": {firmrule.PortList{}},
+		}))
+}
+
+// hostGateway is the host tcp ports' section — what the devbox may reach on the host
+type hostGateway struct {
+	// TCP is the comma-separated host ports the devbox may reach at host.docker.internal
+	//
+	//toinnermodel:convert splitPorts
+	TCP string `yaml:"tcp"`
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[hostGateway]().
 		Validates(firm.RuleMap{
 			"TCP": {firmrule.PortList{}},
 		}))
@@ -282,6 +299,7 @@ type Flags struct {
 	NoProxy         bool    // --no-proxy: run without the egress wall — `ccbox run`'s own ask
 	ProxyCmd        bool    // the proxy command's ask: the egress wall forced on
 	PortBindingsTCP *string // --port-bindings-tcp: bind tcp ports on any variant ask
+	HostGatewayTCP  *string // --host-gateway-tcp: host ports the devbox may reach, on any ask
 }
 
 func (f Flags) toLayer() config {
@@ -296,6 +314,9 @@ func (f Flags) toLayer() config {
 	}
 	if f.PortBindingsTCP != nil {
 		c.DefaultVariant = &defaultVariant{PortBindings: &portBindings{TCP: *f.PortBindingsTCP}}
+	}
+	if f.HostGatewayTCP != nil {
+		c.HostGateway = &hostGateway{TCP: *f.HostGatewayTCP}
 	}
 	return c
 }

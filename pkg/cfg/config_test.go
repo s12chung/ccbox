@@ -44,6 +44,23 @@ func TestConfig_CLI(t *testing.T) {
 	assert.PanicsWithValue(t, `cli: unknown cli "emacs"`, func() { bare.CLI() })
 }
 
+func TestConfig_HostGatewayTCP(t *testing.T) {
+	ports := Config{HostGateway: &HostGateway{TCP: []string{"5432", "6379"}}}
+	tests := []struct {
+		name string
+		c    Config
+		want []string
+	}{
+		{"the section applies on every ask", ports, []string{"5432", "6379"}},
+		{"an unset section is none", Config{}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.c.HostGatewayTCP())
+		})
+	}
+}
+
 func TestConfig_ListsExpanded(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -489,6 +506,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	c := &Config{
 		CLIName:        "claude",
 		DefaultVariant: &DefaultVariant{PortBindings: PortBindings{TCP: []string{"3000", "7200"}}},
+		HostGateway:    &HostGateway{TCP: []string{"5432", "6379"}},
 		VNC:            &VNC{GUIAppName: guiapp.App.Name},
 		TmpfsMasks:     []string{DefaultsAlias, "dist", "build"},
 		VolumeMasks:    []string{DefaultsAlias, "target", "cache"},
@@ -509,6 +527,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	want := config{
 		CLIName:        new("claude"),
 		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000,7200"}}, // the loaded ports render as csv
+		HostGateway:    &hostGateway{TCP: "5432,6379"},                                 // the ask's ports render as csv
 		VNC:            &vnc{Enabled: new(true), GUIAppName: guiapp.App.Name},          // the printed key pins the section on
 		TmpfsMasks:     new(append(append([]string{}, tmpfsDefaults...), "dist")),
 		VolumeMasks:    new([]string{"node_modules", "target"}),

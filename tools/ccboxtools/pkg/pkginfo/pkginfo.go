@@ -5,6 +5,7 @@ package pkginfo
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,6 +20,11 @@ const (
 
 	// PortBindingsTCPEnvVar is the container env var carrying the run's tcp port bindings as csv
 	PortBindingsTCPEnvVar = "PORT_BINDINGS_TCP"
+	// HostGatewayTCPEnvVar is the container env var carrying the run's host gateway tcp ports as csv
+	HostGatewayTCPEnvVar = "HOST_GATEWAY_TCP"
+	// HostGatewayHost is the /etc/hosts name resolving to the host gateway — the devbox's
+	// address for the host's own services
+	HostGatewayHost = "host.docker.internal"
 
 	// ContainerHome is the container user's home: the mount targets' root within the container.
 	ContainerHome = "/home/ccbox"
@@ -88,8 +94,9 @@ func FromJSON(body string) (PkgInfo, error) {
 	return p, nil
 }
 
-// PortBindingsTCP parses the PortBindingsTCPEnvVar csv — an empty var names none.
-func PortBindingsTCP(body string) ([]uint16, error) {
+// EnvPorts parses an env var's ports csv — an unset var names none.
+func EnvPorts(envVar string) ([]uint16, error) {
+	body := os.Getenv(envVar)
 	if body == "" {
 		return nil, nil
 	}
@@ -98,7 +105,7 @@ func PortBindingsTCP(body string) ([]uint16, error) {
 	for _, entry := range entries {
 		port, err := strconv.ParseUint(entry, 10, 16)
 		if err != nil {
-			return nil, fmt.Errorf("pkginfo: parse %s=%s: %w", PortBindingsTCPEnvVar, body, err)
+			return nil, fmt.Errorf("pkginfo: parse %s=%s: %w", envVar, body, err)
 		}
 		ports = append(ports, uint16(port))
 	}

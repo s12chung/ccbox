@@ -29,7 +29,7 @@ func (rm *RunMap) RunOptions(proxyOptions *docker.ProxyOptions) (docker.RunOptio
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
-	env, err := rm.Env(serveVNC, rm.cfg.PortBindingsTCP())
+	env, err := rm.Env(serveVNC, rm.cfg.PortBindingsTCP(), rm.cfg.HostGatewayTCP())
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
@@ -43,6 +43,7 @@ func (rm *RunMap) RunOptions(proxyOptions *docker.ProxyOptions) (docker.RunOptio
 		Proxy:           proxyOptions,
 		ServeVNC:        serveVNC,
 		PortBindingsTCP: rm.cfg.PortBindingsTCP(),
+		HostGatewayTCP:  rm.cfg.HostGatewayTCP(),
 		HoldersDir:      devboxHoldersDir(name),
 		LogFile:         devboxLogPath(rm.cfg.ProjectDir(), serveVNC, isProxied),
 	}, clean, nil
@@ -66,7 +67,7 @@ func (rm *RunMap) HostOptions(serveVNC, isProxied bool) (docker.RunHostOptions, 
 }
 
 // Env renders the container's env in one map.
-func (rm *RunMap) Env(serveVNC bool, portBindingsTCP []string) (map[string]string, error) {
+func (rm *RunMap) Env(serveVNC bool, portBindingsTCP, hostGatewayTCP []string) (map[string]string, error) {
 	cli := rm.cfg.CLI()
 	pkgInfo, err := cli.PkgInfoJSON()
 	if err != nil {
@@ -76,6 +77,9 @@ func (rm *RunMap) Env(serveVNC bool, portBindingsTCP []string) (map[string]strin
 	env = mergeempty.Map(env, map[string]string{pkginfo.EnvVar: pkgInfo})
 	if len(portBindingsTCP) > 0 {
 		env[pkginfo.PortBindingsTCPEnvVar] = strings.Join(portBindingsTCP, ",")
+	}
+	if len(hostGatewayTCP) > 0 {
+		env[pkginfo.HostGatewayTCPEnvVar] = strings.Join(hostGatewayTCP, ",")
 	}
 	if serveVNC {
 		body, err := rm.cfg.VNC.InfoJSON()

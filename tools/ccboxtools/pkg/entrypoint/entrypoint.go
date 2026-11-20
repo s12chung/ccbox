@@ -7,7 +7,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
@@ -32,11 +31,11 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 		if err := identity.Harden(); err != nil {
 			return err
 		}
-		ports, err := childPorts(vncInfo)
+		portBindings, gatewayPorts, err := portBindingsAndGateway(vncInfo != nil)
 		if err != nil {
 			return err
 		}
-		tproxy, err := proxy.CreateNetworkAndForkChild(ctx, ports)
+		tproxy, err := proxy.CreateNetworkAndForkChild(ctx, portBindings, gatewayPorts)
 		if err != nil {
 			return err
 		}
@@ -54,17 +53,20 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	return supervise.Run(ctx, func() { log.Info(pkginfo.ReadyMarker) }, svcs...)
 }
 
-// childPorts is the egress wall's child-open ports: the run's tcp port bindings plus
-// the desktop's own — the parent forwards only these into the room.
-func childPorts(vncInfo *pkginfo.VNCInfo) ([]uint16, error) {
-	ports, err := pkginfo.PortBindingsTCP(os.Getenv(pkginfo.PortBindingsTCPEnvVar))
+// portBindingsAndGateway reads the run's port asks off the container env.
+func portBindingsAndGateway(serveVNC bool) ([]uint16, []uint16, error) {
+	portBindings, err := pkginfo.EnvPorts(pkginfo.PortBindingsTCPEnvVar)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	if vncInfo != nil && !slices.Contains(ports, pkginfo.VNCPort) {
-		ports = append(ports, pkginfo.VNCPort)
+	if serveVNC && !slices.Contains(portBindings, pkginfo.VNCPort) {
+		portBindings = append(portBindings, pkginfo.VNCPort)
 	}
-	return ports, nil
+	gatewayPorts, err := pkginfo.EnvPorts(pkginfo.HostGatewayTCPEnvVar)
+	if err != nil {
+		return nil, nil, err
+	}
+	return portBindings, gatewayPorts, nil
 }
 
 // RunChild is the proxy child's landing: the proof, then the boot's install —

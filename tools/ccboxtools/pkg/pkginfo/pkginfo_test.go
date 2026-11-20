@@ -109,22 +109,27 @@ func TestFromJSON_BadSelector(t *testing.T) {
 	assert.Contains(t, err.Error(), "Version.JQExpr")
 }
 
-func TestPortBindingsTCP(t *testing.T) {
+func TestEnvPorts(t *testing.T) {
 	tests := []struct {
 		name    string
+		envVar  string
 		body    string
 		want    []uint16
 		wantErr string
 	}{
-		{"empty", "", nil, ""},
-		{"one", "3000", []uint16{3000}, ""},
-		{"csv", "3000,5900,7200", []uint16{3000, 5900, 7200}, ""},
-		{"garbage", "3000,http", nil, "parse PORT_BINDINGS_TCP=3000,http"},
-		{"overflows a port", "65536", nil, "parse PORT_BINDINGS_TCP=65536"},
+		{"empty", PortBindingsTCPEnvVar, "", nil, ""},
+		{"one", PortBindingsTCPEnvVar, "3000", []uint16{3000}, ""},
+		{"csv", PortBindingsTCPEnvVar, "3000,5900,7200", []uint16{3000, 5900, 7200}, ""},
+		{"garbage", PortBindingsTCPEnvVar, "3000,http", nil, "parse PORT_BINDINGS_TCP=3000,http"},
+		{"overflows a port", PortBindingsTCPEnvVar, "65536", nil, "parse PORT_BINDINGS_TCP=65536"},
+		{"host csv", HostGatewayTCPEnvVar, "5432,6379", []uint16{5432, 6379}, ""},
+		{"host garbage names the var", HostGatewayTCPEnvVar, "db", nil, "parse HOST_GATEWAY_TCP=db"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ports, err := PortBindingsTCP(tt.body)
+			t.Setenv(tt.envVar, tt.body)
+
+			ports, err := EnvPorts(tt.envVar)
 			if tt.wantErr == "" {
 				require.NoError(t, err)
 				assert.Equal(t, tt.want, ports)

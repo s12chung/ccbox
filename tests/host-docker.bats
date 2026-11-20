@@ -1,14 +1,19 @@
 #!/usr/bin/env bats
-# The host-daemon suite: the exec path's no-new-privileges proof, and the tcp
-# port bindings' loopback reach into the workload.
+# The host-daemon suite: the exec path's no-new-privileges proof, the tcp port
+# bindings' loopback reach into the workload, and the host gateway's reach onto
+# the host's own services.
 
 load test_helper
 
 image="s12chung/ccbox:latest"
 
 nnp_name=""
+server_pid=""
 
 teardown() {
+    if [ -n "$server_pid" ]; then
+        kill "$server_pid" >/dev/null 2>&1 || true
+    fi
     if [ -n "$nnp_name" ]; then
         docker rm -f "$nnp_name" >/dev/null 2>&1 || true
     fi
@@ -82,4 +87,42 @@ vnc_banner() {
         echo "the chain's answers miss the desktop's banner or the server's body — $out"
         return 1
     fi
+}
+
+# start_host_server answers one request on the port, then exits
+start_host_server() {
+    python3 tests/host-gateway-server.py "$1" >/dev/null 2>&1 &
+    server_pid=$!
+    sleep 1 # the server's bind must precede the boot's one fetch
+}
+
+# fetch_host_gateway fetches the host server off host.docker.internal in the devbox:
+# the port first, then the exec flags
+fetch_host_gateway() {
+    local port="$1"
+    shift
+    "${BIN:-dist/ccbox}" exec "$@" -- \
+        python3 -c "import urllib.request; print(urllib.request.urlopen('http://host.docker.internal:${port}/').read().decode())"
+}
+
+@test "host gateway: the workload reaches the host's service through the egress wall" {
+    require_docker
+    port=3988
+
+    start_host_server "$port"
+
+    run fetch_host_gateway "$port" --host-gateway-tcp "$port"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ccbox host gateway"* ]]
+}
+
+@test "host gateway: the plain run reaches the host's service direct" {
+    require_docker
+    port=3989
+
+    start_host_server "$port"
+
+    run fetch_host_gateway "$port" --no-proxy --host-gateway-tcp "$port"
+    [ "$status" -eq 0 ]
+    [[ "$output" == *"ccbox host gateway"* ]]
 }

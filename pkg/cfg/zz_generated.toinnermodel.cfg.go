@@ -11,6 +11,10 @@ func (x *config) toInnerModel() Config {
 		defaultVariant := x.DefaultVariant.toInnerModel()
 		out.DefaultVariant = &defaultVariant
 	}
+	if x.HostGateway != nil {
+		hostGateway := x.HostGateway.toInnerModel()
+		out.HostGateway = &hostGateway
+	}
 	if x.VNC != nil {
 		vnc := x.VNC.toInnerModel()
 		out.VNC = &vnc
@@ -47,6 +51,12 @@ func (x *defaultVariant) toInnerModel() DefaultVariant {
 
 func (x *portBindings) toInnerModel() PortBindings {
 	var out PortBindings
+	out.TCP = splitPorts(x.TCP)
+	return out
+}
+
+func (x *hostGateway) toInnerModel() HostGateway {
+	var out HostGateway
 	out.TCP = splitPorts(x.TCP)
 	return out
 }
