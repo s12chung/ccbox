@@ -1,12 +1,6 @@
 package docker
 
 import (
-	"errors"
-
-	"github.com/containerd/errdefs"
-	"github.com/docker/docker/api/types/filters"
-	"github.com/docker/docker/api/types/volume"
-
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
 )
@@ -105,25 +99,6 @@ func (v Volume) labels(projectDir string) map[string]string {
 		scopedLabels = map[string]string{ccboxGlobalLabelKey: trueVolValue}
 	}
 	return mergeempty.Map(volumeLabels(), scopedLabels)
-}
-
-// VolumeClean removes the projectDir's volumes (cache and mask volumes), found by their labels
-func VolumeClean(ctxD *dock.CtxD, projectDir string) error {
-	resp, err := ctxD.D.VolumeList(ctxD.Ctx, volume.ListOptions{Filters: filters.NewArgs(
-		filters.Arg("label", ccboxLabelKey+"="+trueVolValue),
-		filters.Arg("label", ccboxProjectLabelKey+"="+projectDir),
-	)})
-	if err != nil {
-		return err
-	}
-
-	var errs []error
-	for _, vol := range resp.Volumes {
-		if err := ctxD.D.VolumeRemove(ctxD.Ctx, vol.Name, false); err != nil && !errdefs.IsNotFound(err) {
-			errs = append(errs, err)
-		}
-	}
-	return errors.Join(errs...)
 }
 
 // containerUID is the unprivileged in-container user (Dockerfile: useradd --uid 1000).
