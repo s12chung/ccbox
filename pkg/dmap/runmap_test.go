@@ -271,6 +271,7 @@ read_only_binds:
 		docker.NewBind(projectDir, workspace),
 		docker.NewBind(filepath.Join(home, ".ccbox", "codex"), "/home/ccbox/.codex"),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "persist", s), "/home/ccbox/.ccbox/persist"),
+		docker.NewBind(filepath.Join(home, ".ccbox", "skills"), "/home/ccbox/.codex/skills"),
 		docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly(),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),

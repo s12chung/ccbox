@@ -51,7 +51,8 @@ func (rm *RunMap) binds(serveVNC, isProxied bool) ([]docker.Mount, func() error,
 			docker.NewBind(cli.UserConfigDir(c.Name), path.Join(pkginfo.ContainerHome, c.ConfigHomeMount)),
 			docker.NewBind(persistBind.HostPath, persistBind.ContainerPath),
 		},
-		proxyAllowBinds(isProxied),
+		shareBinds(share.SkillsBind(c.Name)),
+		proxyAllowBind(isProxied),
 		volumes(globalVolumes(serveVNC), true),
 		volumes(cacheVolumeNames(projectDir, rm.cacheVolumes), false),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
@@ -59,11 +60,11 @@ func (rm *RunMap) binds(serveVNC, isProxied bool) ([]docker.Mount, func() error,
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
 		dataBinds(CLIDataDir(userdir.Dir(), c.Name), c.Setup.DataBindMounts(false)),
 		rm.guiAppDataBinds(isProxied),
-		cliScratchBind(scratchBind.HostPath, scratchBind.ContainerPath),
+		shareBinds(scratchBind),
 	), clean, nil
 }
 
-func proxyAllowBinds(isProxied bool) []docker.Mount {
+func proxyAllowBind(isProxied bool) []docker.Mount {
 	if !isProxied {
 		return nil
 	}
@@ -138,13 +139,13 @@ func dataBinds(dataDir string, mounts map[string]string) []docker.Mount {
 	return out
 }
 
-// cliScratchBind binds the shared doc's scratch file at its container mount; the cliFile
-// symlink points at it. host "" = no bind.
-func cliScratchBind(scratchFile, mount string) []docker.Mount {
-	if scratchFile == "" {
+// shareBinds renders a share's bind at its container mount; the zero bind
+// (host "") mounts nothing
+func shareBinds(bind klean.ShareBind) []docker.Mount {
+	if bind.HostPath == "" {
 		return nil
 	}
-	return []docker.Mount{docker.NewBind(scratchFile, mount)}
+	return []docker.Mount{docker.NewBind(bind.HostPath, bind.ContainerPath)}
 }
 
 // globalVolumesMap maps volume name → container directory for volumes shared by every project

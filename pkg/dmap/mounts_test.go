@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/pkg/cfg"
-	"github.com/s12chung/ccbox/pkg/dmap/share"
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/app"
@@ -21,6 +20,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
@@ -61,11 +61,11 @@ func testRunMap(t *testing.T, body string) *RunMap {
 	return NewRunMap(loadConfig(t, body), runtime.AllCacheVolumes(), false)
 }
 
-func TestProxyAllowBinds(t *testing.T) {
+func TestProxyAllowBind(t *testing.T) {
 	bind := docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly()
 
-	assert.Equal(t, []docker.Mount{bind}, proxyAllowBinds(true))
-	assert.Empty(t, proxyAllowBinds(false))
+	assert.Equal(t, []docker.Mount{bind}, proxyAllowBind(true))
+	assert.Empty(t, proxyAllowBind(false))
 }
 
 func TestVolumes(t *testing.T) {
@@ -211,18 +211,16 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	})
 }
 
-func TestCliScratchBind(t *testing.T) {
-	t.Run("binds the scratch file at the agents scratch mount", func(t *testing.T) {
-		for _, cliName := range []string{"claude", "codex", "opencode"} {
-			scratchFile := "/host/.ccbox/tmp/agents/" + cliName + "/AGENTS.md"
-			assert.Equal(t,
-				[]docker.Mount{docker.NewBind(scratchFile, share.AgentsMdScratchMount(cliName))},
-				cliScratchBind(scratchFile, share.AgentsMdScratchMount(cliName)), cliName)
-		}
+func TestShareBinds(t *testing.T) {
+	t.Run("binds the share at its container mount", func(t *testing.T) {
+		bind := klean.ShareBind{HostPath: "/host/.ccbox/skills", ContainerPath: "/home/ccbox/.claude/skills"}
+		assert.Equal(t,
+			[]docker.Mount{docker.NewBind(bind.HostPath, bind.ContainerPath)},
+			shareBinds(bind))
 	})
 
-	t.Run("no bind when scratchFile is empty (no scratch written)", func(t *testing.T) {
-		assert.Empty(t, cliScratchBind("", ""))
+	t.Run("no bind for the zero bind — the share sat out the run", func(t *testing.T) {
+		assert.Empty(t, shareBinds(klean.ShareBind{}))
 	})
 }
 

@@ -135,6 +135,9 @@ func rootSeed(ctx context.Context) error {
 	if err := share.SafeSeedAgentsMd(); err != nil {
 		return err
 	}
+	if err := share.SafeSeedSkills(); err != nil {
+		return err
+	}
 	if err := safeSeedUserConfig(); err != nil {
 		return err
 	}
