@@ -1,4 +1,4 @@
-package cobrautil
+package cobrakit
 
 import (
 	"testing"

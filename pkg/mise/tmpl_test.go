@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/s12chung/ccbox/pkg/kit/miseutil"
+	"github.com/s12chung/ccbox/pkg/kit/misekit"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -36,8 +36,8 @@ func stubVersions(t *testing.T, lists map[string]string) {
 	}
 	server := httptest.NewServer(mux)
 	t.Cleanup(server.Close)
-	miseutil.VersionsURL = server.URL
-	t.Cleanup(func() { miseutil.VersionsURL = miseutil.VersionsBaseURL })
+	misekit.VersionsURL = server.URL
+	t.Cleanup(func() { misekit.VersionsURL = misekit.VersionsBaseURL })
 }
 
 // versionList renders a versions-service TOML list dating every release
@@ -116,7 +116,7 @@ func TestResolvedTools(t *testing.T) {
 		stubVersions(t, stubs)
 
 		rts, err := ResolvedTools([]Tool{{Name: "node"}, {Name: "go"}}, ToolState{
-			VersionFunc: func(name string) (string, error) { return miseutil.LatestVersion(t.Context(), name) },
+			VersionFunc: func(name string) (string, error) { return misekit.LatestVersion(t.Context(), name) },
 		})
 
 		require.NoError(t, err)

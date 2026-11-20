@@ -22,7 +22,7 @@ import (
 	"github.com/s12chung/firm/rule"
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
+	"github.com/s12chung/ccbox/pkg/kit/yamlkit"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -147,7 +147,7 @@ func LoadUserProviders() ([]Provider, []error, error) {
 // parseProvider decodes one provider yaml body into its Provider, named name —
 // firm-validated to fail at load, not on first use.
 func parseProvider(name string, body []byte) (Provider, error) {
-	p, err := yamlutil.ValidatedDecode(body, func(newProvider Provider) Provider {
+	p, err := yamlkit.ValidatedDecode(body, func(newProvider Provider) Provider {
 		newProvider.Name = name
 		return newProvider
 	})

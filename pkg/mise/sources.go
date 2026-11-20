@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/kit/miseutil"
+	"github.com/s12chung/ccbox/pkg/kit/misekit"
 )
 
 const (
@@ -24,8 +24,8 @@ var (
 // init registers the release sources beside the versions service's default —
 // each backend prefix its own index
 func init() {
-	miseutil.RegisterSource(pypiPrefix, miseutil.IndexSource(pypiIndex{}, nil))
-	miseutil.RegisterSource(aquaPrefix, miseutil.IndexSource(aquaIndex{}, miseutil.MinorPin))
+	misekit.RegisterSource(pypiPrefix, misekit.IndexSource(pypiIndex{}, nil))
+	misekit.RegisterSource(aquaPrefix, misekit.IndexSource(aquaIndex{}, misekit.MinorPin))
 }
 
 // pypiIndex is PyPI's JSON index as the pypi: tools' source — a nil pin rule
@@ -41,17 +41,17 @@ func (pypiIndex) ListURL(tool string) string {
 }
 
 // BodyToEntries lists the index's releases, the yanked ones dropping
-func (pypiIndex) BodyToEntries(body []byte) ([]miseutil.VersionEntry, error) {
+func (pypiIndex) BodyToEntries(body []byte) ([]misekit.VersionEntry, error) {
 	var decoded pypiReleases
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		return nil, err
 	}
-	entries := make([]miseutil.VersionEntry, 0, len(decoded.Releases))
+	entries := make([]misekit.VersionEntry, 0, len(decoded.Releases))
 	for version, files := range decoded.Releases {
 		if len(files) == 0 { // yanked — nothing to install
 			continue
 		}
-		entries = append(entries, miseutil.Entry(version, files[0].UploadTime))
+		entries = append(entries, misekit.Entry(version, files[0].UploadTime))
 	}
 	return entries, nil
 }
@@ -79,14 +79,14 @@ func (aquaIndex) ListURL(tool string) string {
 }
 
 // BodyToEntries lists the repo's releases, tags reading as versions
-func (aquaIndex) BodyToEntries(body []byte) ([]miseutil.VersionEntry, error) {
+func (aquaIndex) BodyToEntries(body []byte) ([]misekit.VersionEntry, error) {
 	var decoded []aquaRelease
 	if err := json.Unmarshal(body, &decoded); err != nil {
 		return nil, err
 	}
-	entries := make([]miseutil.VersionEntry, 0, len(decoded))
+	entries := make([]misekit.VersionEntry, 0, len(decoded))
 	for _, release := range decoded {
-		entry := miseutil.Entry(strings.TrimPrefix(release.TagName, "v"), release.PublishedAt)
+		entry := misekit.Entry(strings.TrimPrefix(release.TagName, "v"), release.PublishedAt)
 		if release.PreRelease {
 			entry.PreRelease = &release.PreRelease
 		}

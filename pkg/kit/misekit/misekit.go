@@ -1,6 +1,6 @@
-// Package miseutil resolves tools' latest installable releases — the same rule
+// Package misekit resolves tools' latest installable releases — the same rule
 // the lock's own mise resolves by — to the pin each source binds
-package miseutil
+package misekit
 
 import (
 	"context"

@@ -14,7 +14,7 @@ import (
 	"github.com/s12chung/firm/rule"
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
+	"github.com/s12chung/ccbox/pkg/kit/yamlkit"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
@@ -240,8 +240,8 @@ var (
 	//go:embed ccbox.yaml.tmpl
 	configTmplSrc string
 	tmpl          = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
-		"yaml":   yamlutil.Value,
-		"indent": yamlutil.Indent,
+		"yaml":   yamlkit.Value,
+		"indent": yamlkit.Indent,
 	}).Parse(configTmplSrc))
 )
 
@@ -261,7 +261,7 @@ func (c *config) renderTmpl() ([]byte, error) {
 	var allowlist, allowlistComments []string
 	if c.Proxy != nil {
 		allowlist = c.Proxy.Allowlist
-		allowlistComments = yamlutil.EntryToComments(c.Proxy.Allowlist, map[string]string{
+		allowlistComments = yamlkit.EntryToComments(c.Proxy.Allowlist, map[string]string{
 			DefaultsAlias:            "shared tooling domains",
 			runtime.AllRuntimesAlias: "every runtime's domains (node, python, go, rust)",
 			SetHarnessAlias:          "the selected CLI's — and on --vnc, the GUI app's",
@@ -270,9 +270,9 @@ func (c *config) renderTmpl() ([]byte, error) {
 	var b bytes.Buffer
 	data := configTmpl{
 		config:                *c,
-		TmpfsMasksComments:    yamlutil.CommentFirstEntry(ptrx.Deref(c.TmpfsMasks), defaultsExpansionComment(tmpfsDefaults)),
-		VolumeMasksComments:   yamlutil.CommentFirstEntry(ptrx.Deref(c.VolumeMasks), defaultsExpansionComment(volumeDefaults)),
-		ReadOnlyGlobsComments: yamlutil.CommentFirstEntry(ptrx.Deref(c.ReadOnlyGlobs), defaultsExpansionComment(readOnlyDefaults)),
+		TmpfsMasksComments:    yamlkit.CommentFirstEntry(ptrx.Deref(c.TmpfsMasks), defaultsExpansionComment(tmpfsDefaults)),
+		VolumeMasksComments:   yamlkit.CommentFirstEntry(ptrx.Deref(c.VolumeMasks), defaultsExpansionComment(volumeDefaults)),
+		ReadOnlyGlobsComments: yamlkit.CommentFirstEntry(ptrx.Deref(c.ReadOnlyGlobs), defaultsExpansionComment(readOnlyDefaults)),
 		Allowlist:             allowlist,
 		AllowlistComments:     allowlistComments,
 	}
@@ -321,13 +321,13 @@ func (f Flags) toLayer() config {
 
 // Load reads the layerPaths, the flags the top layer, and validates
 func Load(projectDir string, flags Flags) (*Config, error) {
-	layers, err := yamlutil.ReadLayers[config](layerPaths(projectDir))
+	layers, err := yamlkit.ReadLayers[config](layerPaths(projectDir))
 	if err != nil {
 		return nil, err
 	}
-	filesConfig := yamlutil.MergeLayers(layers, mergeempty.Merge[config])
+	filesConfig := yamlkit.MergeLayers(layers, mergeempty.Merge[config])
 
-	merged := yamlutil.MergeLayers([]config{filesConfig, flags.toLayer()}, mergeempty.Merge[config])
+	merged := yamlkit.MergeLayers([]config{filesConfig, flags.toLayer()}, mergeempty.Merge[config])
 	if errMap := firm.ValidateAny(merged); errMap != nil {
 		return nil, errMap
 	}

@@ -1,4 +1,4 @@
-package tomlutil
+package tomlkit
 
 import "testing"
 

@@ -1,4 +1,4 @@
-package miseutil
+package misekit
 
 import (
 	"net/http"

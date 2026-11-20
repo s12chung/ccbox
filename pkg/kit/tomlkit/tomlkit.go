@@ -1,5 +1,5 @@
-// Package tomlutil contains TOML helpers
-package tomlutil
+// Package tomlkit contains TOML helpers
+package tomlkit
 
 import "strconv"
 

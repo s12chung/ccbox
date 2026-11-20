@@ -10,7 +10,7 @@ import (
 
 	"github.com/pelletier/go-toml/v2"
 
-	"github.com/s12chung/ccbox/pkg/kit/tomlutil"
+	"github.com/s12chung/ccbox/pkg/kit/tomlkit"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 )
@@ -41,7 +41,7 @@ func (c ConfigSet) renderTools() string {
 func (c ConfigSet) renderPackages() string {
 	rows := make([]string, 0, len(c.Packages))
 	for _, pkg := range c.Packages {
-		rows = append(rows, fmt.Sprintf("%s = %q\n", tomlutil.Key(aptPrefix+pkg), "latest"))
+		rows = append(rows, fmt.Sprintf("%s = %q\n", tomlkit.Key(aptPrefix+pkg), "latest"))
 	}
 	return strings.TrimSuffix(strings.Join(rows, ""), "\n")
 }

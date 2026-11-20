@@ -5,7 +5,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/s12chung/ccbox/pkg/kit/tomlutil"
+	"github.com/s12chung/ccbox/pkg/kit/tomlkit"
 	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
@@ -91,10 +91,10 @@ func (t ResolvedTool) row() string {
 		fmt.Fprintln(&b, t.Comment)
 	}
 	if t.PostInstall == "" {
-		fmt.Fprintf(&b, "%s = %q\n", tomlutil.Key(t.Name), t.Pin)
+		fmt.Fprintf(&b, "%s = %q\n", tomlkit.Key(t.Name), t.Pin)
 	} else {
 		fmt.Fprintf(&b, "%s = { version = %q, postinstall = %q }\n",
-			tomlutil.Key(t.Name), t.Pin, t.PostInstall)
+			tomlkit.Key(t.Name), t.Pin, t.PostInstall)
 	}
 	return b.String()
 }

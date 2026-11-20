@@ -1,5 +1,5 @@
-// Package cobrautil contains cobra helpers
-package cobrautil
+// Package cobrakit contains cobra helpers
+package cobrakit
 
 import "github.com/spf13/cobra"
 

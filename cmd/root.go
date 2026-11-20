@@ -12,7 +12,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
-	"github.com/s12chung/ccbox/pkg/kit/cobrautil"
+	"github.com/s12chung/ccbox/pkg/kit/cobrakit"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
@@ -63,7 +63,7 @@ var rootCmd = &cobra.Command{
 		return execSession(cmd.Context(), execMode)
 	},
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		if cobrautil.WithinCmd(cmd, doctorCmd) {
+		if cobrakit.WithinCmd(cmd, doctorCmd) {
 			return nil // doctor loads its own way (doctor clis): no seeding, no config load
 		}
 
@@ -83,7 +83,7 @@ var rootCmd = &cobra.Command{
 			PortBindingsTCP: flags.PortBindingsTCP,
 			HostGatewayTCP:  flags.HostGatewayTCP,
 			NoProxy:         flags.NoProxy || cmd == runCmd,
-			ProxyCmd:        cobrautil.WithinCmd(cmd, proxyCmd),
+			ProxyCmd:        cobrakit.WithinCmd(cmd, proxyCmd),
 		})
 		if err != nil {
 			return err

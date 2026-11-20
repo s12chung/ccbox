@@ -1,5 +1,5 @@
-// Package yamlutil contains YAML helpers for reading writing YAML
-package yamlutil
+// Package yamlkit contains YAML helpers for reading writing YAML
+package yamlkit
 
 import (
 	"bytes"

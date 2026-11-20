@@ -26,7 +26,7 @@ import (
 	"github.com/s12chung/firm/rule"
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
-	"github.com/s12chung/ccbox/pkg/kit/yamlutil"
+	"github.com/s12chung/ccbox/pkg/kit/yamlkit"
 	"github.com/s12chung/ccbox/pkg/models/app"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/userdir"
@@ -78,7 +78,7 @@ func mustLoadAll() map[string]CLI {
 // parseCLI decodes one CLI.yaml body into its CLI, named name, with isUserDefined
 // set from its tree — firm-validated to fail at startup, not on first use.
 func parseCLI(name string, body []byte, isUserDefined bool) (CLI, error) {
-	c, err := yamlutil.ValidatedDecode(body, func(newCLI CLI) CLI {
+	c, err := yamlkit.ValidatedDecode(body, func(newCLI CLI) CLI {
 		newCLI.Name = name
 		newCLI.isUserDefined = isUserDefined
 		return newCLI

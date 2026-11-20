@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/s12chung/ccbox/pkg/dockerfile"
-	"github.com/s12chung/ccbox/pkg/kit/miseutil"
+	"github.com/s12chung/ccbox/pkg/kit/misekit"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -104,7 +104,7 @@ func seedMiseConfig(ctx context.Context, path string) (bool, error) {
 // fetched off each source's latests
 func promptConfigSet(ctx context.Context, savePath string, state mise.ToolState) (mise.ConfigSet, error) {
 	state.VersionFunc = func(name string) (string, error) {
-		return miseutil.LatestVersion(ctx, name)
+		return misekit.LatestVersion(ctx, name)
 	}
 	tools, packages, err := prompt.MiseTools(savePath, state)
 	if err != nil {
