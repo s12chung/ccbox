@@ -20,9 +20,6 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
-// runVNC serves the desktop session (`--vnc`)
-var runVNC bool
-
 // runCmd boots the devbox container and streams its logs to the foreground
 var runCmd = &cobra.Command{
 	Use:                   "run",
@@ -37,7 +34,7 @@ var runCmd = &cobra.Command{
 func init() {
 	for _, c := range []*cobra.Command{rootCmd, runCmd, execCmd} {
 		rf := c.Flags()
-		rf.BoolVar(&runVNC, "vnc", false, "serve VNC at localhost:5900 (experimental)")
+		rf.BoolVar(&flags.VNC, "vnc", false, "serve VNC at localhost:5900 (experimental)")
 	}
 }
 

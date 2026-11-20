@@ -11,7 +11,6 @@ type ExecMode struct {
 	Shell    bool     // the exec subcommand: Args exec in the container
 	Continue bool     // -c: continue the last session
 	Resume   bool     // -r: resume a session
-	NoProxy  bool     // --no-proxy: run without the egress wall
 	Args     []string // the exec argv (exec), or the resumed session's name (-r)
 }
 

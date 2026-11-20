@@ -27,12 +27,13 @@ import (
 // Injected from main (package main can't be imported, so the embed FS comes in here).
 var embedBuildContext embed.FS // Dockerfile + docker/* — the build context
 
-// Shared flags.
-var (
-	flagCLI             *string
-	flagPortBindingsTCP *string
-	flagHostGatewayTCP  *string
-)
+var flags struct {
+	CLI             *string
+	PortBindingsTCP *string
+	HostGatewayTCP  *string
+	VNC             bool
+	NoProxy         bool
+}
 
 // loaded once together before any command runs
 var (
@@ -78,11 +79,11 @@ var rootCmd = &cobra.Command{
 		}
 		var err error
 		config, err = cfg.Load(mustGetwd(), cfg.Flags{
-			CLI:             flagCLI,
-			VNC:             runVNC,
-			PortBindingsTCP: flagPortBindingsTCP,
-			HostGatewayTCP:  flagHostGatewayTCP,
-			NoProxy:         execMode.NoProxy || cmd == runCmd,
+			CLI:             flags.CLI,
+			VNC:             flags.VNC,
+			PortBindingsTCP: flags.PortBindingsTCP,
+			HostGatewayTCP:  flags.HostGatewayTCP,
+			NoProxy:         flags.NoProxy || cmd == runCmd,
 			ProxyCmd:        cmd == proxyCmd,
 		})
 		if err != nil {
@@ -111,9 +112,9 @@ func init() {
 	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume")
 
 	pf := rootCmd.PersistentFlags()
-	pf.Var(flagptr.String(&flagCLI), "cli", "override the coding CLI set in .ccbox.yaml")
-	pf.Var(flagptr.String(&flagPortBindingsTCP), "port-bindings-tcp", "bind tcp ports on localhost, host = container port")
-	pf.Var(flagptr.String(&flagHostGatewayTCP), "host-gateway-tcp", "open tcp ports on the host to the devbox at host.docker.internal")
+	pf.Var(flagptr.String(&flags.CLI), "cli", "override the coding CLI set in .ccbox.yaml")
+	pf.Var(flagptr.String(&flags.PortBindingsTCP), "port-bindings-tcp", "bind tcp ports on localhost, host = container port")
+	pf.Var(flagptr.String(&flags.HostGatewayTCP), "host-gateway-tcp", "open tcp ports on the host to the devbox at host.docker.internal")
 	// unreachable error: "cli" is registered above
 	must.Do(rootCmd.RegisterFlagCompletionFunc("cli", func(_ *cobra.Command, _ []string, _ string) ([]string, cobra.ShellCompDirective) {
 		// a closure, so that cli.Load() runs first in PersistentPreRunE

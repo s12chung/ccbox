@@ -54,7 +54,7 @@ func execSession(ctx context.Context, mode dmap.ExecMode) error {
 func init() {
 	for _, c := range []*cobra.Command{rootCmd, execCmd} {
 		rf := c.Flags()
-		rf.BoolVar(&execMode.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
+		rf.BoolVar(&flags.NoProxy, "no-proxy", false, "run without the egress wall: direct network access")
 	}
 	execCmd.Flags().SetInterspersed(false)
 }
