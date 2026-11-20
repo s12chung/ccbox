@@ -22,8 +22,10 @@ const (
 
 // MiseLockOptions configures the mise lock container run
 type MiseLockOptions struct {
-	Image      string // the pure-mise image
-	ConfigPath string // the mise config's host path
+	Image      string   // the pure-mise image
+	ConfigPath string   // the mise config's host path
+	Args       []string // the mise lock flags passed through, e.g. --bump
+	DryRun     bool     // preview the resolution — mise writes nothing, so MiseLock comes back empty
 }
 
 // MiseLock is the lock generation's output: the lockfile's body and its dependency
@@ -41,6 +43,10 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) (MiseLock, error) {
 		return MiseLock{}, err
 	}
 
+	cmd := append([]string{"lock", "--platform", misePlatforms}, o.Args...)
+	if o.DryRun {
+		cmd = append(cmd, "--dry-run")
+	}
 	env := []string{"MISE_TRUSTED_CONFIG_PATHS=" + miseWorkspaceMount}
 	if term.IsTerminal(os.Stdout) {
 		env = append(env, "CLICOLOR_FORCE=1")
@@ -49,7 +55,7 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) (MiseLock, error) {
 		&container.Config{
 			Image:      o.Image,
 			Entrypoint: []string{"/usr/local/bin/mise"},
-			Cmd:        []string{"lock", "--platform", misePlatforms},
+			Cmd:        cmd,
 			WorkingDir: miseWorkspaceMount,
 			Env:        env,
 		},
@@ -68,6 +74,9 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) (MiseLock, error) {
 	var logs bytes.Buffer
 	if err := dock.RunOnce(ctxD, resp.ID, io.MultiWriter(os.Stdout, &logs)); err != nil {
 		return MiseLock{}, fmt.Errorf("mise lock: %w\n%s", err, logs.String())
+	}
+	if o.DryRun {
+		return MiseLock{}, nil
 	}
 
 	body, err := dock.CopyFileFrom(ctxD, resp.ID, miseWorkspaceMount+"/mise.lock")

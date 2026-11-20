@@ -156,40 +156,56 @@ func ImageRefFromDockerfile(dockerfile []byte) (string, error) {
 	return string(match[1]), nil
 }
 
-// GenerateLock puts the committed lock beside the mise config when the config is
-// there, regenerating only when stale — a fresh one is left untouched. Creates the
-// lock, its sidecars and the config-hash
-func GenerateLock(ctx context.Context, imageRef, configPath string) error {
-	if !osutil.Present(configPath) {
-		return nil
-	}
+// LockOptions configures the mise lock run
+type LockOptions struct {
+	Bump      bool // re-resolve the config's locked versions
+	DryRun    bool // preview the resolution — nothing is written
+	SkipFresh bool // leave a fresh lock untouched — a missing config is a no-op
+}
 
+// Lock runs mise lock for the config through the pure-mise image — lock, sidecars
+// and config-hash rewritten, so a bump lands on an unchanged config.
+func Lock(ctx context.Context, imageRef, configPath string, o LockOptions) error {
 	expander := osutil.Expander{
 		Source: configPath, Expansion: LockPath(configPath),
 		SHAPath: filepath.Join(userdir.Tmp(), "misesha", slug.Path(configPath)+".sha256"),
 	}
-	isStale, err := expander.IsStale()
-	if err != nil {
-		return err
-	}
-	if !isStale {
-		return nil
+	if o.SkipFresh {
+		if !osutil.Present(configPath) {
+			return nil
+		}
+		isStale, err := expander.IsStale()
+		if err != nil {
+			return err
+		}
+		if !isStale {
+			return nil
+		}
 	}
 
 	ctxD, err := dock.NewCtxD(ctx)
 	if err != nil {
 		return err
 	}
+	var args []string
+	if o.Bump {
+		args = append(args, "--bump")
+	}
 	//nolint:contextcheck // the chain's context.Background cleanups are deliberate: a cancelled ctx can't block cleanup
 	lock, err := docker.GenerateMiseLock(ctxD, docker.MiseLockOptions{
 		Image:      imageRef,
 		ConfigPath: configPath,
+		Args:       args,
+		DryRun:     o.DryRun,
 	})
 	if err != nil {
 		return err
 	}
+	if o.DryRun {
+		return nil
+	}
 
-	// Expand re-perms to 0644: mise writes its lockfile 0600
+	// write the lockfile to disk
 	if err := expander.Expand(lock.Lock); err != nil {
 		return err
 	}

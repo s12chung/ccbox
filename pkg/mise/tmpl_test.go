@@ -340,7 +340,7 @@ golangci-lint = "2.13.1"
 		assert.Equal(t, legacy, userBody(t), "untouched")
 	})
 
-	t.Run("the lock goes stale for the next GenerateLock", func(t *testing.T) {
+	t.Run("the lock goes stale for the next Lock", func(t *testing.T) {
 		seedUser(t)
 
 		require.NoError(t, Sync(t.TempDir(), narrowedSet))

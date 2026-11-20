@@ -39,28 +39,28 @@ func TestImageRefFromDockerfile_MissingFrom(t *testing.T) {
 	assert.ErrorContains(t, err, "no `FROM <image> AS mise`")
 }
 
-func TestGenerateLock_NoConfig(t *testing.T) {
+func TestLock_SkipFresh_NoConfig(t *testing.T) {
 	testutil.Home(t)
 	projectDir := t.TempDir()
-	require.NoError(t, GenerateLock(t.Context(), "image", ProjectConfigPath(projectDir)))
+	require.NoError(t, Lock(t.Context(), "image", ProjectConfigPath(projectDir), LockOptions{SkipFresh: true}))
 	_, err := os.Stat(LockPath(ProjectConfigPath(projectDir)))
 	require.ErrorIs(t, err, os.ErrNotExist, "no config, no lock")
 }
 
-func TestGenerateLock_FreshLock(t *testing.T) {
+func TestLock_SkipFresh_FreshLock(t *testing.T) {
 	testutil.Home(t)
 	configPath := ProjectConfigPath(t.TempDir())
 	require.NoError(t, os.WriteFile(configPath, []byte(fixtureConfig), osutil.File))
 	require.NoError(t, commitLock(t, configPath))
 
 	// a fresh lock skips the docker run, so this passes without a daemon
-	require.NoError(t, GenerateLock(t.Context(), "image", configPath))
+	require.NoError(t, Lock(t.Context(), "image", configPath, LockOptions{SkipFresh: true}))
 	lock, err := os.ReadFile(LockPath(configPath))
 	require.NoError(t, err)
 	assert.Equal(t, fixtureLock, string(lock), "a fresh lock is left untouched")
 }
 
-func TestGenerateLock_SHAUnderTmp(t *testing.T) {
+func TestLockExpander_SHAUnderTmp(t *testing.T) {
 	testutil.Home(t)
 	configPath := ProjectConfigPath(t.TempDir())
 	require.NoError(t, os.WriteFile(configPath, []byte(fixtureConfig), osutil.File))
@@ -72,17 +72,17 @@ func TestGenerateLock_SHAUnderTmp(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrNotExist, "the config's dir carries no sha")
 }
 
-func TestGenerateLock_UserConfig(t *testing.T) {
+func TestLock_SkipFresh_UserConfig(t *testing.T) {
 	seedUser(t)
 
 	// a fresh lock skips the docker run, so this passes without a daemon
-	require.NoError(t, GenerateLock(t.Context(), "image", UserConfigPath()))
+	require.NoError(t, Lock(t.Context(), "image", UserConfigPath(), LockOptions{SkipFresh: true}))
 	lock, err := os.ReadFile(LockPath(UserConfigPath()))
 	require.NoError(t, err)
 	assert.Equal(t, fixtureLock, string(lock), "a fresh lock is left untouched")
 }
 
-// commitLock writes both lock artifacts for the config on disk — the state GenerateLock
+// commitLock writes both lock artifacts for the config on disk — the state Lock
 // leaves behind, without the docker run its test can't make.
 func commitLock(t *testing.T, configPath string) error {
 	t.Helper()

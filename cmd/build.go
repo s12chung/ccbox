@@ -31,7 +31,7 @@ func build(ctx context.Context, serveVNC bool) error {
 	miseImageRef := must.Get(dockerfile.MiseImageRef())
 
 	for _, path := range []string{mise.ProjectConfigPath(projectDir), mise.UserConfigPath()} {
-		if err := mise.GenerateLock(ctx, miseImageRef, path); err != nil {
+		if err := mise.Lock(ctx, miseImageRef, path, mise.LockOptions{SkipFresh: true}); err != nil {
 			return err
 		}
 	}
