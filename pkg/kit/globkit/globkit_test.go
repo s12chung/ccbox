@@ -80,14 +80,14 @@ func TestWalkMatches(t *testing.T) {
 
 	t.Run("the read-only defaults together match every sensitive path, in walk order", func(t *testing.T) {
 		globs := []string{
-			".ccbox.yaml", ".ccbox.local.yaml",
+			".ccbox.yaml",
 			".env", ".env.*", ".envrc",
 			"secrets",
 			"**/*.pem", "**/*.key",
 		}
 		root := write(t,
 			// one root-level representative per glob, including **/'s stripped-twin root match
-			".ccbox.yaml", ".ccbox.local.yaml",
+			".ccbox.yaml",
 			".env", ".env.local", ".envrc",
 			"server.pem",
 			// deeper matches: **/ spanning dirs, and the "secrets" dir itself
@@ -110,7 +110,7 @@ func TestWalkMatches(t *testing.T) {
 		}
 
 		assert.Equal(t, []string{
-			".ccbox.local.yaml", ".ccbox.yaml",
+			".ccbox.yaml",
 			".env", ".env.local", ".envrc",
 			"certs/ca.pem", "certs/server.key", "certs/server.pem",
 			"deep/db.key",

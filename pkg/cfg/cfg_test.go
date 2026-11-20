@@ -76,12 +76,11 @@ func copyFile(t *testing.T, src, dst string) {
 // configFiles lists the config files by level term and file name, in load order
 // (lowest precedence first)
 var configFiles = []struct {
-	term string // user, project, projectLocal
+	term string // user, project
 	name string
 }{
 	{"user", userConfigFileName},
 	{"project", projectConfigFileName},
-	{"projectLocal", projectLocalConfigFileName},
 }
 
 // TestMain points home at a temp tree and seeds the user config — prod parity: the
@@ -166,8 +165,7 @@ func TestLoadedPaths(t *testing.T) {
 	}{
 		{"no files", nil},
 		{"project only", []string{projectConfigFileName}},
-		{"user and local", []string{userConfigFileName, projectLocalConfigFileName}},
-		{"all three", []string{userConfigFileName, projectConfigFileName, projectLocalConfigFileName}},
+		{"user and project", []string{userConfigFileName, projectConfigFileName}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -177,7 +175,7 @@ func TestLoadedPaths(t *testing.T) {
 				writeConfig(t, dir, name, "cli: claude\n")
 			}
 			var wantLoaded, wantNotLoaded []string
-			for _, name := range []string{userConfigFileName, projectConfigFileName, projectLocalConfigFileName} {
+			for _, name := range []string{userConfigFileName, projectConfigFileName} {
 				path := filepath.Join(dir, name)
 				if name == userConfigFileName {
 					path = UserConfigFile()
@@ -201,7 +199,7 @@ func TestLoadedPaths(t *testing.T) {
 
 		loaded, notLoaded := LoadedPaths(dir)
 		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, loaded)
-		assert.Equal(t, []string{UserConfigFile(), filepath.Join(dir, projectLocalConfigFileName)}, notLoaded)
+		assert.Equal(t, []string{UserConfigFile()}, notLoaded)
 	})
 }
 
@@ -349,9 +347,6 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			if cf.term == "projectLocal" { // empty project file so the error attributes to local
-				writeConfig(t, dir, projectConfigFileName, "")
-			}
 			writeConfig(t, dir, cf.name, "cli: claude\nread_only_binds:\n  fonts: enabled\n")
 
 			_, err := Load(dir, Flags{})
@@ -374,17 +369,14 @@ func TestLoad_EmptyListKeepsLowerLayers(t *testing.T) {
 func TestLoad_LayersFiles(t *testing.T) {
 	dir := t.TempDir()
 	mkDirs(t, dir, tmpfsDefaults...)
-	mkDirs(t, dir, "dist", "build", "cache") // the layers' own mask dirs must exist to survive
-	bodies := map[string]string{             // one entry per configFiles term
+	mkDirs(t, dir, "dist", "build") // the layers' own mask dirs must exist to survive
+	bodies := map[string]string{    // one entry per configFiles term
 		"user": "cli: opencode\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
 			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - user.example.dev\n",
 		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
 			"forward_env:\n  - FOO\n  - BAZ\nproxy:\n  allowlist:\n    - ccbox-defaults\n",
-		"projectLocal": "cli: codex\ntmpfs_masks:\n  - cache\n" +
-			"read_only_binds:\n  ~/certs: /mnt/certs\n" +
-			"forward_env:\n  - QUX\nproxy:\n  allowlist:\n    - example.com\n",
 	}
 	for _, cf := range configFiles {
 		writeConfig(t, dir, cf.name, bodies[cf.term])
@@ -392,26 +384,26 @@ func TestLoad_LayersFiles(t *testing.T) {
 
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", c.CLIName) // later layer wins
+	assert.Equal(t, "claude", c.CLIName) // later layer wins
 
-	// per-field merge: the local layer's unset section leaves the user's gui_app standing
+	// per-field merge: the project layer's unset section leaves the user's gui_app standing
 	assert.Equal(t, &VNC{GUIAppName: "zcode"}, c.VNC)
 
 	// lists append raw, lowest layer first, the seed's aliases carried as-is
-	assert.Equal(t, []string{DefaultsAlias, "dist", "build", "cache"}, c.TmpfsMasks)
+	assert.Equal(t, []string{DefaultsAlias, "dist", "build"}, c.TmpfsMasks)
 
 	// forward_env appends, layer order
-	assert.Equal(t, []string{"FOO", "BAR", "FOO", "BAZ", "QUX"}, c.ForwardEnv)
+	assert.Equal(t, []string{"FOO", "BAR", "FOO", "BAZ"}, c.ForwardEnv)
 
 	// binds merge per key, the later layer's entry wins
 	assert.Equal(t, map[string]string{
 		"gitconfig": "enabled",
 		"~/fonts":   "/mnt/fonts",
-		"~/certs":   "/mnt/certs",
+		"~/certs":   "/home/ccbox/certs",
 	}, c.ReadOnlyBinds)
 
 	// the proxy section's lists append too, layer order
-	assert.Equal(t, []string{"user.example.dev", DefaultsAlias, "example.com"}, c.Proxy.Allowlist)
+	assert.Equal(t, []string{"user.example.dev", DefaultsAlias}, c.Proxy.Allowlist)
 }
 
 func TestLoad_SingleFileOnly(t *testing.T) {
@@ -425,7 +417,7 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 			assert.Equal(t, "pi", c.CLIName)
 			if cf.term == "user" { // the user file replaces the seed wholesale
 				assert.Equal(t, []string{"example.com"}, c.Proxy.Allowlist) // no alias → no defaults pulled in
-			} else { // the user seed's aliases still underlie the project/local file
+			} else { // the user seed's aliases still underlie the project file
 				assert.Equal(t, []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias, "example.com"}, c.Proxy.Allowlist)
 			}
 		})
@@ -624,9 +616,6 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			if cf.term == "projectLocal" { // empty project file so the error attributes to local
-				writeConfig(t, dir, projectConfigFileName, "")
-			}
 			writeConfig(t, dir, cf.name, "cli: claude\nbogus: true\n")
 
 			_, err := Load(dir, Flags{})
@@ -638,8 +627,8 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 
 func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
+	writeConfig(t, dir, userConfigFileName, "cli: codex\n")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), osutil.File))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectLocalConfigFileName), []byte("cli: codex\n"), osutil.File))
 
 	c, err := Load(dir, Flags{CLI: new("pi")})
 	require.NoError(t, err)
@@ -647,7 +636,7 @@ func TestLoad_FlagsOverrideFiles(t *testing.T) {
 
 	c, err = Load(dir, Flags{})
 	require.NoError(t, err)
-	assert.Equal(t, "codex", c.CLIName) // an unset flag keeps the files' layering
+	assert.Equal(t, "claude", c.CLIName) // an unset flag keeps the files' layering
 
 	_, err = Load(dir, Flags{CLI: new("emacs")})
 	assert.ErrorContains(t, err, "is not one of") // the flag value validates like a file's, never reaching CLI()'s panic
@@ -736,7 +725,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)
 		}
 
-		writeConfig(t, dir, projectLocalConfigFileName, "default_variant:\n  port_bindings:\n    tcp: 0\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\ndefault_variant:\n  port_bindings:\n    tcp: 0\n")
 
 		// the flag's valid value replaces the files' broken one pre-validation
 		c, err := Load(dir, Flags{PortBindingsTCP: new("8080")})
@@ -801,7 +790,7 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)
 		}
 
-		writeConfig(t, dir, projectLocalConfigFileName, "host_gateway:\n  tcp: 0\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_gateway:\n  tcp: 0\n")
 		_, err := Load(dir, Flags{})
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "PortList")

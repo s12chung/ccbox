@@ -1,5 +1,5 @@
 // Package cfg loads the config file layers — user (ConfigDir), project
-// (repo root), projectLocal (git-ignored) — lowest precedence first
+// (repo root) — lowest precedence first
 package cfg
 
 import (
@@ -31,8 +31,6 @@ const (
 	userConfigFileName = "ccbox.yaml"
 	// projectConfigFileName is the project-level config's name at the project repo root
 	projectConfigFileName = ".ccbox.yaml"
-	// projectLocalConfigFileName is the project-local, git-ignored override
-	projectLocalConfigFileName = ".ccbox.local.yaml"
 	// DefaultsAlias listed in allowlist, expands in place to the shared tooling defaults
 	DefaultsAlias = "ccbox-defaults"
 	// SetHarnessAlias listed in allowlist, expands in place to the selected CLI's egress
@@ -43,9 +41,9 @@ const (
 // UserConfigFile is the user-level config's path
 func UserConfigFile() string { return filepath.Join(userdir.ConfigDir(), userConfigFileName) }
 
-// layerPaths lists the config file paths in load order: user, project, local
+// layerPaths lists the config file paths in load order: user, project
 func layerPaths(projectDir string) []string {
-	return []string{UserConfigFile(), filepath.Join(projectDir, projectConfigFileName), filepath.Join(projectDir, projectLocalConfigFileName)}
+	return []string{UserConfigFile(), filepath.Join(projectDir, projectConfigFileName)}
 }
 
 // LoadedPaths returns the layer config paths split into loaded and not loaded, each in load order

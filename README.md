@@ -16,7 +16,6 @@ The `ccbox` config scope hierarchy is:
 
 - User - `~/.ccbox/config/ccbox.yaml` (no dot) — seeded with ccbox's defaults on first run
 - Project - `project_dir/.ccbox.yaml`
-- Project Local - `project_dir/.ccbox.local.yaml` (for git ignore)
 - `ccbox` flags
 
 `ccbox config` prints the effective config with its aliases expanded. `ccbox config init` creates a commented empty config. When merging configs, arrays and maps are merged.

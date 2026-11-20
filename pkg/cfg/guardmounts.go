@@ -13,7 +13,6 @@ var (
 	readOnlyDefaults = []string{
 		".ccbox.yaml", ".env", "**/*.pem", // the seeded config's inline examples — see defaultsExpansionComment
 
-		".ccbox.local.yaml",
 		".env.*", ".envrc",
 		"secrets",
 		"**/*.key", "**/id_rsa*",

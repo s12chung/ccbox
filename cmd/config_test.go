@@ -35,7 +35,6 @@ func TestAliasSections(t *testing.T) {
 		"#     - .ccbox.yaml",
 		"#     - .env",
 		"#     - **/*.pem",
-		"#     - .ccbox.local.yaml",
 		"#     - .env.*",
 		"#     - .envrc",
 		"#     - secrets",
