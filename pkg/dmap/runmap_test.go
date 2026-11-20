@@ -42,7 +42,7 @@ proxy:
 	env, err := rm.Env(false, []string{}, []string{})
 	require.NoError(t, err)
 
-	options, clean, err := rm.RunOptions(NewProxyMap(config).Options())
+	options, clean, err := rm.RunOptions(NewProxyMap(config).Options(func(string) {}))
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -109,7 +109,7 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, ProxyCmd: true})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions(NewProxyMap(config).Options())
+	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions(NewProxyMap(config).Options(func(string) {}))
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -132,7 +132,7 @@ func TestRunMap_RunOptions_PortBindings(t *testing.T) {
 	require.NoError(t, err)
 
 	// the default ask — the config's section applies to its devbox
-	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options())
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options(func(string) {}))
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -168,7 +168,7 @@ func TestRunMap_RunOptions_PortBindings_FlagsSetDefaultVariant(t *testing.T) {
 		"proxy:\n  enabled: true\n"), cfg.Flags{VNC: true})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options())
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options(func(string) {}))
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -201,7 +201,7 @@ func TestRunMap_RunOptions_HostGateway(t *testing.T) {
 		"host_gateway:\n  tcp: 5432\n"+"proxy:\n  enabled: true\n"), cfg.Flags{HostGatewayTCP: new("3306,6379")})
 	require.NoError(t, err)
 
-	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options())
+	options, clean, err := NewRunMap(config, nil, false).RunOptions(NewProxyMap(config).Options(func(string) {}))
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()

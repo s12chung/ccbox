@@ -22,3 +22,11 @@ func TestDevboxName(t *testing.T) {
 	assert.Equal(t, "ccbox"+slug.Path(projectDir)+"-plain-vnc", devboxName(projectDir, true, false), "the desktop variant's devbox is its own")
 	assert.Equal(t, "ccbox"+slug.Path(projectDir)+"-vnc", devboxName(projectDir, true, true), "the egress wall makes proxied vnc its own devbox")
 }
+
+func TestProxiedDevboxNames(t *testing.T) {
+	projectDir := "/Users/me/myproj"
+	assert.Equal(t, []string{
+		"ccbox" + slug.Path(projectDir),
+		"ccbox" + slug.Path(projectDir) + "-vnc",
+	}, ProxiedDevboxNames(projectDir), "both proxied variants only: the plain variants never serve the egress wall")
+}

@@ -22,3 +22,8 @@ func variantSuffix(serveVNC, isProxied bool) string {
 func devboxName(projectDir string, serveVNC, isProxied bool) string {
 	return "ccbox" + slug.Path(projectDir) + variantSuffix(serveVNC, isProxied)
 }
+
+// ProxiedDevboxNames returns both proxied variants' devbox names
+func ProxiedDevboxNames(projectDir string) []string {
+	return []string{devboxName(projectDir, false, true), devboxName(projectDir, true, true)}
+}

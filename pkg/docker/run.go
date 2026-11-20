@@ -221,6 +221,20 @@ func IsDevboxRunning(ctxD *dock.CtxD, o RunOptions) (bool, error) {
 	return own != nil, err
 }
 
+// IsAnyDevboxRunning reports whether any of the named devboxes is running
+func IsAnyDevboxRunning(ctxD *dock.CtxD, names []string) (bool, error) {
+	for _, name := range names {
+		_, err := dock.InspectRunning(ctxD, name)
+		if err == nil {
+			return true, nil
+		}
+		if !errors.Is(err, dock.ErrNotRunning) {
+			return false, err
+		}
+	}
+	return false, nil
+}
+
 // claimDevbox returns the run's own running devbox, nil when none is running —
 // one running devbox per variant
 func claimDevbox(ctxD *dock.CtxD, o RunOptions) (*container.InspectResponse, error) {

@@ -30,7 +30,7 @@ var execCmd = &cobra.Command{
 func execSession(ctx context.Context, mode dmap.ExecMode) error {
 	var proxyOptions *docker.ProxyOptions
 	if config.Proxy != nil {
-		proxyOptions = dmap.NewProxyMap(config).Options()
+		proxyOptions = dmap.NewProxyMap(config).Options(reportReload)
 	}
 	runOptions, clean, err := prepareRun(proxyOptions)
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
+	"github.com/s12chung/ccbox/pkg/kit/cobrautil"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
@@ -62,10 +63,8 @@ var rootCmd = &cobra.Command{
 		return execSession(cmd.Context(), execMode)
 	},
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		for c := cmd; c != nil; c = c.Parent() {
-			if c.Name() == doctorCmd.Name() {
-				return nil // doctor loads its own way (doctor clis): no seeding, no config load
-			}
+		if cobrautil.WithinCmd(cmd, doctorCmd) {
+			return nil // doctor loads its own way (doctor clis): no seeding, no config load
 		}
 
 		provider.Load() // before cli.Load: AllowDomains's firm rule and expansion depends on loaded providers
@@ -84,7 +83,7 @@ var rootCmd = &cobra.Command{
 			PortBindingsTCP: flags.PortBindingsTCP,
 			HostGatewayTCP:  flags.HostGatewayTCP,
 			NoProxy:         flags.NoProxy || cmd == runCmd,
-			ProxyCmd:        cmd == proxyCmd,
+			ProxyCmd:        cobrautil.WithinCmd(cmd, proxyCmd),
 		})
 		if err != nil {
 			return err
