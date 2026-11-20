@@ -23,7 +23,7 @@ import (
 
 func TestRunMap_RunOptions(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
 proxy:
@@ -67,7 +67,7 @@ proxy:
 
 func TestRunMap_RunOptions_VNC(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	// the base layer carries the gui_app, as a project's config would
 	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
@@ -103,7 +103,7 @@ proxy:
 
 func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	// the --vnc flag on a config without a vnc section, as `ccbox proxy --vnc` arrives
 	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, ProxyCmd: true})
@@ -124,7 +124,7 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 
 func TestRunMap_RunOptions_PortBindings(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
 		"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n"+
@@ -212,7 +212,7 @@ func TestRunMap_RunOptions_HostGateway(t *testing.T) {
 
 func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	projectDir := writeConfigYaml(t, `cli: claude
 proxy:
@@ -233,7 +233,7 @@ proxy:
 
 func TestRunMap_HostOptions(t *testing.T) {
 	home := testutil.Home(t)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	projectDir := writeConfigYaml(t, `cli: codex
 tmpfs_masks:
@@ -326,7 +326,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 
 func TestRunMap_HostOptions_VNC(t *testing.T) {
 	testutil.Home(t)
-	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the ccbox-admin doc is seeded
+	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{})
 	require.NoError(t, err)

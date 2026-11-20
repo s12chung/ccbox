@@ -33,5 +33,5 @@ Protect your protect these configs:
 
 ## Docs
 
-- **[`pkg/dmap/share/admin.md.tmpl`](pkg/dmap/share/admin.md.tmpl)** — start here: the container the CLI runs inside (user, egress wall, what's installed), prepended to the agents docs' `ccbox-admin` variants.
+- **[`pkg/dmap/share/admin.md`](pkg/dmap/share/admin.md)** — start here: the container the CLI runs inside (user, egress wall, what's installed), exposed to the AGENTS doc templates as `adminSection`, alongside its proxied-only `admin.proxied.md` as `proxySection`.
 - **[`AGENTS.md`](AGENTS.md)** — the project layout: the `ccbox` CLI, the build inputs, and how to build/test.

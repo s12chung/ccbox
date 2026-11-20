@@ -10,7 +10,6 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
-	"github.com/s12chung/ccbox/pkg/util/scratch"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -28,18 +27,13 @@ func resetUserDir(t *testing.T) string {
 // claudeMount is the scratch file's container path, as AgentsMd wires it
 const claudeMount = "/home/ccbox/.ccbox/tmp/agents/claude/AGENTS.md"
 
-func claudeShare() scratch.Binder {
-	return AgentsMd("claude", true)
-}
-
-// claudeTarget is the CLI doc symlink's target
 func claudeTarget() string { return claudeMount }
 
 // claudeShareBegin begins a bound share for claude, runs body with the bound scratch file,
 // then cleans up
-func claudeShareBegin(t *testing.T, body func(scratchFile string)) {
+func claudeShareBegin(t *testing.T, isProxied bool, body func(scratchFile string)) {
 	t.Helper()
-	bind, cleanup, err := claudeShare().Begin()
+	bind, cleanup, err := AgentsMd("claude", isProxied).Begin()
 	require.NoError(t, err)
 	if body != nil {
 		body(bind.HostPath)
@@ -47,14 +41,14 @@ func claudeShareBegin(t *testing.T, body func(scratchFile string)) {
 	require.NoError(t, cleanup())
 }
 
-func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", AgentsMdFileName) }
+func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", agentsMdFileName) }
 
-func claudeAdminMd(userDir string) string {
-	return filepath.Join(userDir, "claude", agentsAdminMdFileName)
+func claudeTmplMd(userDir string) string {
+	return filepath.Join(userDir, "claude", agentsTmplMdFileName)
 }
-func userAgentsMd(userDir string) string { return filepath.Join(userDir, userAgentsMdFileName) }
-func userAgentsAdminMd(userDir string) string {
-	return filepath.Join(userDir, userAgentsAdminMdFileName)
+
+func userAgentsTmplMd(userDir string) string {
+	return filepath.Join(userDir, agentsTmplMdFileName)
 }
 
 func userAgentsReadmeMd(userDir string) string {
@@ -62,10 +56,25 @@ func userAgentsReadmeMd(userDir string) string {
 }
 
 func claudeScratch(userDir string) string {
-	return filepath.Join(userDir, "tmp", "agents", "claude", AgentsMdFileName)
+	return filepath.Join(userDir, "tmp", "agents", "claude", agentsMdFileName)
 }
 
 func claudeBase(userDir string) string { return claudeScratch(userDir) + ".orig" }
+
+func renderTmpl(t *testing.T, ctx agentsTmplCtx, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), agentsTmplMdFileName)
+	writeFile(t, path, body)
+	rendered, err := renderAgentsTmpl(path, ctx)
+	require.NoError(t, err)
+	return string(rendered)
+}
+
+// renderedDefault renders the seeded default template, as the shared doc does
+func renderedDefault(t *testing.T, isProxied bool) string {
+	t.Helper()
+	return renderTmpl(t, agentsTmplCtx{isProxied: isProxied, isShared: true}, string(defaultTmplMd))
+}
 
 func writeFile(t *testing.T, path, body string) {
 	t.Helper()
@@ -101,26 +110,20 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 	for _, tc := range []struct {
 		caseName string
 		setup    func(t *testing.T, userDir string) // written before the seed
-		admin    *string                            // the admin variant's body after the seed; nil when gone
+		tmpl     *string                            // the template's body after the seed; nil when gone
 		readme   *string                            // the explainer's body after the seed; nil when gone
 	}{
 		{
-			caseName: "LaysAll",
-			admin:    new(""),
+			caseName: "LaysDefault",
+			tmpl:     new(string(defaultTmplMd)),
 			readme:   new(string(agentsReadmeMd)),
 		},
 		{
-			caseName: "SkipsExistingAdmin",
+			caseName: "SkipsExistingTmpl",
 			setup: func(t *testing.T, userDir string) {
-				writeFile(t, userAgentsAdminMd(userDir), "kept")
+				writeFile(t, userAgentsTmplMd(userDir), "kept")
 			},
-			admin: new("kept"),
-		},
-		{
-			caseName: "UserDocPreventsAdminAndReadme",
-			setup: func(t *testing.T, userDir string) {
-				writeFile(t, userAgentsMd(userDir), "mine")
-			},
+			tmpl: new("kept"),
 		},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
@@ -132,10 +135,10 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 
 			require.NoError(t, SafeSeedAgentsMd())
 
-			if tc.admin == nil {
-				assert.True(t, gone(t, userAgentsAdminMd(userDir)), "the admin variant is not seeded")
+			if tc.tmpl == nil {
+				assert.True(t, gone(t, userAgentsTmplMd(userDir)), "the template is not seeded")
 			} else {
-				assert.Equal(t, *tc.admin, readFile(t, userAgentsAdminMd(userDir)))
+				assert.Equal(t, *tc.tmpl, readFile(t, userAgentsTmplMd(userDir)))
 			}
 			if tc.readme == nil {
 				assert.True(t, gone(t, userAgentsReadmeMd(userDir)), "the explainer is not seeded")
@@ -146,32 +149,33 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 	}
 }
 
-// TestAgentsMd_PromotesPrefixed binds the share's source doc, most specific first
-func TestAgentsMd_PromotesPrefixed(t *testing.T) {
+// TestAgentsMd_PromotesRendered binds the most specific template's render; edits
+// to it promote to the CLI doc
+func TestAgentsMd_PromotesRendered(t *testing.T) {
 	for _, tc := range []struct {
 		caseName string
-		doc      func(string) string // the ccbox-admin variant the source resolves to
-		body     string              // the variant's body
+		doc      func(string) string // the template the source resolves to
+		body     string              // the template's body
 	}{
-		{caseName: "SharedAdmin", doc: userAgentsAdminMd, body: "admin rules"},
-		{caseName: "CliAdmin", doc: claudeAdminMd, body: "cli rules"},
+		{caseName: "SharedTmpl", doc: userAgentsTmplMd, body: "<!--{{ adminSection }}-->\nadmin rules"},
+		{caseName: "CliTmpl", doc: claudeTmplMd, body: "<!--{{ sharedAgentsMd }}-->\ncli rules"},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
 			userDir := resetUserDir(t)
 			writeFile(t, tc.doc(userDir), tc.body)
+			rendered := renderTmpl(t, agentsTmplCtx{isProxied: true}, tc.body)
 
-			claudeShareBegin(t, func(string) {
-				writeFile(t, claudeScratch(userDir), adminMd(true)+tc.body+", edited")
+			claudeShareBegin(t, true, func(string) {
+				writeFile(t, claudeScratch(userDir), rendered+", edited")
 			})
 
-			assert.Equal(t, adminMd(true)+tc.body+", edited", readFile(t, claudeCliFile(userDir)))
+			assert.Equal(t, rendered+", edited", readFile(t, claudeCliFile(userDir)))
 		})
 	}
 }
 
-// TestAdminMd pins the rendered admin doc to the committed testdata fixtures — each
-// render must stay byte-identical to its fixture. Regenerate with:
-// `UPDATE_FIXTURES=1 go test ./pkg/dmap/share/ -run TestAdminMd`
+// TestAdminMd pins the default template's rendered doc to the testdata fixtures.
+// Regenerate with `UPDATE_FIXTURES=1 go test ./pkg/dmap/share/ -run TestAdminMd`
 func TestAdminMd(t *testing.T) {
 	for _, tt := range []struct {
 		name      string // fixture name: testdata/TestAdminMd_<name>.md
@@ -181,7 +185,7 @@ func TestAdminMd(t *testing.T) {
 		{"no-proxy", false}, // the network section is dropped
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got := adminMd(tt.isProxied)
+			got := renderedDefault(t, tt.isProxied)
 
 			path := filepath.Join("testdata", "TestAdminMd_"+tt.name+".md")
 			if os.Getenv("UPDATE_FIXTURES") != "" {
@@ -200,48 +204,34 @@ func TestAdminMd(t *testing.T) {
 func TestAgentsMd_Begin(t *testing.T) {
 	for _, tc := range []struct {
 		caseName string
-		setup    func(t *testing.T, userDir string)
-		binds    bool   // whether the share binds a scratch
-		err      bool   // whether the share errors; no scratch is written
-		body     string // the bound scratch's body; unset when !binds
+		setup    func(t *testing.T, userDir string) // written before the share
+		binds    bool                               // whether the share binds a scratch
+		err      bool                               // whether the share errors; no scratch is written
+		body     func(t *testing.T) string          // the bound scratch's body; unset when !binds
 	}{
 		{
-			caseName: "ScratchCopy",
+			caseName: "PlainUserTmpl",
 			setup: func(t *testing.T, userDir string) {
-				writeFile(t, userAgentsMd(userDir), "shared")
+				writeFile(t, userAgentsTmplMd(userDir), "shared")
 			},
 			binds: true,
-			body:  "shared",
-		},
-		{
-			caseName: "AdminPrefixedScratch",
-			setup: func(t *testing.T, userDir string) {
-				writeFile(t, userAgentsAdminMd(userDir), "admin rules")
-			},
-			binds: true,
-			body:  adminMd(true) + "admin rules",
+			body:  func(*testing.T) string { return "shared" },
 		},
 		{
 			caseName: "SeededDefault",
 			binds:    true,
-			body:     adminMd(true),
+			body:     func(t *testing.T) string { return renderedDefault(t, true) },
 		},
 		{
-			caseName: "EmptyUserDocOverridesAdmin",
+			caseName: "CliTmplOverridesShared",
 			setup: func(t *testing.T, userDir string) {
-				writeFile(t, userAgentsMd(userDir), "")
-				writeFile(t, userAgentsAdminMd(userDir), "admin rules")
+				writeFile(t, userAgentsTmplMd(userDir), "shared")
+				writeFile(t, claudeTmplMd(userDir), "<!--{{ adminSection }}-->\ncli rules")
 			},
 			binds: true,
-		},
-		{
-			caseName: "CliAdminPrefixedScratch",
-			setup: func(t *testing.T, userDir string) {
-				writeFile(t, userAgentsMd(userDir), "shared")
-				writeFile(t, claudeAdminMd(userDir), "cli rules")
+			body: func(t *testing.T) string {
+				return renderTmpl(t, agentsTmplCtx{isProxied: true}, "<!--{{ adminSection }}-->\ncli rules")
 			},
-			binds: true,
-			body:  adminMd(true) + "cli rules",
 		},
 		{
 			caseName: "SkipsWhenCliFileExists",
@@ -252,7 +242,21 @@ func TestAgentsMd_Begin(t *testing.T) {
 		{
 			caseName: "ErrorsWhenNoSourceDoc",
 			setup: func(t *testing.T, userDir string) {
-				require.NoError(t, os.Remove(userAgentsAdminMd(userDir)))
+				require.NoError(t, os.Remove(userAgentsTmplMd(userDir)))
+			},
+			err: true,
+		},
+		{
+			caseName: "ErrorsWhenTmplInvalid",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsTmplMd(userDir), "<!--{{ nope }}-->")
+			},
+			err: true,
+		},
+		{
+			caseName: "ErrorsWhenSharedAgentsMdRecurses",
+			setup: func(t *testing.T, userDir string) {
+				writeFile(t, userAgentsTmplMd(userDir), "<!--{{ sharedAgentsMd }}-->")
 			},
 			err: true,
 		},
@@ -264,7 +268,7 @@ func TestAgentsMd_Begin(t *testing.T) {
 			}
 
 			if tc.err {
-				bind, cleanup, err := claudeShare().Begin()
+				bind, cleanup, err := AgentsMd("claude", true).Begin()
 				require.Error(t, err)
 				assert.Empty(t, bind.HostPath)
 				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
@@ -273,7 +277,7 @@ func TestAgentsMd_Begin(t *testing.T) {
 				return
 			}
 
-			claudeShareBegin(t, func(scratchFile string) {
+			claudeShareBegin(t, true, func(scratchFile string) {
 				if !tc.binds {
 					assert.Empty(t, scratchFile)
 					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
@@ -281,8 +285,8 @@ func TestAgentsMd_Begin(t *testing.T) {
 					return
 				}
 				assert.Equal(t, claudeScratch(userDir), scratchFile)
-				assert.Equal(t, tc.body, readFile(t, claudeScratch(userDir)), "the bound scratch's body")
-				assert.Equal(t, tc.body, readFile(t, claudeBase(userDir)), "the written baseline's body")
+				assert.Equal(t, tc.body(t), readFile(t, claudeScratch(userDir)), "the bound scratch's body")
+				assert.Equal(t, tc.body(t), readFile(t, claudeBase(userDir)), "the written baseline's body")
 				assertSymlinked(t, claudeCliFile(userDir))
 			})
 			assert.True(t, gone(t, claudeScratch(userDir)), "the cleanup drops the share")

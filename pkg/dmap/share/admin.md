@@ -16,10 +16,3 @@ Most importantly, `/tmp` is a persistent volume — treat it as your scratch spa
 Caches persist per project (`~/.cache`, `~/.local`, `~/.npm`, etc.) so downloads survive runs, but NOT `~/.local/share/mise`.
 
 ALL other directories are **wiped on exit** via `docker run --rm`.
-{{if .IsProxied}}
-## Network is egress walled, allowlist-only
-
-All egress is forced through a proxy that **denies by default**, EXCEPT loopback (`localhost`, `127.0.0.1`, `::1`) via `no_proxy`.
-
-Allow domains include package registries, mise, GitHub, canonical man text, etc. Run `ccboxtools allowlist` for the current live bare-domain list. When encountering network errors, do not work around the firewall, instead check against the list and tell me what domain failed.
-{{- end}}

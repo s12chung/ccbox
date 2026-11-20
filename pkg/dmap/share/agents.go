@@ -3,6 +3,8 @@ package share
 import (
 	"bytes"
 	_ "embed"
+	"errors"
+	"fmt"
 	"os"
 	"path"
 	"path/filepath"
@@ -10,30 +12,33 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/scratch"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-// SafeSeedAgentsMd seeds the shared AGENTS docs when missing: the ccbox-admin variant empty
-// and the README.md explainer; existing ones are never touched
+var (
+	//go:embed default.tmpl.md
+	defaultTmplMd []byte
+	//go:embed AGENTS.README.md
+	agentsReadmeMd []byte
+)
+
+// SafeSeedAgentsMd seeds the shared template and the README explainer when
+// missing; existing files are never touched
 func SafeSeedAgentsMd() error {
-	if osutil.Present(userAgentsMdPath()) || osutil.Present(userAgentsAdminMdPath()) {
+	if osutil.Present(userAgentsTmplMdPath()) {
 		return nil
 	}
-	if err := seed.SafeFile(userAgentsAdminMdPath(), nil); err != nil {
+	if err := seed.SafeFile(userAgentsTmplMdPath(), defaultTmplMd); err != nil {
 		return err
 	}
 	return seed.SafeFile(userAgentsReadmeMdPath(), agentsReadmeMd)
 }
 
-// AgentsMd returns the Binder for CLI's AGENTS doc. Real copy is at realCliFile
-// as part of the CLIConfigDir's bind (hence ShareBind.HostPath = ""). If real copy
-// doesn't exist, a symlinked copy is at AgentsMdScratchMount's path and that scratch
-// is bound (with the ShareBind.HostPath set and bound to BindPath). isProxied renders
-// the admin doc's network section, which a direct-network run drops.
+// AgentsMd returns the Binder for the CLI's AGENTS doc; isProxied answers the
+// template's IsProxied.
 func AgentsMd(cliName string, isProxied bool) scratch.Binder {
 	mount := AgentsMdScratchMount(cliName)
 	return scratch.Binder{
@@ -50,76 +55,86 @@ func AgentsMd(cliName string, isProxied bool) scratch.Binder {
 // AgentsMdScratchMount is the CLI's scratch copy's container path:
 // <ContainerHome>/.ccbox/tmp/agents/<cli_name>/AGENTS.md
 func AgentsMdScratchMount(cliName string) string {
-	return path.Join(pkginfo.ContainerHome, ".ccbox", "tmp", "agents", cliName, AgentsMdFileName)
+	return path.Join(pkginfo.ContainerHome, ".ccbox", "tmp", "agents", cliName, agentsMdFileName)
 }
 
-// agentsMdSource is the final AGENTS.md, symlinked from the scratch at
-// AgentsMdScratchMount. In this priority order: the CLI's ccbox-admin variant, the
-// shared doc, then the shared doc's ccbox-admin variant
+// agentsMdSource renders the final AGENTS.md: the CLI's template if present,
+// else the shared one
 func agentsMdSource(cliName string, isProxied bool) ([]byte, error) {
-	if osutil.Present(cliAdminPath(cliName)) {
-		return readAgentsMd(cliAdminPath(cliName), isProxied)
+	if osutil.Present(cliTmplMdPath(cliName)) {
+		return renderAgentsTmpl(cliTmplMdPath(cliName), agentsTmplCtx{isProxied: isProxied})
 	}
-	if osutil.Present(userAgentsMdPath()) {
-		return os.ReadFile(userAgentsMdPath()) // #nosec G304 -- the shared doc's own path
-	}
-	return readAgentsMd(userAgentsAdminMdPath(), isProxied)
+	return renderAgentsTmpl(userAgentsTmplMdPath(), agentsTmplCtx{isProxied: isProxied, isShared: true})
 }
 
-var (
-	// adminMdSrc is the admin doc's template
-	//
-	//go:embed admin.md.tmpl
-	adminMdSrc  string
-	adminMdTmpl = template.Must(template.New("admin.md").Parse(adminMdSrc))
-)
-
-//go:embed AGENTS.README.md
-var agentsReadmeMd []byte
-
-const (
-	// AgentsMdFileName is the shared AGENTS doc's file name, joined into the scratch
-	// file's host and container paths
-	AgentsMdFileName      = "AGENTS.md"
-	agentsAdminMdFileName = "AGENTS.ccbox-admin.md"
-
-	userAgentsMdFileName       = "AGENTS.user.md"
-	userAgentsAdminMdFileName  = "AGENTS.user.ccbox-admin.md"
-	userAgentsReadmeMdFileName = "AGENTS.README.md"
-)
-
-// readAgentsMd reads a ccbox-admin variant at path, with the rendered admin doc prepended
-func readAgentsMd(path string, isProxied bool) ([]byte, error) {
-	body, err := os.ReadFile(path) // #nosec G304 -- the ccbox-admin variant's own path
+func renderAgentsTmpl(path string, ctx agentsTmplCtx) ([]byte, error) {
+	src, err := os.ReadFile(path) // #nosec G304 -- the template's own path
 	if err != nil {
 		return nil, err
 	}
-	return append([]byte(adminMd(isProxied)), body...), nil
+	tmpl, err := template.New("agents").
+		Delims("<!--{{", "}}-->"). // the actions read as comments in the doc's markdown
+		Funcs(ctx.funcs()).
+		Option("missingkey=error").
+		Parse(string(src))
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	var b bytes.Buffer
+	if err := tmpl.Execute(&b, nil); err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return b.Bytes(), nil
 }
 
-// adminMd renders the admin doc; a direct-network run drops the network section.
-// The template is static, so execute errors are unreachable.
-func adminMd(isProxied bool) string {
-	var b bytes.Buffer
-	must.Do(adminMdTmpl.Execute(&b, struct{ IsProxied bool }{isProxied}))
-	return b.String()
+// agentsTmplCtx carries the AGENTS doc template's funcs. isShared marks the shared
+// doc itself, where sharedAgentsMd would recurse and so errors
+type agentsTmplCtx struct {
+	isProxied bool
+	isShared  bool
 }
+
+var (
+	//go:embed admin.md
+	adminMd string
+	//go:embed admin.proxied.md
+	adminProxiedMd string
+)
+
+func (c agentsTmplCtx) funcs() template.FuncMap {
+	return template.FuncMap{
+		"adminSection": func() string { return adminMd },
+		"proxySection": func() string { return adminProxiedMd },
+		"IsProxied":    func() bool { return c.isProxied },
+		"sharedAgentsMd": func() (string, error) {
+			if c.isShared {
+				return "", errors.New("sharedAgentsMd is only available in a CLI's " + agentsTmplMdFileName)
+			}
+			body, err := renderAgentsTmpl(userAgentsTmplMdPath(), agentsTmplCtx{isProxied: c.isProxied, isShared: true})
+			return string(body), err
+		},
+	}
+}
+
+const (
+	agentsMdFileName = "AGENTS.md"
+
+	agentsTmplMdFileName       = "AGENTS.tmpl.md"
+	userAgentsReadmeMdFileName = "AGENTS.README.md"
+)
 
 // realCliFile is the CLI's AGENTS doc: <UserConfigDir>/AGENTS.md
 func realCliFile(cliName string) string {
-	return filepath.Join(cli.UserConfigDir(cliName), AgentsMdFileName)
+	return filepath.Join(cli.UserConfigDir(cliName), agentsMdFileName)
 }
 
-// cliAdminPath is the CLI's AGENTS doc's ccbox-admin variant: <UserConfigDir>/AGENTS.ccbox-admin.md
-func cliAdminPath(cliName string) string {
-	return filepath.Join(cli.UserConfigDir(cliName), agentsAdminMdFileName)
+// cliTmplMdPath is the CLI's AGENTS doc template: <UserConfigDir>/AGENTS.tmpl.md
+func cliTmplMdPath(cliName string) string {
+	return filepath.Join(cli.UserConfigDir(cliName), agentsTmplMdFileName)
 }
 
-// userAgentsMdPath is the shared AGENTS doc's host path: ~/.ccbox/AGENTS.user.md
-func userAgentsMdPath() string { return filepath.Join(userdir.Dir(), userAgentsMdFileName) }
-
-// userAgentsAdminMdPath is the shared AGENTS doc's ccbox-admin variant: ~/.ccbox/AGENTS.user.ccbox-admin.md
-func userAgentsAdminMdPath() string { return filepath.Join(userdir.Dir(), userAgentsAdminMdFileName) }
+// userAgentsTmplMdPath is the shared AGENTS doc template: ~/.ccbox/AGENTS.tmpl.md
+func userAgentsTmplMdPath() string { return filepath.Join(userdir.Dir(), agentsTmplMdFileName) }
 
 // userAgentsReadmeMdPath is the shared AGENTS docs' explainer: ~/.ccbox/AGENTS.README.md
 func userAgentsReadmeMdPath() string { return filepath.Join(userdir.Dir(), userAgentsReadmeMdFileName) }
