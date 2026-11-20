@@ -34,9 +34,9 @@ ENV PATH=/usr/local/share/mise/shims:$PATH PLAYWRIGHT_BROWSERS_PATH=/opt/ms-play
 # hadolint ignore=SC2086
 RUN set -eux; \
     export HOME=/root; \
-{{.BuildEnv}}    apt-get update; \
+{{.EnvBuildDeps}}    apt-get update; \
     mise bootstrap packages apply --yes; \
-    buildDeps='{{.BuildDeps}}'; \
+    buildDeps='{{.AptBuildDeps}}'; \
     apt-get install -y --no-install-recommends $buildDeps; \
     MISE_DATA_DIR=/usr/local/share/mise mise install; \
     apt-get purge -y --auto-remove $buildDeps; \

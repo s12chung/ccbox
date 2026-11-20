@@ -40,9 +40,9 @@ func TestRegions(t *testing.T) {
 		render func(regions) string
 		want   string
 	}{
-		{"buildDeps", regions.BuildDeps, ""},
+		{"buildDeps", regions.AptBuildDeps, ""},
 		{
-			"buildEnv", regions.BuildEnv,
+			"buildEnv", regions.EnvBuildDeps,
 			"    export CARGO_HOME=/usr/local/share/mise/cargo; \\\n    export RUSTUP_HOME=/usr/local/share/mise/rustup; \\\n",
 		},
 		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin:/home/ccbox/.cargo/bin"},
@@ -69,8 +69,8 @@ func TestRegions_Selection(t *testing.T) {
 		render func(regions) string
 		want   string
 	}{
-		{"buildDeps", regions.BuildDeps, ""},
-		{"buildEnv", regions.BuildEnv, ""},
+		{"buildDeps", regions.AptBuildDeps, ""},
+		{"buildEnv", regions.EnvBuildDeps, ""},
 		{"PATHDirs", regions.PATHDirs, "/home/ccbox/go/bin:/home/ccbox/.npm-global/bin"},
 		{"envVars", regions.EnvVars, "GOBIN=/home/ccbox/go/bin NPM_CONFIG_PREFIX=/home/ccbox/.npm-global NPM_CONFIG_UPDATE_NOTIFIER=false"},
 		{"cacheDirs", regions.CacheDirs, "/home/ccbox/go /home/ccbox/.npm /home/ccbox/.npm-global"},

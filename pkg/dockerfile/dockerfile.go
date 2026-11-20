@@ -26,14 +26,14 @@ var (
 // regions is the tmpl's data; its exported methods are the tmpl's actions.
 type regions struct{ runtimes []runtime.Runtime }
 
-// BuildDeps renders the from-source compile RUN's $buildDeps
-func (r regions) BuildDeps() string {
+// AptBuildDeps renders the from-source compile RUN's $buildDeps
+func (r regions) AptBuildDeps() string {
 	return strings.Join(r.collect(func(rt runtime.Runtime) []string { return rt.AptBuildDeps }), " ")
 }
 
-// BuildEnv renders the from-source install RUN's env exports — the RUN's shell
-// alone; the baked image only sees what EnvVars redefines
-func (r regions) BuildEnv() string {
+// EnvBuildDeps renders the from-source install RUN's env exports — the RUN's
+// shell alone; the baked image only sees what EnvVars redefines
+func (r regions) EnvBuildDeps() string {
 	var b strings.Builder
 	for _, rt := range r.runtimes {
 		for _, k := range slices.Sorted(maps.Keys(rt.EnvBuildDeps)) {
