@@ -1,6 +1,8 @@
 package dmap
 
 import (
+	"strings"
+
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/proxy"
@@ -8,10 +10,8 @@ import (
 
 // ExecMode is the exec session's selected mode, with Args carrying its args
 type ExecMode struct {
-	Shell    bool     // the exec subcommand: Args exec in the container
-	Continue bool     // -c: continue the last session
-	Resume   bool     // -r: resume a session
-	Args     []string // the exec argv (exec), or the resumed session's name (-r)
+	Shell bool     // the exec subcommand: Args exec in the container
+	Args  []string // the exec argv
 }
 
 // ExecMap maps the exec session's mode to the docker pkg exec options
@@ -37,7 +37,7 @@ func (em *ExecMap) cmd(mode ExecMode, isProxied bool) []string {
 			argv = []string{"bash"}
 		}
 	} else {
-		argv = em.cli.SessionCmd(mode.Continue, mode.Resume, mode.Args)
+		argv = strings.Fields(em.cli.Cmd)
 	}
 	if !isProxied {
 		return append([]string{"ccboxtools", "exec", "--"}, argv...)

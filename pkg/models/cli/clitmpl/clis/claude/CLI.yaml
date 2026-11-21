@@ -11,10 +11,6 @@ config_dir_env_key: "CLAUDE_CONFIG_DIR"
 # CLIs that sandbox themselves with bubblewrap are buggy in this container without root —
 # pass their no-sandbox flag (see codex). claude needs none.
 cmd: "claude"
-# -c reopens the latest session, --resume opens the picker. Syntax differs per CLI:
-# codex has a `resume` subcommand (`resume --last` to continue).
-continue_args: "-c"
-resume_args: "--resume"
 
 setup:
   # Off-switches for self-update and background traffic

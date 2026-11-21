@@ -20,7 +20,6 @@ import (
 	"maps"
 	"path/filepath"
 	"slices"
-	"strings"
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
@@ -119,11 +118,8 @@ type CLI struct {
 	// (e.g. CLAUDE_CONFIG_DIR), set per run by pkg/docker.
 	ConfigDirEnvKey *string `yaml:"config_dir_env_key"`
 
-	// Cmd is the launch argv prefix; ContinueArgs/ResumeArgs extend it for the
-	// run flags (-c/--resume) in each CLI's own session syntax.
-	Cmd          string `yaml:"cmd"`
-	ContinueArgs string `yaml:"continue_args"`
-	ResumeArgs   string `yaml:"resume_args"`
+	// Cmd is the launch argv prefix
+	Cmd string `yaml:"cmd"`
 
 	// Setup is what ccbox sets up for this CLI in the container, shared with GUIApp's
 	Setup app.Setup `yaml:"setup"`
@@ -132,14 +128,10 @@ type CLI struct {
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[CLI]().
 		Validates(firm.RuleMap{
-			"PkgInfo": {firm.Backed()},
-
-			"Cmd":          {rule.Present{}},
-			"ContinueArgs": {rule.Present{}},
-			"ResumeArgs":   {rule.Present{}},
-
+			"PkgInfo":         {firm.Backed()},
 			"ConfigHomeMount": {firmrule.HomePath},
 			"ConfigDirEnvKey": {firmrule.EnvVar},
+			"Cmd":             {rule.Present{}},
 			"Setup":           {firm.Backed()},
 		}))
 }
@@ -167,20 +159,4 @@ func MustFor(name string) CLI {
 		panic(fmt.Sprintf("cli: unknown cli %q", name))
 	}
 	return c
-}
-
-// SessionCmd maps the resume flags to the CLI's session syntax: continue the
-// last session, resume one (bare for the picker, or named via args), or launch fresh.
-func (c CLI) SessionCmd(cont, resume bool, args []string) []string {
-	cmd := []string{c.Cmd}
-	switch {
-	case cont:
-		cmd = append(cmd, c.ContinueArgs)
-	case resume:
-		cmd = append(cmd, c.ResumeArgs, strings.Join(args, " "))
-	}
-	cmd = slices.DeleteFunc(cmd, func(s string) bool {
-		return s == ""
-	})
-	return strings.Split(strings.Join(cmd, " "), " ")
 }

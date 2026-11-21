@@ -15,33 +15,6 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
-func TestResumeArgs(t *testing.T) {
-	defer func() { execMode.Resume = false }()
-
-	tests := []struct {
-		name    string
-		resume  bool
-		args    []string
-		wantErr bool
-	}{
-		{name: "no args is fine", resume: false, args: nil},
-		{name: "name with -r is fine", resume: true, args: []string{"auth-refactor"}},
-		{name: "name without -r is rejected", resume: false, args: []string{"auth-refactor"}, wantErr: true},
-		{name: "two names is rejected", resume: true, args: []string{"a", "b"}, wantErr: true},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			execMode.Resume = tt.resume
-			err := rootCmd.Args(nil, tt.args)
-			if tt.wantErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestSeedDataBinds(t *testing.T) {
 	t.Run("seeds the file under its data dir", func(t *testing.T) {
 		userDir := t.TempDir()

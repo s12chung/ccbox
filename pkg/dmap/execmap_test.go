@@ -16,9 +16,6 @@ func TestExecMap_Cmd(t *testing.T) {
 	assert.Equal(t, execArgv("bash"), em.cmd(ExecMode{Shell: true}, true), "bare exec drops into the image's shell")
 	assert.Equal(t, execArgv("make", "test"),
 		em.cmd(ExecMode{Shell: true, Args: []string{"make", "test"}}, true), "exec execs the args")
-	assert.Equal(t, execArgv("claude", "-c"), em.cmd(ExecMode{Continue: true}, true))
-	assert.Equal(t, execArgv("claude", "--resume", "sess"),
-		em.cmd(ExecMode{Resume: true, Args: []string{"sess"}}, true))
 	assert.Equal(t, []string{"ccboxtools", "exec", "--", "bash"}, em.cmd(ExecMode{Shell: true}, false),
 		"a plain variant runs no egress wall: the session is the image's user, already arrived")
 }

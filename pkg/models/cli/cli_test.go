@@ -55,7 +55,7 @@ func resetAll(t *testing.T) string {
 }
 
 const userCliYAML = "npm:\n  package: mycli\n\nconfig_home_mount: \".mycli\"\n\n" +
-	"cmd: \"mycli\"\ncontinue_args: \"-c\"\nresume_args: \"--resume\"\n\nsetup:\n  proxied:\n    allow_domains:\n      - mycli.dev\n"
+	"cmd: \"mycli\"\n\nsetup:\n  proxied:\n    allow_domains:\n      - mycli.dev\n"
 
 // writeUserCli writes a user cli at dir/clis/<name> like the embedded clis tree:
 // CLI.yaml plus optional config files under config/.
@@ -167,8 +167,7 @@ func testLoadUserSkips(t *testing.T, name, body string, configs map[string]strin
 }
 
 // validCliYAML is a valid CLI.yaml, mutated one bad field at a time in parseRejectsTests
-const validCliYAML = "npm:\n  package: mycli\nconfig_home_mount: \".mycli\"\ncmd: \"mycli\"\n" +
-	"continue_args: \"-c\"\nresume_args: \"--resume\"\n"
+const validCliYAML = "npm:\n  package: mycli\nconfig_home_mount: \".mycli\"\ncmd: \"mycli\"\n"
 
 // TestParseCLI_ReleaseURLDoc loads a jq_schema version_url: the selector
 // must parse at load, not on first install.
@@ -180,9 +179,7 @@ func TestParseCLI_ReleaseURLDoc(t *testing.T) {
 		"    version: \".version\"\n" +
 		"    download_url: \".url\"\n" +
 		"config_home_mount: \".mycli\"\n" +
-		"cmd: \"mycli\"\n" +
-		"continue_args: \"-c\"\n" +
-		"resume_args: \"--resume\"\n"
+		"cmd: \"mycli\"\n"
 
 	c, err := parseCLI("mycli", []byte(body), false)
 	require.NoError(t, err)
@@ -241,12 +238,11 @@ func TestParseCLI_Rejects(t *testing.T) {
 			[]string{"JQExpr"},
 		},
 		{
-			"missing session args", "npm:\n  package: mycli\ncmd: \"mycli\"\nconfig_home_mount: \".mycli\"\n",
-			[]string{"ContinueArgs.Present", "ResumeArgs.Present"},
+			"missing cmd", "npm:\n  package: mycli\nconfig_home_mount: \".mycli\"\n",
+			[]string{"Cmd.Present"},
 		},
 		{
-			"absolute config home mount", "npm:\n  package: mycli\nconfig_home_mount: \"/etc/mycli\"\ncmd: \"mycli\"\n" +
-				"continue_args: \"-c\"\nresume_args: \"--resume\"\n",
+			"absolute config home mount", "npm:\n  package: mycli\nconfig_home_mount: \"/etc/mycli\"\ncmd: \"mycli\"\n",
 			[]string{"ConfigHomeMount.Match"},
 		},
 		{
@@ -353,42 +349,6 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 	assert.JSONEq(t, `{"name":"mycli","npm":null,"version_url":{"url":"https://mycli.dev/stable",`+
 		`"download_template":{"x64_url":"https://mycli.dev/mycli-$version-linux-x86_64",`+
 		`"arm64_url":"https://mycli.dev/mycli-$version-linux-aarch64"},"jq_schema":null,"artifact":null}}`, body)
-}
-
-func TestCLI_SessionCmd(t *testing.T) {
-	tests := []struct {
-		cli    CLI
-		cont   bool
-		resume bool
-		args   []string
-		want   []string
-	}{
-		{cli: MustFor("claude"), want: []string{"claude"}},
-		{cli: MustFor("claude"), cont: true, want: []string{"claude", "-c"}},
-		{cli: MustFor("claude"), resume: true, want: []string{"claude", "--resume"}},
-		{cli: MustFor("claude"), resume: true, args: []string{"auth-refactor"}, want: []string{"claude", "--resume", "auth-refactor"}},
-
-		{cli: MustFor("codex"), want: []string{"codex", "--sandbox", "danger-full-access"}},
-		{cli: MustFor("codex"), cont: true, want: []string{"codex", "--sandbox", "danger-full-access", "resume", "--last"}},
-		{cli: MustFor("codex"), resume: true, want: []string{"codex", "--sandbox", "danger-full-access", "resume"}},
-		{cli: MustFor("codex"), resume: true, args: []string{"abc123"}, want: []string{"codex", "--sandbox", "danger-full-access", "resume", "abc123"}},
-
-		{cli: MustFor("opencode"), want: []string{"opencode"}},
-		{cli: MustFor("opencode"), cont: true, want: []string{"opencode", "-c"}},
-		// No picker flag: bare --session errors in opencode, so -r needs an id
-		{cli: MustFor("opencode"), resume: true, want: []string{"opencode", "--session"}},
-		{cli: MustFor("opencode"), resume: true, args: []string{"ses_42"}, want: []string{"opencode", "--session", "ses_42"}},
-
-		{cli: MustFor("pi"), want: []string{"pi"}},
-		{cli: MustFor("pi"), cont: true, want: []string{"pi", "-c"}},
-		// No picker flag: bare --session errors, so -r needs an id
-		{cli: MustFor("pi"), resume: true, want: []string{"pi", "--session"}},
-		{cli: MustFor("pi"), resume: true, args: []string{"abc123"}, want: []string{"pi", "--session", "abc123"}},
-	}
-	for _, tt := range tests {
-		got := tt.cli.SessionCmd(tt.cont, tt.resume, tt.args)
-		assert.Equal(t, tt.want, got, "%s cont=%v resume=%v", tt.cli.Name, tt.cont, tt.resume)
-	}
 }
 
 func TestEnv(t *testing.T) {

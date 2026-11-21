@@ -5,7 +5,6 @@ package cmd
 import (
 	"context"
 	"embed"
-	"errors"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -49,17 +48,8 @@ var rootCmd = &cobra.Command{
 	Long:          "Run your harness in a hardened Docker devbox; `ccbox exec [command...]` execs a command in it instead.",
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Args: func(_ *cobra.Command, args []string) error {
-		switch {
-		case len(args) > 1:
-			return errors.New("accepts at most one session name")
-		case len(args) == 1 && !execMode.Resume:
-			return errors.New("a session name requires -r/--resume")
-		}
-		return nil
-	},
-	RunE: func(cmd *cobra.Command, args []string) error {
-		execMode.Args = args
+	Args:          cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		return execSession(cmd.Context(), execMode)
 	},
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
@@ -105,11 +95,6 @@ func Execute(buildContext embed.FS) error {
 
 func init() {
 	// see exec.go's init for more flags set for rootCmd
-	f := rootCmd.Flags()
-	f.BoolVarP(&execMode.Continue, "continue", "c", false, "continue the last session")
-	f.BoolVarP(&execMode.Resume, "resume", "r", false, "resume a session: `ccbox -r <name>`, or bare for the picker")
-	rootCmd.MarkFlagsMutuallyExclusive("continue", "resume")
-
 	pf := rootCmd.PersistentFlags()
 	pf.Var(flagptr.String(&flags.CLI), "cli", "override the coding CLI set in .ccbox.yaml")
 	pf.Var(flagptr.String(&flags.PortBindingsTCP), "port-bindings-tcp", "bind tcp ports on localhost, host = container port")

@@ -5,9 +5,6 @@ npm:
 config_home_mount: ".config/opencode"
 
 cmd: "opencode"
-continue_args: "-c"
-# No picker flag exists; bare --session errors, so -r needs a session id.
-resume_args: "--session"
 
 setup:
   env:
