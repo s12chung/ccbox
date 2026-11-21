@@ -30,6 +30,13 @@ func Missing(path string) bool {
 // Present returns whether path exists
 func Present(path string) bool { return !Missing(path) }
 
+// DirEmpty returns whether dir holds no entries; a missing dir counts as empty, any
+// other read error as full
+func DirEmpty(dir string) bool {
+	entries, err := os.ReadDir(dir)
+	return (err == nil || errors.Is(err, fs.ErrNotExist)) && len(entries) == 0
+}
+
 // PickLayer returns the first present of paths, in the order given; "" when none is present
 func PickLayer(paths ...string) string {
 	for _, path := range paths {

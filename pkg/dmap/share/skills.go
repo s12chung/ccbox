@@ -13,15 +13,15 @@ import (
 )
 
 // SafeSeedSkills seeds the shared skills dir when missing: an empty pool binding
-// into every cli without its own skills dir
+// into every cli without skills of its own
 func SafeSeedSkills() error { return os.MkdirAll(SkillsDir(), osutil.Dir) }
 
 // SkillsBind binds SkillsDir at the cli's user skills mount when the cli's config
-// home lacks its own; the zero bind shares nothing — its config home bind already
-// delivers its skills
+// home lacks skills of its own — an empty dir doesn't count, the cli re-creates
+// it each run
 func SkillsBind(cliName string) klean.ShareBind {
-	if osutil.Present(filepath.Join(cli.UserConfigDir(cliName), skillsDirName)) {
-		return klean.ShareBind{}
+	if !osutil.DirEmpty(filepath.Join(cli.UserConfigDir(cliName), skillsDirName)) {
+		return klean.ShareBind{} // its config home bind already delivers its skills
 	}
 	return klean.ShareBind{
 		HostPath:      SkillsDir(),

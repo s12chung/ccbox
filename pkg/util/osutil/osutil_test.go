@@ -21,6 +21,21 @@ func TestMissing(t *testing.T) {
 	assert.True(t, Missing(filepath.Join(dir, "no-dir", "missing")))
 }
 
+func TestDirEmpty(t *testing.T) {
+	dir := t.TempDir()
+	empty := filepath.Join(dir, "empty")
+	afile := filepath.Join(dir, "afile")
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "populated/entry"), Dir))
+	require.NoError(t, os.WriteFile(afile, nil, File))
+
+	assert.True(t, DirEmpty(filepath.Join(dir, "missing")), "a missing dir counts as empty")
+	assert.True(t, DirEmpty(filepath.Join(dir, "no-dir", "missing")))
+	assert.True(t, DirEmpty(empty))
+	assert.False(t, DirEmpty(filepath.Join(dir, "populated")))
+	assert.False(t, DirEmpty(dir), "any entry counts")
+	assert.False(t, DirEmpty(afile), "a file reads as full")
+}
+
 func TestDirs_Present(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.MkdirAll(filepath.Join(dir, "present/nested"), Dir))

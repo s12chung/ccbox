@@ -59,9 +59,19 @@ func TestSkillsBind(t *testing.T) {
 		}
 	})
 
-	t.Run("no bind when the config home carries its own skills dir", func(t *testing.T) {
+	t.Run("binds over the cli's empty skills dir", func(t *testing.T) {
 		testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(cli.UserConfigDir("claude"), skillsDirName), osutil.Dir))
+
+		assert.Equal(t, klean.ShareBind{
+			HostPath:      SkillsDir(),
+			ContainerPath: path.Join(pkginfo.ContainerHome, ".claude", skillsDirName),
+		}, SkillsBind("claude"))
+	})
+
+	t.Run("no bind when the config home carries its own skills", func(t *testing.T) {
+		testutil.Home(t)
+		require.NoError(t, os.MkdirAll(filepath.Join(cli.UserConfigDir("claude"), skillsDirName, "pdf-tools"), osutil.Dir))
 
 		assert.Equal(t, klean.ShareBind{}, SkillsBind("claude"))
 	})
