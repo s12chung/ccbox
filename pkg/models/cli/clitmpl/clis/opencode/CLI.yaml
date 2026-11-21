@@ -1,6 +1,6 @@
 # OpenCode (Anomaly).
 npm:
-  package: "opencode-ai"
+  package: "@opencode/cli"
 
 config_home_mount: ".config/opencode"
 
@@ -16,4 +16,3 @@ setup:
     allow_domains:
       - ccbox-all-providers
       - opencode.ai
-      - models.dev
