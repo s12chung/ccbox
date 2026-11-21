@@ -2,7 +2,6 @@ package dler
 
 import (
 	"crypto/sha512"
-	"encoding/base64"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/verify"
 )
 
 // zcodeManifest is the app's auto-update feed for linux-x64, served at
@@ -57,27 +57,29 @@ var zcodeSchema = pkginfo.JQSchema{
 	Format:      "yaml",
 	Version:     ".version",
 	DownloadURL: `.files[] | select(.url | endswith(".deb")) | .url`,
-	Sha512:      `.files[] | select(.url | endswith(".deb")) | .sha512`,
+	Sha512: &pkginfo.Sha512Pin{
+		Selector: `.files[] | select(.url | endswith(".deb")) | .sha512`,
+		Encoding: "base64",
+	},
 }
 
 // zcodeDebSha512 is the manifest's pinned sha512 for the deb entry.
 const zcodeDebSha512 = "CMaAUbHehEEGuClDJeJI30ufA0zAgzfXgzV4ES200EuGDt0yYhEpzvtjayxvE/ag9T9ThnDg1eP4o3j9HkCHKg=="
 
-// zcodeManifestServing rewrites the manifest's cdn to the test server and, when
-// content is non-nil, re-pins the deb's sha512 to content's, so the download
-// through zcodeSchema verifies against it.
-func zcodeManifestServing(host string, content []byte) string {
+// zcodeManifestServing rewrites the manifest's cdn to the test server and,
+// when encoding is set, rewrites the deb's pinned sha512 to content's hash in it.
+func zcodeManifestServing(host string, content []byte, encoding string) string {
 	m := strings.ReplaceAll(zcodeManifest, "https://cdn-zcode.z.ai", host)
-	if content != nil {
-		sum := sha512.Sum512(content)
-		pin := base64.StdEncoding.EncodeToString(sum[:])
-		m = strings.Replace(m, zcodeDebSha512, pin, 1)
+	if encoding == "" {
+		return m
 	}
-	return m
+	sum := sha512.Sum512(content)
+	return strings.Replace(m, zcodeDebSha512, verify.EncodeSum(sum[:], encoding), 1)
 }
 
-// newZcodeDownloader builds the manifest downloader against a TLS test server
-func newZcodeDownloader(t *testing.T, content []byte, repin bool) (JQ, *httptest.Server, func() []string) {
+// newZcodeDownloader builds the manifest downloader against a TLS test server;
+// encoding passes through to zcodeManifestServing.
+func newZcodeDownloader(t *testing.T, content []byte, encoding string) (JQ, *httptest.Server, func() []string) {
 	t.Helper()
 	var hits []string
 	var srv *httptest.Server
@@ -87,11 +89,7 @@ func newZcodeDownloader(t *testing.T, content []byte, repin bool) (JQ, *httptest
 			_, _ = w.Write(content)
 			return
 		}
-		pinned := content
-		if !repin {
-			pinned = nil
-		}
-		_, _ = w.Write([]byte(zcodeManifestServing(srv.URL, pinned)))
+		_, _ = w.Write([]byte(zcodeManifestServing(srv.URL, content, encoding)))
 	}))
 	t.Cleanup(srv.Close)
 
@@ -179,7 +177,7 @@ func TestJQ_Download(t *testing.T) {
 	content := []byte("deb-bytes")
 
 	t.Run("happy", func(t *testing.T) {
-		d, srv, hits := newZcodeDownloader(t, content, true)
+		d, srv, hits := newZcodeDownloader(t, content, "base64")
 
 		v, err := d.Latest(t.Context())
 		require.NoError(t, err)
@@ -199,7 +197,7 @@ func TestJQ_Download(t *testing.T) {
 	})
 
 	t.Run("hash mismatch", func(t *testing.T) {
-		d, _, _ := newZcodeDownloader(t, content, false)
+		d, _, _ := newZcodeDownloader(t, content, "")
 
 		rc, err := d.Download(t.Context(), "3.14.4")
 		require.NoError(t, err)
@@ -210,8 +208,25 @@ func TestJQ_Download(t *testing.T) {
 		assert.NoError(t, rc.Close())
 	})
 
+	t.Run("happy, hex hash", func(t *testing.T) {
+		d, _, _ := newZcodeDownloader(t, content, "hex")
+
+		// a fresh Sha512Pin: mutating the shared zcodeSchema.Sha512 leaks into later subtests
+		schema := zcodeSchema
+		schema.Sha512 = &pkginfo.Sha512Pin{Selector: schema.Sha512.Selector, Encoding: "hex"}
+		d.JQSchema = schema
+
+		rc, err := d.Download(t.Context(), "3.14.4")
+		require.NoError(t, err)
+		defer func() { assert.NoError(t, rc.Close()) }()
+
+		body, err := io.ReadAll(rc)
+		require.NoError(t, err)
+		assert.Equal(t, string(content), string(body))
+	})
+
 	t.Run("no url", func(t *testing.T) {
-		d, _, _ := newZcodeDownloader(t, content, true)
+		d, _, _ := newZcodeDownloader(t, content, "base64")
 
 		schema := zcodeSchema
 		schema.DownloadURL = `.files[] | select(.url | endswith(".nope")) | .url`
@@ -222,7 +237,7 @@ func TestJQ_Download(t *testing.T) {
 	})
 
 	t.Run("bad url", func(t *testing.T) {
-		d, _, _ := newZcodeDownloader(t, content, true)
+		d, _, _ := newZcodeDownloader(t, content, "base64")
 
 		schema := zcodeSchema
 		schema.DownloadURL = ".version" // "3.14.4" is not an https url
@@ -233,10 +248,21 @@ func TestJQ_Download(t *testing.T) {
 	})
 
 	t.Run("bad sha512", func(t *testing.T) {
-		d, _, _ := newZcodeDownloader(t, content, true)
+		d, _, _ := newZcodeDownloader(t, content, "base64")
 
 		schema := zcodeSchema
-		schema.Sha512 = ".version" // "3.14.4" is not a base64 sha512
+		schema.Sha512 = &pkginfo.Sha512Pin{Selector: ".version", Encoding: "base64"} // "3.14.4" is not a sha512 hash
+		d.JQSchema = schema
+
+		_, err := d.Download(t.Context(), "3.14.4")
+		assert.ErrorContains(t, err, "is not a base64 std sha512")
+	})
+
+	t.Run("empty selection", func(t *testing.T) {
+		d, _, _ := newZcodeDownloader(t, content, "base64")
+
+		schema := zcodeSchema
+		schema.Sha512 = &pkginfo.Sha512Pin{Selector: `.doesnotexist // ""`, Encoding: "base64"} // the manifest pinned nothing
 		d.JQSchema = schema
 
 		_, err := d.Download(t.Context(), "3.14.4")
@@ -244,12 +270,12 @@ func TestJQ_Download(t *testing.T) {
 	})
 
 	t.Run("no sha512 selector", func(t *testing.T) {
-		// the manifest still pins the real deb's hash (repin false): the read's
-		// success shows firm's optional-selector empty pass and no verification
-		d, _, _ := newZcodeDownloader(t, content, false)
+		// the manifest still carries the real deb's pinned hash (no re-encoding): the
+		// read's success shows the nil Sha512 skipping selection, validation, and verification
+		d, _, _ := newZcodeDownloader(t, content, "")
 
 		schema := zcodeSchema
-		schema.Sha512 = ""
+		schema.Sha512 = nil
 		d.JQSchema = schema
 
 		rc, err := d.Download(t.Context(), "3.14.4")
@@ -262,7 +288,7 @@ func TestJQ_Download(t *testing.T) {
 	})
 
 	t.Run("no version selector", func(t *testing.T) {
-		d, _, _ := newZcodeDownloader(t, content, true)
+		d, _, _ := newZcodeDownloader(t, content, "base64")
 
 		schema := zcodeSchema
 		schema.Version = "" // not firm-tolerated: the drift guard's Equal fails
@@ -273,7 +299,7 @@ func TestJQ_Download(t *testing.T) {
 	})
 
 	t.Run("version drift", func(t *testing.T) {
-		d, _, _ := newZcodeDownloader(t, content, true)
+		d, _, _ := newZcodeDownloader(t, content, "base64")
 
 		_, err := d.Download(t.Context(), "9.9.9")
 		assert.ErrorContains(t, err, "Version is not equal to 9.9.9")

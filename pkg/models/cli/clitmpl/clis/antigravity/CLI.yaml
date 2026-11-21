@@ -1,0 +1,28 @@
+# Antigravity (Google).
+version_url:
+  url: "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_$goarch.json"
+  jq_schema:
+    format: json
+    version: ".version"
+    download_url: ".url"
+    sha512:
+      selector: ".sha512"
+      encoding: hex
+  artifact:
+    type: targz
+    rel_bin: antigravity
+
+config_home_mount: ".gemini"
+
+# its sandbox turns itself off here (no userns)
+cmd: "antigravity"
+
+setup:
+  proxied:
+    allow_domains:
+      - ccbox-google-provider
+      - play.googleapis.com
+      - www.gstatic.com
+      - antigravity-cli-auto-updater-974169037036.us-central1.run.app
+      - storage.googleapis.com
+      - antigravity.google

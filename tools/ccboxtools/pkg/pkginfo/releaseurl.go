@@ -14,8 +14,7 @@ import (
 // ReleaseURL installs from a URL whose body resolves the version: a bare-version
 // endpoint, or a structured document queried with a jq selector (JQSchema).
 type ReleaseURL struct {
-	// URL's literal $arch is substituted with the running arch's vendor name
-	// (ArchedURL)
+	// URL's $arch and $goarch placeholders; ArchedURL substitutes them
 	URL              string            `json:"url"               yaml:"url"`
 	DownloadTemplate *DownloadTemplate `json:"download_template" yaml:"download_template"`
 	JQSchema         *JQSchema         `json:"jq_schema"         yaml:"jq_schema"`
@@ -23,13 +22,14 @@ type ReleaseURL struct {
 }
 
 // ArchedURL returns URL with $arch substituted by the running arch's vendor name
-// (x64/arm64); a url without $arch passes through.
+// (x64/arm64) and $goarch by its Go name (amd64/arm64); a url without either
+// passes through.
 func (r ReleaseURL) ArchedURL() string {
 	arch, ok := map[string]string{"amd64": "x64", "arm64": "arm64"}[runtime.GOARCH]
 	if !ok {
 		return r.URL
 	}
-	return strings.ReplaceAll(r.URL, "$arch", arch)
+	return strings.NewReplacer("$arch", arch, "$goarch", runtime.GOARCH).Replace(r.URL)
 }
 
 // DownloadTemplate carries the per-arch download URL templates; a literal $version
@@ -40,18 +40,26 @@ type DownloadTemplate struct {
 }
 
 // JQSchema queries the manifest mode's document per its Format: Version
-// resolves the version, download_url names the file to download, and sha512
-// pins its hash (base64 std) for verification at download.
+// resolves the version, download_url names the file to download, and Sha512
+// verifies the file's hash at download.
 type JQSchema struct {
 	// Format names the document's parser: yaml or json
-	Format      string `json:"format"       yaml:"format"`
-	Version     string `json:"version"      yaml:"version"`
-	DownloadURL string `json:"download_url" yaml:"download_url"`
-	Sha512      string `json:"sha512"       yaml:"sha512"`
+	Format      string     `json:"format"       yaml:"format"`
+	Version     string     `json:"version"      yaml:"version"`
+	DownloadURL string     `json:"download_url" yaml:"download_url"`
+	Sha512      *Sha512Pin `json:"sha512"       yaml:"sha512"`
 }
 
-// Artifact is a packaged download: Type names the unpacker (deb now; zip etc.
-// later), RelBin is the executable's path inside the extracted tree.
+// Sha512Pin is the downloaded file's pinned hash.
+type Sha512Pin struct {
+	// Selector reads the manifest's pinned hash
+	Selector string `json:"selector" yaml:"selector"`
+	// Encoding names the hash's encoding: base64 (std) or hex
+	Encoding string `json:"encoding" yaml:"encoding"`
+}
+
+// Artifact is a packaged download: Type names the unpacker (deb, targz now; zip
+// etc. later), RelBin is the executable's path inside the extracted tree.
 type Artifact struct {
 	Type   string `json:"type"    yaml:"type"`
 	RelBin string `json:"rel_bin" yaml:"rel_bin"`
@@ -75,10 +83,14 @@ func init() {
 		"Format":      {rule.OneOf[string]{Values: []string{"yaml", "json"}}},
 		"Version":     {jqExpr{}, rule.Present{}},
 		"DownloadURL": {jqExpr{}, rule.Present{}},
-		"Sha512":      {jqExpr{}},
+		"Sha512":      {firm.Backed()},
+	}))
+	firm.MustRegisterType(firm.NewDefinition[Sha512Pin]().Validates(firm.RuleMap{
+		"Selector": {jqExpr{}, rule.Present{}},
+		"Encoding": {rule.OneOf[string]{Values: []string{"base64", "hex"}}},
 	}))
 	firm.MustRegisterType(firm.NewDefinition[Artifact]().Validates(firm.RuleMap{
-		"Type":   {rule.OneOf[string]{Values: []string{"deb"}}},
+		"Type":   {rule.OneOf[string]{Values: []string{"deb", "targz"}}},
 		"RelBin": {rule.Present{}},
 	}))
 }

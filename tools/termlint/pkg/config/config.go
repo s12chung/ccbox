@@ -23,9 +23,10 @@ type Config struct {
 // Term bans word in any casing and separator style, with an optional hint
 // printed alongside its violations.
 type Term struct {
-	Word   string   `json:"word"`
-	Allows []string `json:"allows"`
-	Hint   string   `json:"hint"`
+	Word         string   `json:"word"`
+	Allows       []string `json:"allows"`
+	Hint         string   `json:"hint"`
+	IncludeGlobs []string `json:"include_globs"`
 }
 
 // Load reads and validates the term config at path.

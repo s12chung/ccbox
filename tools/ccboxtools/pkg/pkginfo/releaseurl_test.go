@@ -19,6 +19,12 @@ func TestReleaseURL_ArchedURL(t *testing.T) {
 	r := ReleaseURL{URL: "https://x.ai/manifest?platform=linux-$arch"}
 	assert.Equal(t, "https://x.ai/manifest?platform=linux-"+arch, r.ArchedURL())
 
+	r.URL = "https://x.ai/manifests/linux_$goarch.json"
+	assert.Equal(t, "https://x.ai/manifests/linux_"+runtime.GOARCH+".json", r.ArchedURL())
+
+	r.URL = "https://x.ai/manifests/$arch-$goarch.json"
+	assert.Equal(t, "https://x.ai/manifests/"+arch+"-"+runtime.GOARCH+".json", r.ArchedURL())
+
 	r.URL = "https://x.ai/manifest"
 	assert.Equal(t, r.URL, r.ArchedURL())
 }
@@ -48,7 +54,10 @@ func TestReleaseURL_Validate(t *testing.T) {
 					Format:      "yaml",
 					Version:     ".version",
 					DownloadURL: `.files[] | select(.url | endswith(".deb")) | .url`,
-					Sha512:      `.files[] | select(.url | endswith(".deb")) | .sha512`,
+					Sha512: &Sha512Pin{
+						Selector: `.files[] | select(.url | endswith(".deb")) | .sha512`,
+						Encoding: "base64",
+					},
 				},
 				Artifact: &Artifact{Type: "deb", RelBin: "opt/ZCode/zcode"},
 			},
@@ -68,7 +77,7 @@ func TestReleaseURL_Validate(t *testing.T) {
 			ReleaseURL{
 				URL:              "https://x.ai/cli/stable",
 				DownloadTemplate: &DownloadTemplate{X64URL: "https://x", Arm64URL: "https://x"},
-				JQSchema:         &JQSchema{Format: "yaml", Version: ".version", Sha512: ".sha512"},
+				JQSchema:         &JQSchema{Format: "yaml", Version: ".version", Sha512: &Sha512Pin{Selector: ".sha512"}},
 			},
 			[]string{"OneNotNil"},
 		},

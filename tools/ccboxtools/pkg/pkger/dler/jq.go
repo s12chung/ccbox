@@ -90,12 +90,15 @@ type jqSchemaSelect struct {
 	Sha512      string
 }
 
-func jqSchemaSelectVldr(version string) firm.FieldsVldr[jqSchemaSelect] {
-	return firm.Fields[jqSchemaSelect](firm.RuleMap{
+func jqSchemaSelectVldr(version string, sha512 *pkginfo.Sha512Pin) firm.FieldsVldr[jqSchemaSelect] {
+	rules := firm.RuleMap{
 		"Version":     {rule.Equal[string]{To: version}},
 		"DownloadURL": {httpsURL},
-		"Sha512":      {base64Sha512{}},
-	})
+	}
+	if sha512 != nil {
+		rules["Sha512"] = []firm.Rule{sha512Pin{encoding: sha512.Encoding}}
+	}
+	return firm.Fields[jqSchemaSelect](rules)
 }
 
 // Download fetches the document once, guards it against rolling since Latest,
@@ -107,15 +110,15 @@ func (d JQ) Download(ctx context.Context, version string) (io.ReadCloser, error)
 		return nil, err
 	}
 
-	sel, err := jqutil.SelectFields(jqSchemaSelect{
-		Version:     d.Version,
-		DownloadURL: d.DownloadURL,
-		Sha512:      d.Sha512,
-	}, doc)
+	jqSelectors := jqSchemaSelect{Version: d.Version, DownloadURL: d.DownloadURL}
+	if d.Sha512 != nil {
+		jqSelectors.Sha512 = d.Sha512.Selector
+	}
+	sel, err := jqutil.SelectFields(jqSelectors, doc)
 	if err != nil {
 		return nil, err
 	}
-	if err := jqSchemaSelectVldr(version).Validate(sel); err != nil {
+	if err := jqSchemaSelectVldr(version, d.Sha512).Validate(sel); err != nil {
 		return nil, fmt.Errorf("%s: %w", d.url, err)
 	}
 
@@ -124,5 +127,10 @@ func (d JQ) Download(ctx context.Context, version string) (io.ReadCloser, error)
 	if err != nil {
 		return nil, err
 	}
-	return verify.NewSha512Reader(resp.Body, sel.DownloadURL, sel.Sha512), nil
+
+	var sha512 *verify.Sha512
+	if d.Sha512 != nil {
+		sha512 = &verify.Sha512{Hash: sel.Sha512, Encoding: d.Sha512.Encoding}
+	}
+	return verify.NewSha512Reader(resp.Body, sel.DownloadURL, sha512), nil
 }

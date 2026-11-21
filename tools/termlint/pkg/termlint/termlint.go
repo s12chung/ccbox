@@ -21,8 +21,9 @@ import (
 type term struct {
 	config.Term
 
-	order   int
-	matcher pattern.Matcher
+	order    int
+	matcher  pattern.Matcher
+	includes []glob.Glob
 }
 
 type violation struct {
@@ -45,7 +46,11 @@ func Run(root string) error {
 	if err != nil {
 		return err
 	}
-	violations, err := scan(root, cfg.Extensions, excludes, compileTerms(cfg.Terms))
+	terms, err := compileTerms(cfg.Terms)
+	if err != nil {
+		return err
+	}
+	violations, err := scan(root, cfg.Extensions, excludes, terms)
 	if err != nil {
 		return err
 	}
@@ -55,12 +60,16 @@ func Run(root string) error {
 	return errors.New(report(violations))
 }
 
-func compileTerms(terms []config.Term) []*term {
+func compileTerms(terms []config.Term) ([]*term, error) {
 	compiled := make([]*term, 0, len(terms))
 	for i, t := range terms {
-		compiled = append(compiled, &term{Term: t, order: i, matcher: pattern.Compile(t.Word, t.Allows)})
+		includes, err := compileGlobs(t.IncludeGlobs)
+		if err != nil {
+			return nil, err
+		}
+		compiled = append(compiled, &term{Term: t, order: i, matcher: pattern.Compile(t.Word, t.Allows), includes: includes})
 	}
-	return compiled
+	return compiled, nil
 }
 
 func compileGlobs(patterns []string) ([]glob.Glob, error) {
@@ -108,7 +117,14 @@ func scan(root string, extensions []string, excludes []glob.Glob, terms []*term)
 	return violations, err
 }
 
-func scanContent(path, content string, terms []*term) []violation {
+func scanContent(path, content string, allTerms []*term) []violation {
+	var terms []*term
+	for _, t := range allTerms {
+		if t.appliesTo(path) {
+			terms = append(terms, t)
+		}
+	}
+
 	var violations []violation
 	for i, text := range strings.Split(content, "\n") {
 		for _, t := range terms {
@@ -118,6 +134,13 @@ func scanContent(path, content string, terms []*term) []violation {
 		}
 	}
 	return violations
+}
+
+// appliesTo reports whether the term lints the file at path — unscoped terms
+// lint everywhere; scoped terms lint when an include glob matches.
+func (t *term) appliesTo(path string) bool {
+	return len(t.includes) == 0 ||
+		slices.ContainsFunc(t.includes, func(g glob.Glob) bool { return g.Match(path) })
 }
 
 // report groups violations by term, each group followed by its term's hint.

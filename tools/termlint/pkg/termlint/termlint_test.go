@@ -71,6 +71,24 @@ func TestRun_SkipsGitAndExcluded(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestRun_IncludeGlobs(t *testing.T) {
+	root := writeTree(t, map[string]string{
+		".termlint.json": `{
+			"extensions": [".go"],
+			"exclude_globs": [".termlint.json"],
+			"terms": [{"word": "pin", "include_globs": ["pkg/**"], "hint": "pinned hash"}]
+		}`,
+		"pkg/pin.go": "package pkg\nvar pin = 1\n",
+		"cmd/pin.go": "package main\nvar pin = 1\n",
+	})
+
+	err := Run(root)
+	require.Error(t, err)
+	assert.Equal(t, `pkg/pin.go:2:var pin = 1
+
+pinned hash`, err.Error())
+}
+
 func writeTree(t *testing.T, files map[string]string) string {
 	t.Helper()
 	root := t.TempDir()

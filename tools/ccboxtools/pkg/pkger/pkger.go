@@ -59,6 +59,8 @@ func newInstaller(rel pkginfo.ReleaseURL, name string) (Installer, error) {
 	switch rel.Artifact.Type {
 	case "deb":
 		return artifact.NewDeb(rel.Artifact.RelBin), nil
+	case "targz":
+		return artifact.NewTarGz(rel.Artifact.RelBin), nil
 	default: // unrepresentable via firm-validated config; Go-constructed configs hit it
 		return nil, fmt.Errorf("pkger: unknown artifact type %q", rel.Artifact.Type)
 	}

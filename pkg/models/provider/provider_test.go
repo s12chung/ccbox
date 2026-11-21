@@ -116,7 +116,7 @@ func TestLoadUser(t *testing.T) {
 		writeUserProvider(t, "another", userProviderYAML)
 		Load()
 
-		assert.Equal(t, []string{"another", "anthropic", "myprovider", "openai", "openrouter", "xai", "zai"}, names())
+		assert.Equal(t, []string{"another", "anthropic", "google", "myprovider", "openai", "openrouter", "xai", "zai"}, names())
 
 		domains, ok := DomainsFor("ccbox-myprovider-provider")
 		require.True(t, ok)

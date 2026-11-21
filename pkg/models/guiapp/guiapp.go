@@ -47,7 +47,10 @@ var App = GUIApp{
 					Format:      "yaml",
 					Version:     ".version",
 					DownloadURL: `.files[] | select(.url | endswith(".deb")) | .url`,
-					Sha512:      `.files[] | select(.url | endswith(".deb")) | .sha512`,
+					Sha512: &pkginfo.Sha512Pin{
+						Selector: `.files[] | select(.url | endswith(".deb")) | .sha512`,
+						Encoding: "base64",
+					},
 				},
 				Artifact: &pkginfo.Artifact{Type: "deb", RelBin: "opt/ZCode/zcode"},
 			},

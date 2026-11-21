@@ -3,6 +3,11 @@
   "exclude_globs": ["dist/**", ".idea/**", "tools/termlint/**", ".termlint.json"],
   "terms": [
     {
+      "word": "pin",
+      "include_globs": ["pkg/models/guiapp/**", "pkg/models/cli/clitmpl/**", "tools/ccboxtools/pkg/pkger/**", "tools/ccboxtools/pkg/pkginfo/**", "tools/ccboxtools/pkg/util/verify/**"],
+      "hint": "standalone \"pin/pins\" is banned — say \"pinned hash\" or compound it (Sha512Pin)"
+    },
+    {
       "word": "wall",
       "allows": ["egress wall", "wall/walled"],
       "hint": "standalone \"wall/walled\" is banned — use \"proxy\" or \"egress wall\""

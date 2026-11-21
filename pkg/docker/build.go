@@ -16,7 +16,7 @@ import (
 	"github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/util/progress/progressui"
 
-	"github.com/s12chung/ccbox/pkg/util/tarutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/tarutil"
 )
 
 // BuildOptions configures an image build.

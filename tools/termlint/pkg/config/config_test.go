@@ -16,7 +16,7 @@ func TestLoad_Ok(t *testing.T) {
 	requireWrite(t, path, `{
 		"extensions": [".go", ".md"],
 		"exclude_globs": ["dist/**"],
-		"terms": [{"word": "wall", "allows": ["egress wall"], "hint": "use egress wall"}]
+		"terms": [{"word": "wall", "allows": ["egress wall"], "hint": "use egress wall", "include_globs": ["pkg/**"]}]
 	}`)
 
 	config, err := Load(path)
@@ -27,6 +27,7 @@ func TestLoad_Ok(t *testing.T) {
 	assert.Equal(t, "wall", config.Terms[0].Word)
 	assert.Equal(t, []string{"egress wall"}, config.Terms[0].Allows)
 	assert.Equal(t, "use egress wall", config.Terms[0].Hint)
+	assert.Equal(t, []string{"pkg/**"}, config.Terms[0].IncludeGlobs)
 }
 
 func TestLoad_Errors(t *testing.T) {

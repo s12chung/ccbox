@@ -62,6 +62,15 @@ func init() {
 // builtinProviders is every built-in provider, sorted by name.
 var builtinProviders = []Provider{
 	{Name: "anthropic", Domains: []string{"api.anthropic.com"}},
+	{Name: "google", Domains: []string{
+		"accounts.google.com",
+		"aicode.googleapis.com",
+		"aiplatform.googleapis.com",
+		"businessaicode.googleapis.com",
+		"cloudcode-pa.googleapis.com",
+		"generativelanguage.googleapis.com",
+		"oauth2.googleapis.com",
+	}},
 	{Name: "openai", Domains: []string{"api.openai.com", "auth.openai.com"}},
 	{Name: "openrouter", Domains: []string{"openrouter.ai"}},
 	{Name: "xai", Domains: []string{"x.ai"}},
