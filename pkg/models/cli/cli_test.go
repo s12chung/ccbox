@@ -17,6 +17,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
@@ -31,7 +32,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNames(t *testing.T) {
-	assert.Equal(t, []string{"antigravity", "claude", "codex", "opencode", "pi"}, Names())
+	assert.Equal(t, []string{"claude", "codex", "opencode", "pi"}, Names())
 }
 
 func TestUserConfigDir(t *testing.T) {
@@ -76,7 +77,7 @@ func TestLoadUser(t *testing.T) {
 		writeUserCli(t, dir, "mycli", userCliYAML, nil)
 		all = mustLoadAll()
 
-		assert.Equal(t, []string{"antigravity", "claude", "codex", "mycli", "opencode", "pi"}, Names())
+		assert.Equal(t, []string{"claude", "codex", "mycli", "opencode", "pi"}, Names())
 
 		c, ok := lookup("mycli")
 		require.True(t, ok)
@@ -89,7 +90,7 @@ func TestLoadUser(t *testing.T) {
 	t.Run("missing dir loads nothing", func(t *testing.T) {
 		resetAll(t)
 		all = mustLoadAll()
-		assert.Len(t, all, 5)
+		assert.Len(t, all, 4)
 	})
 
 	t.Run("skips bad clis with a warning", func(t *testing.T) {
@@ -138,7 +139,7 @@ func TestLoadUser_OverridesEmbedded(t *testing.T) {
 	all = mustLoadAll()
 
 	// map keys are unique: the user cli replaces the embedded one, not appends to it
-	assert.Len(t, all, 5)
+	assert.Len(t, all, 4)
 	assert.Contains(t, Names(), "claude")
 
 	got, ok := lookup("claude")
@@ -158,10 +159,10 @@ func testLoadUserSkips(t *testing.T, name, body string, configs map[string]strin
 	switch name {
 	case "mycli":
 		assert.Contains(t, Names(), "mycli")
-		assert.Len(t, all, 6)
+		assert.Len(t, all, 5)
 	default: // skip cases
 		assert.NotContains(t, Names(), name)
-		assert.Len(t, all, 5)
+		assert.Len(t, all, 4)
 	}
 }
 
@@ -335,22 +336,24 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"version_url":null}`, body)
 
-	body, err = MustFor("antigravity").PkgInfoJSON()
+	// no embedded cli uses version_url anymore, so construct one
+	releaser := CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli", ReleaseURL: &pkginfo.ReleaseURL{
+		URL: "https://mycli.dev/stable",
+		DownloadTemplate: &pkginfo.DownloadTemplate{
+			X64URL:   "https://mycli.dev/mycli-$version-linux-x86_64",
+			Arm64URL: "https://mycli.dev/mycli-$version-linux-aarch64",
+		},
+	}}}
+	body, err = releaser.PkgInfoJSON()
 	require.NoError(t, err)
-	const updaterHost = "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_$goarch.json"
-	assert.JSONEq(t, `{"name":"antigravity","npm":null,"version_url":{"url":"`+updaterHost+`",`+
-		`"download_template":null,"jq_schema":{"format":"json","version":".version","download_url":".url",`+
-		`"sha512":{"selector":".sha512","encoding":"hex"}},`+
-		`"artifact":{"type":"targz","rel_bin":"antigravity"}}}`, body)
+	assert.JSONEq(t, `{"name":"mycli","npm":null,"version_url":{"url":"https://mycli.dev/stable",`+
+		`"download_template":{"x64_url":"https://mycli.dev/mycli-$version-linux-x86_64",`+
+		`"arm64_url":"https://mycli.dev/mycli-$version-linux-aarch64"},"jq_schema":null,"artifact":null}}`, body)
 }
 
 func TestEnv(t *testing.T) {
 	// Config-dir overrides point at the CLI's native config mount; toggles disable
 	// update checks / nonessential traffic. pkg/docker merges these into every run.
-	assert.Nil(t, MustFor("antigravity").ConfigDirEnvKey)
-	assert.Empty(t, MustFor("antigravity").Setup.Env)
-	assert.Equal(t, ".gemini", MustFor("antigravity").ConfigHomeMount)
-
 	assert.Equal(t, "CLAUDE_CONFIG_DIR", *MustFor("claude").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
@@ -373,7 +376,7 @@ func TestCLI_CLIDataBinds(t *testing.T) {
 		map[string]*string{".local/share/opencode/auth.json": &authJSON},
 		MustFor("opencode").Setup.DataBinds)
 
-	for _, name := range []string{"antigravity", "claude", "codex", "pi"} {
+	for _, name := range []string{"claude", "codex", "pi"} {
 		assert.Emptyf(t, MustFor(name).Setup.DataBinds, "%s has no data binds", name)
 	}
 }

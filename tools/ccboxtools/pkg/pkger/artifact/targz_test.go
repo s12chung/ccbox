@@ -12,23 +12,23 @@ import (
 )
 
 func TestTarGz_Install(t *testing.T) {
-	const content = "#!/bin/sh\necho antigravity\n"
+	const content = "#!/bin/sh\necho mycli\n"
 
 	// the exec packed WITHOUT the exec bit: Install forces it regardless
 	var buf bytes.Buffer
 	gz := gzip.NewWriter(&buf)
 	tw := tar.NewWriter(gz)
-	require.NoError(t, tw.WriteHeader(&tar.Header{Name: "antigravity", Mode: 0o644, Size: int64(len(content))}))
+	require.NoError(t, tw.WriteHeader(&tar.Header{Name: "mycli", Mode: 0o644, Size: int64(len(content))}))
 	_, err := tw.Write([]byte(content))
 	require.NoError(t, err)
 	require.NoError(t, tw.Close())
 	require.NoError(t, gz.Close())
 
-	d := NewTarGz("antigravity")
+	d := NewTarGz("mycli")
 	dir := t.TempDir()
 	require.NoError(t, d.Install(t.Context(), dir, bytes.NewReader(buf.Bytes())))
 
-	binPath := filepath.Join(dir, "antigravity")
+	binPath := filepath.Join(dir, "mycli")
 	assert.Equal(t, []byte(content), readFile(t, binPath))
 	assert.NotZero(t, stat(t, binPath).Mode().Perm()&0o100, "want the exec bit forced")
 
@@ -39,6 +39,6 @@ func TestTarGz_Install(t *testing.T) {
 }
 
 func TestNewTarGz(t *testing.T) {
-	d := NewTarGz("antigravity")
-	assert.Equal(t, "antigravity", d.RelBin())
+	d := NewTarGz("mycli")
+	assert.Equal(t, "mycli", d.RelBin())
 }
