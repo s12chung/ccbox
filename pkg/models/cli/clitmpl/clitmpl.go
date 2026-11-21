@@ -140,9 +140,3 @@ func UserCLIConfigSeedFS(cliName string, isUserDefined bool) fs.FS {
 	}
 	return must.Get(fs.Sub(fsys, fsTemplateConfigPath))
 }
-
-//go:embed user-clis
-var userSeed embed.FS
-
-// UserSeedFS returns the embedded tree seeded onto a fresh UserDir().
-func UserSeedFS() fs.FS { return must.Get(fs.Sub(userSeed, "user-clis")) }

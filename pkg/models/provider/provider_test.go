@@ -1,7 +1,6 @@
 package provider
 
 import (
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -238,16 +237,4 @@ func TestParseProvider_Rejects(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestUserSeedFS(t *testing.T) {
-	var paths []string
-	require.NoError(t, fs.WalkDir(UserSeedFS(), ".", func(p string, d fs.DirEntry, err error) error {
-		require.NoError(t, err)
-		if !d.IsDir() {
-			paths = append(paths, p)
-		}
-		return nil
-	}))
-	assert.Equal(t, []string{"README.md"}, paths)
 }

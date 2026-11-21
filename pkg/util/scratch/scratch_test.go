@@ -2,12 +2,10 @@ package scratch
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
-	"testing/fstest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,10 +15,9 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
-// The tests pin the driver and its axes on two wirings — a file+symlink share in the
-// AGENTS-doc share's shape, and a dir+direct share in the persist share's — under a
-// temp userDir; the shared flows run over both via wiring. The domain packages pin
-// their own wiring through Begin.
+// The tests cover Share on two wirings — a file+symlink share in the AGENTS-doc
+// share's shape, a dir+direct share in the persist share's. The packages that use
+// scratch test their own wiring.
 
 // testMount is the file bind's container path, as dmap passes it in
 const testMount = "/home/ccbox/.ccbox/tmp/agents/claude/doc.md"
@@ -47,15 +44,12 @@ func bindFile() string { return filepath.Join(userdir.Tmp(), "agents", "claude",
 // baseFile is the baseline the bind is diffed against
 func baseFile() string { return bindFile() + ".orig" }
 
-// dirSeedFS is the dir scratch's embedded tree
-var dirSeedFS = fstest.MapFS{"README.md": &fstest.MapFile{Data: []byte("seeded")}}
-
-// dirShare wires a dir+direct Share, seeded from dirSeedFS
+// dirShare wires a dir+direct Share
 func dirShare() Share {
 	return Share{
 		Name:     "test",
 		RealPath: dirReal(),
-		Content:  Dir{SeedFS: dirSeedFS},
+		Content:  Dir{},
 		Sync:     Direct{},
 	}
 }
@@ -66,9 +60,8 @@ func dirReal() string { return filepath.Join(userdir.Dir(), "state") }
 // dirScratch is the dir bound while dirReal is missing: the same rel path under userdir.Tmp()
 func dirScratch() string { return filepath.Join(userdir.Tmp(), "state") }
 
-// wiring is one of the two wirings the shared flows run on, across the Content and
-// Sync axes: the file+symlink side in the AGENTS-doc share's shape, the dir+direct
-// side in the persist's. dir toggles the side; every step derives from it.
+// wiring is one of the two sides the tests run on, across the Content and Sync
+// axes; dir toggles the side.
 type wiring struct {
 	name string
 	dir  bool
@@ -79,8 +72,7 @@ var (
 	symlinkWiring = wiring{name: "Symlink"}
 	// directWiring, the dir+direct side
 	directWiring = wiring{name: "Direct", dir: true}
-	// wirings, the sides each shared flow runs over
-	wirings = []wiring{symlinkWiring, directWiring}
+	wirings      = []wiring{symlinkWiring, directWiring}
 )
 
 // newShare is the wiring's share
@@ -108,14 +100,14 @@ func (w wiring) lateBind() string {
 	return ""
 }
 
-// edit writes body into the bound file, as the run would
-func (w wiring) edit(t *testing.T, body string) {
+// edit writes body into the bound path, as the run would
+func (w wiring) edit(t *testing.T, bind, body string) {
 	t.Helper()
 	if w.dir {
-		writeScratch(t, "notes.txt", body)
+		writeFile(t, filepath.Join(bind, "notes.txt"), body)
 		return
 	}
-	writeFile(t, bindFile(), body)
+	writeFile(t, bind, body)
 }
 
 // occupy writes the host's own Real mid-session
@@ -129,21 +121,20 @@ func (w wiring) occupy(t *testing.T, body string) {
 	writeFile(t, realFile(), body)
 }
 
-// assertBound asserts the bound file holds the run's edit
-func (w wiring) assertBound(t *testing.T, body string) {
+// assertBound asserts the bound path holds the run's edit
+func (w wiring) assertBound(t *testing.T, bind, body string) {
 	t.Helper()
 	if w.dir {
-		assertFile(t, filepath.Join(dirScratch(), "notes.txt"), body)
+		assertFile(t, filepath.Join(bind, "notes.txt"), body)
 		return
 	}
-	assert.Equal(t, body, readFile(t, bindFile()))
+	assert.Equal(t, body, readFile(t, bind))
 }
 
 // assertPromoted asserts Real holds the run's promoted body
 func (w wiring) assertPromoted(t *testing.T, body string) {
 	t.Helper()
 	if w.dir {
-		assertSeeded(t, filepath.Join(dirReal(), "README.md"))
 		assertFile(t, filepath.Join(dirReal(), "notes.txt"), body)
 		return
 	}
@@ -225,13 +216,6 @@ func writeScratch(t *testing.T, rel, body string) {
 	writeFile(t, filepath.Join(dirScratch(), rel), body)
 }
 
-func assertSeeded(t *testing.T, path string) {
-	t.Helper()
-	seedBody, err := fs.ReadFile(dirSeedFS, "README.md")
-	require.NoError(t, err)
-	assertFile(t, path, string(seedBody))
-}
-
 func assertFile(t *testing.T, path, want string) {
 	t.Helper()
 	got, err := os.ReadFile(path) // #nosec G304 -- reads the test's own path
@@ -244,6 +228,19 @@ func TestDirect_ScratchPath(t *testing.T) {
 	// Real's rel path re-rooted under userdir.Tmp()
 	assert.Equal(t, "/home/me/.ccbox/tmp/persist/-Users-me-proj",
 		Direct{}.ScratchPath("/home/me/.ccbox/persist/-Users-me-proj"))
+}
+
+// TestDir: no seed baseline
+func TestDir(t *testing.T) {
+	testutil.Home(t)
+	d := Dir{}
+
+	require.NoError(t, d.Seed(dirScratch()))
+	require.DirExists(t, dirScratch(), "the bind dir exists to bind")
+
+	changed, err := d.IsChanged(dirScratch())
+	require.NoError(t, err)
+	assert.True(t, changed, "every run's tree promotes")
 }
 
 // TestSymlink_Exists: an occupation is ours only when Real is absent or our own
@@ -306,15 +303,15 @@ func TestShare_Begin_Piggyback(t *testing.T) {
 			s := w.newShare()
 
 			// an existing run binds the share and edits it
-			_, clean, err := s.Begin()
+			bind, clean, err := s.Begin()
 			require.NoError(t, err)
-			w.edit(t, "memory")
+			w.edit(t, bind, "memory")
 
 			// a second run piggybacks: the same bind, the existing run's edit intact
-			bind, piggybackClean, err := s.Begin()
+			piggybackBind, piggybackClean, err := s.Begin()
 			require.NoError(t, err)
-			assert.Equal(t, w.bind(), bind)
-			w.assertBound(t, "memory")
+			assert.Equal(t, w.bind(), piggybackBind)
+			w.assertBound(t, bind, "memory")
 
 			// the piggyback's cleanup leaves the share for the existing run
 			require.NoError(t, piggybackClean())
@@ -458,81 +455,47 @@ func TestShare_Begin_CleansLeftover(t *testing.T) {
 	}
 }
 
-// TestShare_Begin_CleansLeftover_IntoExistingReal: a crashed run's changed leftover
-// promotes into an existing Real, its differing copies kept aside; an unchanged one
-// is swept, Real untouched
+// TestShare_Begin_CleansLeftover_IntoExistingReal: a crashed run's leftover
+// promotes into an existing Real, its differing copies kept aside
 func TestShare_Begin_CleansLeftover_IntoExistingReal(t *testing.T) {
-	for _, tc := range []struct {
-		caseName string
-		leftover func(t *testing.T) // the crashed run's dir leftover
-		expected func(t *testing.T) // Real after the next run's clean
-	}{
-		{
-			// the crashed run changed its scratch before dying
-			caseName: "PromotesChanged",
-			leftover: func(t *testing.T) {
-				writeScratch(t, "README.md", "run's edit")
-				writeScratch(t, "notes.txt", "written before the crash")
-			},
-			expected: func(t *testing.T) {
-				assertFile(t, filepath.Join(dirReal(), "README.md"), "run's edit")
-				assertFile(t, filepath.Join(dirReal(), "notes.txt"), "written before the crash")
-				variants, err := filepath.Glob(filepath.Join(dirReal(), "README.run-*.md"))
-				require.NoError(t, err)
-				require.Len(t, variants, 1)
-				assertFile(t, variants[0], "real's own")
-			},
-		},
-		{
-			// the crashed run never touched its seeded scratch
-			caseName: "SweepsUnchanged",
-			leftover: func(t *testing.T) {
-				seedBody, err := fs.ReadFile(dirSeedFS, "README.md")
-				require.NoError(t, err)
-				writeScratch(t, "README.md", string(seedBody))
-			},
-			expected: func(t *testing.T) {
-				assertFile(t, filepath.Join(dirReal(), "README.md"), "real's own")
-				variants, err := filepath.Glob(filepath.Join(dirReal(), "*.run-*"))
-				require.NoError(t, err)
-				assert.Empty(t, variants, "an unchanged leftover promotes nothing")
-			},
-		},
-	} {
-		t.Run(tc.caseName, func(t *testing.T) {
-			testutil.Home(t)
-			tc.leftover(t)
+	testutil.Home(t)
+	writeScratch(t, "README.md", "run's edit")
+	writeScratch(t, "notes.txt", "written before the crash")
 
-			// Real exists from an earlier clean, holding its own copy
-			require.NoError(t, os.MkdirAll(dirReal(), osutil.Dir))
-			require.NoError(t, os.WriteFile(filepath.Join(dirReal(), "README.md"), []byte("real's own"), osutil.File))
+	// Real exists from an earlier clean, holding its own copy
+	require.NoError(t, os.MkdirAll(dirReal(), osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(dirReal(), "README.md"), []byte("real's own"), osutil.File))
 
-			// the next Begin promotes the leftover and binds Real
-			bind, clean, err := dirShare().Begin()
-			require.NoError(t, err)
-			assert.Equal(t, dirReal(), bind)
-			require.NoError(t, clean())
+	// the next Begin promotes the leftover and binds Real
+	bind, clean, err := dirShare().Begin()
+	require.NoError(t, err)
+	assert.Equal(t, dirReal(), bind)
+	require.NoError(t, clean())
 
-			tc.expected(t)
-			assert.NoDirExists(t, dirScratch())
-		})
-	}
+	assertFile(t, filepath.Join(dirReal(), "README.md"), "run's edit")
+	assertFile(t, filepath.Join(dirReal(), "notes.txt"), "written before the crash")
+	variants, err := filepath.Glob(filepath.Join(dirReal(), "README.run-*.md"))
+	require.NoError(t, err)
+	require.Len(t, variants, 1)
+	assertFile(t, variants[0], "real's own")
+	assert.NoDirExists(t, dirScratch())
 }
 
-// TestShare_Begin_AfterCrashedRun: a crashed run's registry entry is released by the
-// kernel; the next run re-shares the seeded scratch, and its changes promote
+// TestShare_Begin_AfterCrashedRun: a crashed run's registry entry is released
+// by the kernel; the next run takes over its leftover — the file share re-shares
+// it, the dir share promotes it — and the run's edits promote
 func TestShare_Begin_AfterCrashedRun(t *testing.T) {
 	for _, w := range wirings {
 		t.Run(w.name, func(t *testing.T) {
 			testutil.Home(t)
 			crashRun(t, w)
-			assert.True(t, present(t, w.bind()), "the crashed run's seeded scratch")
+			assert.True(t, present(t, w.bind()), "the crashed run's leftover")
 
 			bind, clean, err := w.newShare().Begin()
 			require.NoError(t, err)
-			assert.Equal(t, w.bind(), bind, "the unchanged leftover re-shares")
+			assert.True(t, present(t, bind))
 
-			w.edit(t, "edit after the crash")
+			w.edit(t, bind, "edit after the crash")
 			require.NoError(t, clean())
 			w.assertPromoted(t, "edit after the crash")
 			assert.True(t, gone(t, w.bind()))
@@ -717,8 +680,9 @@ func TestShare_Cleanup_HostChangedDuringCrashedRun(t *testing.T) {
 	require.NoError(t, cleanup())
 }
 
-// TestShare_Clean_Unchanged: an untouched dir scratch leaves nothing behind
-func TestShare_Clean_Unchanged(t *testing.T) {
+// TestShare_Clean_Untouched: an untouched run lays Real empty — ready for the
+// next run's direct bind
+func TestShare_Clean_Untouched(t *testing.T) {
 	testutil.Home(t)
 	s := dirShare()
 
@@ -727,7 +691,7 @@ func TestShare_Clean_Unchanged(t *testing.T) {
 	require.NoError(t, clean())
 
 	assert.NoDirExists(t, dirScratch())
-	assert.NoDirExists(t, dirReal(), "an untouched folder leaves nothing behind")
+	assert.DirExists(t, dirReal())
 }
 
 // TestShare_Clean_Changed: the run's tree promotes into Real
@@ -761,7 +725,6 @@ func TestShare_Clean_Changed(t *testing.T) {
 
 			require.NoError(t, clean())
 
-			assertSeeded(t, filepath.Join(dirReal(), "README.md"))
 			if tc.body == "" {
 				info, err := os.Stat(filepath.Join(dirReal(), tc.rel))
 				require.NoError(t, err)

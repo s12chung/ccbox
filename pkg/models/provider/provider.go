@@ -8,9 +8,7 @@
 package provider
 
 import (
-	"embed"
 	"fmt"
-	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
@@ -165,9 +163,3 @@ func parseProvider(name string, body []byte) (Provider, error) {
 	}
 	return p, nil
 }
-
-//go:embed user-providers
-var userSeed embed.FS
-
-// UserSeedFS returns the embedded tree seeded onto a fresh UserDir().
-func UserSeedFS() fs.FS { return must.Get(fs.Sub(userSeed, "user-providers")) }

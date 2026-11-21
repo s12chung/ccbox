@@ -1,6 +1,6 @@
 // Package scratch shares host paths into the devbox: while a persistent path is
-// missing, runs bind a seeded scratch copy, and the last out promotes its changes
-// into the persistent path. Share drives the lifecycle over the
+// missing, runs bind a scratch copy, and the last out promotes its changes into
+// the persistent path. Share drives the lifecycle over the
 // Content and Sync axes — the file-vs-dir and symlink-vs-direct branches.
 package scratch
 
@@ -14,8 +14,6 @@ import (
 	"strings"
 
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/errs"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -163,26 +161,19 @@ func (f File) Promote(bind, realPath string) error {
 
 func origFile(bind string) string { return bind + ".orig" }
 
-// Dir is a dir scratch seeded from the embedded SeedFS; its bind is the
-// scratch's whole root.
-type Dir struct {
-	SeedFS fs.FS
-}
+// Dir is a dir scratch: its bind is the whole scratch root, seeded empty; the
+// run's whole tree promotes into Real.
+type Dir struct{}
 
-// Seed seeds the embedded tree onto the scratch
-func (d Dir) Seed(bind string) error {
-	_, err := seed.FS(d.SeedFS, bind)
-	return errs.Swallow(err, seed.ErrNoChanges)
-}
+// Seed lays the empty bind dir
+func (Dir) Seed(bind string) error { return os.MkdirAll(bind, osutil.Dir) }
 
-// IsChanged reports whether the run's tree differs from the embedded one
-func (d Dir) IsChanged(bind string) (bool, error) {
-	matches, err := fsutil.Matches(d.SeedFS, bind)
-	return !matches, err
-}
+// IsChanged always reports changed: no seed baseline, so an untouched run
+// lays Real empty too
+func (Dir) IsChanged(string) (bool, error) { return true, nil }
 
 // Promote merges the run's tree into realPath, moving its differing copies aside
-func (d Dir) Promote(bind, realPath string) error {
+func (Dir) Promote(bind, realPath string) error {
 	infixed, err := seed.Merge(bind, realPath, "run-"+runid.New())
 	if err != nil {
 		return err

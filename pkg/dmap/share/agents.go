@@ -18,24 +18,12 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-var (
-	//go:embed default.tmpl.md
-	defaultTmplMd []byte
-	//go:embed AGENTS.README.md
-	agentsReadmeMd []byte
-)
+//go:embed default.tmpl.md
+var defaultTmplMd []byte
 
-// SafeSeedAgentsMd seeds the shared template and the README explainer when
-// missing; existing files are never touched
-func SafeSeedAgentsMd() error {
-	if osutil.Present(userAgentsTmplMdPath()) {
-		return nil
-	}
-	if err := seed.SafeFile(userAgentsTmplMdPath(), defaultTmplMd); err != nil {
-		return err
-	}
-	return seed.SafeFile(userAgentsReadmeMdPath(), agentsReadmeMd)
-}
+// SafeSeedAgentsMd seeds the shared template when missing; existing files are
+// never touched
+func SafeSeedAgentsMd() error { return seed.SafeFile(userAgentsTmplMdPath(), defaultTmplMd) }
 
 // AgentsMd returns the Binder for the CLI's AGENTS doc; isProxied answers the
 // template's IsProxied.
@@ -117,10 +105,8 @@ func (c agentsTmplCtx) funcs() template.FuncMap {
 }
 
 const (
-	agentsMdFileName = "AGENTS.md"
-
-	agentsTmplMdFileName       = "AGENTS.tmpl.md"
-	userAgentsReadmeMdFileName = "AGENTS.README.md"
+	agentsMdFileName     = "AGENTS.md"
+	agentsTmplMdFileName = "AGENTS.tmpl.md"
 )
 
 // realCliFile is the CLI's AGENTS doc: <UserConfigDir>/AGENTS.md
@@ -135,6 +121,3 @@ func cliTmplMdPath(cliName string) string {
 
 // userAgentsTmplMdPath is the shared AGENTS doc template: ~/.ccbox/AGENTS.tmpl.md
 func userAgentsTmplMdPath() string { return filepath.Join(userdir.Dir(), agentsTmplMdFileName) }
-
-// userAgentsReadmeMdPath is the shared AGENTS docs' explainer: ~/.ccbox/AGENTS.README.md
-func userAgentsReadmeMdPath() string { return filepath.Join(userdir.Dir(), userAgentsReadmeMdFileName) }

@@ -22,7 +22,7 @@ This curated directory will help you discover common patterns (`pkg/util` and `p
 - **`cmd/`** — thin cobra commands: gather flags/env, map them to options via `pkg/dmap`, and call one `pkg/docker` operation each.
 - **`pkg/`**
   - `cfg/` — the `ccbox` Config as described in the README
-  - `dmap/` — maps the `cfg.Config`, CLI, and run flags to the docker pkg options for a run. The devbox variant naming — one devbox per variant ask — lives at `variants.go`. The run's shares are wired at `dmap/share` — see its `AGENTS.README.md` for the AGENTS docs wiring TLDR.
+  - `dmap/` — maps the `cfg.Config`, CLI, and run flags to the docker pkg options for a run. The devbox variant naming — one devbox per variant ask — lives at `variants.go`. The run's shares are wired at `dmap/share`.
   - `docker/` — the build/run/exec lifecycle over the Docker SDK--manages DOCKER ONLY, knows nothing but docker lifecycle
   - `mise/` — related to mise configs
   - `models/` — the domain models cfg resolves names against

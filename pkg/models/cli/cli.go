@@ -7,10 +7,9 @@
 //     b. clitmpl.UserDir(), where we log.Warn() and skip instead. Validations on the CLI.yaml and config/
 //     dir are done, _effectively guaranteeing_ valid CLI structs and workable config/ dir onwards
 //  2. on cmd.rootCmd.PersistentPreRunE():
-//     a. clitmpl.UserSeedFS() seeds the clitmpl.UserDir()
-//     b. cfg.Load() validates the config's cli, which given 1b., _effectively guarantees_ any
+//     a. cfg.Load() validates the config's cli, which given 1b., _effectively guarantees_ any
 //     cliName passed down will match a CLI in All()
-//  3. MustFor() is also called in multiple places. 2b. should be the earliest guard for cliName passed down
+//  3. MustFor() is also called in multiple places. 2a. should be the earliest guard for cliName passed down
 //  4. clitmpl.UserCLIConfigSeedFS() for seeding the config to configure the running containerized CLI
 package cli
 

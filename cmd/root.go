@@ -14,14 +14,12 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/cobrakit"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli"
-	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/prompt"
 	"github.com/s12chung/ccbox/pkg/util/flagptr"
 	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
-	"github.com/s12chung/ccbox/pkg/util/seed"
 )
 
 // Injected from main (package main can't be imported, so the embed FS comes in here).
@@ -110,12 +108,6 @@ func init() {
 
 // rootSeed seeds the user-level harness state if missing
 func rootSeed(ctx context.Context) error {
-	if err := seed.IfNotExist(clitmpl.UserSeedFS(), clitmpl.UserDir()); err != nil {
-		return err
-	}
-	if err := seed.IfNotExist(provider.UserSeedFS(), provider.UserDir()); err != nil {
-		return err
-	}
 	if err := share.SafeSeedAgentsMd(); err != nil {
 		return err
 	}

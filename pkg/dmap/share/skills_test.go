@@ -16,8 +16,8 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
-// The tests pin the skills share's own wiring — the seeded dir and each cli's mount.
-// The dir binds as-is: no scratch driver runs over it.
+// The tests cover the skills share's own wiring — the seeded dir and each cli's mount.
+// The dir binds as-is: it never goes through scratch.
 
 func TestSafeSeedSkills_SeedsMissing(t *testing.T) {
 	testutil.Home(t)

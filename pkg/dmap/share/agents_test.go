@@ -13,8 +13,8 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
-// The tests pin AgentsMd's own wiring — the source doc it binds and the paths it
-// lands on. The driver's behavior is pinned in pkg/util/scratch.
+// The tests cover AgentsMd's own wiring — the source doc it binds and the paths it
+// lands on. The sharing itself is tested in pkg/util/scratch.
 
 // resetUserDir points userdir at a fresh temp tree with the shared AGENTS docs seeded
 func resetUserDir(t *testing.T) string {
@@ -49,10 +49,6 @@ func claudeTmplMd(userDir string) string {
 
 func userAgentsTmplMd(userDir string) string {
 	return filepath.Join(userDir, agentsTmplMdFileName)
-}
-
-func userAgentsReadmeMd(userDir string) string {
-	return filepath.Join(userDir, userAgentsReadmeMdFileName)
 }
 
 func claudeScratch(userDir string) string {
@@ -111,12 +107,10 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 		caseName string
 		setup    func(t *testing.T, userDir string) // written before the seed
 		tmpl     *string                            // the template's body after the seed; nil when gone
-		readme   *string                            // the explainer's body after the seed; nil when gone
 	}{
 		{
 			caseName: "LaysDefault",
 			tmpl:     new(string(defaultTmplMd)),
-			readme:   new(string(agentsReadmeMd)),
 		},
 		{
 			caseName: "SkipsExistingTmpl",
@@ -139,11 +133,6 @@ func TestSafeSeedAgentsMd(t *testing.T) {
 				assert.True(t, gone(t, userAgentsTmplMd(userDir)), "the template is not seeded")
 			} else {
 				assert.Equal(t, *tc.tmpl, readFile(t, userAgentsTmplMd(userDir)))
-			}
-			if tc.readme == nil {
-				assert.True(t, gone(t, userAgentsReadmeMd(userDir)), "the explainer is not seeded")
-			} else {
-				assert.Equal(t, *tc.readme, readFile(t, userAgentsReadmeMd(userDir)))
 			}
 		})
 	}
@@ -174,7 +163,7 @@ func TestAgentsMd_PromotesRendered(t *testing.T) {
 	}
 }
 
-// TestAdminMd pins the default template's rendered doc to the testdata fixtures.
+// TestAdminMd checks the default template's rendered doc against the testdata fixtures.
 // Regenerate with `UPDATE_FIXTURES=1 go test ./pkg/dmap/share/ -run TestAdminMd`
 func TestAdminMd(t *testing.T) {
 	for _, tt := range []struct {

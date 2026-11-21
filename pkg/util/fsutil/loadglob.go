@@ -1,3 +1,4 @@
+// Package fsutil provides fs.FS utilities.
 package fsutil
 
 import (
