@@ -109,4 +109,19 @@ func TestNewResolvedTool_Errors(t *testing.T) {
 
 		require.ErrorContains(t, err, "mise: pypi:setuptools: no pin resolved")
 	})
+
+	// the tmpl is user-authored in a runtime yaml — it fails as an error, never a panic
+	t.Run("an unparseable tmpl errors", func(t *testing.T) {
+		tool := Tool{Name: "ruby", PostInstallCmdTmpl: "{{bogus", PostInstallTools: []Tool{{Name: "rubygems:bundler"}}}
+		_, err := newResolvedTool(tool, ToolState{Pins: map[string]string{"ruby": "3.3", "rubygems:bundler": "2.5"}})
+
+		require.ErrorContains(t, err, "mise: ruby: postinstall_cmd_tmpl")
+	})
+
+	t.Run("a tmpl field no package carries errors", func(t *testing.T) {
+		tool := Tool{Name: "ruby", PostInstallCmdTmpl: "{{.Bogus}}", PostInstallTools: []Tool{{Name: "rubygems:bundler"}}}
+		_, err := newResolvedTool(tool, ToolState{Pins: map[string]string{"ruby": "3.3", "rubygems:bundler": "2.5"}})
+
+		require.ErrorContains(t, err, "mise: ruby: postinstall_cmd_tmpl")
+	})
 }

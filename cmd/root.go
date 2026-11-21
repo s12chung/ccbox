@@ -56,6 +56,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		provider.Load() // before cli.Load: AllowDomains's firm rule and expansion depends on loaded providers
+		runtime.Load()  // before rootSeed's picker and cfg.Load, which read runtime.All() and the aliases
 		cli.Load()      // before rootSeed's picker and cfg.Load, which read cli.Names()
 		if cmd.CalledAs() == cobra.ShellCompRequestCmd || cmd.CalledAs() == cobra.ShellCompNoDescRequestCmd {
 			return nil

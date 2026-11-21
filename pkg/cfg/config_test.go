@@ -453,7 +453,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	t.Run("ccbox-all-providers resolves every provider's domains", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-providers\n")
 
-		allProviders, ok := provider.DomainsFor(provider.AllProvidersAlias)
+		allProviders, ok := provider.Set().DomainsFor(provider.AllProvidersAlias)
 		require.True(t, ok)
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -463,7 +463,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	t.Run("ccbox-all-runtimes resolves every runtime's domains", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-runtimes\n")
 
-		allRuntimes, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
+		allRuntimes, ok := runtime.Set().DomainsFor(runtime.AllRuntimesAlias)
 		require.True(t, ok)
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)

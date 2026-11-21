@@ -486,6 +486,8 @@ github.com/ryanuber/go-glob v1.0.0 h1:iQh3xXAumdQ+4Ufa5b25cRpC5TYKlno6hsv6Cb3pkB
 github.com/ryanuber/go-glob v1.0.0/go.mod h1:807d1WSdnB0XRJzKNil9Om6lcp/3a0v4qIHxIXzX/Yc=
 github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae h1:ut9qPScPrkpKcNwCa8F0kGl+CZbZImmPtmCaHi8JUyg=
 github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
+github.com/s12chung/firm v0.2.2-0.20261121232306-8c5d0f7488d4 h1:0YZrOe9scsXgXen6JVtPbWfmVwgOb1Bq16SFf4WleO8=
+github.com/s12chung/firm v0.2.2-0.20261121232306-8c5d0f7488d4/go.mod h1:FvkVVa4ajLSi98zQC9H6LAacs4xJMCq8lRAsHG2dFzo=
 github.com/sassoftware/relic v7.2.1+incompatible h1:Pwyh1F3I0r4clFJXkSI8bOyJINGqpgjJU3DYAZeI05A=
 github.com/sassoftware/relic v7.2.1+incompatible/go.mod h1:CWfAxv73/iLZ17rbyhIEq3K9hs5w6FpNMdUT//qR+zk=
 github.com/sassoftware/relic/v7 v7.6.2 h1:rS44Lbv9G9eXsukknS4mSjIAuuX+lMq/FnStgmZlUv4=

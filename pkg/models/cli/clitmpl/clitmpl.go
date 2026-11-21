@@ -17,7 +17,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/s12chung/ccbox/pkg/userdir"
+	"github.com/s12chung/ccbox/pkg/models/modelset"
 	"github.com/s12chung/ccbox/pkg/util/fsutil"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -28,13 +28,6 @@ const (
 	cliYAML               = "CLI.yaml"
 	seedTemplateConfigDir = "config"
 )
-
-// userConfigDir is the user config dir: ~/.ccbox/config.
-var userConfigDir = userdir.ConfigDir()
-
-// SetUserConfigDir points the user config dir at dir; tests redirect the user
-// clis tree at a temp tree with it.
-func SetUserConfigDir(dir string) { userConfigDir = dir }
 
 // Tree is a CLI templates tree — clis/<name>/CLI.yaml
 type Tree struct {
@@ -48,7 +41,7 @@ type Tree struct {
 var embedFS embed.FS
 
 // userFS DOES NOT detect whether userConfigDir exists; this should be detected on init()--see the cli package NOTE
-func userFS() fs.FS { return os.DirFS(userConfigDir) }
+func userFS() fs.FS { return os.DirFS(modelset.UserConfigDir()) }
 
 // EmbedTree is the compile-time embedded CLI templates tree.
 func EmbedTree() Tree { return Tree{fsys: embedFS} }
@@ -56,8 +49,8 @@ func EmbedTree() Tree { return Tree{fsys: embedFS} }
 // UserTree is the host's user-defined CLI templates tree at userConfigDir.
 func UserTree() Tree { return Tree{fsys: userFS(), isUserDefined: true} }
 
-// UserDir is the host dir of user-defined CLI templates: ~/.ccbox/config/clis.
-func UserDir() string { return filepath.Join(userConfigDir, clisDir) }
+// UserDir is the host dir of the user clis tree: ~/.ccbox/config/clis
+func UserDir() string { return filepath.Join(modelset.UserConfigDir(), clisDir) }
 
 // Load parses each clis/<cli> dir's CLI.yaml into a T via parse — which owns the
 // struct and its validation — named after its dir, ordered by name, ignoring files

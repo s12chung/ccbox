@@ -247,7 +247,7 @@ func (c *Config) AllowlistExpanded() []string {
 			DefaultsAlias:   AllowlistDefaults(),
 			SetHarnessAlias: c.SetHarnessDomains(),
 		}
-		for _, alias := range slices.Concat(provider.Aliases(), runtime.Aliases()) {
+		for _, alias := range slices.Concat(provider.Set().Aliases(), runtime.Set().Aliases()) {
 			expansions[alias] = expandDomain(alias)
 		}
 		c.expandedAllowlist = expand.Slice(c.Proxy.Allowlist, expansions)
@@ -272,7 +272,7 @@ func (c *Config) SetHarnessDomains() []string {
 // allowlistAliases lists every allowlist alias: the providers' and runtimes' plus the
 // expansion aliases
 func allowlistAliases() []string {
-	return slices.Concat(provider.Aliases(), runtime.Aliases(), []string{DefaultsAlias, SetHarnessAlias})
+	return slices.Concat(provider.Set().Aliases(), runtime.Set().Aliases(), []string{DefaultsAlias, SetHarnessAlias})
 }
 
 // expandDefaultAlias replaces each DefaultsAlias with defaults, preserving entry order and
@@ -284,7 +284,7 @@ func expandDefaultAlias(list, defaults []string) []string {
 // expandDomain resolves one entry: a provider or runtime alias to its table domains,
 // else the raw domain
 func expandDomain(entry string) []string {
-	for _, resolve := range []func(string) ([]string, bool){provider.DomainsFor, runtime.DomainsFor} {
+	for _, resolve := range []func(string) ([]string, bool){provider.Set().DomainsFor, runtime.Set().DomainsFor} {
 		if domains, ok := resolve(entry); ok {
 			return domains
 		}

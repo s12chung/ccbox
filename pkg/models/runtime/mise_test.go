@@ -9,10 +9,15 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
 func TestFromMiseConfig(t *testing.T) {
+	selectedNames := func(selected MiseRuntimes) []string {
+		return slicex.Map(selected, func(r Runtime) string { return r.Name })
+	}
+
 	t.Run("the picked config's [tools] pins resolve to runtimes", func(t *testing.T) {
 		testutil.Home(t)
 		projectDir := t.TempDir()
@@ -22,11 +27,23 @@ func TestFromMiseConfig(t *testing.T) {
 		selected, err := FromMiseConfig(projectDir)
 
 		require.NoError(t, err)
-		names := make([]string, 0, len(selected))
-		for _, rt := range selected {
-			names = append(names, rt.Name)
-		}
-		assert.Equal(t, []string{"go", "node"}, names, "non-runtime pins drop, node stays")
+		assert.Equal(t, []string{"go", "node"}, selectedNames(selected), "non-runtime pins drop, node stays")
+	})
+
+	t.Run("a pin resolves by tool name — an aliased tool selects its runtime", func(t *testing.T) {
+		resetAll(t)
+		writeUserRuntime(t, "jruby", "domains: [rubygems.org]\nmise_tool:\n  name: ruby\n")
+		Load()
+
+		testutil.Home(t)
+		projectDir := t.TempDir()
+		body := "[tools]\nruby = \"3.3\"\n"
+		require.NoError(t, os.WriteFile(mise.ProjectConfigPath(projectDir), []byte(body), osutil.File))
+
+		selected, err := FromMiseConfig(projectDir)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"jruby", "node"}, selectedNames(selected))
 	})
 
 	t.Run("no config to read errors", func(t *testing.T) {

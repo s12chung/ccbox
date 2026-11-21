@@ -50,6 +50,16 @@ func TestMatchRules(t *testing.T) {
 			[]string{"", "/etc/cli", "/"},
 		},
 		{
+			"ContainerPath", ContainerPath,
+			[]string{"/usr/local/bin", "/home/ccbox/.npm-global/bin", "/a/b.c", "/a."},
+			[]string{"", "/", "/..", "/../etc", "/.", "/a//b", "/a/", "/a/..", "rel/path", "~/x"},
+		},
+		{
+			"Name", Name,
+			[]string{"node", "a1", "1x", "a-b-c"},
+			[]string{"", "Node", "-a", "a_b", "a.b"},
+		},
+		{
 			"HTTPSURL", HTTPSURL,
 			[]string{"https://x.ai/cli/stable", "https://x.ai/cli/grok-$version-linux-x86_64"},
 			[]string{"", "http://x", "ftp://x", "https://", "x.ai/cli"},
@@ -181,5 +191,25 @@ func TestPortList(t *testing.T) {
 	t.Run("type checks to a string", func(t *testing.T) {
 		assert.Nil(t, PortList{}.TypeCheck(reflect.TypeFor[string]()))
 		assert.NotNil(t, PortList{}.TypeCheck(reflect.TypeFor[int]()))
+	})
+}
+
+func TestTemplate(t *testing.T) {
+	v := firm.Value[string](Template{})
+
+	t.Run("parseable bodies and the unset tmpl pass", func(t *testing.T) {
+		for _, s := range []string{"", "gem install bundler", "{{range .}} {{.Name}}{{end}}"} {
+			assert.Nilf(t, v.Validate(s).ToNil(), "want %q valid", s)
+		}
+	})
+	t.Run("an unparseable body names the parse error", func(t *testing.T) {
+		errMap := v.Validate("{{bogus")
+		require.NotEmpty(t, errMap)
+		assert.Contains(t, errMap.Error(), "Template")
+		assert.Contains(t, errMap.Error(), `function "bogus" not defined`)
+	})
+	t.Run("type checks to a string", func(t *testing.T) {
+		assert.Nil(t, Template{}.TypeCheck(reflect.TypeFor[string]()))
+		assert.NotNil(t, Template{}.TypeCheck(reflect.TypeFor[int]()))
 	})
 }

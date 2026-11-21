@@ -144,7 +144,7 @@ func aliasSections() []printutil.Section {
 				"; a --vnc load adds the desktop's GUI app):",
 			Items: config.SetHarnessDomains(),
 		}},
-		slicex.Map(provider.All(), func(p provider.Provider) printutil.Section {
+		slicex.Map(provider.Set().All(), func(p provider.Provider) printutil.Section {
 			return printutil.Section{Header: p.Alias() + ":", Items: p.Domains}
 		}),
 		slicex.Map(runtime.All(), func(r runtime.Runtime) printutil.Section {

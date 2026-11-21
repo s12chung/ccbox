@@ -16,6 +16,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/models/cli"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
 	"github.com/s12chung/ccbox/pkg/models/provider"
+	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	toolsbuild "github.com/s12chung/ccbox/tools/toolsbuild/pkg/build"
@@ -57,11 +58,21 @@ var doctorProvidersCmd = &cobra.Command{
 	Use:   "providers",
 	Short: "Check the user-defined providers load",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		return checkUserTree(provider.UserDir(), "provider", provider.LoadUserProviders)
+		return checkUserTree(provider.Set().UserDir(), "provider", provider.Set().LoadUser)
 	},
 }
 
-func init() { doctorCmd.AddCommand(doctorToolsCmd, doctorClisCmd, doctorProvidersCmd) }
+var doctorRuntimesCmd = &cobra.Command{
+	Use:   "runtimes",
+	Short: "Check the user-defined runtimes load",
+	RunE: func(_ *cobra.Command, _ []string) error {
+		return checkUserTree(runtime.Set().UserDir(), "runtime", runtime.Set().LoadUser)
+	},
+}
+
+func init() {
+	doctorCmd.AddCommand(doctorToolsCmd, doctorClisCmd, doctorProvidersCmd, doctorRuntimesCmd)
+}
 
 // checkUserTree reports a user tree's load warnings as errors — bad entries are
 // skipped with a startup warning, so doctor is where they surface.

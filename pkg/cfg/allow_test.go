@@ -16,7 +16,7 @@ import (
 func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
 	// the defaults are tooling only: providers live under their own aliases —
 	// ccbox-all-providers resolves every one of them
-	providerDomains, ok := provider.DomainsFor(provider.AllProvidersAlias)
+	providerDomains, ok := provider.Set().DomainsFor(provider.AllProvidersAlias)
 	require.True(t, ok)
 	for _, d := range providerDomains {
 		assert.NotContainsf(t, AllowlistDefaults(), d, "provider domain %s", d)
@@ -26,7 +26,7 @@ func TestAllowlistDefaults_ExcludeProviders(t *testing.T) {
 func TestAllowlistDefaults_ExcludeRuntimes(t *testing.T) {
 	// the defaults are tooling only: the runtimes live under their own aliases —
 	// ccbox-all-runtimes resolves every one of them
-	runtimeDomains, ok := runtime.DomainsFor(runtime.AllRuntimesAlias)
+	runtimeDomains, ok := runtime.Set().DomainsFor(runtime.AllRuntimesAlias)
 	require.True(t, ok)
 	for _, d := range runtimeDomains {
 		assert.NotContainsf(t, AllowlistDefaults(), d, "runtime domain %s", d)

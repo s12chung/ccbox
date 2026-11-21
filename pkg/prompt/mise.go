@@ -85,7 +85,7 @@ func runtimeItems(state mise.ToolState) []pick.Item[toolModel] {
 		isNode := rt.Name == runtime.Node().Name
 		model := toolModel{Tool: rt.MiseTool, rt: rt}
 		children := toolModels(rt.MiseToolsOptional)
-		if state.PostInstalls[rt.Name] != "" {
+		if state.PostInstalls[rt.MiseTool.Name] != "" {
 			model.Tool.Hint = "inherit existing postinstall"
 		} else {
 			children = append(children, toolModels(rt.MiseTool.PostInstallTools)...)

@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/models/modelset"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
@@ -19,9 +20,9 @@ import (
 func resetUserConfigDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	saved := userConfigDir
-	t.Cleanup(func() { userConfigDir = saved })
-	userConfigDir = dir
+	saved := modelset.UserConfigDir()
+	t.Cleanup(func() { modelset.SetUserConfigDir(saved) })
+	modelset.SetUserConfigDir(dir)
 	return dir
 }
 

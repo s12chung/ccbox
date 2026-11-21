@@ -13,6 +13,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli/clitmpl"
+	"github.com/s12chung/ccbox/pkg/models/modelset"
 	"github.com/s12chung/ccbox/pkg/models/provider"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/must"
@@ -48,9 +49,9 @@ func resetAll(t *testing.T) string {
 	savedAll := all
 	t.Cleanup(func() {
 		all = savedAll
-		clitmpl.SetUserConfigDir(userdir.ConfigDir()) // tests are the only setters
+		modelset.SetUserConfigDir(userdir.ConfigDir()) // tests are the only setters
 	})
-	clitmpl.SetUserConfigDir(dir)
+	modelset.SetUserConfigDir(dir)
 	return dir
 }
 
@@ -124,12 +125,12 @@ func TestLoadUser(t *testing.T) {
 func resetUserProviders(t *testing.T, dir string) {
 	t.Helper()
 	t.Cleanup(func() {
-		provider.SetUserConfigDir(t.TempDir())
+		modelset.SetUserConfigDir(t.TempDir())
 		provider.Load()
 	})
-	provider.SetUserConfigDir(dir)
-	require.NoError(t, os.MkdirAll(provider.UserDir(), osutil.Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(provider.UserDir(), "myprovider.yaml"), []byte("domains: [api.myprovider.dev]\n"), osutil.File))
+	modelset.SetUserConfigDir(dir)
+	require.NoError(t, os.MkdirAll(provider.Set().UserDir(), osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(provider.Set().UserDir(), "myprovider.yaml"), []byte("domains: [api.myprovider.dev]\n"), osutil.File))
 	provider.Load()
 }
 
@@ -263,7 +264,7 @@ func TestParseCLI_Rejects(t *testing.T) {
 		},
 		{
 			"expansion alias in allow_domains", validCliYAML + "setup:\n  proxied:\n    allow_domains:\n      - ccbox-defaults\n",
-			[]string{"AllowDomains", "DomainOrAlias", "is not a domain or one of " + fmt.Sprintf("%v", quoted(provider.Aliases()))},
+			[]string{"AllowDomains", "DomainOrAlias", "is not a domain or one of " + fmt.Sprintf("%v", quoted(provider.Set().Aliases()))},
 		},
 		{
 			"absolute data bind key", validCliYAML + "setup:\n  data_binds:\n    \"/etc/auth.json\": \"{}\"\n",
@@ -384,7 +385,7 @@ func TestCLI_CLIDataBinds(t *testing.T) {
 func TestAllowDomains_Valid(t *testing.T) {
 	for _, c := range All() {
 		for _, d := range c.Setup.Proxied.AllowDomains {
-			assert.Nilf(t, firm.Value[string](firmrule.DomainOrAlias(provider.Aliases)).Validate(d).ToNil(), "%s: %s", c.Name, d)
+			assert.Nilf(t, firm.Value[string](firmrule.DomainOrAlias(provider.Set().Aliases)).Validate(d).ToNil(), "%s: %s", c.Name, d)
 		}
 	}
 }

@@ -96,9 +96,7 @@ func wrapTreeLoad(clis []CLI, warns []error, err error) ([]CLI, error) {
 }
 
 // LoadUserClis loads just the user clis tree, returning its load warnings
-func LoadUserClis() ([]CLI, []error, error) {
-	return clitmpl.Load(clitmpl.UserTree(), parseCLI)
-}
+func LoadUserClis() ([]CLI, []error, error) { return clitmpl.Load(clitmpl.UserTree(), parseCLI) }
 
 // CLI holds everything ccbox does differently per coding CLI.
 type CLI struct {

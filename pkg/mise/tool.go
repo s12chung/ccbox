@@ -6,23 +6,26 @@ import (
 	"text/template"
 
 	"github.com/s12chung/ccbox/pkg/kit/tomlkit"
-	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 // Tool is one pick of the mise tools picker — manager-prefixed names render
 // into [bootstrap.packages], the rest as [tools] rows
 type Tool struct {
-	Name string
+	// Name is the tool's name — bare for mise's registry, manager-prefixed
+	// otherwise (npm:oxlint, pypi:setuptools)
+	Name string `yaml:"name"`
 
 	// PostInstallCmdTmpl is the postinstall as a text/template over PostInstallTools
-	PostInstallCmdTmpl string
+	PostInstallCmdTmpl string `yaml:"postinstall_cmd_tmpl"`
 	// PostInstallTools are the tmpl's packages — none picked, no postinstall
-	PostInstallTools []Tool
+	PostInstallTools []Tool `yaml:"postinstall_tools"`
 	// PostInstallAlways renders the tmpl with no packages — a static postinstall
-	PostInstallAlways bool
+	PostInstallAlways bool `yaml:"postinstall_always"`
 
-	Comment string // renders above the row when the tool needs a why
-	Hint    string // the mise tools picker's gray note after the name
+	// Comment renders above the row when the tool needs a why
+	Comment string `yaml:"comment"`
+	// Hint is the mise tools picker's gray note after the name
+	Hint string `yaml:"hint"`
 }
 
 // postInstallCmd is the tool's final postinstall cmd: the config's written one
@@ -42,9 +45,14 @@ func (t Tool) postInstallCmd(state ToolState) (string, error) {
 		}
 		pkgs = append(pkgs, postInstallPkg{Tool: pkg.Name, Version: version})
 	}
-	tmpl := template.Must(template.New(t.Name).Parse(t.PostInstallCmdTmpl))
+	tmpl, err := template.New(t.Name).Parse(t.PostInstallCmdTmpl)
+	if err != nil {
+		return "", fmt.Errorf("mise: %s: postinstall_cmd_tmpl: %w", t.Name, err)
+	}
 	var b strings.Builder
-	must.Do(tmpl.Execute(&b, pkgs)) // the tmpl is authored and its data resolved — neither fails here
+	if err := tmpl.Execute(&b, pkgs); err != nil {
+		return "", fmt.Errorf("mise: %s: postinstall_cmd_tmpl: %w", t.Name, err)
+	}
 	return b.String(), nil
 }
 

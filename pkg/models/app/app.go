@@ -49,7 +49,7 @@ type Proxied struct {
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Proxied]().
 		Validates(firm.RuleMap{
-			"AllowDomains": {firm.Elems[[]string](firmrule.DomainOrAlias(provider.Aliases))},
+			"AllowDomains": {firm.Elems[[]string](firmrule.DomainOrAlias(provider.Set().Aliases))},
 			"DataBinds":    {firm.Keys[map[string]*string](firmrule.MaskDir)},
 		}))
 }

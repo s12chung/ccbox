@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"text/template"
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
@@ -18,6 +19,9 @@ var (
 	// Domain is a lowercased hostname or its suffix, e.g. x.ai, githubusercontent.com —
 	// never a bare TLD: "com" would allow every .com host
 	Domain = rule.Match{Regexp: regexp.MustCompile(`^([a-z0-9-]+\.)+[a-z0-9-]+$`)}
+	// Name matches the name a ccbox-<name>-<kind> allowlist alias and its user
+	// config file name derive from
+	Name = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)}
 	// EnvVar is a POSIX-ish env var name
 	EnvVar = rule.Match{Regexp: regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)}
 	// MaskDir is a project-relative dir to mask: no leading slash or "~", and no ".",
@@ -29,6 +33,10 @@ var (
 		`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$`)}
 	// HomePath is a $HOME-relative path, e.g. .claude or .config/opencode
 	HomePath = rule.Match{Regexp: regexp.MustCompile(`^[^/].*$`)}
+	// ContainerPath is an absolute container path (/…), no ".", "..", or empty segment —
+	// a runtime's PATH entry or cache volume mountpoint
+	ContainerPath = rule.Match{Regexp: regexp.MustCompile(
+		`^/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`)}
 	// HTTPSURL is an https endpoint; download templates may carry a literal $version
 	HTTPSURL = rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
 	// bindPath is a read_only_binds host dir or container mount: absolute (/…) or
@@ -40,6 +48,10 @@ var (
 	aliasPrefixRule = rule.Match{Regexp: regexp.MustCompile("^" + aliasPrefix)}
 )
 
+// Domains is a non-empty domain list — an egress wall target's domains: a
+// provider's API hosts or a runtime's toolchain hosts
+var Domains = []firm.Rule{rule.Len{Min: 1}, firm.Elems[[]string](Domain)}
+
 const (
 	// EnabledValue is read_only_binds' special value: a Specials key's entry mounts at its default
 	EnabledValue = "enabled"
@@ -49,6 +61,7 @@ const (
 	bindName          = "Bind"
 	domainOrAliasName = "DomainOrAlias"
 	portListName      = "PortList"
+	templateName      = "Template"
 )
 
 // Bind validates a read_only_binds key-value pair for rule.KeyValues
@@ -115,6 +128,33 @@ func portListErr(template, port string) firm.ErrorMap {
 		TemplateFields: map[string]string{"Port": strconv.Quote(port)},
 		Template:       template,
 	}}
+}
+
+// Template is a text/template body that parses — a tool's postinstall cmd;
+// "" is the unset tmpl
+type Template struct{}
+
+// TypeCheck restricts the rule to strings
+func (Template) TypeCheck(typ reflect.Type) *firm.RuleTypeError {
+	if typ.Kind() != reflect.String {
+		return firm.NewRuleTypeError(templateName, typ, "is not a string")
+	}
+	return nil
+}
+
+// ValidateValue checks the body parses (assumes TypeCheck is called)
+func (Template) ValidateValue(value reflect.Value) firm.ErrorMap {
+	body, ok := reflect.TypeAssert[string](value)
+	if !ok || body == "" {
+		return nil
+	}
+	if _, err := template.New(templateName).Parse(body); err != nil {
+		return firm.ErrorMap{templateName: firm.TemplateError{
+			TemplateFields: map[string]string{"Error": err.Error()},
+			Template:       "is not a text/template that parses: {{.Error}}",
+		}}
+	}
+	return nil
 }
 
 // DomainOrAlias validates for domains or aliases, resolving the alias list at

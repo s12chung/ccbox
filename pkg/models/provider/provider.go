@@ -1,59 +1,57 @@
 // Package provider holds the LLM API providers the egress wall knows: a CLI's
 // provider traffic is allowlisted by alias, so the domains live here alone.
-//
-// NOTE: like pkg/models/cli — Load() runs once at startup (cmd.rootCmd.PersistentPreRunE),
-// after seeding. The built-ins are a compile-time constant, while user providers
-// warn+skip, effectively guaranteeing a workable set onwards. It runs before
-// cli.Load(), whose user clis may alias user providers in setup.proxied.allow_domains.
 package provider
 
 import (
 	"fmt"
-	"maps"
-	"os"
-	"path/filepath"
-	"regexp"
-	"slices"
-	"strings"
 
 	"github.com/s12chung/firm"
-	"github.com/s12chung/firm/rule"
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/kit/yamlkit"
-	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/fsutil"
-	"github.com/s12chung/ccbox/pkg/util/must"
-	"github.com/s12chung/ccbox/pkg/util/slicex"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
+	"github.com/s12chung/ccbox/pkg/models/modelset"
 )
+
+// Load loads the provider set: the built-ins, overridden by the user's drop-ins
+func Load() { set.Load() }
 
 const (
 	providersDir = "providers"
-	yamlExt      = ".yaml"
-	// userGlob matches the user providers: <name>.yaml files; stray files (README.md) don't
-	userGlob = providersDir + "/*" + yamlExt
-
 	// AllProvidersAlias is the allowlist alias expanding to every provider's domains
 	AllProvidersAlias = "ccbox-all-providers"
 )
+
+var set = &modelset.AliasedSet[Provider]{
+	Set:      modelset.NewSet(builtinProviders, providersDir, parseProvider),
+	AllAlias: AllProvidersAlias,
+}
+
+// Set is the provider set
+func Set() *modelset.AliasedSet[Provider] { return set }
 
 // Provider is an LLM API provider and the egress wall domains its API talks to.
 type Provider struct {
 	// Name names the provider; its alias derives from it. A user provider's name
 	// comes from its filename — a name key in the yaml is rejected.
 	Name string `yaml:"-"`
-
 	// Domains are the provider's egress wall domains
 	Domains []string `yaml:"domains"`
 }
 
+// Key is the provider's override key — its name
+func (p Provider) Key() string { return p.Name }
+
+// Alias is the provider's allowlist alias
+func (p Provider) Alias() string { return "ccbox-" + p.Name + "-provider" }
+
+// DomainList is the provider's egress wall domains
+func (p Provider) DomainList() []string { return p.Domains }
+
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[Provider]().
 		Validates(firm.RuleMap{
-			// the name feeds the ccbox-<name>-provider alias and the file name
-			"Name":    {rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)}},
-			"Domains": {rule.Len{Min: 1}, firm.Elems[[]string](firmrule.Domain)},
+			"Name":    {firmrule.Name},
+			"Domains": firmrule.Domains,
 		}))
 }
 
@@ -75,84 +73,7 @@ var builtinProviders = []Provider{
 	{Name: "zai", Domains: []string{"api.z.ai"}},
 }
 
-// providers is the loaded provider set: the built-ins until Load() swaps in the
-// built-ins overridden by the user's.
-var providers = builtinProviders
-
-// Load loads the provider set: the built-in providers, overridden by the user's
-func Load() { providers = mustLoadAll() }
-
-// mustLoadAll merges the user providers over the built-ins: a user provider replaces
-// a same-name built-in. User load warnings print; the set always loads.
-func mustLoadAll() []Provider {
-	userProviders, warns, err := LoadUserProviders()
-	for _, warn := range warns {
-		log.Warnf("%s, skipping", warn)
-	}
-	// unreachable: listing a dir never errors
-	must.Do(err)
-
-	byName := make(map[string]Provider, len(builtinProviders)+len(userProviders))
-	for _, p := range slices.Concat(builtinProviders, userProviders) {
-		byName[p.Name] = p
-	}
-	return slicex.Map(slices.Sorted(maps.Keys(byName)), func(name string) Provider { return byName[name] })
-}
-
-// All lists every known provider, sorted by name
-func All() []Provider { return slices.Clone(providers) }
-
-// Alias is the provider's allowlist alias: ccbox-<name>-provider
-func (p Provider) Alias() string { return "ccbox-" + p.Name + "-provider" }
-
-// Aliases lists every provider's alias plus AllProvidersAlias, sorted
-func Aliases() []string {
-	aliases := make([]string, 0, len(providers)+1)
-	for _, p := range providers {
-		aliases = append(aliases, p.Alias())
-	}
-	aliases = append(aliases, AllProvidersAlias)
-	return slices.Sorted(slices.Values(aliases))
-}
-
-// DomainsFor resolves an allowlist alias to its provider's domains — every
-// provider's for AllProvidersAlias. ok is false for anything but an alias.
-func DomainsFor(alias string) ([]string, bool) {
-	for _, p := range providers {
-		if p.Alias() == alias {
-			return slices.Clone(p.Domains), true
-		}
-	}
-	if alias == AllProvidersAlias {
-		var domains []string
-		for _, p := range providers {
-			domains = append(domains, p.Domains...)
-		}
-		return domains, true
-	}
-	return nil, false
-}
-
-// userConfigDir is the user config dir: ~/.ccbox/config.
-var userConfigDir = userdir.ConfigDir()
-
-// SetUserConfigDir points the user config dir at dir; tests redirect the user
-// providers at a temp tree with it.
-func SetUserConfigDir(dir string) { userConfigDir = dir }
-
-// UserDir is the host dir of user-defined providers: ~/.ccbox/config/providers.
-func UserDir() string { return filepath.Join(userConfigDir, providersDir) }
-
-// LoadUserProviders parses the user providers tree, each named after its file. A bad
-// provider is a warning — skipped with a startup warning; doctor is where they surface.
-func LoadUserProviders() ([]Provider, []error, error) {
-	return fsutil.LoadGlob(os.DirFS(userConfigDir), userGlob, func(_ string, info fsutil.EntryInfo) (Provider, error) {
-		return parseProvider(strings.TrimSuffix(info.Name(), yamlExt), info.Body)
-	})
-}
-
-// parseProvider decodes one provider yaml body into its Provider, named name —
-// firm-validated to fail at load, not on first use.
+// parseProvider decodes one provider yaml body into its Provider, named name
 func parseProvider(name string, body []byte) (Provider, error) {
 	p, err := yamlkit.ValidatedDecode(body, func(newProvider Provider) Provider {
 		newProvider.Name = name

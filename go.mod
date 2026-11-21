@@ -15,7 +15,7 @@ require (
 	github.com/moby/term v0.5.2
 	github.com/pelletier/go-toml/v2 v2.3.1
 	github.com/s12chung/ccbox/tools/ccboxtools v0.0.0-00010101000000-000000000000
-	github.com/s12chung/firm v0.2.2-0.20261007223504-7389c7e00aae
+	github.com/s12chung/firm v0.2.2-0.20261121232306-8c5d0f7488d4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
