@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
+	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -121,6 +123,13 @@ func Run(ctxD *dock.CtxD, o RunOptions) error {
 	}
 	defer log.Defer("devbox leave", leave)
 
+	// mark is never held without its run's holder entry — otherwise, ps reads Execs as -1
+	release, err := takeForegroundMark(o)
+	if err != nil {
+		return err
+	}
+	defer log.Defer("release the foreground mark", release)
+
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	defer signal.Stop(sig)
@@ -166,6 +175,24 @@ func holdDevbox(ctxD *dock.CtxD, o RunOptions) (_ func() error, err error) {
 	}
 	return leave, nil
 }
+
+// takeForegroundMark takes the devbox's foreground mark — only one foreground
+// run streams its logs
+func takeForegroundMark(o RunOptions) (func() error, error) {
+	mark, err := flock.TryEx(foregroundMarkPath(o.HoldersDir))
+	if errors.Is(err, flock.ErrHeld) {
+		return nil, fmt.Errorf("devbox %s is already in the foreground — tail its log file instead: %s",
+			o.Name, userdir.Tilde(o.LogFile))
+	}
+	if err != nil {
+		return nil, err
+	}
+	return mark.Release, nil
+}
+
+// foregroundMarkPath is the foreground mark's file — the holder sweep counts
+// only holder- files, so the mark sits there uncounted
+func foregroundMarkPath(holdersDir string) string { return filepath.Join(holdersDir, "foreground") }
 
 // streamLogs tails the container's logs through fg in a goroutine, closing
 // its Stop with the stream. A nil fg streams nothing.

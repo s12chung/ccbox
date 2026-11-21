@@ -40,3 +40,10 @@ func SwapErrWriter(w io.Writer) func() {
 	errWriter = w
 	return func() { errWriter = old }
 }
+
+// SwapInfoWriter swaps infoWriter for w, restored by the returned func.
+func SwapInfoWriter(w io.Writer) func() {
+	old := infoWriter
+	infoWriter = w
+	return func() { infoWriter = old }
+}

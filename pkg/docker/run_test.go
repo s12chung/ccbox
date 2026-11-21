@@ -257,6 +257,37 @@ func assertFiles(t *testing.T, o RunOptions, proxyLog string, opts stream.Option
 	}
 }
 
+func TestTakeForegroundMark_Held(t *testing.T) {
+	o := RunOptions{
+		Name:       "ccbox-proj",
+		HoldersDir: t.TempDir(),
+		LogFile:    "/home/me/.ccbox/logs/proj/devbox.log",
+	}
+	release, err := takeForegroundMark(o)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, release()) }()
+
+	_, err = takeForegroundMark(o)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ccbox-proj is already in the foreground")
+}
+
+func TestTakeForegroundMark_Release(t *testing.T) {
+	o := RunOptions{HoldersDir: t.TempDir()}
+	release, err := takeForegroundMark(o)
+	require.NoError(t, err)
+	require.NoError(t, release())
+
+	foreground, err := isForegrounded(foregroundMarkPath(o.HoldersDir))
+	require.NoError(t, err)
+	assert.False(t, foreground, "a released mark foregrounds no one")
+}
+
+func TestForegroundMarkPath(t *testing.T) {
+	assert.Equal(t, filepath.Join("holders", "foreground"), foregroundMarkPath("holders"),
+		"the mark sits in the holders dir, swept around by its holder entries")
+}
+
 func TestRunConfig(t *testing.T) {
 	tests := []struct {
 		name string

@@ -197,6 +197,41 @@ func TestMultiFlock_Join_CallbackError(t *testing.T) {
 	})
 }
 
+// dirModes for the registration-failure test: CreateTemp needs the dir write, ReadDir doesn't
+const (
+	tempDirMode    os.FileMode = 0o700 // t.TempDir's own mode, restored for its cleanup
+	denyWritesMode os.FileMode = 0o500
+)
+
+func TestMultiFlock_Join_RegistrationError(t *testing.T) {
+	m := newMultiFlock(t)
+	t.Cleanup(func() { require.NoError(t, os.Chmod(m.Dir, tempDirMode)) })
+
+	fnRan := false
+	_, err := m.Join(
+		func() error { return nil },
+		func() error { fnRan = true; return os.Chmod(m.Dir, denyWritesMode) }, // denies the entry's create below
+		nil,
+	)
+	require.ErrorContains(t, err, "permission denied", "the entry's create fails on the write-denied dir")
+	assert.True(t, fnRan, "the callback ran: the resource is up without its holder entry")
+	assert.Empty(t, entryNames(t, m), "nothing registered: no entry carries the resource's count")
+
+	// the leftover resource is uncounted: the next joiner finds no holder and creates anew
+	require.NoError(t, os.Chmod(m.Dir, tempDirMode))
+	fnRanAnew, verified := false, false
+	leave, err := m.Join(
+		func() error { verified = true; return nil },
+		func() error { fnRanAnew = true; return nil },
+		nil,
+	)
+	require.NoError(t, err)
+	assert.True(t, fnRanAnew, "the uncounted resource is invisible: fn runs again, not verifyExisting")
+	assert.False(t, verified)
+	require.NoError(t, leave())
+	assert.Empty(t, entryNames(t, m))
+}
+
 func TestMultiFlock_Join_Concurrent(t *testing.T) {
 	m := newMultiFlock(t)
 	const holders = 8
@@ -251,7 +286,7 @@ func TestMultiFlock_Clean_Solo(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, existing)
 	assert.Empty(t, entryNames(t, m))
-	release()
+	require.NoError(t, release())
 }
 
 func TestMultiFlock_Clean_Existing(t *testing.T) {
@@ -262,7 +297,7 @@ func TestMultiFlock_Clean_Existing(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, existing, "the held entry counts as an existing holder")
 	assert.Len(t, entryNames(t, m), 1, "the existing entry is kept")
-	release()
+	require.NoError(t, release())
 }
 
 func TestMultiFlock_Clean_SweepsDeadEntries(t *testing.T) {
@@ -273,7 +308,7 @@ func TestMultiFlock_Clean_SweepsDeadEntries(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 0, existing, "the dead entry is not an existing holder")
 	assert.NoFileExists(t, dead, "the dead entry is swept")
-	release()
+	require.NoError(t, release())
 }
 
 func TestMultiFlock_Clean_HoldsDirLock(t *testing.T) {
@@ -283,7 +318,7 @@ func TestMultiFlock_Clean_HoldsDirLock(t *testing.T) {
 	require.NoError(t, err)
 	_, lockErr := TryEx(m.lockPath())
 	require.ErrorIs(t, lockErr, ErrHeld, "the dir lock is held until release")
-	release()
+	require.NoError(t, release())
 	_, lockErr = TryEx(m.lockPath())
 	require.NoError(t, lockErr, "release lets the dir lock go")
 }

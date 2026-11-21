@@ -51,7 +51,7 @@ proxy:
 	assert.Equal(t, env, options.Env)
 	assert.Equal(t, docker.ImageTag, options.Tag)
 	assert.Equal(t, devboxName(config.ProjectDir(), false, true), options.Name)
-	assert.Equal(t, devboxHoldersDir(options.Name), options.HoldersDir)
+	assert.Equal(t, docker.HoldersDir(options.Name), options.HoldersDir)
 	assert.Equal(t, devboxLogPath(config.ProjectDir(), false, true), options.LogFile)
 	assert.False(t, options.ServeVNC)
 	assert.Nil(t, options.Foreground, "the foreground view is the command's, not the map's")

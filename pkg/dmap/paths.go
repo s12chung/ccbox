@@ -22,11 +22,6 @@ func GUIAppDataDir(userDir, appName string, isProxied bool) string {
 	return filepath.Join(userDir, "data", appName, mode)
 }
 
-// devboxHoldersDir is the devbox's holder flock dir on the host, keyed by its name
-func devboxHoldersDir(name string) string {
-	return filepath.Join(userdir.Tmp(), "devbox-holders", name)
-}
-
 // devboxLogPath is the devbox's own host log file, outliving any single run — one file per variant
 func devboxLogPath(projectDir string, serveVNC, isProxied bool) string {
 	return logPath(projectDir, "devbox"+variantSuffix(serveVNC, isProxied)+".log")

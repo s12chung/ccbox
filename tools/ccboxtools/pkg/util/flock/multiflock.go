@@ -36,7 +36,7 @@ func (m MultiFlock) Join(verifyExisting, fn, teardown func() error) (func() erro
 	if err != nil {
 		return nil, err
 	}
-	defer release()
+	defer log.Defer("release dir lock", release)
 
 	if existing > 0 { // an existing holder holds the resource: verify it, don't create it
 		fn = verifyExisting
@@ -54,18 +54,16 @@ func (m MultiFlock) Join(verifyExisting, fn, teardown func() error) (func() erro
 
 // Clean takes the dir lock and sweeps the dead entries, returning the lock's release
 // and the existing holders' count
-func (m MultiFlock) Clean() (func(), int, error) {
+func (m MultiFlock) Clean() (func() error, int, error) {
 	dirLock, err := Ex(m.lockPath())
 	if err != nil {
 		return nil, 0, err
 	}
-	release := func() { log.Defer("release dir lock", dirLock.Release) }
 	existing, err := m.sweep()
 	if err != nil {
-		release()
-		return nil, 0, err
+		return nil, 0, errors.Join(err, dirLock.Release())
 	}
-	return release, existing, nil
+	return dirLock.Release, existing, nil
 }
 
 // leave sweeps the dead ones and drops the calling holder's entry; an existing holder
@@ -75,7 +73,7 @@ func (m MultiFlock) leave(e *entry, teardown func() error) error {
 	if err != nil {
 		return err
 	}
-	defer release()
+	defer log.Defer("release dir lock", release)
 
 	if existing > 1 { // the count includes the calling holder: the remainder is the others
 		if err := e.drop(); err != nil {

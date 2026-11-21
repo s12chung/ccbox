@@ -44,7 +44,7 @@ func (rm *RunMap) RunOptions(proxyOptions *docker.ProxyOptions) (docker.RunOptio
 		ServeVNC:        serveVNC,
 		PortBindingsTCP: rm.cfg.PortBindingsTCP(),
 		HostGatewayTCP:  rm.cfg.HostGatewayTCP(),
-		HoldersDir:      devboxHoldersDir(name),
+		HoldersDir:      docker.HoldersDir(name),
 		LogFile:         devboxLogPath(rm.cfg.ProjectDir(), serveVNC, isProxied),
 	}, clean, nil
 }
