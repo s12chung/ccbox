@@ -61,44 +61,38 @@ func TestConfig_HostGatewayTCP(t *testing.T) {
 	}
 }
 
-func TestConfig_ListsExpanded(t *testing.T) {
+func TestConfig_ListsUnique(t *testing.T) {
 	tests := []struct {
-		name                string
-		projectDir          string
-		body                string
-		want                Config
-		wantTmpfsExpanded   []string
-		wantVolumesExpanded []string
-		wantGlobsExpanded   []string
-		wantPathsPresent    []string
+		name             string
+		projectDir       string
+		body             string
+		want             Config
+		wantPathsPresent []string
 	}{
 		{
-			"an all-nil config expands every list to nothing", t.TempDir(),
+			"an all-nil config keeps every list nothing", t.TempDir(),
 			"cli: claude\n" + imagesYAML,
 			Config{CLIName: "claude", Images: testImages},
-			nil, nil, nil, nil,
+			nil,
 		},
 		{
-			"the alias expands in place, literals kept, repeats collapse", t.TempDir(),
+			"repeats collapse, order kept", t.TempDir(),
 			"cli: claude\n" + imagesYAML +
-				"tmpfs_masks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
-				"read_only_globs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
+				"tmpfs_masks:\n  - .idea\n  - dist\n  - .idea\n" +
+				"read_only_globs:\n  - .env\n  - .ccbox.yaml\n  - .env\n",
 			Config{
 				CLIName:       "claude",
 				Images:        testImages,
-				TmpfsMasks:    []string{DefaultsAlias, "dist", DefaultsAlias},
-				ReadOnlyGlobs: []string{DefaultsAlias, ".env", DefaultsAlias},
+				TmpfsMasks:    []string{".idea", "dist"},
+				ReadOnlyGlobs: []string{".env", ".ccbox.yaml"},
 			},
-			append(append([]string{}, tmpfsDefaults...), "dist"),
-			nil,
-			readOnlyDefaults,        // the literal ".env" collapses into the defaults' own entry
-			[]string{".ccbox.yaml"}, // the alias expands: the project's own config matches; .env is absent here
+			[]string{".ccbox.yaml"}, // the project's own config matches; .env is absent here
 		},
 		{
-			"an explicit empty list stays empty like an unset one", t.TempDir(),
+			"an explicit empty list loads like an unset one", t.TempDir(),
 			"cli: claude\n" + imagesYAML + "volume_masks: []\n",
-			Config{CLIName: "claude", Images: testImages, VolumeMasks: []string{}},
-			nil, nil, nil, nil,
+			Config{CLIName: "claude", Images: testImages},
+			nil,
 		},
 	}
 	for _, tt := range tests {
@@ -110,30 +104,24 @@ func TestConfig_ListsExpanded(t *testing.T) {
 			c, err := Load(tt.projectDir, Flags{})
 			require.NoError(t, err)
 			assert.Equal(t, &tt.want, c)
-			assert.Equal(t, tt.wantTmpfsExpanded, c.TmpfsMasksExpanded())
-			assert.Equal(t, tt.wantVolumesExpanded, c.VolumeMasksExpanded())
-			assert.Equal(t, tt.wantGlobsExpanded, c.ReadOnlyGlobsExpanded())
 			assert.Equal(t, tt.wantPathsPresent, c.ReadOnlyPathsPresent())
 		})
 	}
 }
 
-func TestConfig_AccessorsCache(t *testing.T) {
+func TestConfig_MasksPresent_Restats(t *testing.T) {
 	dir := t.TempDir()
-	useHome(t) // no user file: no defaults alias
+	useHome(t) // no user file: no seeded defaults
 	mkDirs(t, dir, "dist")
 	writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"tmpfs_masks:\n  - dist\n")
 
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
-
-	expanded := c.TmpfsMasksExpanded()
-	assert.Equal(t, []string{"dist"}, expanded)
+	assert.Equal(t, []string{"dist"}, c.TmpfsMasksPresent())
 
 	// the present-filter re-stats each call: the project dir's changing contents show through
 	require.NoError(t, os.Remove(filepath.Join(dir, "dist")))
 	assert.Nil(t, c.TmpfsMasksPresent())
-	assert.Equal(t, expanded, c.TmpfsMasksExpanded()) // the cached expansion holds
 }
 
 // loadBindsConfig loads a config whose read_only_binds are the given raw map
@@ -267,7 +255,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 		wantVolumeMasks []string
 	}{
 		{
-			"the seed's alias rejects the project's absent defaults", present,
+			"the seed's defaults absent from the project reject", present,
 			"",
 			nil,
 			[]string{".venv", "target"},
@@ -279,7 +267,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 			[]string{".venv", "target"},
 		},
 		{
-			"all absent rejects every entry, alias and own alike", absent,
+			"all absent rejects every entry, seed's and own alike", absent,
 			"tmpfs_masks:\n  - dist\n",
 			append(append([]string{}, tmpfsDefaults...), "dist"),
 			volumeDefaults,
@@ -386,10 +374,10 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 
-	// the expansion keeps the masked entries — the absent node_modules too — but their
+	// the list keeps the masked entries — the absent node_modules too — but their
 	// matches drop: a mask is never re-mounted read-only, and certs/server.pem matches
 	// **/*.pem only under one
-	assert.Equal(t, []string{"build", "build/**", "**/*.pem"}, c.ReadOnlyGlobsExpanded())
+	assert.Equal(t, []string{"build", "build/**", "**/*.pem"}, c.ReadOnlyGlobs)
 	assert.Empty(t, c.ReadOnlyPathsPresent())
 }
 
@@ -417,14 +405,14 @@ func TestConfig_ReadOnlyPathsPresent_Fresh(t *testing.T) {
 	})
 }
 
-func TestConfig_ReadOnlyGlobsExpanded(t *testing.T) {
+func TestConfig_ReadOnlyGlobs_Unique(t *testing.T) {
 	dir := t.TempDir()
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".env"), nil, osutil.File))
-	c := readOnlyGlobsConfig(t, dir, DefaultsAlias, "typo-glob")
+	c := readOnlyGlobsConfig(t, dir, append(append([]string{}, roGlobDefaults...), "typo-glob", ".env")...)
 
-	// the alias expands in place. The project's own .ccbox.yaml matches the defaults' first
-	// entry, .env its third; the rest match nothing.
-	assert.Equal(t, append(append([]string{}, readOnlyDefaults...), "typo-glob"), c.ReadOnlyGlobsExpanded())
+	// repeats collapse in place. The project's own .ccbox.yaml matches the defaults' first
+	// entry, .env its own; the rest match nothing.
+	assert.Equal(t, append(append([]string{}, roGlobDefaults...), "typo-glob"), c.ReadOnlyGlobs)
 	assert.Equal(t, []string{".ccbox.yaml", ".env"}, c.ReadOnlyPathsPresent())
 }
 
@@ -515,9 +503,9 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 		DefaultVariant: &DefaultVariant{PortBindings: PortBindings{TCP: []string{"3000", "7200"}}},
 		HostGateway:    &HostGateway{TCP: []string{"5432", "6379"}},
 		VNC:            &VNC{GUIAppName: guiapp.App.Name},
-		TmpfsMasks:     []string{DefaultsAlias, "dist", "build"},
-		VolumeMasks:    []string{DefaultsAlias, "target", "cache"},
-		ReadOnlyGlobs:  []string{DefaultsAlias, ".env"},
+		TmpfsMasks:     append(append([]string{}, tmpfsDefaults...), "dist", "build"),
+		VolumeMasks:    append(append([]string{}, volumeDefaults...), "cache"),
+		ReadOnlyGlobs:  roGlobDefaults,
 		ReadOnlyBinds:  map[string]string{GitConfigKey: firmrule.EnabledValue},
 		ForwardEnv:     []string{"FOO"},
 		Proxy: &Proxy{

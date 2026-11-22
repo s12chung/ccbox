@@ -13,6 +13,9 @@ import (
 
 	"github.com/s12chung/firm"
 	"gopkg.in/yaml.v3"
+
+	"github.com/s12chung/ccbox/pkg/util/must"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
 // ValidatedDecode decodes one yaml body into T, rejecting unknown fields — a typo'd
@@ -119,6 +122,45 @@ func Value(v any, comments []string) (string, error) {
 	default:
 		return beside(" "+bodyStr, comments)
 	}
+}
+
+// Flow renders values as a multi-line YAML flow sequence for a template line.
+func Flow(values []string, groups map[string]int) string {
+	switch {
+	case values == nil:
+		return "" // unset: the bare key stands
+	case len(values) == 0:
+		return " []" // explicit emptiness
+	}
+	lines := slicex.Map(flowRows(values, groups), func(row []string) string {
+		entries := slicex.Map(row, func(v string) string {
+			// through yaml, so quoting matches what a yaml parser reads back
+			return strings.TrimSpace(string(must.Get(yaml.Marshal(v))))
+		})
+		return "  " + strings.Join(entries, ", ") + ","
+	})
+	return " [\n" + strings.Join(lines, "\n") + "\n]"
+}
+
+func flowRows(values []string, groups map[string]int) [][]string {
+	rows := [][]string{}
+	var rest []string
+	for _, value := range values {
+		index, ok := groups[value]
+		if !ok {
+			rest = append(rest, value)
+			continue
+		}
+		for len(rows) <= index {
+			rows = append(rows, nil)
+		}
+		rows[index] = append(rows[index], value) // same groups index shares a row, in index order
+	}
+	rows = slicex.Filter(rows, func(row []string) bool { return row != nil }) // an index no value hits renders nothing
+	for _, value := range rest {
+		rows = append(rows, []string{value}) // outside groups: a row each, after
+	}
+	return rows
 }
 
 // beside joins at most one comment beside a rendered line

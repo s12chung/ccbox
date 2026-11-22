@@ -48,10 +48,7 @@ type Config struct {
 
 	projectDir string // stored projectDir
 
-	// cache the DefaultsAlias expansions of raw lists and the read_only_binds' path resolutions
-	expandedTmpfsMasks    []string
-	expandedVolumeMasks   []string
-	expandedReadOnlyGlobs []string
+	// cache the allowlist's alias expansion and the read_only_binds' path resolutions
 	expandedReadOnlyBinds map[string]string
 	expandedAllowlist     []string
 }
@@ -134,64 +131,33 @@ func (c *Config) HostGatewayTCP() []string {
 	return c.HostGateway.TCP
 }
 
-// TmpfsMasksExpanded expands the DefaultsAlias alias in TmpfsMasks to defaults
-func (c *Config) TmpfsMasksExpanded() []string {
-	if c.expandedTmpfsMasks == nil {
-		c.expandedTmpfsMasks = expandDefaultAlias(c.TmpfsMasks, tmpfsDefaults)
-	}
-	return c.expandedTmpfsMasks
-}
+// TmpfsMasksPresent filters TmpfsMasks to the paths present as dirs in the project
+func (c *Config) TmpfsMasksPresent() []string { return osutil.DirsPresent(c.projectDir, c.TmpfsMasks) }
 
-// TmpfsMasksPresent filters TmpfsMasksExpanded() to the paths present as dirs in the project
-func (c *Config) TmpfsMasksPresent() []string {
-	return osutil.DirsPresent(c.projectDir, c.TmpfsMasksExpanded())
-}
+// TmpfsMasksAbsent filters TmpfsMasks to the paths NOT present as dirs in the project
+func (c *Config) TmpfsMasksAbsent() []string { return absentDirs(c.projectDir, c.TmpfsMasks) }
 
-// TmpfsMasksAbsent filters TmpfsMasksExpanded() to the paths NOT present as dirs in the project
-func (c *Config) TmpfsMasksAbsent() []string {
-	return absentDirs(c.projectDir, c.TmpfsMasksExpanded())
-}
-
-// VolumeMasksExpanded expands the DefaultsAlias alias in VolumeMasks to defaults
-func (c *Config) VolumeMasksExpanded() []string {
-	if c.expandedVolumeMasks == nil {
-		c.expandedVolumeMasks = expandDefaultAlias(c.VolumeMasks, volumeDefaults)
-	}
-	return c.expandedVolumeMasks
-}
-
-// VolumeMasksPresent filters VolumeMasksExpanded() to the paths present as dirs in the project
+// VolumeMasksPresent filters VolumeMasks to the paths present as dirs in the project
 func (c *Config) VolumeMasksPresent() []string {
-	return osutil.DirsPresent(c.projectDir, c.VolumeMasksExpanded())
+	return osutil.DirsPresent(c.projectDir, c.VolumeMasks)
 }
 
-// VolumeMasksAbsent filters VolumeMasksExpanded() to the paths NOT present as dirs in the project
-func (c *Config) VolumeMasksAbsent() []string {
-	return absentDirs(c.projectDir, c.VolumeMasksExpanded())
-}
-
-// ReadOnlyGlobsExpanded expands the DefaultsAlias alias in ReadOnlyGlobs to defaults
-func (c *Config) ReadOnlyGlobsExpanded() []string {
-	if c.expandedReadOnlyGlobs == nil {
-		c.expandedReadOnlyGlobs = expandDefaultAlias(c.ReadOnlyGlobs, readOnlyDefaults)
-	}
-	return c.expandedReadOnlyGlobs
-}
+// VolumeMasksAbsent filters VolumeMasks to the paths NOT present as dirs in the project
+func (c *Config) VolumeMasksAbsent() []string { return absentDirs(c.projectDir, c.VolumeMasks) }
 
 func (c *Config) readOnlyGlobsMatchers() []glob.Glob {
-	globStrings := c.ReadOnlyGlobsExpanded()
-	globs := make([]glob.Glob, 0, len(globStrings))
-	for _, g := range globStrings {
+	globs := make([]glob.Glob, 0, len(c.ReadOnlyGlobs))
+	for _, g := range c.ReadOnlyGlobs {
 		globs = append(globs, globkit.DoubleStarRooted(g))
 	}
 	return globs
 }
 
-// ReadOnlyPathsPresent matches ReadOnlyGlobsExpanded() against the project to actual paths,
+// ReadOnlyPathsPresent matches ReadOnlyGlobs against the project to actual paths,
 // minus masked dirs and covered matches — a kept match covers the matches under it
 func (c *Config) ReadOnlyPathsPresent() []string {
 	covered := map[string]bool{}
-	for _, mask := range slices.Concat(c.TmpfsMasksExpanded(), c.VolumeMasksExpanded()) {
+	for _, mask := range slices.Concat(c.TmpfsMasks, c.VolumeMasks) {
 		covered[mask] = true
 	}
 	var paths []string
@@ -280,12 +246,6 @@ func (c *Config) SetHarnessDomains() []string {
 // expansion aliases
 func allowlistAliases() []string {
 	return slices.Concat(provider.Set().Aliases(), runtime.Set().Aliases(), []string{DefaultsAlias, SetHarnessAlias})
-}
-
-// expandDefaultAlias replaces each DefaultsAlias with defaults, preserving entry order and
-// dropping repeat entries.
-func expandDefaultAlias(list, defaults []string) []string {
-	return expand.Slice(list, map[string][]string{DefaultsAlias: defaults})
 }
 
 // expandDomain resolves one entry: a provider or runtime alias to its table domains,

@@ -2,6 +2,7 @@ package cfg
 
 import (
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -117,9 +118,9 @@ func TestSeedConfig(t *testing.T) {
 		CLIName:       "claude",
 		Images:        testImages,
 		ForwardEnv:    []string{"TERM", "COLORTERM"},
-		TmpfsMasks:    []string{DefaultsAlias},
-		VolumeMasks:   []string{DefaultsAlias},
-		ReadOnlyGlobs: []string{DefaultsAlias},
+		TmpfsMasks:    tmpfsDefaults,
+		VolumeMasks:   volumeDefaults,
+		ReadOnlyGlobs: roGlobDefaults,
 		ReadOnlyBinds: map[string]string{GitConfigKey: firmrule.EnabledValue},
 		Proxy: &Proxy{
 			Allowlist: []string{DefaultsAlias, runtime.AllRuntimesAlias, SetHarnessAlias},
@@ -274,6 +275,10 @@ func TestConfig_ValidateErrors(t *testing.T) {
 	})
 }
 
+func TestRoGlobGroups_MatchDefaults(t *testing.T) {
+	assert.ElementsMatch(t, roGlobDefaults, slices.Collect(maps.Keys(roGlobGroups)))
+}
+
 // TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
 // which `make lint` yq-checks as YAML. Regenerate with:
 // `UPDATE_FIXTURES=1 go test ./pkg/cfg/ -run TestConfig_renderTmpl`
@@ -391,7 +396,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build") // the layers' own mask dirs must exist to survive
 	bodies := map[string]string{    // one entry per configFiles term
-		"user": "cli: opencode\n" + imagesYAML + "tmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
+		"user": "cli: opencode\n" + imagesYAML + "tmpfs_masks:\n  - .idea\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
 			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - user.example.dev\n",
 		"project": "cli: claude\n" + imagesYAML + "tmpfs_masks:\n  - build\n" +
@@ -409,8 +414,8 @@ func TestLoad_LayersFiles(t *testing.T) {
 	// per-field merge: the project layer's unset section leaves the user's gui_app standing
 	assert.Equal(t, &VNC{GUIAppName: "zcode"}, c.VNC)
 
-	// lists append raw, lowest layer first, the seed's aliases carried as-is
-	assert.Equal(t, []string{DefaultsAlias, "dist", "build"}, c.TmpfsMasks)
+	// lists append raw, lowest layer first
+	assert.Equal(t, []string{".idea", "dist", "build"}, c.TmpfsMasks)
 
 	// forward_env appends, layer order
 	assert.Equal(t, []string{"FOO", "BAR", "FOO", "BAZ"}, c.ForwardEnv)

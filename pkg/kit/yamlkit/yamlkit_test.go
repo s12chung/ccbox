@@ -68,6 +68,41 @@ func TestValue(t *testing.T) {
 	}
 }
 
+func TestFlow(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []string
+		groups map[string]int
+		want   string
+	}{
+		{"nil values render bare", nil, nil, ""},
+		{"empty values render explicit emptiness", []string{}, nil, " []"},
+		{
+			"entries sharing a row index share a line",
+			[]string{".ccbox.yaml", "secrets"},
+			map[string]int{".ccbox.yaml": 0, "secrets": 0},
+			" [\n  .ccbox.yaml, secrets,\n]",
+		},
+		{
+			"lines come out in row order, not first-seen",
+			[]string{"**/*.pem", ".env"},
+			map[string]int{"**/*.pem": 1, ".env": 0},
+			" [\n  .env,\n  '**/*.pem',\n]",
+		},
+		{
+			"entries outside groups get a line each, after the numbered",
+			[]string{".ccbox.yaml", ".typo", "secrets", ".env"},
+			map[string]int{".ccbox.yaml": 1, "secrets": 1, ".env": 2},
+			" [\n  .ccbox.yaml, secrets,\n  .env,\n  .typo,\n]",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, Flow(tt.values, tt.groups))
+		})
+	}
+}
+
 type decoded struct{ Name string }
 
 func init() {

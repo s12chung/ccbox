@@ -69,11 +69,11 @@ func confirmReadOnlyPaths() bool {
 }
 
 // printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs and bind
-// hosts are present-checked like any dir; globs can't be — their expansion shows what's armed instead.
+// hosts are present-checked; globs can't be, so all the globs are shown.
 func printGuardMountWarnings() {
 	tmpfsMasks := config.TmpfsMasksAbsent()
 	volumeMasks := config.VolumeMasksAbsent()
-	globs := config.ReadOnlyGlobsExpanded()
+	globs := config.ReadOnlyGlobs
 	binds := config.ReadOnlyBindsAbsent()
 	if len(tmpfsMasks) > 0 || len(volumeMasks) > 0 || len(globs) > 0 || len(binds) > 0 {
 		log.Info("")
@@ -117,28 +117,14 @@ var configDefaultsCmd = &cobra.Command{
 	},
 }
 
-// aliasField is one config field DefaultsAlias can appear in, with its expansion
-type aliasField struct {
-	fieldName string
-	defaults  []string
-}
-
-// struct array keeps the order
-var aliasFields = []aliasField{
-	{"tmpfs_masks", cfg.TmpfsDefaults()},
-	{"volume_masks", cfg.VolumeDefaults()},
-	{"read_only_globs", cfg.ReadOnlyDefaults()},
-	{"proxy.allowlist", cfg.AllowlistDefaults()},
-}
-
 // aliasSections are `ccbox config defaults`' sections: every ccbox- alias's
 // expansion, in print order
 func aliasSections() []printutil.Section {
 	return slices.Concat(
-		[]printutil.Section{{Header: cfg.DefaultsAlias + ":"}},
-		slicex.Map(aliasFields, func(f aliasField) printutil.Section {
-			return printutil.Section{Header: f.fieldName + ":", Items: f.defaults, Depth: 1}
-		}),
+		[]printutil.Section{
+			{Header: cfg.DefaultsAlias + ":"},
+			{Header: "proxy.allowlist:", Items: cfg.AllowlistDefaults(), Depth: 1},
+		},
 		[]printutil.Section{{
 			Header: cfg.SetHarnessAlias + " (cli " + config.CLIName +
 				"; a --vnc load adds the desktop's GUI app):",

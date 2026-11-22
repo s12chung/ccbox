@@ -24,6 +24,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/ptrx"
 	"github.com/s12chung/ccbox/pkg/util/seed"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 )
 
 const (
@@ -225,15 +226,29 @@ func Init(projectDir string) error {
 	return initConfig(filepath.Join(projectDir, projectConfigFileName), config{})
 }
 
+// the seeded config's guardMount lists
+var (
+	tmpfsDefaults  = []string{".idea", ".vscode", ".zed"}
+	volumeDefaults = []string{"node_modules", ".venv", "target"}
+
+	roGlobDefaults = []string{".ccbox.yaml", "secrets", ".env", ".env.*", ".envrc", "**/*.pem", "**/*.key", "**/id_rsa*"}
+	// roGlobGroups rows the seed's globs together at render
+	roGlobGroups = map[string]int{
+		".ccbox.yaml": 0, "secrets": 0,
+		".env": 1, ".env.*": 1, ".envrc": 1,
+		"**/*.pem": 2, "**/*.key": 2, "**/id_rsa*": 2,
+	}
+)
+
 // userSeedConfig is the user-level seed's data with ccbox defaults — referenced in tests
 func userSeedConfig(cliName string, refs Images) *config {
 	return &config{
 		CLIName:       new(cliName),
 		Images:        new(images(refs)),
 		ForwardEnv:    new([]string{"TERM", "COLORTERM"}),
-		TmpfsMasks:    new([]string{DefaultsAlias}),
-		VolumeMasks:   new([]string{DefaultsAlias}),
-		ReadOnlyGlobs: new([]string{DefaultsAlias}),
+		TmpfsMasks:    new(tmpfsDefaults),
+		VolumeMasks:   new(volumeDefaults),
+		ReadOnlyGlobs: new(roGlobDefaults),
 		ReadOnlyBinds: new(map[string]string{GitConfigKey: firmrule.EnabledValue}),
 		Proxy: &proxy{
 			Enabled:   new(true),
@@ -265,16 +280,13 @@ var (
 	}).Parse(configTmplSrc))
 )
 
-// configTmpl wraps config with per-entry comments for the fields that have them; the template
-// passes nil for the rest, whose yaml calls render bare
+// configTmpl wraps config with the template's own render fields
 type configTmpl struct {
 	config
 
-	TmpfsMasksComments    []string
-	VolumeMasksComments   []string
-	ReadOnlyGlobsComments []string
-	AllowlistComments     []string
-	Allowlist             []string
+	ReadOnlyGlobFlow  string
+	AllowlistComments []string
+	Allowlist         []string
 }
 
 func (c *config) renderTmpl() ([]byte, error) {
@@ -289,24 +301,15 @@ func (c *config) renderTmpl() ([]byte, error) {
 	}
 	var b bytes.Buffer
 	data := configTmpl{
-		config:                *c,
-		TmpfsMasksComments:    yamlkit.CommentFirstEntry(ptrx.Deref(c.TmpfsMasks), defaultsExpansionComment(tmpfsDefaults)),
-		VolumeMasksComments:   yamlkit.CommentFirstEntry(ptrx.Deref(c.VolumeMasks), defaultsExpansionComment(volumeDefaults)),
-		ReadOnlyGlobsComments: yamlkit.CommentFirstEntry(ptrx.Deref(c.ReadOnlyGlobs), defaultsExpansionComment(readOnlyDefaults)),
-		Allowlist:             allowlist,
-		AllowlistComments:     allowlistComments,
+		config:            *c,
+		ReadOnlyGlobFlow:  yamlkit.Flow(ptrx.Deref(c.ReadOnlyGlobs), roGlobGroups),
+		Allowlist:         allowlist,
+		AllowlistComments: allowlistComments,
 	}
 	if err := tmpl.Execute(&b, data); err != nil {
 		return nil, fmt.Errorf("render Config template: %w", err)
 	}
 	return b.Bytes(), nil
-}
-
-func defaultsExpansionComment(defaults []string) string {
-	if len(defaults) > 3 {
-		return strings.Join(defaults[:3], ", ") + ", etc., see `ccbox config defaults` for expansions"
-	}
-	return strings.Join(defaults, ", ")
 }
 
 // Flags are the run flags Load folds into the config as its top layer — an unset
@@ -354,6 +357,8 @@ func Load(projectDir string, flags Flags) (*Config, error) {
 
 	s := merged.dropDisabled().toInnerModel()
 	s.projectDir = projectDir
+	// repeats across layers would remount the same path twice
+	s.TmpfsMasks, s.VolumeMasks, s.ReadOnlyGlobs = slicex.Unique(s.TmpfsMasks), slicex.Unique(s.VolumeMasks), slicex.Unique(s.ReadOnlyGlobs)
 	if flags.PortBindingsTCP == nil {
 		if !s.isDefaultVariant(filesConfig.dropDisabled().toInnerModel()) {
 			s.DefaultVariant = nil
