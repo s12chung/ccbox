@@ -84,8 +84,8 @@ func TestPicker_Respond(t *testing.T) {
 }
 
 func TestPicker_View(t *testing.T) {
-	header, subtext := "Select a harness CLI", "(set in ~/.ccbox/config/ccbox.yaml)"
-	submitLabel := "Save to ~/.ccbox/config/ccbox.yaml"
+	header, subtext := "Select a harness CLI", "(set in ~/.ccbox/ccbox.yaml)"
+	submitLabel := "Save to ~/.ccbox/ccbox.yaml"
 	opts := RunnerOptions{Header: header, Subtext: []string{subtext}, SubmitLabel: submitLabel}
 
 	p := NewPicker(testModels("claude", "codex"))
@@ -95,12 +95,12 @@ func TestPicker_View(t *testing.T) {
 	key(t, s, tea.KeyEnter) // mark codex
 	assert.Equal(t, []string{
 		"  Select a harness CLI",
-		"  (set in ~/.ccbox/config/ccbox.yaml)",
+		"  (set in ~/.ccbox/ccbox.yaml)",
 		"",
 		"    ○ claude",
 		"  ❯ ◉ codex",
 		"",
-		"    Save to ~/.ccbox/config/ccbox.yaml",
+		"    Save to ~/.ccbox/ccbox.yaml",
 		"",
 		"  ↑/↓ move • enter select • esc quit",
 	}, trimmedLines(s.View()))
@@ -113,7 +113,7 @@ func TestPicker_View(t *testing.T) {
 		"  ❯ ○ claude",
 		"    ○ codex",
 		"",
-		"    Save to ~/.ccbox/config/ccbox.yaml",
+		"    Save to ~/.ccbox/ccbox.yaml",
 		"",
 		"  ↑/↓ move • enter select • esc quit",
 	}, trimmedLines(stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View()))
@@ -125,7 +125,7 @@ func TestPicker_View(t *testing.T) {
 		"",
 		"  ❯ ○ claude (anthropic)",
 		"",
-		"    Save to ~/.ccbox/config/ccbox.yaml",
+		"    Save to ~/.ccbox/ccbox.yaml",
 		"",
 		"  ↑/↓ move • enter select • esc quit",
 	}, trimmedLines(stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View()))
@@ -140,12 +140,12 @@ func TestPicker_View(t *testing.T) {
 	s.width, s.height = 40, 10
 	view := s.View()
 	wantLeading := map[string]int{
-		"Select a harness CLI":                2,
-		"(set in ~/.ccbox/config/ccbox.yaml)": 2,
-		"○ claude":                            4,
-		"❯ ◉ codex":                           2,
-		"Save to ~/.ccbox/config/ccbox.yaml":  4,
-		"↑/↓ move • enter select • esc quit":  2,
+		"Select a harness CLI":               2,
+		"(set in ~/.ccbox/ccbox.yaml)":       2,
+		"○ claude":                           4,
+		"❯ ◉ codex":                          2,
+		"Save to ~/.ccbox/ccbox.yaml":        4,
+		"↑/↓ move • enter select • esc quit": 2,
 	}
 	for line := range strings.SplitSeq(strings.TrimSuffix(view, "\n"), "\n") {
 		assert.Equal(t, 40, lipgloss.Width(line), "each line spans the placed width")

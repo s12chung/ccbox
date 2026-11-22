@@ -14,7 +14,7 @@ Your first run of a harness CLI will create the CLI's config folder in `~/.ccbox
 
 The `ccbox` config scope hierarchy is:
 
-- User - `~/.ccbox/config/ccbox.yaml` (no dot) — seeded with ccbox's defaults on first run
+- User - `~/.ccbox/ccbox.yaml` (no dot) — seeded with ccbox's defaults on first run
 - Project - `project_dir/.ccbox.yaml`
 - `ccbox` flags
 

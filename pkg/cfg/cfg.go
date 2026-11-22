@@ -1,4 +1,4 @@
-// Package cfg loads the config file layers — user (ConfigDir), project
+// Package cfg loads the config file layers — user (~/.ccbox), project
 // (repo root) — lowest precedence first
 package cfg
 
@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// userConfigFileName is the user-level config's name under ConfigDir (no dot)
+	// userConfigFileName is the user-level config's name under Dir (no dot)
 	userConfigFileName = "ccbox.yaml"
 	// projectConfigFileName is the project-level config's name at the project repo root
 	projectConfigFileName = ".ccbox.yaml"
@@ -39,7 +39,7 @@ const (
 )
 
 // UserConfigFile is the user-level config's path
-func UserConfigFile() string { return filepath.Join(userdir.ConfigDir(), userConfigFileName) }
+func UserConfigFile() string { return filepath.Join(userdir.Dir(), userConfigFileName) }
 
 // layerPaths lists the config file paths in load order: user, project
 func layerPaths(projectDir string) []string {
