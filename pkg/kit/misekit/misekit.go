@@ -22,11 +22,12 @@ var versionsClient = &http.Client{Timeout: 30 * time.Second}
 // LatestVersion resolves the tool's latest installable release, pinned as its
 // source binds it
 func LatestVersion(ctx context.Context, tool string) (string, error) {
-	latest, err := newestInstallable(ctx, tool)
+	src := sourceFor(tool)
+	latest, err := Latest(ctx, src, tool)
 	if err != nil {
 		return "", err
 	}
-	return sourceFor(tool).Pin(latest), nil
+	return src.Pin(latest), nil
 }
 
 // Source reads a tool's release list
@@ -55,8 +56,9 @@ func sourceFor(tool string) Source {
 // RegisterSource registers src as the source of prefix's tools
 func RegisterSource(prefix string, src Source) { sources[prefix] = src }
 
-func newestInstallable(ctx context.Context, tool string) (string, error) {
-	src := sourceFor(tool)
+// Latest resolves the source's latest installable release of tool — the full
+// release, unpinned
+func Latest(ctx context.Context, src Source, tool string) (string, error) {
 	entries, err := src.List(ctx, tool)
 	if err != nil {
 		return "", fmt.Errorf("%s: %s: %w", src.Name(), tool, err)

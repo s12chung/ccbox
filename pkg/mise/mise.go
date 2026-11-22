@@ -3,13 +3,11 @@ package mise
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io/fs"
 	"maps"
 	"os"
 	"path/filepath"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -17,6 +15,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/kit/dock"
+	"github.com/s12chung/ccbox/pkg/kit/misekit"
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
@@ -143,17 +142,10 @@ func ReadToolState(projectDir string) (ToolState, error) {
 	return state, nil
 }
 
-// miseImageRe matches the Dockerfile's pure-mise FROM — the lock container must run
-// the same mise the devbox image builds from, so the two can't drift.
-var miseImageRe = regexp.MustCompile(`(?m)^FROM\s+(\S+)\s+AS\s+mise\s*$`)
-
-// ImageRefFromDockerfile extracts the pinned mise image reference from the Dockerfile.
-func ImageRefFromDockerfile(dockerfile []byte) (string, error) {
-	match := miseImageRe.FindSubmatch(dockerfile)
-	if match == nil {
-		return "", errors.New("mise: the Dockerfile has no `FROM <image> AS mise`")
-	}
-	return string(match[1]), nil
+// LatestRelease resolves mise's latest installable release — its version is the
+// ghcr image's tag
+func LatestRelease(ctx context.Context) (string, error) {
+	return misekit.Latest(ctx, misekit.IndexSource(aquaIndex{}, nil), "jdx/mise")
 }
 
 // LockOptions configures the mise lock run

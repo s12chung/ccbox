@@ -39,6 +39,9 @@ var (
 		`^/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9._-]*[A-Za-z0-9_-][A-Za-z0-9._-]*)*$`)}
 	// HTTPSURL is an https endpoint; download templates may carry a literal $version
 	HTTPSURL = rule.Match{Regexp: regexp.MustCompile(`^https://\S+$`)}
+	// ImageRef is a docker image ref with its tag
+	ImageRef = rule.Match{Regexp: regexp.MustCompile(
+		`^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*:[a-zA-Z0-9][a-zA-Z0-9._-]*$`)}
 	// bindPath is a read_only_binds host dir or container mount: absolute (/…) or
 	// home-relative (~/…), segmented like MaskDir to bar ".." traversal
 	bindPath = rule.Match{Regexp: regexp.MustCompile(

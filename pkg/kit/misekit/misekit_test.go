@@ -57,7 +57,7 @@ func (stubSource) List(context.Context, string) ([]VersionEntry, error) {
 
 func (stubSource) Pin(version string) string { return version }
 
-func TestNewestInstallable(t *testing.T) {
+func TestLatest(t *testing.T) {
 	t.Run("the list's newest installable release, everything the lock would skip dropped", func(t *testing.T) {
 		versions := map[string]time.Time{
 			"jruby-1.7.2":    time.Date(2025, 12, 18, 0, 38, 7, 0, time.UTC), // unflagged variant line
@@ -69,7 +69,7 @@ func TestNewestInstallable(t *testing.T) {
 		}
 		stubVersions(t, map[string]string{"/data/ruby.toml": versionList(versions)})
 
-		v, err := newestInstallable(t.Context(), "ruby")
+		v, err := Latest(t.Context(), defaultSource, "ruby")
 
 		require.NoError(t, err)
 		assert.Equal(t, "4.0.7", v)
@@ -79,7 +79,7 @@ func TestNewestInstallable(t *testing.T) {
 		list := "[versions]\n\"1.14.0-rc1\" = { created_at = 2026-01-01T00:00:00.000Z, prerelease = true }\n"
 		stubVersions(t, map[string]string{"/data/bats.toml": list})
 
-		_, err := newestInstallable(t.Context(), "bats")
+		_, err := Latest(t.Context(), defaultSource, "bats")
 
 		require.ErrorContains(t, err, "mise: bats: no installable release")
 	})

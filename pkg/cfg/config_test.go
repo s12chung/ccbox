@@ -24,7 +24,7 @@ import (
 func TestConfig_ProjectDir(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
-	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML)
 
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestConfig_ProjectDir(t *testing.T) {
 func TestConfig_CLI(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file
-	writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML)
 
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
@@ -74,17 +74,18 @@ func TestConfig_ListsExpanded(t *testing.T) {
 	}{
 		{
 			"an all-nil config expands every list to nothing", t.TempDir(),
-			"cli: claude\n",
-			Config{CLIName: "claude"},
+			"cli: claude\n" + imagesYAML,
+			Config{CLIName: "claude", Images: testImages},
 			nil, nil, nil, nil,
 		},
 		{
 			"the alias expands in place, literals kept, repeats collapse", t.TempDir(),
-			"cli: claude\n" +
+			"cli: claude\n" + imagesYAML +
 				"tmpfs_masks:\n  - ccbox-defaults\n  - dist\n  - ccbox-defaults\n" +
 				"read_only_globs:\n  - ccbox-defaults\n  - .env\n  - ccbox-defaults\n",
 			Config{
 				CLIName:       "claude",
+				Images:        testImages,
 				TmpfsMasks:    []string{DefaultsAlias, "dist", DefaultsAlias},
 				ReadOnlyGlobs: []string{DefaultsAlias, ".env", DefaultsAlias},
 			},
@@ -95,8 +96,8 @@ func TestConfig_ListsExpanded(t *testing.T) {
 		},
 		{
 			"an explicit empty list stays empty like an unset one", t.TempDir(),
-			"cli: claude\nvolume_masks: []\n",
-			Config{CLIName: "claude", VolumeMasks: []string{}},
+			"cli: claude\n" + imagesYAML + "volume_masks: []\n",
+			Config{CLIName: "claude", Images: testImages, VolumeMasks: []string{}},
 			nil, nil, nil, nil,
 		},
 	}
@@ -121,7 +122,7 @@ func TestConfig_AccessorsCache(t *testing.T) {
 	dir := t.TempDir()
 	useHome(t) // no user file: no defaults alias
 	mkDirs(t, dir, "dist")
-	writeConfig(t, dir, projectConfigFileName, "cli: claude\ntmpfs_masks:\n  - dist\n")
+	writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"tmpfs_masks:\n  - dist\n")
 
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
@@ -139,7 +140,11 @@ func TestConfig_AccessorsCache(t *testing.T) {
 func loadBindsConfig(t *testing.T, binds map[string]string) *Config {
 	t.Helper()
 	dir := t.TempDir()
-	body, err := yaml.Marshal(config{CLIName: new("claude"), ReadOnlyBinds: new(binds)})
+	body, err := yaml.Marshal(config{
+		CLIName:       new("claude"),
+		Images:        new(images(testImages)),
+		ReadOnlyBinds: new(binds),
+	})
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), body, osutil.File))
 
@@ -296,7 +301,7 @@ func TestConfig_MasksAbsent(t *testing.T) {
 // readOnlyGlobsConfig loads a config over the project body, ready for the glob accessors
 func readOnlyGlobsConfig(t *testing.T, dir string, globs ...string) *Config {
 	t.Helper()
-	body := "cli: claude\nread_only_globs:\n"
+	body := "cli: claude\n" + imagesYAML + "read_only_globs:\n"
 	var bodySb18 strings.Builder
 	for _, g := range globs {
 		bodySb18.WriteString("  - \"" + g + "\"\n") // quoted: a leading * is a YAML alias marker
@@ -373,7 +378,7 @@ func TestConfig_ReadOnlyPathsPresent_MaskedWin(t *testing.T) {
 	mkDirs(t, dir, "build", "certs")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "build", "main.o"), nil, osutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "certs", "server.pem"), nil, osutil.File))
-	body := "cli: claude\n" +
+	body := "cli: claude\n" + imagesYAML +
 		"tmpfs_masks:\n  - build\n  - certs\n  - node_modules\n" +
 		"read_only_globs:\n  - build\n  - \"build/**\"\n  - \"**/*.pem\"\n"
 	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte(body), osutil.File))
@@ -431,7 +436,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	harnessDomains := []string{"api.anthropic.com", "platform.claude.com", "mcp-proxy.anthropic.com", "statsig.anthropic.com", "sentry.io"}
 
 	t.Run("aliases expand in place, literals kept, repeats collapse", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+
 			"proxy:\n"+
 			"  enabled: true\n"+
 			"  allowlist:\n"+
@@ -451,7 +456,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("ccbox-all-providers resolves every provider's domains", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-providers\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"proxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-providers\n")
 
 		allProviders, ok := provider.Set().DomainsFor(provider.AllProvidersAlias)
 		require.True(t, ok)
@@ -461,7 +466,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("ccbox-all-runtimes resolves every runtime's domains", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-runtimes\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"proxy:\n  enabled: true\n  allowlist:\n    - ccbox-all-runtimes\n")
 
 		allRuntimes, ok := runtime.Set().DomainsFor(runtime.AllRuntimesAlias)
 		require.True(t, ok)
@@ -471,7 +476,8 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("the GUI app's domains enter only through the harness alias on a vnc load", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nvnc:\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+
+			"vnc:\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
 
 		headlessConfig, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -486,7 +492,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 	})
 
 	t.Run("a present vnc section pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+
 			"vnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
 
 		c, err := Load(dir, Flags{})
@@ -505,6 +511,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	mkDirs(t, home, ".config/git")
 	c := &Config{
 		CLIName:        "claude",
+		Images:         testImages,
 		DefaultVariant: &DefaultVariant{PortBindings: PortBindings{TCP: []string{"3000", "7200"}}},
 		HostGateway:    &HostGateway{TCP: []string{"5432", "6379"}},
 		VNC:            &VNC{GUIAppName: guiapp.App.Name},
@@ -526,6 +533,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	require.NoError(t, yaml.Unmarshal(out, &got))
 	want := config{
 		CLIName:        new("claude"),
+		Images:         new(images(testImages)),
 		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000,7200"}}, // the loaded ports render as csv
 		HostGateway:    &hostGateway{TCP: "5432,6379"},                                 // the ask's ports render as csv
 		VNC:            &vnc{Enabled: new(true), GUIAppName: guiapp.App.Name},          // the printed key pins the section on

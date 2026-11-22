@@ -24,7 +24,7 @@ type manifest struct {
 // the registry serves that tag's manifest at /<pkg>/latest; we read its version.
 func latestAt(ctx context.Context, registry, pkg string) (string, error) {
 	url := fmt.Sprintf("%s/%s/latest", registry, pkg)
-	resp, err := httputil.GetOK(ctx, nil, url)
+	resp, err := httputil.GetOK(ctx, nil, url, nil)
 	if err != nil {
 		return "", err
 	}

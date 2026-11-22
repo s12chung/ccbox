@@ -37,6 +37,11 @@ func TestTmpfsMasks(t *testing.T) {
 func writeConfigYaml(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
+	cli, rest, found := strings.Cut(body, "\n")
+	require.Truef(t, found && strings.HasPrefix(cli, "cli:"), "body must lead with the cli line: %q", body)
+	body = cli + "\n" +
+		"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
+		rest
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
 	return dir
 }

@@ -31,7 +31,7 @@ func NewURLTemplate(url string, tpl pkginfo.DownloadTemplate) URLTemplate {
 
 // Latest fetches the url's body — its bare version — versionRe-guarded.
 func (u URLTemplate) Latest(ctx context.Context) (string, error) {
-	body, err := httputil.Body(ctx, u.client, u.url)
+	body, err := httputil.Body(ctx, u.client, u.url, nil)
 	if err != nil {
 		return "", err
 	}
@@ -46,7 +46,7 @@ func (u URLTemplate) Download(ctx context.Context, version string) (io.ReadClose
 	}
 
 	//nolint:bodyclose // the caller closes: the FilePkger.Install's defer drops it
-	resp, err := httputil.GetOK(ctx, u.client, url)
+	resp, err := httputil.GetOK(ctx, u.client, url, nil)
 	if err != nil {
 		return nil, err
 	}

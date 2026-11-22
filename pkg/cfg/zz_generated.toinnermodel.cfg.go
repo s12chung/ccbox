@@ -7,6 +7,9 @@ func (x *config) toInnerModel() Config {
 	if x.CLIName != nil {
 		out.CLIName = *x.CLIName
 	}
+	if x.Images != nil {
+		out.Images = x.Images.toInnerModel()
+	}
 	if x.DefaultVariant != nil {
 		defaultVariant := x.DefaultVariant.toInnerModel()
 		out.DefaultVariant = &defaultVariant
@@ -38,6 +41,13 @@ func (x *config) toInnerModel() Config {
 		proxy := x.Proxy.toInnerModel()
 		out.Proxy = &proxy
 	}
+	return out
+}
+
+func (x *images) toInnerModel() Images {
+	var out Images
+	out.Base = x.Base
+	out.Mise = x.Mise
 	return out
 }
 

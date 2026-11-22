@@ -1,7 +1,6 @@
 package mise
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"maps"
@@ -24,84 +23,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/slug"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
-
-// stubVersions serves the fixture lists at the versions service's data paths
-func stubVersions(t *testing.T, lists map[string]string) {
-	t.Helper()
-	mux := http.NewServeMux()
-	for path, list := range lists {
-		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte(list))
-		})
-	}
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
-	misekit.VersionsURL = server.URL
-	t.Cleanup(func() { misekit.VersionsURL = misekit.VersionsBaseURL })
-}
-
-// versionList renders a versions-service TOML list dating every release
-func versionList(versions map[string]time.Time) string {
-	var list strings.Builder
-	list.WriteString("[versions]\n")
-	for _, version := range slices.Sorted(maps.Keys(versions)) {
-		fmt.Fprintf(&list, "%q = { created_at = %s }\n", version, versions[version].UTC().Format(time.RFC3339Nano))
-	}
-	return list.String()
-}
-
-// stubPyPI serves the fixture indexes at PyPI's JSON paths
-func stubPyPI(t *testing.T, indexes map[string]string) {
-	t.Helper()
-	mux := http.NewServeMux()
-	for path, index := range indexes {
-		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte(index))
-		})
-	}
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
-	pypiURL = server.URL
-	t.Cleanup(func() { pypiURL = pypiBaseURL })
-}
-
-// stubAqua serves the fixture releases at the GitHub API's repo paths
-func stubAqua(t *testing.T, releases map[string]string) {
-	t.Helper()
-	mux := http.NewServeMux()
-	for path, body := range releases {
-		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
-			_, _ = w.Write([]byte(body))
-		})
-	}
-	server := httptest.NewServer(mux)
-	t.Cleanup(server.Close)
-	aquaURL = server.URL
-	t.Cleanup(func() { aquaURL = aquaBaseURL })
-}
-
-// pins maps the resolved tools to their pins
-func pins(rts []ResolvedTool) map[string]string {
-	m := make(map[string]string, len(rts))
-	for _, rt := range rts {
-		m[rt.Name] = rt.Pin
-	}
-	return m
-}
-
-// pinned serves the map as the version func
-func pinned(latests map[string]string) func(string) (string, error) {
-	return func(name string) (string, error) { return latests[name], nil }
-}
-
-// resolvedConfig resolves the tools, wrapping them with the packages rows
-func resolvedConfig(tools []Tool, state ToolState, packages []string) (ConfigSet, error) {
-	rts, err := ResolvedTools(tools, state)
-	if err != nil {
-		return ConfigSet{}, err
-	}
-	return ConfigSet{Tools: rts, Packages: packages}, nil
-}
 
 func TestResolvedTools(t *testing.T) {
 	t.Run("a tool new to the config fetches its latest, pinned to the minor", func(t *testing.T) {
@@ -384,11 +305,36 @@ func seedRender(t *testing.T, configSet ConfigSet) string {
 	return string(body)
 }
 
-// renderConfig executes the tmpl for the config set — SeedConfig's content
-func renderConfig(configSet ConfigSet) ([]byte, error) {
-	var b bytes.Buffer
-	if err := configTmpl.Execute(&b, configSet); err != nil {
-		return nil, err
+// pins maps the resolved tools to their pins
+func pins(rts []ResolvedTool) map[string]string {
+	m := make(map[string]string, len(rts))
+	for _, rt := range rts {
+		m[rt.Name] = rt.Pin
 	}
-	return b.Bytes(), nil
+	return m
+}
+
+// versionList renders a versions-service TOML list dating every release
+func versionList(versions map[string]time.Time) string {
+	var list strings.Builder
+	list.WriteString("[versions]\n")
+	for _, version := range slices.Sorted(maps.Keys(versions)) {
+		fmt.Fprintf(&list, "%q = { created_at = %s }\n", version, versions[version].UTC().Format(time.RFC3339Nano))
+	}
+	return list.String()
+}
+
+// stubVersions serves the fixture lists at the versions service's data paths
+func stubVersions(t *testing.T, lists map[string]string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	for path, list := range lists {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(list))
+		})
+	}
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	misekit.VersionsURL = server.URL
+	t.Cleanup(func() { misekit.VersionsURL = misekit.VersionsBaseURL })
 }

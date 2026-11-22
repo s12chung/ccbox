@@ -60,7 +60,7 @@ func (d JQ) Latest(ctx context.Context) (string, error) {
 
 // doc fetches the url's document, parsed per the schema's format.
 func (d JQ) doc(ctx context.Context) (any, error) {
-	body, err := httputil.Body(ctx, d.client, d.url)
+	body, err := httputil.Body(ctx, d.client, d.url, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (d JQ) Download(ctx context.Context, version string) (io.ReadCloser, error)
 	}
 
 	//nolint:bodyclose // the caller closes: the Sha512Reader wraps the body, the FilePkger.Install's defer drops it
-	resp, err := httputil.GetOK(ctx, d.client, sel.DownloadURL)
+	resp, err := httputil.GetOK(ctx, d.client, sel.DownloadURL, nil)
 	if err != nil {
 		return nil, err
 	}

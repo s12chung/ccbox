@@ -23,7 +23,7 @@ type versionsSource struct{}
 func (versionsSource) Name() string { return "mise" }
 
 func (versionsSource) List(ctx context.Context, tool string) ([]VersionEntry, error) {
-	body, err := httputil.Body(ctx, versionsClient, toolURL(tool))
+	body, err := httputil.Body(ctx, versionsClient, toolURL(tool), nil)
 	if err != nil {
 		return nil, err
 	}

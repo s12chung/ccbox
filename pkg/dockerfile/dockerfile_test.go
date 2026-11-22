@@ -1,6 +1,8 @@
 package dockerfile
 
 import (
+	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -10,10 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
+
+// testImages pins the FROM refs the goldens render
+var testImages = cfg.Images{Base: "debian:trixie-slim", Mise: "ghcr.io/jdx/mise:2026.10.12"}
 
 // allSelection selects every runtime: the render matches the all-runtimes image,
 // byte for byte.
@@ -86,7 +92,7 @@ func TestRender(t *testing.T) {
 	golden, err := os.ReadFile(filepath.Join("testdata", "TestRender.Dockerfile")) // #nosec G304 -- the test's own fixture
 	require.NoError(t, err)
 
-	composed, err := render(allSelection(t))
+	composed, err := render(allSelection(t), testImages)
 	require.NoError(t, err)
 	assert.Equal(t, string(golden), string(composed))
 }
@@ -96,14 +102,14 @@ func TestRender_SubsetSelection(t *testing.T) {
 	golden, err := os.ReadFile(filepath.Join("testdata", "TestRender_SubsetSelection.Dockerfile")) // #nosec G304 -- the test's own fixture
 	require.NoError(t, err)
 
-	composed, err := render(goSelection(t))
+	composed, err := render(goSelection(t), testImages)
 	require.NoError(t, err)
 	assert.Equal(t, string(golden), string(composed))
 }
 
 func TestPatchFS(t *testing.T) {
 	fsys := fstest.MapFS{"docker/desktop.sh": {Data: []byte("echo")}}
-	merged, err := PatchFS(fsys, allSelection(t))
+	merged, err := PatchFS(fsys, allSelection(t), testImages)
 	require.NoError(t, err)
 
 	patched, err := fs.ReadFile(merged, "Dockerfile")
@@ -113,4 +119,57 @@ func TestPatchFS(t *testing.T) {
 
 	_, err = fs.ReadFile(merged, "docker/desktop.sh")
 	require.NoError(t, err, "the rest of the fs stays untouched")
+}
+
+// stubMiseRelease stubs the mise side of LatestImages
+func stubMiseRelease(t *testing.T, version string) {
+	t.Helper()
+	orig := latestMiseRelease
+	latestMiseRelease = func(context.Context) (string, error) { return version, nil }
+	t.Cleanup(func() { latestMiseRelease = orig })
+}
+
+// stubBaseTag stubs the base tag side of LatestImages
+func stubBaseTag(t *testing.T, tag string) {
+	t.Helper()
+	orig := latestBaseTag
+	latestBaseTag = func(context.Context) (string, error) { return tag, nil }
+	t.Cleanup(func() { latestBaseTag = orig })
+}
+
+func TestLatestImages(t *testing.T) {
+	stubMiseRelease(t, "2026.10.12")
+	stubBaseTag(t, "trixie-20250929-slim")
+
+	images, err := LatestImages(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, cfg.Images{
+		Base: "debian:trixie-20250929-slim",
+		Mise: "ghcr.io/jdx/mise:2026.10.12",
+	}, images)
+}
+
+func TestLatestImages_Errors(t *testing.T) {
+	t.Run("a failed mise fetch errors", func(t *testing.T) {
+		stubBaseTag(t, "trixie-20250929-slim")
+		orig := latestMiseRelease
+		latestMiseRelease = func(context.Context) (string, error) { return "", errors.New("fetch boom") }
+		t.Cleanup(func() { latestMiseRelease = orig })
+
+		_, err := LatestImages(t.Context())
+
+		require.ErrorContains(t, err, "fetch boom")
+	})
+
+	t.Run("a failed base fetch errors", func(t *testing.T) {
+		stubMiseRelease(t, "2026.10.12")
+		orig := latestBaseTag
+		latestBaseTag = func(context.Context) (string, error) { return "", errors.New("base boom") }
+		t.Cleanup(func() { latestBaseTag = orig })
+
+		_, err := LatestImages(t.Context())
+
+		require.ErrorContains(t, err, "base boom")
+	})
 }

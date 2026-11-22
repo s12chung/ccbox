@@ -11,6 +11,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dmap/share"
+	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/kit/cobrakit"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/cli"
@@ -115,7 +116,7 @@ func rootSeed(ctx context.Context) error {
 	if err := share.SafeSeedSkills(); err != nil {
 		return err
 	}
-	if err := safeSeedUserConfig(); err != nil {
+	if err := safeSeedUserConfig(ctx); err != nil {
 		return err
 	}
 	_, err := seedMiseConfig(ctx, mise.UserConfigPath())
@@ -123,7 +124,7 @@ func rootSeed(ctx context.Context) error {
 }
 
 // safeSeedUserConfig seeds the user-level config template if missing
-func safeSeedUserConfig() error {
+func safeSeedUserConfig(ctx context.Context) error {
 	path := cfg.UserConfigFile()
 	if osutil.Present(path) {
 		return nil // the file already existed: no seed, so no prompt, no log
@@ -132,7 +133,11 @@ func safeSeedUserConfig() error {
 	if err != nil {
 		return err
 	}
-	return cfg.SeedConfig(path, cliName)
+	refs, err := dockerfile.LatestImages(ctx)
+	if err != nil {
+		return err
+	}
+	return cfg.SeedConfig(path, cliName, refs)
 }
 
 func mustGetwd() string {

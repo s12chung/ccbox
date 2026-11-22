@@ -9,7 +9,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/docker"
 	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/mise"
-	"github.com/s12chung/ccbox/pkg/util/must"
 )
 
 var buildCmd = &cobra.Command{
@@ -28,10 +27,10 @@ func init() {
 // build builds the image variant the mode asks for; `run` calls it too
 func build(ctx context.Context, serveVNC bool) error {
 	projectDir := config.ProjectDir()
-	miseImageRef := must.Get(dockerfile.MiseImageRef())
+	images := config.Images
 
 	for _, path := range []string{mise.ProjectConfigPath(projectDir), mise.UserConfigPath()} {
-		if err := mise.Lock(ctx, miseImageRef, path, mise.LockOptions{SkipFresh: true}); err != nil {
+		if err := mise.Lock(ctx, images.Mise, path, mise.LockOptions{SkipFresh: true}); err != nil {
 			return err
 		}
 	}
@@ -39,7 +38,7 @@ func build(ctx context.Context, serveVNC bool) error {
 	if err != nil {
 		return err
 	}
-	buildContext, err = dockerfile.PatchFS(buildContext, miseRuntimes)
+	buildContext, err = dockerfile.PatchFS(buildContext, miseRuntimes, images)
 	if err != nil {
 		return err
 	}

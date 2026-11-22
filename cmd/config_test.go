@@ -151,7 +151,9 @@ func TestConfirmReadOnlyPaths(t *testing.T) {
 	loadReadOnlyConfig := func(t *testing.T, dir string) {
 		t.Helper()
 		testutil.Home(t)
-		body := "cli: claude\nread_only_globs:\n  - \"**/.env\"\n"
+		body := "cli: claude\n" +
+			"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
+			"read_only_globs:\n  - \"**/.env\"\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
 		c, err := cfg.Load(dir, cfg.Flags{})
 		require.NoError(t, err)

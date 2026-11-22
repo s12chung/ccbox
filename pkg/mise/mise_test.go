@@ -1,13 +1,18 @@
 package mise
 
 import (
+	"bytes"
+	"fmt"
 	"io/fs"
 	"maps"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,17 +31,29 @@ const (
 	fixtureLock   = "lock"
 )
 
-func TestImageRefFromDockerfile(t *testing.T) {
-	dockerfile := "FROM debian:trixie-slim AS base\n\nFROM ghcr.io/jdx/mise:2026.9.6 AS mise\n\nFROM base\n"
-	imageRef, err := ImageRefFromDockerfile([]byte(dockerfile))
-	require.NoError(t, err)
-	assert.Equal(t, "ghcr.io/jdx/mise:2026.9.6", imageRef)
-}
+func TestLatestRelease(t *testing.T) {
+	t.Run("the latest installable release, its v prefix trimmed", func(t *testing.T) {
+		aged := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Format(time.RFC3339)
+		fresh := time.Now().Add(time.Hour).Format(time.RFC3339) // younger than the release age
+		stubAqua(t, map[string]string{"/repos/jdx/mise/releases": fmt.Sprintf(
+			`[{"tag_name":"v2026.11.0","prerelease":true,"published_at":%q},`+ // a flagged prerelease
+				`{"tag_name":"v2026.10.15","published_at":%q},`+
+				`{"tag_name":"v2026.10.12","published_at":%q}]`,
+			fresh, fresh, aged)})
 
-func TestImageRefFromDockerfile_MissingFrom(t *testing.T) {
-	dockerfile := "FROM debian:trixie-slim AS base\nFROM ghcr.io/jdx/mise:2026.9.6\n"
-	_, err := ImageRefFromDockerfile([]byte(dockerfile))
-	assert.ErrorContains(t, err, "no `FROM <image> AS mise`")
+		version, err := LatestRelease(t.Context())
+
+		require.NoError(t, err)
+		assert.Equal(t, "2026.10.12", version)
+	})
+
+	t.Run("a fetch error carries the aqua source's label", func(t *testing.T) {
+		stubAqua(t, nil)
+
+		_, err := LatestRelease(t.Context())
+
+		require.ErrorContains(t, err, "aqua: jdx/mise:")
+	})
 }
 
 func TestLock_SkipFresh_NoConfig(t *testing.T) {
@@ -338,4 +355,57 @@ func TestReadToolState_Errors(t *testing.T) {
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "mise:")
 	})
+}
+
+// stubPyPI serves the fixture indexes at PyPI's JSON paths
+func stubPyPI(t *testing.T, indexes map[string]string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	for path, index := range indexes {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(index))
+		})
+	}
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	pypiURL = server.URL
+	t.Cleanup(func() { pypiURL = pypiBaseURL })
+}
+
+// stubAqua serves the fixture releases at the GitHub API's repo paths
+func stubAqua(t *testing.T, releases map[string]string) {
+	t.Helper()
+	mux := http.NewServeMux()
+	for path, body := range releases {
+		mux.HandleFunc(path, func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = w.Write([]byte(body))
+		})
+	}
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	aquaURL = server.URL
+	t.Cleanup(func() { aquaURL = aquaBaseURL })
+}
+
+// pinned serves the map as the version func
+func pinned(latests map[string]string) func(string) (string, error) {
+	return func(name string) (string, error) { return latests[name], nil }
+}
+
+// resolvedConfig resolves the tools, wrapping them with the packages rows
+func resolvedConfig(tools []Tool, state ToolState, packages []string) (ConfigSet, error) {
+	rts, err := ResolvedTools(tools, state)
+	if err != nil {
+		return ConfigSet{}, err
+	}
+	return ConfigSet{Tools: rts, Packages: packages}, nil
+}
+
+// renderConfig executes the tmpl for the config set — SeedConfig's content
+func renderConfig(configSet ConfigSet) ([]byte, error) {
+	var b bytes.Buffer
+	if err := configTmpl.Execute(&b, configSet); err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }

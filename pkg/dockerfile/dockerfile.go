@@ -4,14 +4,18 @@ package dockerfile
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"fmt"
 	"io/fs"
 	"maps"
+	"regexp"
 	"slices"
 	"strings"
 	"text/template"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
+	"github.com/s12chung/ccbox/pkg/kit/hubkit"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/mfs"
@@ -23,8 +27,12 @@ var (
 	tmpl     = template.Must(template.New("Dockerfile.tmpl").Parse(string(tmplBody)))
 )
 
-// regions is the tmpl's data; its exported methods are the tmpl's actions.
-type regions struct{ runtimes []runtime.Runtime }
+// regions is the tmpl's data; its exported methods and fields are the tmpl's actions.
+type regions struct {
+	cfg.Images
+
+	runtimes []runtime.Runtime
+}
 
 // AptBuildDeps renders the from-source compile RUN's $buildDeps
 func (r regions) AptBuildDeps() string {
@@ -76,8 +84,8 @@ func (r regions) collect(field func(runtime.Runtime) []string) []string {
 
 // PatchFS renders the Dockerfile.tmpl and layers it over fsys as the context's
 // Dockerfile.
-func PatchFS(fsys fs.FS, runtimes []runtime.Runtime) (fs.FS, error) {
-	body, err := render(runtimes)
+func PatchFS(fsys fs.FS, runtimes []runtime.Runtime, images cfg.Images) (fs.FS, error) {
+	body, err := render(runtimes, images)
 	if err != nil {
 		return nil, err
 	}
@@ -91,16 +99,32 @@ func PatchFS(fsys fs.FS, runtimes []runtime.Runtime) (fs.FS, error) {
 	return merged, nil
 }
 
-// MiseImageRef extracts the tmpl's `FROM <image> AS mise`; the lock container
-// must run the same mise the image builds from, so the two can't drift.
-func MiseImageRef() (string, error) {
-	return mise.ImageRefFromDockerfile(tmplBody)
-}
-
-func render(runtimes []runtime.Runtime) ([]byte, error) {
+func render(runtimes []runtime.Runtime, images cfg.Images) ([]byte, error) {
 	var b bytes.Buffer
-	if err := tmpl.Execute(&b, regions{runtimes: runtimes}); err != nil {
+	if err := tmpl.Execute(&b, regions{runtimes: runtimes, Images: images}); err != nil {
 		return nil, err
 	}
 	return b.Bytes(), nil
+}
+
+var (
+	// latestMiseRelease is indirected so tests can stub the fetch
+	latestMiseRelease = mise.LatestRelease
+	// latestBaseTag is indirected so tests can stub the fetch
+	latestBaseTag = func(ctx context.Context) (string, error) {
+		return hubkit.LatestTag(ctx, "library/debian", regexp.MustCompile(`^trixie-\d{8}-slim$`))
+	}
+)
+
+// LatestImages resolves the FROM images' latest pins
+func LatestImages(ctx context.Context) (cfg.Images, error) {
+	baseTag, err := latestBaseTag(ctx)
+	if err != nil {
+		return cfg.Images{}, err
+	}
+	miseVersion, err := latestMiseRelease(ctx)
+	if err != nil {
+		return cfg.Images{}, err
+	}
+	return cfg.Images{Base: "debian:" + baseTag, Mise: "ghcr.io/jdx/mise:" + miseVersion}, nil
 }

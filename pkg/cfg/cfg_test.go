@@ -25,6 +25,11 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
 
+var (
+	testImages = Images{Base: "debian:trixie-20250113-slim", Mise: "ghcr.io/jdx/mise:2026.10.12"}
+	imagesYAML = "images:\n  base: " + testImages.Base + "\n  mise: " + testImages.Mise + "\n"
+)
+
 // mkDirs creates the given project-relative dirs under dir, so presence-sensitive
 // defaults pick them up.
 func mkDirs(t *testing.T, dir string, dirs ...string) {
@@ -90,7 +95,7 @@ func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "cfg")
 	must.Do(err)
 	must.Do(os.Setenv("HOME", dir))
-	must.Do(SeedConfig(UserConfigFile(), "claude"))
+	must.Do(SeedConfig(UserConfigFile(), "claude", testImages))
 
 	cli.Load()
 
@@ -105,11 +110,12 @@ func TestSeedConfig(t *testing.T) {
 	mkDirs(t, dir, volumeDefaults...)
 	useHome(t)
 
-	require.NoError(t, SeedConfig(UserConfigFile(), "claude"))
+	require.NoError(t, SeedConfig(UserConfigFile(), "claude", testImages))
 
 	// the seed is the defaults' carrier
 	want := Config{
 		CLIName:       "claude",
+		Images:        testImages,
 		ForwardEnv:    []string{"TERM", "COLORTERM"},
 		TmpfsMasks:    []string{DefaultsAlias},
 		VolumeMasks:   []string{DefaultsAlias},
@@ -140,7 +146,7 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 	dir := t.TempDir()
 	writeConfig(t, dir, userConfigFileName, "cli: codex\n")
 
-	require.NoError(t, SeedConfig(UserConfigFile(), "claude"))
+	require.NoError(t, SeedConfig(UserConfigFile(), "claude", testImages))
 
 	// #nosec G304 -- the package's own temp user file
 	body, err := os.ReadFile(UserConfigFile())
@@ -151,7 +157,7 @@ func TestSeedConfig_SkipsExisting(t *testing.T) {
 func TestSeedConfig_ChoosesCLI(t *testing.T) {
 	useHome(t)
 
-	require.NoError(t, SeedConfig(UserConfigFile(), "codex"))
+	require.NoError(t, SeedConfig(UserConfigFile(), "codex", testImages))
 
 	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the package's own temp user file
 	require.NoError(t, err)
@@ -172,7 +178,7 @@ func TestLoadedPaths(t *testing.T) {
 			useHome(t) // no user file unless written below
 			dir := t.TempDir()
 			for _, name := range tt.files {
-				writeConfig(t, dir, name, "cli: claude\n")
+				writeConfig(t, dir, name, "cli: claude\n"+imagesYAML)
 			}
 			var wantLoaded, wantNotLoaded []string
 			for _, name := range []string{userConfigFileName, projectConfigFileName} {
@@ -243,6 +249,7 @@ func TestConfig_ValidateErrors(t *testing.T) {
 	require.NotEmpty(t, errMap)
 	// ShowValue appends the failing element, bindErr the failing mount, to each error
 	assert.Equal(t, strings.Join([]string{
+		`cfg.config.Images.Nil: Images is nil`,
 		`cfg.config.Proxy.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
 			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
 		`cfg.config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
@@ -252,6 +259,19 @@ func TestConfig_ValidateErrors(t *testing.T) {
 		`cfg.config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
 			`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$: "/etc"`,
 	}, ", "), errMap.Error())
+
+	t.Run("the images' refs must be full refs with a tag", func(t *testing.T) {
+		c := config{
+			CLIName: new("claude"),
+			Images:  &images{Base: "Debian", Mise: "ghcr.io/jdx/mise"},
+		}
+
+		errMap := firm.ValidateAny(c)
+
+		require.NotEmpty(t, errMap)
+		assert.Contains(t, errMap.Error(), `cfg.config.Images.Base.Match: Base does not match`)
+		assert.Contains(t, errMap.Error(), `cfg.config.Images.Mise.Match: Mise does not match`)
+	})
 }
 
 // TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
@@ -262,8 +282,8 @@ func TestConfig_renderTmpl(t *testing.T) {
 		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml
 		c    config
 	}{
-		{"init", config{}},                       // `ccbox config init`'s fill-in scaffold
-		{"user-seed", *userSeedConfig("claude")}, // the safe-seeded user-level config
+		{"init", config{}}, // `ccbox config init`'s fill-in scaffold
+		{"user-seed", *userSeedConfig("claude", testImages)}, // the safe-seeded user-level config
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := tt.c.renderTmpl()
@@ -347,7 +367,7 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: claude\nread_only_binds:\n  fonts: enabled\n")
+			writeConfig(t, dir, cf.name, "cli: claude\n"+imagesYAML+"read_only_binds:\n  fonts: enabled\n")
 
 			_, err := Load(dir, Flags{})
 			require.Error(t, err)
@@ -371,10 +391,10 @@ func TestLoad_LayersFiles(t *testing.T) {
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build") // the layers' own mask dirs must exist to survive
 	bodies := map[string]string{    // one entry per configFiles term
-		"user": "cli: opencode\ntmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
+		"user": "cli: opencode\n" + imagesYAML + "tmpfs_masks:\n  - ccbox-defaults\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
 			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - user.example.dev\n",
-		"project": "cli: claude\ntmpfs_masks:\n  - build\n" +
+		"project": "cli: claude\n" + imagesYAML + "tmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
 			"forward_env:\n  - FOO\n  - BAZ\nproxy:\n  allowlist:\n    - ccbox-defaults\n",
 	}
@@ -410,7 +430,7 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 	for _, cf := range configFiles { // the other files are absent
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: pi\nproxy:\n  enabled: true\n  allowlist:\n    - example.com\n")
+			writeConfig(t, dir, cf.name, "cli: pi\n"+imagesYAML+"proxy:\n  enabled: true\n  allowlist:\n    - example.com\n")
 
 			c, err := Load(dir, Flags{})
 			require.NoError(t, err)
@@ -426,7 +446,7 @@ func TestLoad_SingleFileOnly(t *testing.T) {
 
 func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: true\n")
+	writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc:\n  enabled: true\n")
 
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
@@ -437,8 +457,8 @@ func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 func TestLoad_VNC(t *testing.T) {
 	t.Run("a section in any layer serves the desktop, the later layer's fields standing", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude\nvnc:\n  enabled: true\n  gui_app: zcode\n")
-		writeConfig(t, dir, projectConfigFileName, "vnc: {}\n")
+		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode\n")
+		writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc: {}\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -448,7 +468,7 @@ func TestLoad_VNC(t *testing.T) {
 	t.Run("the --vnc flag adds a section with no app", func(t *testing.T) {
 		useHome(t) // no user file
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML)
 
 		c, err := Load(dir, Flags{VNC: true})
 		require.NoError(t, err)
@@ -457,8 +477,8 @@ func TestLoad_VNC(t *testing.T) {
 
 	t.Run("a later layer's enabled: false opts the section out", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude\nvnc:\n  enabled: true\n")
-		writeConfig(t, dir, projectConfigFileName, "vnc:\n  enabled: false\n")
+		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+imagesYAML+"vnc:\n  enabled: true\n")
+		writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc:\n  enabled: false\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -470,7 +490,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("a missing section is no proxy", func(t *testing.T) {
 		useHome(t) // no user file: no section anywhere
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML)
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -480,7 +500,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("an older enabled: false opts the section out", func(t *testing.T) {
 		useHome(t) // no user file: the project's section stands alone
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  enabled: false\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"proxy:\n  enabled: false\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -489,7 +509,7 @@ func TestLoad_Proxy(t *testing.T) {
 
 	t.Run("the section inherits the seed's enabled and allowlist aliases", func(t *testing.T) {
 		dir := t.TempDir() // TestMain's seed is the user layer
-		writeConfig(t, dir, projectConfigFileName, "proxy: {}\n")
+		writeConfig(t, dir, projectConfigFileName, imagesYAML+"proxy: {}\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -513,7 +533,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("an absent enabled is off", func(t *testing.T) {
 		useHome(t) // no user file: no seed's true to inherit
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nproxy:\n  allowlist:\n    - example.com\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"proxy:\n  allowlist:\n    - example.com\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -523,7 +543,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("the proxy command adds the section", func(t *testing.T) {
 		useHome(t) // no user file: no section anywhere
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML)
 
 		c, err := Load(dir, Flags{ProxyCmd: true})
 		require.NoError(t, err)
@@ -627,8 +647,8 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 
 func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, userConfigFileName, "cli: codex\n")
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"), osutil.File))
+	writeConfig(t, dir, userConfigFileName, "cli: codex\n"+imagesYAML)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("cli: claude\n"+imagesYAML), osutil.File))
 
 	c, err := Load(dir, Flags{CLI: new("pi")})
 	require.NoError(t, err)
@@ -689,7 +709,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 	t.Run("the proxy command's forced ask on a proxy-less config boots another devbox", func(t *testing.T) {
 		useHome(t) // no user file: no section anywhere
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+portsYAML)
 
 		c, err := Load(dir, Flags{ProxyCmd: true})
 		require.NoError(t, err)
@@ -703,7 +723,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 	t.Run("a later layer replaces the earlier layer's list wholesale", func(t *testing.T) {
 		dir := t.TempDir()
 		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+portsYAML)
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\ndefault_variant:\n  port_bindings:\n    tcp: 8080\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"default_variant:\n  port_bindings:\n    tcp: 8080\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -711,7 +731,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 		// the project layer unset: the user's list stands
 		dir = t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+portsYAML)
+		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+imagesYAML+portsYAML)
 		c, err = Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"3000", "7200"}, c.DefaultVariant.PortBindings.TCP)
@@ -719,7 +739,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 	t.Run("the flag value validates like a file's", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML)
 		for _, tcp := range []string{"70000", "3000,3000", "x"} {
 			_, err := Load(dir, Flags{PortBindingsTCP: new(tcp)})
 			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)
@@ -767,8 +787,8 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 	t.Run("a later layer replaces the earlier layer's list wholesale", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+portsYAML)
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\nhost_gateway:\n  tcp: 3306\n")
+		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+imagesYAML+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML+"host_gateway:\n  tcp: 3306\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -776,7 +796,7 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 		// the project layer unset: the user's list stands
 		dir = t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+portsYAML)
+		writeConfig(t, dir, userConfigFileName, "cli: claude\n"+imagesYAML+portsYAML)
 		c, err = Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"5432", "6379"}, c.HostGatewayTCP())
@@ -784,7 +804,7 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 	t.Run("the flag value validates like a file's", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: claude\n"+imagesYAML)
 		for _, tcp := range []string{"70000", "5432,5432", "x"} {
 			_, err := Load(dir, Flags{HostGatewayTCP: new(tcp)})
 			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)

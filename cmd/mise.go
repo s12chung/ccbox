@@ -6,11 +6,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/kit/misekit"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/prompt"
-	"github.com/s12chung/ccbox/pkg/util/must"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
@@ -72,7 +70,7 @@ func miseLock(ctx context.Context) error {
 		return fmt.Errorf("mise: no mise config to lock — expected a project config at %s or the user config at %s",
 			mise.ProjectConfigPath(projectDir), mise.UserConfigPath())
 	}
-	return mise.Lock(ctx, must.Get(dockerfile.MiseImageRef()), configPath, miseLockOptions)
+	return mise.Lock(ctx, config.Images.Mise, configPath, miseLockOptions)
 }
 
 var miseLockOptions mise.LockOptions

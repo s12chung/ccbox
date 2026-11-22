@@ -66,6 +66,7 @@ func LoadedPaths(projectDir string) ([]string, []string) {
 //toinnermodel:gen
 type config struct {
 	CLIName        *string            `yaml:"cli"`             // coding CLI to install + launch
+	Images         *images            `yaml:"images"`          // the devbox image's FROM refs
 	DefaultVariant *defaultVariant    `yaml:"default_variant"` // the default variant ask's section — the devbox with no run flags
 	HostGateway    *hostGateway       `yaml:"host_gateway"`    // the host tcp ports' section
 	VNC            *vnc               `yaml:"vnc"`             // the desktop's session: its GUI app
@@ -79,9 +80,10 @@ type config struct {
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[config]().
-		NotNil("CLIName").
+		NotNil("CLIName", "Images").
 		Validates(firm.RuleMap{
 			"CLIName":        {rule.OneOf[string]{ValuesFunc: cli.Names}},
+			"Images":         {firm.Backed()},
 			"DefaultVariant": {firm.Backed()},
 			"HostGateway":    {firm.Backed()},
 			"VNC":            {firm.Backed()},
@@ -97,6 +99,22 @@ func init() {
 
 			"ForwardEnv": {firm.Elems[[]string](rule.ShowValue(firmrule.EnvVar))},
 			"Proxy":      {firm.Backed()},
+		}))
+}
+
+// images is the devbox image's FROM refs
+type images struct {
+	// Base is the base stage's ref — debian's trixie snapshot slim
+	Base string `yaml:"base"`
+	// Mise is the mise stage's ref — ghcr.io/jdx/mise's release tag
+	Mise string `yaml:"mise"`
+}
+
+func init() {
+	firm.MustRegisterType(firm.NewDefinition[images]().
+		Validates(firm.RuleMap{
+			"Base": {rule.ShowValue(firmrule.ImageRef)},
+			"Mise": {rule.ShowValue(firmrule.ImageRef)},
 		}))
 }
 
@@ -208,9 +226,10 @@ func Init(projectDir string) error {
 }
 
 // userSeedConfig is the user-level seed's data with ccbox defaults — referenced in tests
-func userSeedConfig(cliName string) *config {
+func userSeedConfig(cliName string, refs Images) *config {
 	return &config{
 		CLIName:       new(cliName),
+		Images:        new(images(refs)),
 		ForwardEnv:    new([]string{"TERM", "COLORTERM"}),
 		TmpfsMasks:    new([]string{DefaultsAlias}),
 		VolumeMasks:   new([]string{DefaultsAlias}),
@@ -223,9 +242,10 @@ func userSeedConfig(cliName string) *config {
 	}
 }
 
-// SeedConfig safe-seeds the config with ccbox's own defaults, naming the seeded cli.
-func SeedConfig(path, cliName string) error {
-	return errs.Swallow(initConfig(path, *userSeedConfig(cliName)), seed.ErrExists)
+// SeedConfig safe-seeds the config with ccbox's own defaults, naming the seeded cli
+// and pinning the images' refs.
+func SeedConfig(path, cliName string, refs Images) error {
+	return errs.Swallow(initConfig(path, *userSeedConfig(cliName, refs)), seed.ErrExists)
 }
 
 func initConfig(path string, c config) error {

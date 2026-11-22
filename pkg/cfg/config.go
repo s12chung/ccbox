@@ -35,6 +35,7 @@ const (
 // Config is the loaded .ccbox.yaml
 type Config struct {
 	CLIName        string            // coding CLI to install + launch
+	Images         Images            // the devbox image's FROM refs
 	DefaultVariant *DefaultVariant   // the default variant ask's section — the devbox the config's own ask boots
 	HostGateway    *HostGateway      // the host tcp ports' section; nil names no ports
 	VNC            *VNC              // the desktop's session: its GUI app; nil on a headless run
@@ -88,6 +89,12 @@ type Proxy struct {
 	// Allowlist is the domains the egress wall lets through; each entry also matches
 	// all its subdomains
 	Allowlist []string
+}
+
+// Images pins the Dockerfile.tmpl's FROM image refs
+type Images struct {
+	Base string // the base stage's ref — debian's trixie snapshot slim
+	Mise string // the mise stage's ref — ghcr.io/jdx/mise's release tag
 }
 
 // ProjectDir is the project dir the config was loaded from
@@ -297,6 +304,7 @@ func expandDomain(entry string) []string {
 func (c *Config) MarshalYAML() (any, error) {
 	out := config{
 		CLIName:        new(c.CLIName),
+		Images:         new(images(c.Images)),
 		DefaultVariant: c.marshalDefaultVariant(),
 		HostGateway:    c.marshalHostGateway(),
 		TmpfsMasks:     new(c.TmpfsMasksPresent()),

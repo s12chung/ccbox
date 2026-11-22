@@ -3,6 +3,17 @@
 # cli: which coding CLI the image installs and launches
 cli:{{yaml .CLIName nil}}
 
+# images: the devbox image's FROM refs, pinned so the image never changes underneath
+{{- if .Images}}
+images:
+  base:{{yaml .Images.Base nil}}
+  mise:{{yaml .Images.Mise nil}}
+{{- else}}
+# images:
+#   base: debian:trixie-YYYYMMDD-slim
+#   mise: ghcr.io/jdx/mise:YYYY.MM.DD
+{{- end}}
+
 # default_variant: the devbox a no-flags ask boots (--vnc, --no-proxy)
 default_variant:
   # port_bindings: # binds tcp ports on localhost, container port = host port

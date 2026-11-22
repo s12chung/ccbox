@@ -1,6 +1,6 @@
-FROM ghcr.io/jdx/mise:2026.10.12 AS mise
+FROM {{.Mise}} AS mise
 
-FROM debian:trixie-slim AS base
+FROM {{.Base}} AS base
 
 # iproute2, iptables, and tinyproxy are proxy-critical — iproute2 pins, iptables
 # writes the egress wall's whitelist (nft-backed is fine; the rows are plain

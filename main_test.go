@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/pkg/cfg"
 	"github.com/s12chung/ccbox/pkg/dockerfile"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
@@ -77,7 +78,7 @@ func composedContext(t *testing.T) fs.FS {
 	require.NoError(t, os.WriteFile(mise.LockPath(mise.UserConfigPath()), []byte("lock"), osutil.File))
 	src, err := mise.BuildFS(embedBuildContext, t.TempDir())
 	require.NoError(t, err)
-	src, err = dockerfile.PatchFS(src, miseRuntimes)
+	src, err = dockerfile.PatchFS(src, miseRuntimes, cfg.Images{Base: "debian:trixie-slim", Mise: "ghcr.io/jdx/mise:2026.10.12"})
 	require.NoError(t, err)
 	return src
 }

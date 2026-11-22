@@ -40,7 +40,7 @@ func (s indexSource) Name() string { return s.index.Label() }
 // List fetches the tool's list body off to its entries
 func (s indexSource) List(ctx context.Context, tool string) ([]VersionEntry, error) {
 	url := s.index.ListURL(tool)
-	body, err := httputil.Body(ctx, indexClient, url)
+	body, err := httputil.Body(ctx, indexClient, url, nil)
 	if err != nil {
 		return nil, err
 	}
