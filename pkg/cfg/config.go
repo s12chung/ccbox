@@ -277,7 +277,7 @@ func (c *Config) MarshalYAML() (any, error) {
 		out.VNC = &vnc{Enabled: new(true), GUIAppName: c.VNC.GUIAppName}
 	}
 	if c.Proxy != nil {
-		out.Proxy = &proxy{Enabled: new(true), Allowlist: c.AllowlistExpanded()}
+		out.Proxy = &proxy{Enabled: new(true), Allowlist: c.Proxy.Allowlist}
 	}
 	return out, nil
 }

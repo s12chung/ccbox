@@ -532,9 +532,9 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 			filepath.Join(home, ".config", "git"): GitConfigMount,
 		}),
 		ForwardEnv: new([]string{"FOO"}),
-		Proxy: &proxy{ // allowlist resolved: the alias expanded in place
+		Proxy: &proxy{ // the allowlist renders raw: the alias stays a token
 			Enabled:   new(true),
-			Allowlist: append(append([]string{"user.example.dev"}, AllowlistDefaults()...), "example.com"),
+			Allowlist: []string{"user.example.dev", DefaultsAlias, "example.com"},
 		},
 	}
 	assert.Equal(t, want, got)

@@ -22,21 +22,26 @@ import (
 
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Print the effective .ccbox.yaml with its aliases expanded",
+	Short: "Print the effective .ccbox.yaml",
 	RunE: func(_ *cobra.Command, _ []string) error {
-		log.Info("# Run `ccbox config defaults` for the alias expansions")
-		printLoadedPaths()
-		if !confirmReadOnlyPaths() {
-			return nil
-		}
-		out, err := yaml.Marshal(config)
-		if err != nil {
-			return err
-		}
-		log.Info(strings.TrimRight(string(out), "\n"))
-		printGuardMountWarnings()
-		return nil
+		return printConfig()
 	},
+}
+
+// printConfig prints the effective .ccbox.yaml, with the loaded paths and the guard mounts' run effects
+func printConfig() error {
+	log.Info("# Run `ccbox config defaults` for the alias expansions")
+	printLoadedPaths()
+	if !confirmReadOnlyPaths() {
+		return nil
+	}
+	out, err := yaml.Marshal(config)
+	if err != nil {
+		return err
+	}
+	log.Info(strings.TrimRight(string(out), "\n"))
+	printGuardMountWarnings()
+	return nil
 }
 
 // printLoadedPaths lists the config files loaded and not loaded, in load order

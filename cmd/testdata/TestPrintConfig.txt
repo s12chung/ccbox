@@ -1,0 +1,32 @@
+# Run `ccbox config defaults` for the alias expansions
+
+# Config files, in load order:
+#   ~/.ccbox/ccbox.yaml
+#   ~/proj/.ccbox.yaml
+
+cli: claude
+images:
+    base: debian:trixie-20250113-slim
+    mise: ghcr.io/jdx/mise:2026.10.12
+default_variant: null
+host_gateway: null
+vnc: null
+tmpfs_masks:
+    - .idea
+volume_masks:
+    - node_modules
+read_only_globs:
+    - .env
+read_only_binds: {}
+forward_env:
+    - TERM
+proxy:
+    enabled: true
+    allowlist:
+        - ccbox-defaults
+        - ccbox-anthropic-provider
+        - ccbox-go-runtime
+        - example.com
+
+# tmpfs_masks not in project, not masked: .vscode
+# read_only_globs matches re-mount read-only at run: .env, **/*.pem

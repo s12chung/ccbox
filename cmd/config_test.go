@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,8 +14,50 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/globkit"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/printutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
+
+func TestPrintConfig(t *testing.T) {
+	// home exists so both layers load; the project sits in the home too, so the
+	// printed paths tilde away the temp home
+	home := testutil.Home(t)
+	proj := filepath.Join(home, "proj")
+	writeConfig := func(t *testing.T, path, body string) {
+		t.Helper()
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+		require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
+	}
+	// the dirs and the .env file give the render its present masks and matches; the
+	// rest of the masks and globs come back absent, pinning the warnings
+	for _, dir := range []string{".idea", "node_modules"} {
+		writeConfig(t, filepath.Join(proj, dir, "placeholder"), "")
+	}
+	writeConfig(t, filepath.Join(proj, ".env"), "K=v")
+	writeConfig(t, cfg.UserConfigFile(),
+		"cli: claude\n"+
+			"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n"+
+			"forward_env:\n  - TERM\n"+
+			"proxy:\n  enabled: true\n  allowlist:\n    - ccbox-defaults\n")
+	// the allowlist's aliases render raw — `ccbox config defaults` shows the expansions
+	writeConfig(t, filepath.Join(proj, ".ccbox.yaml"),
+		"tmpfs_masks:\n  - .idea\n  - .vscode\n"+
+			"volume_masks:\n  - node_modules\n"+
+			"read_only_globs:\n  - .env\n  - \"**/*.pem\"\n"+
+			"proxy:\n  allowlist:\n    - ccbox-anthropic-provider\n    - ccbox-go-runtime\n    - example.com\n")
+	loaded, err := cfg.Load(proj, cfg.Flags{})
+	require.NoError(t, err)
+	saved := config
+	t.Cleanup(func() { config = saved })
+	config = loaded
+
+	var out bytes.Buffer
+	restore := log.SwapInfoWriter(&out)
+	defer restore()
+
+	require.NoError(t, printConfig())
+	assert.Equal(t, golden(t, "TestPrintConfig.txt"), out.String())
+}
 
 func TestAliasSections(t *testing.T) {
 	cliName := "pi"
@@ -166,4 +209,12 @@ func TestConfirmReadOnlyPaths(t *testing.T) {
 		testutil.Stdin(t, "y\n")
 		assert.True(t, confirmReadOnlyPaths())
 	})
+}
+
+// golden reads a testdata fixture
+func golden(t *testing.T, name string) string {
+	t.Helper()
+	body, err := os.ReadFile(filepath.Join("testdata", name)) // #nosec G304 -- the test's own fixture
+	require.NoError(t, err)
+	return string(body)
 }
