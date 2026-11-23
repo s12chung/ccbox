@@ -105,6 +105,149 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+func TestLoadedPaths(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string // config file names present on disk
+	}{
+		{"no files", nil},
+		{"project only", []string{projectConfigFileName}},
+		{"user and project", []string{userConfigFileName, projectConfigFileName}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			useHome(t) // no user file unless written below
+			dir := t.TempDir()
+			for _, name := range tt.files {
+				writeConfig(t, dir, name, "cli: claude\n"+imagesYAML)
+			}
+			var wantLoaded, wantNotLoaded []string
+			for _, name := range []string{userConfigFileName, projectConfigFileName} {
+				path := filepath.Join(dir, name)
+				if name == userConfigFileName {
+					path = UserConfigFile()
+				}
+				if slices.Contains(tt.files, name) {
+					wantLoaded = append(wantLoaded, path)
+				} else {
+					wantNotLoaded = append(wantNotLoaded, path)
+				}
+			}
+			loaded, notLoaded := LoadedPaths(dir)
+			assert.Equal(t, wantLoaded, loaded)
+			assert.Equal(t, wantNotLoaded, notLoaded)
+		})
+	}
+
+	t.Run("an empty file counts as loaded", func(t *testing.T) {
+		useHome(t)
+		dir := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, osutil.File))
+
+		loaded, notLoaded := LoadedPaths(dir)
+		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, loaded)
+		assert.Equal(t, []string{UserConfigFile()}, notLoaded)
+	})
+}
+
+// TestConfig_ValidateErrors pins the input view's validation errors — the key paths
+// a failed load shows the user
+func TestConfig_ValidateErrors(t *testing.T) {
+	aliases := allowlistAliases()
+	quoted := make([]string, len(aliases))
+	for i, a := range aliases {
+		quoted[i] = strconv.Quote(a)
+	}
+	c := config{
+		CLIName:       new("claude"),
+		TmpfsMasks:    new([]string{"/etc"}),
+		ReadOnlyGlobs: new([]string{"../escape"}),
+		ReadOnlyBinds: new(map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"}),
+		Proxy:         &proxy{Allowlist: []string{"X.AI"}},
+	}
+	errMap := firm.ValidateAny(c)
+	require.NotEmpty(t, errMap)
+	// ShowValue appends the failing element, bindErr the failing mount, to each error
+	assert.Equal(t, strings.Join([]string{
+		`cfg.config.Images.Nil: Images is nil`,
+		`cfg.config.Proxy.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
+			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
+		`cfg.config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
+		`cfg.config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
+		`cfg.config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
+			`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$: "../escape"`,
+		`cfg.config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
+			`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$: "/etc"`,
+	}, ", "), errMap.Error())
+
+	t.Run("the images' refs must be full refs with a tag", func(t *testing.T) {
+		c := config{
+			CLIName: new("claude"),
+			Images:  &images{Base: "Debian", Mise: "ghcr.io/jdx/mise"},
+		}
+
+		errMap := firm.ValidateAny(c)
+
+		require.NotEmpty(t, errMap)
+		assert.Contains(t, errMap.Error(), `cfg.config.Images.Base.Match: Base does not match`)
+		assert.Contains(t, errMap.Error(), `cfg.config.Images.Mise.Match: Mise does not match`)
+	})
+}
+
+// TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
+// which `make lint` yq-checks as YAML. Regenerate with:
+// `UPDATE_FIXTURES=1 go test ./pkg/cfg/ -run TestConfig_renderTmpl`
+func TestConfig_renderTmpl(t *testing.T) {
+	for _, tt := range []struct {
+		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml
+		c    config
+	}{
+		{"init", config{}}, // `ccbox config init`'s fill-in scaffold
+		{"user-seed", *userSeedConfig("claude", testImages)}, // the safe-seeded user-level config
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.c.renderTmpl()
+			require.NoError(t, err)
+
+			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
+			if os.Getenv("UPDATE_FIXTURES") != "" {
+				require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
+				require.NoError(t, os.WriteFile(path, got, osutil.File))
+			}
+
+			// #nosec G304 -- the package's own fixture path
+			want, err := os.ReadFile(path)
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+func TestRoGlobGroups_MatchDefaults(t *testing.T) {
+	assert.ElementsMatch(t, roGlobDefaults, slices.Collect(maps.Keys(roGlobGroups)))
+}
+
+func TestInit_WritesLoadableDefault(t *testing.T) {
+	projectDir := t.TempDir()
+	require.NoError(t, Init(projectDir))
+	configPath := filepath.Join(projectDir, projectConfigFileName)
+
+	cOut := loadConfigYAML(t, projectDir)
+
+	freshDir := t.TempDir()
+	copyFile(t, configPath, filepath.Join(freshDir, projectConfigFileName))
+	freshOut := loadConfigYAML(t, freshDir)
+
+	assert.Equal(t, freshOut, cOut)
+}
+
+func TestInit_RefusesExisting(t *testing.T) {
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("tmpfs_masks: []\n"), osutil.File))
+
+	assert.ErrorIs(t, Init(dir), seed.ErrExists)
+}
+
 func TestSeedConfig(t *testing.T) {
 	dir := t.TempDir()
 	mkDirs(t, dir, tmpfsDefaults...)
@@ -163,149 +306,6 @@ func TestSeedConfig_ChoosesCLI(t *testing.T) {
 	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the package's own temp user file
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "cli: codex\n")
-}
-
-func TestLoadedPaths(t *testing.T) {
-	tests := []struct {
-		name  string
-		files []string // config file names present on disk
-	}{
-		{"no files", nil},
-		{"project only", []string{projectConfigFileName}},
-		{"user and project", []string{userConfigFileName, projectConfigFileName}},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			useHome(t) // no user file unless written below
-			dir := t.TempDir()
-			for _, name := range tt.files {
-				writeConfig(t, dir, name, "cli: claude\n"+imagesYAML)
-			}
-			var wantLoaded, wantNotLoaded []string
-			for _, name := range []string{userConfigFileName, projectConfigFileName} {
-				path := filepath.Join(dir, name)
-				if name == userConfigFileName {
-					path = UserConfigFile()
-				}
-				if slices.Contains(tt.files, name) {
-					wantLoaded = append(wantLoaded, path)
-				} else {
-					wantNotLoaded = append(wantNotLoaded, path)
-				}
-			}
-			loaded, notLoaded := LoadedPaths(dir)
-			assert.Equal(t, wantLoaded, loaded)
-			assert.Equal(t, wantNotLoaded, notLoaded)
-		})
-	}
-
-	t.Run("an empty file counts as loaded", func(t *testing.T) {
-		useHome(t)
-		dir := t.TempDir()
-		require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), nil, osutil.File))
-
-		loaded, notLoaded := LoadedPaths(dir)
-		assert.Equal(t, []string{filepath.Join(dir, projectConfigFileName)}, loaded)
-		assert.Equal(t, []string{UserConfigFile()}, notLoaded)
-	})
-}
-
-func TestInit_WritesLoadableDefault(t *testing.T) {
-	projectDir := t.TempDir()
-	require.NoError(t, Init(projectDir))
-	configPath := filepath.Join(projectDir, projectConfigFileName)
-
-	cOut := loadConfigYAML(t, projectDir)
-
-	freshDir := t.TempDir()
-	copyFile(t, configPath, filepath.Join(freshDir, projectConfigFileName))
-	freshOut := loadConfigYAML(t, freshDir)
-
-	assert.Equal(t, freshOut, cOut)
-}
-
-func TestInit_RefusesExisting(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, projectConfigFileName), []byte("tmpfs_masks: []\n"), osutil.File))
-
-	assert.ErrorIs(t, Init(dir), seed.ErrExists)
-}
-
-// TestConfig_ValidateErrors pins the input view's validation errors — the key paths
-// a failed load shows the user
-func TestConfig_ValidateErrors(t *testing.T) {
-	aliases := allowlistAliases()
-	quoted := make([]string, len(aliases))
-	for i, a := range aliases {
-		quoted[i] = strconv.Quote(a)
-	}
-	c := config{
-		CLIName:       new("claude"),
-		TmpfsMasks:    new([]string{"/etc"}),
-		ReadOnlyGlobs: new([]string{"../escape"}),
-		ReadOnlyBinds: new(map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"}),
-		Proxy:         &proxy{Allowlist: []string{"X.AI"}},
-	}
-	errMap := firm.ValidateAny(c)
-	require.NotEmpty(t, errMap)
-	// ShowValue appends the failing element, bindErr the failing mount, to each error
-	assert.Equal(t, strings.Join([]string{
-		`cfg.config.Images.Nil: Images is nil`,
-		`cfg.config.Proxy.Allowlist.[0].DomainOrAlias: Allowlist[0] is not a domain or one of ` +
-			fmt.Sprintf("%v", quoted) + `: "X.AI"`,
-		`cfg.config.ReadOnlyBinds.[gitconfig].Bind: ReadOnlyBinds[gitconfig] must be enabled: "/home/ccbox/.config/git"`,
-		`cfg.config.ReadOnlyBinds.[~/fonts].Bind: ReadOnlyBinds[~/fonts] must be a container mount path (~/… or /…, no .. segment): "mnt"`,
-		`cfg.config.ReadOnlyGlobs.[0].Match: ReadOnlyGlobs[0] does not match ` +
-			`^[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*(/[A-Za-z0-9_.*-]*[A-Za-z0-9_*-][A-Za-z0-9_.*-]*)*$: "../escape"`,
-		`cfg.config.TmpfsMasks.[0].Match: TmpfsMasks[0] does not match ` +
-			`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$: "/etc"`,
-	}, ", "), errMap.Error())
-
-	t.Run("the images' refs must be full refs with a tag", func(t *testing.T) {
-		c := config{
-			CLIName: new("claude"),
-			Images:  &images{Base: "Debian", Mise: "ghcr.io/jdx/mise"},
-		}
-
-		errMap := firm.ValidateAny(c)
-
-		require.NotEmpty(t, errMap)
-		assert.Contains(t, errMap.Error(), `cfg.config.Images.Base.Match: Base does not match`)
-		assert.Contains(t, errMap.Error(), `cfg.config.Images.Mise.Match: Mise does not match`)
-	})
-}
-
-func TestRoGlobGroups_MatchDefaults(t *testing.T) {
-	assert.ElementsMatch(t, roGlobDefaults, slices.Collect(maps.Keys(roGlobGroups)))
-}
-
-// TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
-// which `make lint` yq-checks as YAML. Regenerate with:
-// `UPDATE_FIXTURES=1 go test ./pkg/cfg/ -run TestConfig_renderTmpl`
-func TestConfig_renderTmpl(t *testing.T) {
-	for _, tt := range []struct {
-		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml
-		c    config
-	}{
-		{"init", config{}}, // `ccbox config init`'s fill-in scaffold
-		{"user-seed", *userSeedConfig("claude", testImages)}, // the safe-seeded user-level config
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.c.renderTmpl()
-			require.NoError(t, err)
-
-			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
-			if os.Getenv("UPDATE_FIXTURES") != "" {
-				require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
-				require.NoError(t, os.WriteFile(path, got, osutil.File))
-			}
-
-			// #nosec G304 -- the package's own fixture path
-			want, err := os.ReadFile(path)
-			require.NoError(t, err)
-			assert.Equal(t, want, got)
-		})
-	}
 }
 
 // TestConfig_mergeOverlays pins the input view's fold: lists append, maps merge per key

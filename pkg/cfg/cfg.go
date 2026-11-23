@@ -130,6 +130,44 @@ func (c *config) dropDisabled() *config {
 	return c
 }
 
+var (
+	//go:embed ccbox.yaml.tmpl
+	configTmplSrc string
+	tmpl          = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
+		"yaml":   yamlkit.Value,
+		"indent": yamlkit.Indent,
+	}).Parse(configTmplSrc))
+)
+
+func (c *config) renderTmpl() ([]byte, error) {
+	var allowlist, allowlistComments []string
+	if c.Proxy != nil {
+		allowlist = c.Proxy.Allowlist
+		allowlistComments = yamlkit.EntryToComments(c.Proxy.Allowlist, map[string]string{
+			DefaultsAlias:            "shared tooling domains",
+			runtime.AllRuntimesAlias: "every runtime's domains (node, python, go, rust)",
+			SetHarnessAlias:          "the selected CLI's — and on --vnc, the GUI app's",
+		})
+	}
+	var b bytes.Buffer
+	data := struct {
+		config
+
+		ReadOnlyGlobFlow  string
+		AllowlistComments []string
+		Allowlist         []string
+	}{
+		config:            *c,
+		ReadOnlyGlobFlow:  yamlkit.Flow(ptrx.Deref(c.ReadOnlyGlobs), roGlobGroups),
+		Allowlist:         allowlist,
+		AllowlistComments: allowlistComments,
+	}
+	if err := tmpl.Execute(&b, data); err != nil {
+		return nil, fmt.Errorf("render Config template: %w", err)
+	}
+	return b.Bytes(), nil
+}
+
 // defaultVariant is the default variant ask's section — the devbox with no run flags
 type defaultVariant struct {
 	// PortBindings binds tcp ports on localhost, container port = host port
@@ -221,11 +259,6 @@ func init() {
 		}))
 }
 
-// Init writes a starter .ccbox.yaml to projectDir
-func Init(projectDir string) error {
-	return initConfig(filepath.Join(projectDir, projectConfigFileName), config{})
-}
-
 // the seeded config's guardMount lists
 var (
 	tmpfsDefaults  = []string{".idea", ".vscode", ".zed"}
@@ -257,6 +290,11 @@ func userSeedConfig(cliName string, refs Images) *config {
 	}
 }
 
+// Init writes a starter .ccbox.yaml to projectDir
+func Init(projectDir string) error {
+	return initConfig(filepath.Join(projectDir, projectConfigFileName), config{})
+}
+
 // SeedConfig safe-seeds the config with ccbox's own defaults, naming the seeded cli
 // and pinning the images' refs.
 func SeedConfig(path, cliName string, refs Images) error {
@@ -269,47 +307,6 @@ func initConfig(path string, c config) error {
 		return err
 	}
 	return seed.File(path, body)
-}
-
-var (
-	//go:embed ccbox.yaml.tmpl
-	configTmplSrc string
-	tmpl          = template.Must(template.New("ccbox.yaml").Funcs(template.FuncMap{
-		"yaml":   yamlkit.Value,
-		"indent": yamlkit.Indent,
-	}).Parse(configTmplSrc))
-)
-
-// configTmpl wraps config with the template's own render fields
-type configTmpl struct {
-	config
-
-	ReadOnlyGlobFlow  string
-	AllowlistComments []string
-	Allowlist         []string
-}
-
-func (c *config) renderTmpl() ([]byte, error) {
-	var allowlist, allowlistComments []string
-	if c.Proxy != nil {
-		allowlist = c.Proxy.Allowlist
-		allowlistComments = yamlkit.EntryToComments(c.Proxy.Allowlist, map[string]string{
-			DefaultsAlias:            "shared tooling domains",
-			runtime.AllRuntimesAlias: "every runtime's domains (node, python, go, rust)",
-			SetHarnessAlias:          "the selected CLI's — and on --vnc, the GUI app's",
-		})
-	}
-	var b bytes.Buffer
-	data := configTmpl{
-		config:            *c,
-		ReadOnlyGlobFlow:  yamlkit.Flow(ptrx.Deref(c.ReadOnlyGlobs), roGlobGroups),
-		Allowlist:         allowlist,
-		AllowlistComments: allowlistComments,
-	}
-	if err := tmpl.Execute(&b, data); err != nil {
-		return nil, fmt.Errorf("render Config template: %w", err)
-	}
-	return b.Bytes(), nil
 }
 
 // Flags are the run flags Load folds into the config as its top layer — an unset
