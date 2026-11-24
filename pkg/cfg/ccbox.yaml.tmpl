@@ -1,9 +1,9 @@
-# Run `ccbox config` to see effective config. Arrays and maps merge down scoped configs.
+## Run `ccbox config` to see the effective config — arrays and maps merge down scoped configs.
 
-# cli: which coding CLI the image installs and launches
+## cli: which coding CLI the image installs and launches
 cli:{{yaml .CLIName nil}}
 
-# images: the devbox image's FROM refs, pinned so the image never changes underneath
+## images: the devbox image's FROM refs, pinned so the image never changes underneath
 {{- if .Images}}
 images:
   base:{{yaml .Images.Base nil}}
@@ -14,57 +14,72 @@ images:
 #   mise: ghcr.io/jdx/mise:YYYY.MM.DD
 {{- end}}
 
-# default_variant: the devbox a no-flags ask boots (--vnc, --no-proxy)
+## default_variant: the devbox a no-flags ask boots (--vnc, --no-proxy)
+{{- if and .DefaultVariant .DefaultVariant.PortBindings}}
 default_variant:
-  # port_bindings: # binds tcp ports on localhost, container port = host port
-  #   tcp: "3000,8000,5173"
-
-# host_gateway: host tcp ports the devbox may reach at host.docker.internal:<port> —
-# use for services your devbox needs access to (such as a database).
+  port_bindings: ## binds tcp ports on localhost, container port = host port
+    tcp:{{yaml .DefaultVariant.PortBindings.TCP nil}}
+{{- else}}
+# default_variant:
+#   port_bindings: ## binds tcp ports on localhost, container port = host port
+#     tcp: "3000,8000,5173"
+{{- end}}
+## host_gateway: host tcp ports the devbox may reach at host.docker.internal:<port> —
+## use for services your devbox needs access to (such as a database).
+{{- if .HostGateway}}
+host_gateway:
+  tcp:{{yaml .HostGateway.TCP nil}} ## PostgreSQL
+{{- else}}
 # host_gateway:
-#   tcp: "5432" # PostgreSQL
+#   tcp: "5432" ## PostgreSQL
+{{- end}}
 
-# vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
+## vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
+{{- if .VNC}}
 vnc:
-  # enabled: true # always runs with VNC served — the --vnc flag's config form
-  # gui_app: zcode # the GUI app's name; empty means none
+  {{- if .VNC.Enabled}}
+  enabled:{{yaml .VNC.Enabled nil}}
+  {{- end}}
+  gui_app:{{if .VNC.GUIAppName}}{{yaml .VNC.GUIAppName nil}}{{end}} ## the GUI app's name; empty means none
+{{- end}}
 
-# tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
-# Use for editor junk or throwaway build output. Directories that do not exist in the project are safely ignored.
-tmpfs_masks:{{yaml .TmpfsMasks nil}}
-  # - dist
-
-# volume_masks: cover project-relative directories with a persistent per-project volume.
-# Directories that do not exist in the project are safely ignored.
-volume_masks:{{yaml .VolumeMasks nil}}
-  # - vendor/bundle
-
-# read_only_globs: block writes to project-relative glob paths (files or directories) with read-only re-mounts.
-# Use for files that must never change (configs, secrets). External container configuration cannot prevent reads.
-# tmpfs_masks/volume_masks dirs are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
+## tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
+## Use for editor junk or throwaway build output. Directories that do not exist in the project are safely ignored.
+tmpfs_masks:{{yaml .TmpfsMasks nil}}{{if .TmpfsMasks}}
+  ## - dist{{else}}
+  # - dist{{end}}
+## volume_masks: cover project-relative directories with a persistent per-project volume.
+## Directories that do not exist in the project are safely ignored.
+volume_masks:{{yaml .VolumeMasks nil}}{{if .VolumeMasks}}
+  ## - vendor/bundle{{else}}
+  # - vendor/bundle{{end}}
+## read_only_globs: block writes to project-relative glob paths (files or directories) with read-only re-mounts.
+## Use for files that must never change (configs, secrets). External container configuration cannot prevent reads.
+## tmpfs_masks/volume_masks dirs are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
 read_only_globs:{{.ReadOnlyGlobFlow}}{{if not .ReadOnlyGlobs}}
   # - .conf{{end}}
 
-# read_only_binds: bind host dirs into the container read-only. Use for config shared across
-# projects (AWS creds, CAs, dotfiles). Dirs missing on the host are safely ignored.
-read_only_binds:{{yaml .ReadOnlyBinds nil}}
+## read_only_binds: bind host dirs into the container read-only. Use for config shared across
+## projects (AWS creds, CAs, dotfiles). Dirs missing on the host are safely ignored.
+read_only_binds:{{yaml .ReadOnlyBinds .ReadOnlyBindsComments}}{{if not .ReadOnlyBinds}}
+  # gitconfig: enabled # special value that binds the XDG git config dir{{end}}
   # ~/.aws: ~/.aws
   # /srv/ca: /home/ccbox/.local/share/ca
 
-# forward_env: forward the host's env vars into the container.
+## forward_env: forward the host's env vars into the container.
 forward_env:{{yaml .ForwardEnv nil}}
   # - GH_TOKEN
 
-# proxy: the egress wall's section; a missing section is no proxy unless the user config sets it
+## proxy: the egress wall's section; a missing section is no proxy unless the user config sets it
 proxy:
 {{- if .Proxy}}
   enabled:{{yaml .Proxy.Enabled nil}}
 {{- else}}
   # enabled: false
 {{- end}}
-  # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
-  # Run `ccbox config defaults` to see aliases and their expansions.
+  ## allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
+  ## Run `ccbox config defaults` to see aliases and their expansions.
   allowlist:{{yaml .Allowlist .AllowlistComments | indent 2}}
-    # - ccbox-anthropic-provider # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.)
-    # - ccbox-all-providers # every provider's domains
+    # - ccbox-anthropic-provider{{if .Allowlist}} # anthropic's API domains (also ccbox-openai-provider, xai, zai, etc.){{end}}
+    # - ccbox-all-providers{{if .Allowlist}} # every provider's domains{{end}}
     # - example.com

@@ -194,33 +194,60 @@ func TestConfig_ValidateErrors(t *testing.T) {
 	})
 }
 
-// TestConfig_renderTmpl pins the render output to the committed testdata fixtures,
+// TestConfig_renderTmpl pins the render output to the committed fixtures
 // which `make lint` yq-checks as YAML. Regenerate with:
 // `UPDATE_FIXTURES=1 go test ./pkg/cfg/ -run TestConfig_renderTmpl`
 func TestConfig_renderTmpl(t *testing.T) {
 	for _, tt := range []struct {
-		name string // fixture name: testdata/TestConfig_renderTmpl_<name>.ccbox.yaml
-		c    config
+		name   string
+		path   string
+		c      config
+		render func(*testing.T, *config) []byte
 	}{
-		{"init", config{}}, // `ccbox config init`'s fill-in scaffold
-		{"user-seed", *userSeedConfig("claude", testImages)}, // the safe-seeded user-level config
+		// /docs is at the root dir
+		{"docs", filepath.Join("..", "..", "docs", "config_commented.yaml"), *docsConfig(), renderDocs},
+		{"user-seed", "testdata/TestConfig_renderTmpl_user-seed.ccbox.yaml", *userSeedConfig("claude", testImages), writtenConfig},
+		{"init", "testdata/TestConfig_renderTmpl_init.ccbox.yaml", config{}, writtenConfig},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tt.c.renderTmpl()
-			require.NoError(t, err)
+			got := tt.render(t, &tt.c)
 
-			path := filepath.Join("testdata", "TestConfig_renderTmpl_"+tt.name+".ccbox.yaml")
 			if os.Getenv("UPDATE_FIXTURES") != "" {
-				require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
-				require.NoError(t, os.WriteFile(path, got, osutil.File))
+				require.NoError(t, os.MkdirAll(filepath.Dir(tt.path), osutil.Dir))
+				require.NoError(t, os.WriteFile(tt.path, got, osutil.File))
 			}
 
 			// #nosec G304 -- the package's own fixture path
-			want, err := os.ReadFile(path)
+			want, err := os.ReadFile(tt.path)
 			require.NoError(t, err)
 			assert.Equal(t, want, got)
 		})
 	}
+}
+
+// docsConfig is the user seed with every section set
+func docsConfig() *config {
+	c := userSeedConfig("claude", testImages)
+	c.DefaultVariant = &defaultVariant{PortBindings: &portBindings{TCP: "3000,8000,5173"}}
+	c.HostGateway = &hostGateway{TCP: "5432"}
+	c.VNC = &vnc{Enabled: new(true)}
+	return c
+}
+
+func renderDocs(t *testing.T, c *config) []byte {
+	t.Helper()
+	body, err := c.renderTmpl()
+	require.NoError(t, err)
+	return []byte(strings.ReplaceAll(string(body), "##", "#"))
+}
+
+func writtenConfig(t *testing.T, c *config) []byte {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), projectConfigFileName)
+	require.NoError(t, initConfig(path, *c))
+	body, err := os.ReadFile(path) // #nosec G304 -- the test's own temp path
+	require.NoError(t, err)
+	return body
 }
 
 func TestRoGlobGroups_MatchDefaults(t *testing.T) {

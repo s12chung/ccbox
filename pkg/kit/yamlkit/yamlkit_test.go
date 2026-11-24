@@ -235,13 +235,58 @@ func TestIndent(t *testing.T) {
 	assert.Equal(t, "no change", Indent(0, "no change"))
 }
 
+func TestStripProse(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			"prose and trailing comments drop, comment-only lines stay",
+			"## prose\na: 1 ## why\n# - dist\n",
+			"a: 1\n# - dist\n",
+		},
+		{
+			"an example's prose tail drops, its code stays",
+			"#   tcp: \"5432\" ## PostgreSQL\n",
+			"#   tcp: \"5432\"\n",
+		},
+		{"indented prose drops", "a:\n  ## prose\n  b: 1\n", "a:\n  b: 1\n"},
+		{"a trailing hash pair is a trailing comment", "a: 1 ## why\n", "a: 1\n"},
+		{"a quoted single hash stays", "a: \"x # y\"\n", "a: \"x # y\"\n"},
+		{"an escaped quote holds to the real comment", "a: \"x\\\"y\" ## why\n", "a: \"x\\\"y\"\n"},
+		{"a hash glued to a token stays", "a: b#c\n", "a: b#c\n"},
+		{"a glued hash pair stays", "a: b##c\n", "a: b##c\n"},
+		{"a line ending in a hash stays", "a: #\n", "a: #\n"},
+		{
+			"blank runs prose leaves behind collapse, the ends trimmed",
+			"## head\n\n\na: 1\n\n\n## mid\n\nb: 2\n\n\n",
+			"a: 1\n\nb: 2\n",
+		},
+		{"only prose strips to nothing", "## all\n## prose\n", ""},
+		{"a bare hash pair is prose", "##\na: 1\n", "a: 1\n"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, StripProse(tt.body))
+		})
+	}
+}
+
 func TestCommentFirstEntry(t *testing.T) {
 	assert.Nil(t, CommentFirstEntry(nil, "why"))
 	assert.Equal(t, []string{"why", "", ""}, CommentFirstEntry([]string{"a", "b", "c"}, "why"))
 }
 
-func TestEntryToComments(t *testing.T) {
-	assert.Nil(t, EntryToComments(nil, nil))
+func TestEntryToComments_Slice(t *testing.T) {
+	assert.Nil(t, EntryToComments([]string(nil), nil))
 	m := map[string]string{"a": "a's", "c": "c's"}
 	assert.Equal(t, []string{"a's", "", "c's"}, EntryToComments([]string{"a", "b", "c"}, m))
+}
+
+func TestEntryToComments_Map(t *testing.T) {
+	assert.Nil(t, EntryToComments(map[string]string(nil), nil))
+	m := map[string]string{"gitconfig": "special value"}
+	// yaml sorts its keys its own way — symbols before letters
+	assert.Equal(t, []string{"", "special value"}, EntryToComments(map[string]string{"gitconfig": "enabled", "~/.aws": "~/.aws"}, m))
 }

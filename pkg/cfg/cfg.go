@@ -153,14 +153,18 @@ func (c *config) renderTmpl() ([]byte, error) {
 	data := struct {
 		config
 
-		ReadOnlyGlobFlow  string
-		AllowlistComments []string
-		Allowlist         []string
+		ReadOnlyGlobFlow      string
+		AllowlistComments     []string
+		Allowlist             []string
+		ReadOnlyBindsComments []string
 	}{
 		config:            *c,
 		ReadOnlyGlobFlow:  yamlkit.Flow(ptrx.Deref(c.ReadOnlyGlobs), roGlobGroups),
 		Allowlist:         allowlist,
 		AllowlistComments: allowlistComments,
+		ReadOnlyBindsComments: yamlkit.EntryToComments(ptrx.Deref(c.ReadOnlyBinds), map[string]string{
+			GitConfigKey: "special value that binds the XDG git config dir",
+		}),
 	}
 	if err := tmpl.Execute(&b, data); err != nil {
 		return nil, fmt.Errorf("render Config template: %w", err)
@@ -301,12 +305,16 @@ func SeedConfig(path, cliName string, refs Images) error {
 	return errs.Swallow(initConfig(path, *userSeedConfig(cliName, refs)), seed.ErrExists)
 }
 
+// seedHeader tops a written config in place of the template's prose
+const seedHeader = "# Run `ccbox config` to see the effective config — arrays and maps merge down scoped configs.\n" +
+	"# Commented reference: https://github.com/s12chung/ccbox/blob/main/docs/config_commented.yaml\n\n"
+
 func initConfig(path string, c config) error {
 	body, err := c.renderTmpl()
 	if err != nil {
 		return err
 	}
-	return seed.File(path, body)
+	return seed.File(path, []byte(seedHeader+yamlkit.StripProse(string(body))))
 }
 
 // Flags are the run flags Load folds into the config as its top layer — an unset

@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"github.com/s12chung/firm"
@@ -188,6 +189,24 @@ func Indent(n int, s string) string {
 	return strings.Join(lines, "\n")
 }
 
+var (
+	proseLine = regexp.MustCompile(`(?m)^[ \t]*##.*\n?`)
+	proseTail = regexp.MustCompile(`[ \t]+##.*`) // whitespace-led: a "##" glued to a token is content
+	blankRun  = regexp.MustCompile(`\n{3,}`)
+)
+
+// StripProse drops the prose — a "##"-led line whole, any other line just its "##" tail.
+// Blank runs collapse to one blank line, ends trimmed.
+func StripProse(body string) string {
+	body = proseLine.ReplaceAllString(body, "")
+	body = proseTail.ReplaceAllString(body, "")
+	body = blankRun.ReplaceAllString(body, "\n\n")
+	if body = strings.Trim(body, "\n"); body == "" {
+		return ""
+	}
+	return body + "\n"
+}
+
 // besideEntries joins each comment beside its entry line — the block's column-0 lines,
 // one per entry; an empty comment leaves its entry line bare
 func besideEntries(block string, comments []string) string {
@@ -214,15 +233,19 @@ func CommentFirstEntry(entries []string, comment string) []string {
 	return comments
 }
 
-// EntryToComments builds comments for entries looked up in m — missing entries stay bare;
-// nil for an empty list
-func EntryToComments(entries []string, m map[string]string) []string {
-	if len(entries) == 0 {
-		return nil
+// EntryToComments builds Value's comments for entries looked up in m — missing entries stay
+// bare; nil for no entries. A map's entries are its keys, in the order yaml renders them.
+func EntryToComments[E []string | map[string]string](entries E, m map[string]string) []string {
+	keys, isSlice := any(entries).([]string)
+	if !isSlice {
+		// a round trip, so the key order is yaml's own
+		var doc yaml.Node
+		must.Do(yaml.Unmarshal(must.Get(yaml.Marshal(entries)), &doc))
+		for i, key := range doc.Content[0].Content {
+			if i%2 == 0 { // a mapping's content alternates key, value
+				keys = append(keys, key.Value)
+			}
+		}
 	}
-	comments := make([]string, len(entries))
-	for i, entry := range entries {
-		comments[i] = m[entry]
-	}
-	return comments
+	return slicex.Map(keys, func(key string) string { return m[key] })
 }

@@ -1,71 +1,44 @@
-# Run `ccbox config` to see effective config. Arrays and maps merge down scoped configs.
+# Run `ccbox config` to see the effective config — arrays and maps merge down scoped configs.
+# Commented reference: https://github.com/s12chung/ccbox/blob/main/docs/config_commented.yaml
 
-# cli: which coding CLI the image installs and launches
 cli: claude
 
-# images: the devbox image's FROM refs, pinned so the image never changes underneath
 images:
   base: debian:trixie-20250113-slim
   mise: ghcr.io/jdx/mise:2026.10.12
 
-# default_variant: the devbox a no-flags ask boots (--vnc, --no-proxy)
-default_variant:
-  # port_bindings: # binds tcp ports on localhost, container port = host port
-  #   tcp: "3000,8000,5173"
-
-# host_gateway: host tcp ports the devbox may reach at host.docker.internal:<port> —
-# use for services your devbox needs access to (such as a database).
+# default_variant:
+#   port_bindings:
+#     tcp: "3000,8000,5173"
 # host_gateway:
-#   tcp: "5432" # PostgreSQL
+#   tcp: "5432"
 
-# vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
-vnc:
-  # enabled: true # always runs with VNC served — the --vnc flag's config form
-  # gui_app: zcode # the GUI app's name; empty means none
-
-# tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
-# Use for editor junk or throwaway build output. Directories that do not exist in the project are safely ignored.
 tmpfs_masks:
   - .idea
   - .vscode
   - .zed
-  # - dist
-
-# volume_masks: cover project-relative directories with a persistent per-project volume.
-# Directories that do not exist in the project are safely ignored.
 volume_masks:
   - node_modules
   - .venv
   - target
-  # - vendor/bundle
-
-# read_only_globs: block writes to project-relative glob paths (files or directories) with read-only re-mounts.
-# Use for files that must never change (configs, secrets). External container configuration cannot prevent reads.
-# tmpfs_masks/volume_masks dirs are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
 read_only_globs: [
   .ccbox.yaml, secrets,
   .env, .env.*, .envrc,
   '**/*.pem', '**/*.key', '**/id_rsa*',
 ]
 
-# read_only_binds: bind host dirs into the container read-only. Use for config shared across
-# projects (AWS creds, CAs, dotfiles). Dirs missing on the host are safely ignored.
 read_only_binds:
-  gitconfig: enabled
+  gitconfig: enabled # special value that binds the XDG git config dir
   # ~/.aws: ~/.aws
   # /srv/ca: /home/ccbox/.local/share/ca
 
-# forward_env: forward the host's env vars into the container.
 forward_env:
   - TERM
   - COLORTERM
   # - GH_TOKEN
 
-# proxy: the egress wall's section; a missing section is no proxy unless the user config sets it
 proxy:
   enabled: true
-  # allowlist: domains the egress wall lets through. Each entry also matches all its subdomains.
-  # Run `ccbox config defaults` to see aliases and their expansions.
   allowlist:
     - ccbox-defaults # shared tooling domains
     - ccbox-all-runtimes # every runtime's domains (node, python, go, rust)
