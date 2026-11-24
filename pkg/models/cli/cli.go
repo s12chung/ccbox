@@ -52,7 +52,7 @@ func All() []CLI {
 // Names lists every supported CLI's name, sorted by name.
 func Names() []string { return slices.Sorted(maps.Keys(all)) }
 
-// UserConfigDir is the CLI's user config dir: ~/.ccbox/<cli_name>. Tests point HOME at a temp tree.
+// UserConfigDir is the CLI's user config dir: ~/.ccbox/<cli_name>.
 func UserConfigDir(cliName string) string {
 	return filepath.Join(userdir.Dir(), MustFor(cliName).Name)
 }
@@ -104,7 +104,6 @@ type CLI struct {
 	// Name is always overridden by parseCLI from the cli dir's name
 	pkginfo.PkgInfo `yaml:",inline"`
 
-	// isUserDefined is true if the CLI is user-defined, not from the embedded tree
 	isUserDefined bool
 
 	// ConfigHomeMount is the CLI's native default config dir in-container within the $HOME, so the

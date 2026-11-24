@@ -74,17 +74,16 @@ type toolModel struct {
 func (m toolModel) Name() string { return m.Tool.Name }
 func (m toolModel) Hint() string { return m.Tool.Hint }
 
-// runtimeItems lists the picker's runtime items — every runtime as its mise
-// tool, its optionals and postinstall packages as children; a written
-// postinstall hints its inheritance instead. Node's row is locked on: it's
-// the always-installed runtime, its optionals starting unchecked
+// runtimeItems lists the runtimes as the picker's items, each with its
+// optionals and postinstall packages as children
 func runtimeItems(state mise.ToolState) []pick.Item[toolModel] {
 	all := runtime.All()
 	items := make([]pick.Item[toolModel], 0, len(all))
 	for _, rt := range all {
-		isNode := rt.Name == runtime.Node().Name
+		isNode := rt.Name == runtime.Node().Name // always installed: its row locked on, its optionals not pre-checked
 		model := toolModel{Tool: rt.MiseTool, rt: rt}
 		children := toolModels(rt.MiseToolsOptional)
+		// the written postinstall already carries its packages — none to pick
 		if state.PostInstalls[rt.MiseTool.Name] != "" {
 			model.Tool.Hint = "inherit existing postinstall"
 		} else {

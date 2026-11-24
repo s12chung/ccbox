@@ -104,9 +104,8 @@ func toolsGoarch(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// validateTools byte-compares the embedded binary against a fresh canonical
-// build (tools/build) — the compiler is the differ, so any drift in the
-// tree, the toolchain or the flags is caught by construction
+// validateTools byte-compares the embedded binary against a fresh build — any drift
+// in the tree, the toolchain or the flags shows up as different bytes
 func validateTools(embedded []byte, goarch string, rebuild func(goarch string) ([]byte, error)) error {
 	fresh, err := rebuild(goarch)
 	if err != nil {

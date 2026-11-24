@@ -1,4 +1,4 @@
-// Package yamlkit contains YAML helpers for reading writing YAML
+// Package yamlkit contains YAML helpers for reading and writing YAML.
 package yamlkit
 
 import (
@@ -36,8 +36,7 @@ func ValidatedDecode[T any](body []byte, setDefaults func(T) T) (T, error) {
 }
 
 // ReadLayers decodes each path's yaml file as one layer of T, in order — a missing or
-// empty file is the zero T, an unset layer. Unknown fields error: a typo'd key errors,
-// not silently no-ops.
+// empty file is the zero T, an unset layer.
 func ReadLayers[T any](paths []string) ([]T, error) {
 	var layers []T
 	for _, path := range paths {
@@ -83,15 +82,8 @@ func decode[T any](body []byte) (T, error) {
 	return t, nil
 }
 
-// Value renders v as a YAML value for a template line. Unset (nil) renders bare, keeping
-// bare key = null = unset — which the yaml library cannot express (it marshals "null"/"[]");
-// an empty non-nil slice/map keeps its explicit emptiness (" []"/" {}"); a plain value
-// renders inline; a list or map renders as a 2-space indented block. Values marshal
-// through yaml, so quoting and map-key order match what a yaml parser reads back.
-//
-// comments sit beside the rendered lines after " # ": each slice/map entry gets its own,
-// so len(comments) must match the entry count or be empty; a plain value — including the
-// unset bare key — takes at most one.
+// Value renders v as a YAML value for a template line, comments beside the
+// rendered lines — nil stays a bare key, an empty slice or map stays " []"/" {}".
 func Value(v any, comments []string) (string, error) {
 	rv := reflect.ValueOf(v)
 	if !rv.IsValid() || (rv.Kind() == reflect.Pointer && rv.IsNil()) {
@@ -101,6 +93,7 @@ func Value(v any, comments []string) (string, error) {
 		rv = rv.Elem()
 	}
 
+	// through yaml, so quoting matches what a yaml parser reads back
 	body, err := yaml.Marshal(rv.Interface())
 	if err != nil {
 		return "", err
@@ -114,9 +107,9 @@ func Value(v any, comments []string) (string, error) {
 		}
 		switch {
 		case rv.IsNil():
-			return "", nil
+			return "", nil // a nil slice or map is unset too — yaml would render "[]"
 		case rv.Len() == 0:
-			return " " + bodyStr, nil // yaml renders "[]"/"{}" itself
+			return " " + bodyStr, nil // explicitly empty, not unset — yaml renders "[]"/"{}" itself
 		default:
 			return "\n  " + strings.ReplaceAll(besideEntries(bodyStr, comments), "\n", "\n  "), nil
 		}

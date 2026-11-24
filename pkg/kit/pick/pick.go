@@ -29,7 +29,7 @@ type RunnerOptions struct {
 	Subtext     []string
 	SubmitLabel string
 
-	// the submit row stays gray and out of the cursor's path until every
+	// RequireSelected keeps the submit row gray and out of the cursor's path until every
 	// picker has its pick
 	RequireSelected bool
 }
@@ -60,7 +60,7 @@ func (r Runner) Run(ptrs ...any) error {
 	if len(r.pickers) == 0 {
 		return errors.New("pick: no pickers to ask")
 	}
-	if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) { // check if interactive terminal
+	if !isTerminal(os.Stdin) || !isTerminal(os.Stdout) {
 		return nil
 	}
 	s := &stackModel{opts: r.opts, models: r.pickers, done: make(chan struct{}, 1)}
@@ -232,9 +232,8 @@ func (s *stackModel) submitRow() string {
 	return "  " + defaultStyle.Render(s.opts.SubmitLabel)
 }
 
-// View renders the pickers under the chrome — the header and subtext over
-// them, the submit and help rows below — indented 2 spaces, left-aligned and
-// vertically centered in the terminal
+// View renders the chrome around the stacked pickers: indented 2 spaces, vertically
+// centered in the terminal.
 func (s *stackModel) View() string {
 	lines := make([]string, 0, 2+len(s.opts.Subtext))
 	lines = append(lines, strongStyle.Render(s.opts.Header))

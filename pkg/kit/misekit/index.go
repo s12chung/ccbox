@@ -16,9 +16,7 @@ var indexClient = &http.Client{Timeout: 30 * time.Second}
 type Index interface {
 	// Label is the source's label — its errors' prefix
 	Label() string
-	// ListURL is the tool's list url
 	ListURL(tool string) string
-	// BodyToEntries maps the fetched body to its entries
 	BodyToEntries(body []byte) ([]VersionEntry, error)
 }
 
@@ -28,16 +26,15 @@ func IndexSource(index Index, pinRule func(version string) string) Source {
 	return indexSource{index, pinRule}
 }
 
-// indexSource is an Index as its Source — the fetch's only machinery
+// indexSource is an Index as its Source: the one place a list is fetched
 type indexSource struct {
 	index   Index
 	pinRule func(version string) string
 }
 
-// Name is the source's label — its errors' prefix
 func (s indexSource) Name() string { return s.index.Label() }
 
-// List fetches the tool's list body off to its entries
+// List fetches the tool's list and decodes it into entries
 func (s indexSource) List(ctx context.Context, tool string) ([]VersionEntry, error) {
 	url := s.index.ListURL(tool)
 	body, err := httputil.Body(ctx, indexClient, url, nil)
@@ -51,8 +48,7 @@ func (s indexSource) List(ctx context.Context, tool string) ([]VersionEntry, err
 	return entries, nil
 }
 
-// Pin truncates a release to the pin the config writes — a nil rule keeps the
-// full release
+// Pin truncates a release to the pin the config writes
 func (s indexSource) Pin(version string) string {
 	if s.pinRule == nil {
 		return version

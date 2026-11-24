@@ -60,7 +60,7 @@ func walkMatches(root string, limit int, matchers ...glob.Glob) []string {
 		}
 		matches = append(matches, rel)
 		if limit > 0 && len(matches) == limit {
-			return fs.SkipAll // the limit speaks: no need to keep walking
+			return fs.SkipAll // the limit is reached
 		}
 		return nil
 	})

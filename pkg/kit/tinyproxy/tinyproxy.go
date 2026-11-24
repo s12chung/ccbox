@@ -1,4 +1,4 @@
-// Package tinyproxy is related to tinyproxy, currently just coloring log lines
+// Package tinyproxy tints tinyproxy's log lines by level in the devbox's shared log stream.
 package tinyproxy
 
 import (

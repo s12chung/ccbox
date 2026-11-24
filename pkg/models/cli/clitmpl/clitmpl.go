@@ -40,7 +40,7 @@ type Tree struct {
 //go:embed clis
 var embedFS embed.FS
 
-// userFS DOES NOT detect whether userConfigDir exists; this should be detected on init()--see the cli package NOTE
+// userFS never errors on a missing user dir — the glob reads it as no user clis
 func userFS() fs.FS { return os.DirFS(modelset.UserConfigDir()) }
 
 // EmbedTree is the compile-time embedded CLI templates tree.

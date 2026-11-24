@@ -25,8 +25,8 @@ var execCmd = &cobra.Command{
 	},
 }
 
-// execSession boots the devbox, execing the session in it — the egress wall per the
-// config and --no-proxy; always the flags-and-settings variant's devbox
+// execSession boots the devbox if it isn't up, then execs the session in it — the
+// egress wall per the config and --no-proxy
 func execSession(ctx context.Context, mode dmap.ExecMode) error {
 	var proxyOptions *docker.ProxyOptions
 	if config.Proxy != nil {

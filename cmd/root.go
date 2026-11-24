@@ -23,8 +23,9 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 )
 
-// Injected from main (package main can't be imported, so the embed FS comes in here).
-var embedBuildContext embed.FS // Dockerfile + docker/* — the build context
+// embedBuildContext is injected from main — package main can't be imported; it holds
+// the Dockerfile and docker/*, the build context
+var embedBuildContext embed.FS
 
 var flags struct {
 	CLI             *string

@@ -220,10 +220,9 @@ func replaceSidecars(configPath string, sidecars map[string][]byte) error {
 	return nil
 }
 
-// The mise config lands in the build context at the image's system config: the config
-// where the Dockerfile COPYs docker/mise/, the lock beside it, and the sidecars under
-// .mise/locks — mise resolves installs through the lockfile beside the config and its
-// sidecar root.
+// The mise config lands in the build context at the image's system config, where the
+// Dockerfile COPYs docker/mise/: the lock beside the config, the sidecars under
+// .mise/locks — mise resolves installs from there.
 const (
 	contextConfigPath   = "docker/mise/config.toml"
 	contextLockPath     = "docker/mise/mise.lock"

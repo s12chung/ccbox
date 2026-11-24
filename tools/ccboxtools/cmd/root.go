@@ -34,7 +34,6 @@ func Execute(ctx context.Context) int {
 	return 0
 }
 
-// cmdWithExecParams are cmdWithExec's params.
 type cmdWithExecParams struct {
 	Use   string
 	Short string

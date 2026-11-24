@@ -259,7 +259,7 @@ func (l Symlink) RealPresent(realPath string) bool {
 	info, err := os.Lstat(realPath)
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
-		return false // no doc of its own
+		return false // absent
 	case err != nil:
 		return true // unreadable (e.g. a directory): don't touch it
 	}

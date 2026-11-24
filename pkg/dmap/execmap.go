@@ -8,10 +8,10 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/proxy"
 )
 
-// ExecMode is the exec session's selected mode, with Args carrying its args
+// ExecMode is the exec session's mode: a shell's argv, or the CLI's own launch
 type ExecMode struct {
-	Shell bool     // the exec subcommand: Args exec in the container
-	Args  []string // the exec argv
+	Shell bool // true execs Args (bare: bash); false launches the CLI's cmd
+	Args  []string
 }
 
 // ExecMap maps the exec session's mode to the docker pkg exec options
@@ -28,7 +28,6 @@ func (em *ExecMap) Options(runOptions docker.RunOptions, mode ExecMode, isProxie
 	return docker.ExecOptions{RunOptions: runOptions, Cmd: em.cmd(mode, isProxied)}
 }
 
-// cmd maps the exec mode to the session's argv
 func (em *ExecMap) cmd(mode ExecMode, isProxied bool) []string {
 	var argv []string
 	if mode.Shell {

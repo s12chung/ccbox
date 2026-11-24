@@ -29,8 +29,7 @@ type MiseLockOptions struct {
 }
 
 // MiseLock is the lock generation's output: the lockfile's body and its dependency
-// sidecars, keyed by their paths relative to the workspace's sidecar dir
-// (miseWorkspaceMount + "/.mise/locks")
+// sidecars, keyed by path relative to the workspace's .mise/locks
 type MiseLock struct {
 	Lock     []byte
 	Sidecars map[string][]byte
@@ -90,8 +89,7 @@ func GenerateMiseLock(ctxD *dock.CtxD, o MiseLockOptions) (MiseLock, error) {
 	return MiseLock{Lock: body, Sidecars: sidecars}, nil
 }
 
-// copySidecars copies the workspace's dependency sidecars dir out of the container;
-// mise writes it only when a tool carries a dependency graph.
+// copySidecars copies the workspace's dependency sidecars dir out of the container.
 func copySidecars(ctxD *dock.CtxD, id string) (map[string][]byte, error) {
 	sidecars, err := dock.CopyDirFrom(ctxD, id, miseWorkspaceMount+"/.mise/locks")
 	if errdefs.IsNotFound(err) { // no sidecars dir: no tool carries a dependency graph

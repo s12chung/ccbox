@@ -38,8 +38,8 @@ func init() {
 	}
 }
 
-// run builds the image then boots the devbox, streaming its logs to the foreground —
-// the run and proxy commands' shared tail
+// run builds the image, then boots the devbox streaming its logs to the foreground —
+// run and proxy both land here
 func run(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
 	if err := build(ctx, config.VNC != nil); err != nil {
 		return err
@@ -54,13 +54,13 @@ func run(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
 	return docker.Run(dock.MustNewCtxD(ctx), options)
 }
 
-// prepareRun renders the run's options: every command's shared front
+// prepareRun renders the run's options and seeds its mounts — run and exec both start here
 func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
 	defer printPresentGuardMounts()
 
 	presentMasksSnapshot := append(config.TmpfsMasksPresent(), config.VolumeMasksPresent()...)
 	presentPathsSnapshot := config.ReadOnlyPathsPresent()
-	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // compare snapshots to defer time
+	defer warnCreatedGuardMounts(presentMasksSnapshot, presentPathsSnapshot) // warns against these pre-run snapshots
 
 	if err := seedRunMounts(userdir.Dir(), proxyOptions != nil); err != nil {
 		return docker.RunOptions{}, nil, err
@@ -86,8 +86,8 @@ func printPresentGuardMounts() {
 	}
 }
 
-// warnCreatedGuardMounts warns for each mask dir or glob match the run created: it exists now,
-// so future runs guard it — a heads-up that it behaves differently from here.
+// warnCreatedGuardMounts warns when the run created a mask dir or glob match — from the
+// next run on, it's guarded.
 func warnCreatedGuardMounts(presentMasksBefore, presentPathsBefore []string) {
 	nowPresent := append(config.TmpfsMasksPresent(), config.VolumeMasksPresent()...)
 	if created := slicex.Minus(nowPresent, presentMasksBefore); len(created) > 0 {

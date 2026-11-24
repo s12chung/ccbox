@@ -1,5 +1,4 @@
-// Package dock holds generic Docker Engine operations, independent of the devbox
-// lifecycle — things that can only be done from inside a container the daemon spawns.
+// Package dock holds generic Docker Engine operations, independent of the devbox lifecycle.
 package dock
 
 import (
@@ -136,10 +135,9 @@ func chownMnt(vol OwnedVolume) string { return "/mnt/" + vol.Name }
 // chownBind is vol's bind spec in the chown container: <name>:<mount point>
 func chownBind(vol OwnedVolume) string { return vol.Name + ":" + chownMnt(vol) }
 
-// EnsureImageExists pulls ref only when it isn't present locally (the SDK, unlike the
-// CLI, never auto-pulls on create). Inspect resolves the digest-pinned ref that a
-// reference filter would miss, so a cached image isn't re-pulled (or wrongly
-// reported absent when the host is offline) each run.
+// EnsureImageExists pulls ref only when it isn't present locally — the SDK never auto-pulls
+// on create. Inspect, not a list filter: it resolves digest-pinned refs too, so a cached
+// image isn't re-pulled each run.
 func EnsureImageExists(ctxD *CtxD, ref string) error {
 	if _, err := ctxD.D.ImageInspect(ctxD.Ctx, ref); err == nil {
 		return nil
@@ -199,7 +197,7 @@ func refuseHeldBinding(ctxD *CtxD, b nat.PortBinding) error {
 		log.WarnErr("close the port probe", conn.Close())
 	}
 	if !taken {
-		return nil // refused: nothing listens
+		return nil // nothing listens
 	}
 
 	resp, err := ctxD.D.ContainerList(ctxD.Ctx, container.ListOptions{Filters: filters.NewArgs(

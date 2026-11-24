@@ -140,11 +140,9 @@ var builtinRuntimes = []Runtime{
 		Name:     "rust",
 		Domains:  []string{"sh.rustup.rs", "static.rust-lang.org", "crates.io", "index.crates.io", "static.crates.io"},
 		MiseTool: mise.Tool{Name: "rust"},
-		// no MiseToolsOptional: clippy and rustfmt ship as the toolchain's rustup
-		// components
-		// The build's HOME (root's) is unreadable to ccbox, and rustup hangs its
-		// state off it by default — pin both homes system-side, baking only the
-		// toolchain home the proxies resolve through
+		// no MiseToolsOptional: clippy and rustfmt ship as the toolchain's rustup components
+		// rustup and cargo default their homes under the build's HOME — root's, unreadable
+		// to ccbox — so both are system-side, and only the toolchain home bakes
 		EnvVars: map[string]string{"RUSTUP_HOME": "/usr/local/share/mise/rustup"},
 		EnvBuildDeps: map[string]string{
 			"CARGO_HOME":  "/usr/local/share/mise/cargo",

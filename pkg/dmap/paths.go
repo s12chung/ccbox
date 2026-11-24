@@ -8,8 +8,7 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-// CLIDataDir is a cli's data dir: userDir/data/<cli_name>; its binds' flattened
-// refs sit under it.
+// CLIDataDir is a cli's data dir — userDir/data/<cli_name> — where its data binds' seeds sit.
 func CLIDataDir(userDir, cliName string) string { return filepath.Join(userDir, "data", cliName) }
 
 // GUIAppDataDir is a gui app's data dir: userDir/data/<app_name>/<mode> — each mode
@@ -27,8 +26,8 @@ func devboxLogPath(projectDir string, serveVNC, isProxied bool) string {
 	return logPath(projectDir, "devbox"+variantSuffix(serveVNC, isProxied)+".log")
 }
 
-// proxyLiveDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy. A dir bind tracks
-// the changing files as the running proxy's current configs.
+// proxyLiveDir is the proxy's live dir on the host: ~/.ccbox/tmp/proxy, bound whole so the
+// allow file's rewrites reach the running proxy.
 func proxyLiveDir() string { return filepath.Join(userdir.Tmp(), "proxy") }
 
 // proxyAllowPath is the rendered allow file within proxyLiveDir

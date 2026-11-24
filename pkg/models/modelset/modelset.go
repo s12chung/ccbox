@@ -76,7 +76,7 @@ func (s *Set[T]) mustLoadAll() []T {
 }
 
 // LoadUser parses the user drop-ins tree, each model named after its file. A bad
-// model is a warning — skipped with a load warning
+// model is skipped with a warning.
 func (s *Set[T]) LoadUser() ([]T, []error, error) {
 	return fsutil.LoadGlob(os.DirFS(userConfigDir), s.Dir+"/*"+yamlExt,
 		func(_ string, info fsutil.EntryInfo) (T, error) {

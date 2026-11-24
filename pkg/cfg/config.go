@@ -23,8 +23,6 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-// The read_only_binds' gitconfig special entry: the key carries the host's XDG git config
-// dir, and the value mounts it at its default container path
 const (
 	// GitConfigKey is read_only_binds' special key: the host's XDG git config dir
 	GitConfigKey = "gitconfig"
@@ -46,7 +44,7 @@ type Config struct {
 	ForwardEnv     []string          // host env vars forwarded into the container
 	Proxy          *Proxy            // the egress wall's section; nil runs without it
 
-	projectDir string // stored projectDir
+	projectDir string
 
 	// cache the allowlist's alias expansion and the read_only_binds' path resolutions
 	expandedReadOnlyBinds map[string]string
@@ -182,9 +180,7 @@ func (c *Config) ManyReadOnlyMatches() bool {
 	return globkit.ManyMatches(c.projectDir, c.readOnlyGlobsMatchers()...)
 }
 
-// ReadOnlyBindsExpanded resolves the raw binds to host dir → container mount: the gitconfig
-// entry to the host's XDG git dir at GitConfigMount, the rest's ~/ paths to their own side's
-// home.
+// ReadOnlyBindsExpanded resolves the raw binds to host dir → container mount.
 func (c *Config) ReadOnlyBindsExpanded() map[string]string {
 	if c.expandedReadOnlyBinds == nil {
 		c.expandedReadOnlyBinds = expand.Map(c.ReadOnlyBinds,

@@ -32,7 +32,6 @@ func init() {
 // keeps the full release, pip's == matching an exact version
 type pypiIndex struct{}
 
-// Label is the source's label — its errors' prefix
 func (pypiIndex) Label() string { return "pypi" }
 
 // ListURL is the package's index path
@@ -70,7 +69,6 @@ type pypiFile struct {
 // truncates to its minor, the config's depth off the versions service
 type aquaIndex struct{}
 
-// Label is the source's label — its errors' prefix
 func (aquaIndex) Label() string { return "aqua" }
 
 // ListURL is the repo's releases path

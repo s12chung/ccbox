@@ -43,9 +43,8 @@ const (
 // through the proxy, a blocked host is not, and direct egress has no route —
 // any failure is the rejection probes' pass.
 //
-// A listener sweep of pkginfo.ProxyAddr and the container's dynamic docker IP
-// could run here — rejected: the egress wall does not safeguard against
-// processes binding to those addresses anyway.
+// No listener sweep of ProxyAddr or the dynamic docker IP: the egress wall
+// doesn't guard against binds there anyway.
 func probeProxy(ctx context.Context) error {
 	if err := verifyShareRO(); err != nil {
 		return err

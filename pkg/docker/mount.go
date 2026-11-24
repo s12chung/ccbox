@@ -57,10 +57,8 @@ func (b Bind) spec() string {
 	return b.host + ":" + b.container
 }
 
-// Volume mounts a named volume at a container path. Global shares the volume across
-// every project; otherwise it is project-scoped (labeled with projectDir). A fresh
-// volume's root is chowned to the container user when ensured (ensureMounts), so masked
-// dirs hold content the run owns.
+// Volume mounts a named volume at a container path — project-scoped unless Global; a fresh
+// volume's root is chowned to the container user at ensureMounts.
 type Volume struct {
 	name      string
 	container string
@@ -108,7 +106,6 @@ const containerUID = "1000"
 // build outputs (e.g. dist/) can be written and run — Docker's default is root-owned noexec.
 const tmpfsOpts = "uid=" + containerUID + ",gid=" + containerUID + ",exec"
 
-// tmpfsMap maps each masked container path to its tmpfs options.
 func tmpfsMap(paths []string) map[string]string {
 	tmpfs := make(map[string]string, len(paths))
 	for _, p := range paths {

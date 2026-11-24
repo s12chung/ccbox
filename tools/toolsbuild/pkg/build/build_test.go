@@ -45,7 +45,7 @@ func TestBuild(t *testing.T) {
 func TestBuild_CompileError(t *testing.T) {
 	t.Chdir(repoRoot(t))
 
-	// badarch
+	// an unknown arch fails the build
 	err := Build(context.Background(), "badarch", filepath.Join(t.TempDir(), "ccboxtools"))
 
 	require.Error(t, err)

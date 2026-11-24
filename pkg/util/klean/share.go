@@ -9,7 +9,7 @@ type ShareBind struct {
 	ContainerPath string // the bind's target in the container
 }
 
-// Sharer is an interface for handling temp filesystems for the container
+// Sharer is a run's share of a host path to the container: Begin returns its bind and cleanup.
 type Sharer interface {
 	Begin() (ShareBind, func() error, error)
 }

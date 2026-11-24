@@ -17,7 +17,7 @@ var buildCmd = &cobra.Command{
 	RunE:  func(cmd *cobra.Command, _ []string) error { return build(cmd.Context(), buildVNC) },
 }
 
-// buildVNC builds the image's desktop variant (`build --vnc`)
+// buildVNC is `build --vnc`: the image's desktop variant
 var buildVNC bool
 
 func init() {

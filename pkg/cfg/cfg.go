@@ -119,7 +119,7 @@ func init() {
 		}))
 }
 
-// dropDisabled enforces that section or Enabled nils mean disabled
+// dropDisabled nils the vnc and proxy sections unless each is explicitly enabled
 func (c *config) dropDisabled() *config {
 	if c.VNC == nil || c.VNC.Enabled == nil || !*c.VNC.Enabled {
 		c.VNC = nil
@@ -226,7 +226,6 @@ func init() {
 		}))
 }
 
-// vnc is the vnc section
 type vnc struct {
 	// Enabled always runs with VNC served
 	//
@@ -269,7 +268,7 @@ var (
 	volumeDefaults = []string{"node_modules", ".venv", "target"}
 
 	roGlobDefaults = []string{".ccbox.yaml", "secrets", ".env", ".env.*", ".envrc", "**/*.pem", "**/*.key", "**/id_rsa*"}
-	// roGlobGroups rows the seed's globs together at render
+	// roGlobGroups is the row each seed glob renders on in the flow sequence
 	roGlobGroups = map[string]int{
 		".ccbox.yaml": 0, "secrets": 0,
 		".env": 1, ".env.*": 1, ".envrc": 1,

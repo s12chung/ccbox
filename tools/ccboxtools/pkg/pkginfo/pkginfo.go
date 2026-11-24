@@ -29,11 +29,11 @@ const (
 	// ContainerHome is the container user's home: the mount targets' root within the container.
 	ContainerHome = "/home/ccbox"
 
-	// ProxyMount is the container's binded read-only dir for the proxy
+	// ProxyMount is the host's live proxy dir, bound read-only into the devbox
 	ProxyMount = "/etc/ccbox/proxy"
-	// ProxyAllowFile tinyproxy's baked conf points at allow file
+	// ProxyAllowFile is the allow file's name — the one tinyproxy's baked conf points at
 	ProxyAllowFile = "allow.txt"
-	// ProxyAllowPath is ProxyAllowFile's devbox path: the allowlist command's input.
+	// ProxyAllowPath is the allow file's path in the devbox — the allowlist command's input.
 	ProxyAllowPath = ProxyMount + "/" + ProxyAllowFile
 
 	// ProxyAddr is the fixed address tinyproxy listens on — the target of the
@@ -41,7 +41,7 @@ const (
 	ProxyAddr = "169.254.100.1"
 	// ProxyPort is tinyproxy's fixed listen port, shared with the proxy env.
 	ProxyPort = 8888
-	// ProxyMuxName is tinyproxy's tag under in the container's shared log stream.
+	// ProxyMuxName is tinyproxy's tag in the container's shared log stream.
 	ProxyMuxName = "tinyproxy"
 
 	// VNCPort is the desktop's fixed RFB listen — the bare server's start gate.

@@ -75,8 +75,8 @@ func renderAgentsTmpl(path string, ctx agentsTmplCtx) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
-// agentsTmplCtx carries the AGENTS doc template's funcs. isShared marks the shared
-// doc itself, where sharedAgentsMd would recurse and so errors
+// agentsTmplCtx carries the AGENTS doc template's funcs; isShared marks the shared doc,
+// where sharedAgentsMd refuses — it would include itself
 type agentsTmplCtx struct {
 	isProxied bool
 	isShared  bool

@@ -32,5 +32,4 @@ func SkillsBind(cliName string) klean.ShareBind {
 // SkillsDir is the shared skills dir: ~/.ccbox/skills
 func SkillsDir() string { return filepath.Join(userdir.Dir(), skillsDirName) }
 
-// skillsDirName names the skills dir within the shared root and each cli's config home
 const skillsDirName = "skills"

@@ -307,7 +307,6 @@ func (o RunOptions) conflictErr(own *container.InspectResponse) error {
 		o.Name, strings.Join(divergences, " and "), o.Name)
 }
 
-// portsPhrase renders the map's tcp ports
 func portsPhrase(bindings nat.PortMap) string {
 	ports := make([]string, 0, len(bindings))
 	for port := range bindings {

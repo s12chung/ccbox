@@ -151,7 +151,7 @@ func PruneImplied(dirs []string) []string {
 		return dirs
 	}
 	out := dirs[:0]
-	// possible is the first index a deeper dir could still sit at
+	// possible tracks the first entry that could sit under dir — sorted, so it only moves forward
 	possible := 0
 	for i, dir := range dirs {
 		// dir+"/" marks a deeper dir's ("/a/" + "deeper"): shift possible up until it's possible again

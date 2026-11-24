@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # tinyproxy runs as this dedicated uid, configs root-owned
-# COPY --chmod=644 below makes /etc/ccbox unaccessible without DAC_OVERRIDE, so mkdir /etc/ccbox
+# COPY --chmod=644 below makes /etc/ccbox inaccessible without DAC_OVERRIDE, so mkdir /etc/ccbox
 RUN getent passwd tinyproxy >/dev/null || \
     useradd --system --user-group --no-create-home tinyproxy && \
     mkdir /etc/ccbox

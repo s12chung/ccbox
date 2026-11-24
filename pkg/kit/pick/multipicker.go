@@ -119,8 +119,7 @@ func (r row) view(onCursor bool) string {
 	return cursor + indent + box + " " + r.name + hintSuffix(r.hint)
 }
 
-// MultiPicker is the checklist parts: the checklist — each item a row, its
-// children rows revealed while it's checked
+// MultiPicker is the checklist: each item a row, its children rows revealed while it's checked
 type MultiPicker[M Model] struct {
 	checklist []Item[M]
 }
@@ -128,7 +127,6 @@ type MultiPicker[M Model] struct {
 // rows counts the visible rows: the options plus their revealed children
 func (p *MultiPicker[M]) rows() int { return len(p.flatten()) }
 
-// render draws the visible rows
 func (p *MultiPicker[M]) render(cursor int, focused bool) []string {
 	flat := p.flatten()
 	rows := make([]string, len(flat))
@@ -174,10 +172,8 @@ func (p *MultiPicker[M]) AllSelected() bool {
 	return true
 }
 
-// respond writes the checked items into the caller's *[]Item[M] — each item
-// its model with its checked children's models alone, an unchecked item
-// dropping its children with it. Non-nil on an empty check set, so callers
-// can tell it from the nil non-terminal read
+// respond writes the checked items into the caller's *[]Item[M] — each with its checked
+// children alone. Non-nil even on an empty check set, unlike the nil non-terminal read.
 func (p *MultiPicker[M]) respond(ptr any) error {
 	picked := make([]Item[M], 0, len(p.checklist))
 	for i := range p.checklist {

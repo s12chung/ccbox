@@ -58,8 +58,7 @@ func printLoadedPaths() {
 }
 
 // confirmReadOnlyPaths asks before printing when read_only_globs matched globkit.MatchLimit
-// paths or more — a stray `ccbox config` at home or / globs into everywhere. Returns
-// whether to print.
+// paths or more — a stray `ccbox config` at home or / globs into everywhere.
 func confirmReadOnlyPaths() bool {
 	if !config.ManyReadOnlyMatches() {
 		return true

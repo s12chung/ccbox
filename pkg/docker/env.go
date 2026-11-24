@@ -32,13 +32,12 @@ func envString(env map[string]string, isProxied bool) []string {
 	}...)
 }
 
-// sortedEnv renders a KEY=VALUE list in sorted-key order for a deterministic spec.
 func sortedEnv(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	sort.Strings(keys) // for a deterministic spec
 
 	env := make([]string, 0, len(keys))
 	for _, k := range keys {

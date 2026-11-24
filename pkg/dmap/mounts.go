@@ -164,7 +164,7 @@ func globalVolumes(serveVNC bool) map[string]string {
 	return globals
 }
 
-// cacheVolumeSuffix is the suffix for cacheVolumesMap in case of collisions
+// cacheVolumeSuffix tails every cache volume's name, keeping it clear of a same-named mask volume
 const cacheVolumeSuffix = "-cache-default"
 
 // sharedCacheVolumes are the generic volumes every project gets, runtime-independent
@@ -187,7 +187,7 @@ func cacheVolumeNames(projectDir string, cacheVolumes []string) map[string]strin
 	return volumes
 }
 
-// volumeName is projectDir's named volume for a given cacheVolumesMap suffix.
+// volumeName is the project-scoped volume name for suffix — cache volumes and mask volumes alike.
 func volumeName(projectDir, suffix string) string {
 	return "ccbox" + slug.Path(projectDir) + "-" + slug.Path(suffix)
 }
