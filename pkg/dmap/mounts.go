@@ -55,6 +55,7 @@ func (rm *RunMap) binds(serveVNC, isProxied bool) ([]docker.Mount, func() error,
 		proxyAllowBind(isProxied),
 		volumes(globalVolumes(serveVNC), true),
 		volumes(cacheVolumeNames(projectDir, rm.cacheVolumes), false),
+		fileMasks(projectDir, rm.cfg.TmpfsMasksFiles()),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
 		readOnlyGlobBinds(projectDir, rm.cfg.ReadOnlyPathsPresent()),
 		readOnlyBinds(rm.cfg.ReadOnlyBindsPresent()),
@@ -83,6 +84,17 @@ func volumes(nameDirs map[string]string, global bool) []docker.Mount {
 		volumes = append(volumes, volume)
 	}
 	return volumes
+}
+
+// fileMasks masks each project-relative file with a read-write /dev/null bind: reads see an
+// empty file, writes are discarded — the host file is never touched.
+func fileMasks(projectDir string, relFiles []string) []docker.Mount {
+	workspace := workspaceMount(projectDir)
+	binds := make([]docker.Mount, 0, len(relFiles))
+	for _, f := range relFiles {
+		binds = append(binds, docker.NewBind("/dev/null", filepath.Join(workspace, f)))
+	}
+	return binds
 }
 
 // volumeMasks masks each load-validated project-relative dir with a persistent

@@ -75,8 +75,11 @@ func prepareRun(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() er
 }
 
 func printPresentGuardMounts() {
-	if tmpfsMasks := config.TmpfsMasksPresent(); len(tmpfsMasks) > 0 {
-		log.Infof("during run, masked with temp filesystem: %s", strings.Join(tmpfsMasks, ", "))
+	if dirs := config.TmpfsMasksDirs(); len(dirs) > 0 {
+		log.Infof("during run, masked with temp filesystem: %s", strings.Join(dirs, ", "))
+	}
+	if files := config.TmpfsMasksFiles(); len(files) > 0 {
+		log.Infof("during run, masked with an empty file, writes discarded: %s", strings.Join(files, ", "))
 	}
 	if volumeMasks := config.VolumeMasksPresent(); len(volumeMasks) > 0 {
 		log.Infof("during run, masked with persistent volume: %s", strings.Join(volumeMasks, ", "))
@@ -86,12 +89,12 @@ func printPresentGuardMounts() {
 	}
 }
 
-// warnCreatedGuardMounts warns when the run created a mask dir or glob match — from the
+// warnCreatedGuardMounts warns when the run created a mask path or glob match — from the
 // next run on, it's guarded.
 func warnCreatedGuardMounts(presentMasksBefore, presentPathsBefore []string) {
 	nowPresent := append(config.TmpfsMasksPresent(), config.VolumeMasksPresent()...)
 	if created := slicex.Minus(nowPresent, presentMasksBefore); len(created) > 0 {
-		log.Warnf("before run, these directories did not exist. future runs will mask them: %s", strings.Join(created, ", "))
+		log.Warnf("before run, these paths did not exist. future runs will mask them: %s", strings.Join(created, ", "))
 	}
 	if created := slicex.Minus(config.ReadOnlyPathsPresent(), presentPathsBefore); len(created) > 0 {
 		log.Warnf("before run, these paths did not exist. future runs will re-mount them read-only: %s", strings.Join(created, ", "))

@@ -238,6 +238,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	projectDir := writeConfigYaml(t, `cli: codex
 tmpfs_masks:
   - dist
+  - notes.txt
 volume_masks:
   - node_modules
 read_only_globs:
@@ -249,6 +250,7 @@ read_only_binds:
 
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "dist"), osutil.Dir))
 	require.NoError(t, os.MkdirAll(filepath.Join(projectDir, "node_modules"), osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(projectDir, "notes.txt"), []byte("real"), osutil.File))
 	require.NoError(t, os.WriteFile(filepath.Join(projectDir, ".env"), nil, osutil.File))
 	// the binds' host dirs must exist to survive the present-filter
 	require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
@@ -281,6 +283,7 @@ read_only_binds:
 		docker.NewVolume("ccbox"+s+"-npm--global-cache-default", "/home/ccbox/.npm-global"),
 		docker.NewVolume("ccbox"+s+"-npm-cache-default", "/home/ccbox/.npm"),
 		docker.NewVolume("ccbox"+s+"-tmp-cache-default", "/tmp"),
+		docker.NewBind("/dev/null", workspace+"/notes.txt"),
 		docker.NewVolume("ccbox"+s+"-node_modules", workspace+"/node_modules"),
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".config", "git"), cfg.GitConfigMount).ReadOnly(),
@@ -289,7 +292,7 @@ read_only_binds:
 	}, hostOptions.Mounts)
 
 	assert.Equal(t, workspace, hostOptions.WorkspaceMount)
-	assert.Equal(t, []string{workspace + "/dist", miseDataMount}, hostOptions.TmpfsPaths)
+	assert.Equal(t, []string{workspace + "/dist", miseDataMount}, hostOptions.TmpfsPaths, "the file mask is no tmpfs")
 }
 
 func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {

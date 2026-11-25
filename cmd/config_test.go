@@ -28,12 +28,13 @@ func TestPrintConfig(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), osutil.Dir))
 		require.NoError(t, os.WriteFile(path, []byte(body), osutil.File))
 	}
-	// the dirs and the .env file give the render its present masks and matches; the
-	// rest of the masks and globs come back absent, pinning the warnings
+	// the dirs and files give the render its present masks and matches; the rest of the masks
+	// and globs come back absent, pinning the warnings
 	for _, dir := range []string{".idea", "node_modules"} {
 		writeConfig(t, filepath.Join(proj, dir, "placeholder"), "")
 	}
 	writeConfig(t, filepath.Join(proj, ".env"), "K=v")
+	writeConfig(t, filepath.Join(proj, "notes.txt"), "some note")
 	writeConfig(t, cfg.UserConfigFile(),
 		"cli: claude\n"+
 			"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n"+
@@ -41,7 +42,7 @@ func TestPrintConfig(t *testing.T) {
 			"proxy:\n  enabled: true\n  allowlist:\n    - ccbox-defaults\n")
 	// the allowlist's aliases render raw — `ccbox config defaults` shows the expansions
 	writeConfig(t, filepath.Join(proj, ".ccbox.yaml"),
-		"tmpfs_masks:\n  - .idea\n  - .vscode\n"+
+		"tmpfs_masks:\n  - .idea\n  - .vscode\n  - notes.txt\n"+
 			"volume_masks:\n  - node_modules\n"+
 			"read_only_globs:\n  - .env\n  - \"**/*.pem\"\n"+
 			"proxy:\n  allowlist:\n    - ccbox-anthropic-provider\n    - ccbox-go-runtime\n    - example.com\n")

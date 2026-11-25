@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,8 +14,44 @@ import (
 	"github.com/s12chung/ccbox/pkg/dmap"
 	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
 )
+
+func TestPrintPresentGuardMounts(t *testing.T) {
+	setMasksConfig(t)
+	var out bytes.Buffer
+	restore := log.SwapInfoWriter(&out)
+	defer restore()
+
+	printPresentGuardMounts()
+
+	// the absent build stays quiet
+	assert.Equal(t, []string{
+		"during run, masked with temp filesystem: dist",
+		"during run, masked with an empty file, writes discarded: notes.txt",
+		"during run, masked with persistent volume: node_modules",
+	}, strings.Split(strings.TrimRight(out.String(), "\n"), "\n"))
+}
+
+func TestWarnCreatedGuardMounts(t *testing.T) {
+	setMasksConfig(t)
+	before := append(config.TmpfsMasksPresent(), config.VolumeMasksPresent()...) // prepareRun's snapshot
+	var out bytes.Buffer
+	restore := log.SwapErrWriter(&out)
+	defer restore()
+
+	t.Run("silent while the masks predate the run", func(t *testing.T) {
+		warnCreatedGuardMounts(before, nil)
+		assert.Empty(t, out.String())
+	})
+
+	t.Run("a run's created mask warns", func(t *testing.T) {
+		out.Reset()
+		warnCreatedGuardMounts([]string{"node_modules"}, nil) // the snapshot predates dist and notes.txt
+		assert.Equal(t, "before run, these paths did not exist. future runs will mask them: dist, notes.txt\n", out.String())
+	})
+}
 
 func TestSeedDataBinds(t *testing.T) {
 	t.Run("seeds the file under its data dir", func(t *testing.T) {
@@ -112,4 +150,26 @@ func TestSeedRunMounts(t *testing.T) {
 		require.NoError(t, seedRunMounts(userDir, false))
 		assert.NoFileExists(t, dmap.GUIAppDataDir(userDir, guiapp.App.Name, false))
 	})
+}
+
+// setMasksConfig points the config global at a fresh temp project holding tmpfs masks (dist,
+// notes.txt), a volume mask (node_modules), and an absent one (build); the global is restored
+// after the test.
+func setMasksConfig(t *testing.T) {
+	t.Helper()
+	testutil.Home(t)
+	dir := t.TempDir()
+	body := "cli: codex\n" +
+		"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
+		"tmpfs_masks:\n  - dist\n  - notes.txt\n  - build\n" +
+		"volume_masks:\n  - node_modules\n"
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "dist"), osutil.Dir))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "node_modules"), osutil.Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "notes.txt"), nil, osutil.File))
+	loaded, err := cfg.Load(dir, cfg.Flags{})
+	require.NoError(t, err)
+	saved := config
+	t.Cleanup(func() { config = saved })
+	config = loaded
 }

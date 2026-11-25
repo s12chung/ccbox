@@ -72,7 +72,7 @@ func confirmReadOnlyPaths() bool {
 	return false
 }
 
-// printGuardMountWarnings prints what the guard mounts will do at run. Mask dirs and bind
+// printGuardMountWarnings prints what the guard mounts will do at run. Mask paths and bind
 // hosts are present-checked; globs can't be, so all the globs are shown.
 func printGuardMountWarnings() {
 	tmpfsMasks := config.TmpfsMasksAbsent()

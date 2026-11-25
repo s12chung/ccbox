@@ -24,7 +24,7 @@ The `ccbox` config scope hierarchy is:
 
 Protect your protect these configs:
 
-- `tmpfs_masks` — hide directories behind a throwaway temp filesystem. For editor junk (`.vscode`) or throwaway build output.
+- `tmpfs_masks` — hide directories behind a throwaway temp filesystem, or files behind an empty one: in-session reads see nothing, writes are discarded. For editor junk (`.vscode`) or throwaway build output.
 - `volume_masks` — cover directories with a persistent per-project volume: the container keeps its own copy across runs. For `node_modules`-like folders.
 - `read_only_globs` — block writes to glob paths (files or directories) with read-only re-mounts: the real files, never modified. For files that must never change (configs, secrets).
 

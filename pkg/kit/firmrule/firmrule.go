@@ -24,9 +24,9 @@ var (
 	Name = rule.Match{Regexp: regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)}
 	// EnvVar is a POSIX-ish env var name
 	EnvVar = rule.Match{Regexp: regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)}
-	// MaskDir is a project-relative dir to mask: no leading slash or "~", and no ".",
-	// "..", or empty segment (".idea" and "vendor/bundle" are fine)
-	MaskDir = rule.Match{Regexp: regexp.MustCompile(
+	// MaskPath is a project-relative path to mask: no leading slash or "~", and no ".",
+	// "..", or empty segment (".idea", "vendor/bundle", "auth.json" are fine)
+	MaskPath = rule.Match{Regexp: regexp.MustCompile(
 		`^[.]?[^/~]*[^./~][^/~]*(/[^/~]*[^./~][^/~]*)*$`)}
 	// MaskGlob is a project-relative glob of guarded paths: no leading slash, no ".." segment
 	MaskGlob = rule.Match{Regexp: regexp.MustCompile(
@@ -43,7 +43,7 @@ var (
 	ImageRef = rule.Match{Regexp: regexp.MustCompile(
 		`^[a-z0-9][a-z0-9._-]*(/[a-z0-9][a-z0-9._-]*)*:[a-zA-Z0-9][a-zA-Z0-9._-]*$`)}
 	// bindPath is a read_only_binds host dir or container mount: absolute (/…) or
-	// home-relative (~/…), segmented like MaskDir to bar ".." traversal
+	// home-relative (~/…), segmented like MaskPath to bar ".." traversal
 	bindPath = rule.Match{Regexp: regexp.MustCompile(
 		`^(~/|/)([^/~]*[^./~][^/~]*)(/[^/~]*[^./~][^/~]*)*$`)}
 

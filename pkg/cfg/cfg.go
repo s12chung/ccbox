@@ -71,7 +71,7 @@ type config struct {
 	DefaultVariant *defaultVariant    `yaml:"default_variant"` // the default variant ask's section — the devbox with no run flags
 	HostGateway    *hostGateway       `yaml:"host_gateway"`    // the host tcp ports' section
 	VNC            *vnc               `yaml:"vnc"`             // the desktop's session: its GUI app
-	TmpfsMasks     *[]string          `yaml:"tmpfs_masks"`     // project-relative dirs to mask with a writable tmpfs
+	TmpfsMasks     *[]string          `yaml:"tmpfs_masks"`     // project-relative paths to mask with a writable tmpfs
 	VolumeMasks    *[]string          `yaml:"volume_masks"`    // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyGlobs  *[]string          `yaml:"read_only_globs"` // project-relative globs to re-mount read-only
 	ReadOnlyBinds  *map[string]string `yaml:"read_only_binds"` // host dir → container mount dir, bound read-only
@@ -89,8 +89,8 @@ func init() {
 			"HostGateway":    {firm.Backed()},
 			"VNC":            {firm.Backed()},
 
-			"TmpfsMasks":    {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
-			"VolumeMasks":   {firm.Elems[[]string](rule.ShowValue(firmrule.MaskDir))},
+			"TmpfsMasks":    {firm.Elems[[]string](rule.ShowValue(firmrule.MaskPath))},
+			"VolumeMasks":   {firm.Elems[[]string](rule.ShowValue(firmrule.MaskPath))},
 			"ReadOnlyGlobs": {firm.Elems[[]string](rule.ShowValue(firmrule.MaskGlob))},
 
 			// host dir → container mount dir, bound read-only

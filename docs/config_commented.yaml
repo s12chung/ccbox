@@ -22,8 +22,8 @@ vnc:
   enabled: true
   gui_app: # the GUI app's name; empty means none
 
-# tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem.
-# Use for editor junk or throwaway build output. Directories that do not exist in the project are safely ignored.
+# tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem, or files behind an empty one: in-session reads see nothing, writes are discarded.
+# Use for editor junk or throwaway build output. Paths that do not exist in the project are safely ignored.
 tmpfs_masks:
   - .idea
   - .vscode
@@ -38,7 +38,7 @@ volume_masks:
   # - vendor/bundle
 # read_only_globs: block writes to project-relative glob paths (files or directories) with read-only re-mounts.
 # Use for files that must never change (configs, secrets). External container configuration cannot prevent reads.
-# tmpfs_masks/volume_masks dirs are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
+# tmpfs_masks/volume_masks paths are never re-mounted read-only. Paths that do not exist in the project are safely ignored.
 read_only_globs: [
   .ccbox.yaml, secrets,
   .env, .env.*, .envrc,

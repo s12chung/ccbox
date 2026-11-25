@@ -13,6 +13,7 @@ host_gateway: null
 vnc: null
 tmpfs_masks:
     - .idea
+    - notes.txt
 volume_masks:
     - node_modules
 read_only_globs:

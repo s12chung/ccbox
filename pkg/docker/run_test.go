@@ -356,7 +356,8 @@ func TestRunHostConfig(t *testing.T) {
 	opts := RunOptions{
 		RunHostOptions: RunHostOptions{
 			ProjectDir: "/host/proj",
-			Mounts:     []Mount{NewBind("/host/proj", "/home/ccbox/proj")},
+			// /dev/null over a workspace file: a file mask, read-write like any bind
+			Mounts:     []Mount{NewBind("/host/proj", "/home/ccbox/proj"), NewBind("/dev/null", "/home/ccbox/proj/notes.txt")},
 			TmpfsPaths: []string{"/home/ccbox/.cache"},
 		},
 	}
@@ -367,7 +368,7 @@ func TestRunHostConfig(t *testing.T) {
 	assert.Empty(t, hostConfig.NetworkMode, "the devbox uses the engine's default bridge")
 	assert.Equal(t, []string{"ALL"}, []string(hostConfig.CapDrop))
 	assert.Empty(t, hostConfig.CapAdd, "the plain run arrives as the image's user, capless")
-	assert.Equal(t, []string{"/host/proj:/home/ccbox/proj"}, hostConfig.Binds)
+	assert.Equal(t, []string{"/host/proj:/home/ccbox/proj", "/dev/null:/home/ccbox/proj/notes.txt"}, hostConfig.Binds)
 	assert.Equal(t, map[string]string{"/home/ccbox/.cache": tmpfsOpts}, hostConfig.Tmpfs)
 	assert.Empty(t, hostConfig.PortBindings, "the headless run serves no desktop: it claims no host port")
 	require.Len(t, hostConfig.SecurityOpt, 2)

@@ -209,27 +209,38 @@ func TestConfig_MasksPresent(t *testing.T) {
 	tests := []struct {
 		name            string
 		dirs            []string // present in the project dir
+		files           []string // present in the project dir
 		body            string
 		wantTmpfsMasks  []string
 		wantVolumeMasks []string
 	}{
 		{
-			"all absent drops out", nil,
+			"all absent drops out", nil, nil,
 			"tmpfs_masks:\n  - dist\nvolume_masks:\n  - target\n",
 			nil, nil,
 		},
 		{
 			"present stays, absent drops",
 			[]string{"dist"},
+			nil,
 			"tmpfs_masks:\n  - dist\n  - build\n",
 			[]string{"dist"},
 			nil, // the seed's defaults are all absent here
+		},
+		{
+			"a file counts under tmpfs_masks only",
+			nil,
+			[]string{"notes.txt"},
+			"tmpfs_masks:\n  - notes.txt\nvolume_masks:\n  - notes.txt\n",
+			[]string{"notes.txt"},
+			nil,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			mkDirs(t, dir, tt.dirs...)
+			mkFiles(t, dir, tt.files...)
 			writeConfig(t, dir, projectConfigFileName, tt.body)
 
 			c, err := Load(dir, Flags{})
@@ -284,6 +295,19 @@ func TestConfig_MasksAbsent(t *testing.T) {
 			assert.Equal(t, tt.wantVolumeMasks, c.VolumeMasksAbsent())
 		})
 	}
+}
+
+func TestConfig_TmpfsMasksByKind(t *testing.T) {
+	// the present split by kind; the absent drop out of both
+	dir := t.TempDir()
+	mkDirs(t, dir, "dist")
+	mkFiles(t, dir, "notes.txt")
+	writeConfig(t, dir, projectConfigFileName, "tmpfs_masks:\n  - dist\n  - notes.txt\n  - build\n")
+
+	c, err := Load(dir, Flags{})
+	require.NoError(t, err)
+	assert.Equal(t, []string{"dist"}, c.TmpfsMasksDirs())
+	assert.Equal(t, []string{"notes.txt"}, c.TmpfsMasksFiles())
 }
 
 // readOnlyGlobsConfig loads a config over the project body, ready for the glob accessors
@@ -494,6 +518,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	dir := t.TempDir()
 	// present stays resolved in, the absent drop: build, .venv, vendor/bundle, cache, .env
 	mkDirs(t, dir, append(append([]string{}, tmpfsDefaults...), "dist", "node_modules", "target", "secrets")...)
+	mkFiles(t, dir, "notes.txt")
 	t.Setenv("XDG_CONFIG_HOME", "") // the gitconfig bind resolves $HOME's XDG dir
 	home := os.Getenv("HOME")       // TestMain's temp home
 	mkDirs(t, home, ".config/git")
@@ -503,7 +528,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 		DefaultVariant: &DefaultVariant{PortBindings: PortBindings{TCP: []string{"3000", "7200"}}},
 		HostGateway:    &HostGateway{TCP: []string{"5432", "6379"}},
 		VNC:            &VNC{GUIAppName: guiapp.App.Name},
-		TmpfsMasks:     append(append([]string{}, tmpfsDefaults...), "dist", "build"),
+		TmpfsMasks:     slices.Concat(tmpfsDefaults, []string{"dist", "build", "notes.txt"}),
 		VolumeMasks:    append(append([]string{}, volumeDefaults...), "cache"),
 		ReadOnlyGlobs:  roGlobDefaults,
 		ReadOnlyBinds:  map[string]string{GitConfigKey: firmrule.EnabledValue},
@@ -525,7 +550,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000,7200"}}, // the loaded ports render as csv
 		HostGateway:    &hostGateway{TCP: "5432,6379"},                                 // the ask's ports render as csv
 		VNC:            &vnc{Enabled: new(true), GUIAppName: guiapp.App.Name},          // the printed key pins the section on
-		TmpfsMasks:     new(append(append([]string{}, tmpfsDefaults...), "dist")),
+		TmpfsMasks:     new(slices.Concat(tmpfsDefaults, []string{"dist", "notes.txt"})),
 		VolumeMasks:    new([]string{"node_modules", "target"}),
 		ReadOnlyGlobs:  new([]string{"secrets"}),
 		ReadOnlyBinds: new(map[string]string{ // the gitconfig dir is present here: kept, resolved

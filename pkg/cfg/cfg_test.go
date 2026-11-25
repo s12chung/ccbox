@@ -41,6 +41,16 @@ func mkDirs(t *testing.T, dir string, dirs ...string) {
 	}
 }
 
+// mkFiles creates empty files at the given project-relative paths under dir.
+func mkFiles(t *testing.T, dir string, files ...string) {
+	t.Helper()
+	for _, f := range files {
+		mkDirs(t, dir, filepath.Dir(f))
+		// #nosec G703 -- the test's own path: a temp project dir
+		require.NoError(t, os.WriteFile(filepath.Join(dir, f), nil, osutil.File))
+	}
+}
+
 // useHome creates the user config's dir in a fresh temp home (testutil.Home).
 // Returns the user config's path.
 func useHome(t *testing.T) string {

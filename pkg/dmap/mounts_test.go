@@ -95,6 +95,16 @@ func TestVolumeMasks(t *testing.T) {
 	}, volumeMasks("/Users/me/proj", []string{"node_modules", "vendor/bundle"}))
 }
 
+func TestFileMasks(t *testing.T) {
+	// read-write: the empty /dev/null takes the session's writes, the host file untouched
+	assert.Equal(t, []docker.Mount{
+		docker.NewBind("/dev/null", "/home/ccbox/proj/notes.txt"),
+		docker.NewBind("/dev/null", "/home/ccbox/proj/secrets/token.json"),
+	}, fileMasks("/Users/me/proj", []string{"notes.txt", "secrets/token.json"}))
+
+	assert.Empty(t, fileMasks("/Users/me/proj", nil))
+}
+
 func TestReadOnlyGlobBinds(t *testing.T) {
 	assert.Equal(t, []docker.Mount{
 		docker.NewBind("/Users/me/proj/.env", "/home/ccbox/proj/.env").ReadOnly(),

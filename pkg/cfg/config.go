@@ -20,6 +20,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/mapx"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
@@ -37,7 +38,7 @@ type Config struct {
 	DefaultVariant *DefaultVariant   // the default variant ask's section — the devbox the config's own ask boots
 	HostGateway    *HostGateway      // the host tcp ports' section; nil names no ports
 	VNC            *VNC              // the desktop's session: its GUI app; nil on a headless run
-	TmpfsMasks     []string          // project-relative dirs to mask with a writable tmpfs
+	TmpfsMasks     []string          // project-relative paths to mask with a writable tmpfs
 	VolumeMasks    []string          // project-relative dirs to mask with a persistent per-project volume
 	ReadOnlyGlobs  []string          // project-relative globs to re-mount read-only
 	ReadOnlyBinds  map[string]string // host dir → container mount dir, bound read-only
@@ -129,19 +130,29 @@ func (c *Config) HostGatewayTCP() []string {
 	return c.HostGateway.TCP
 }
 
-// TmpfsMasksPresent filters TmpfsMasks to the paths present as dirs in the project
-func (c *Config) TmpfsMasksPresent() []string { return osutil.DirsPresent(c.projectDir, c.TmpfsMasks) }
+// TmpfsMasksPresent filters TmpfsMasks to the paths present in the project
+func (c *Config) TmpfsMasksPresent() []string { return osutil.PathsPresent(c.projectDir, c.TmpfsMasks) }
 
-// TmpfsMasksAbsent filters TmpfsMasks to the paths NOT present as dirs in the project
-func (c *Config) TmpfsMasksAbsent() []string { return absentDirs(c.projectDir, c.TmpfsMasks) }
+// TmpfsMasksAbsent filters TmpfsMasks to the paths NOT present in the project
+func (c *Config) TmpfsMasksAbsent() []string {
+	return slicex.Minus(c.TmpfsMasks, osutil.PathsPresent(c.projectDir, c.TmpfsMasks))
+}
 
-// VolumeMasksPresent filters VolumeMasks to the paths present as dirs in the project
+// TmpfsMasksDirs filters TmpfsMasks to the dirs present in the project
+func (c *Config) TmpfsMasksDirs() []string { return osutil.DirsPresent(c.projectDir, c.TmpfsMasks) }
+
+// TmpfsMasksFiles filters TmpfsMasks to the files present in the project
+func (c *Config) TmpfsMasksFiles() []string { return osutil.FilesPresent(c.projectDir, c.TmpfsMasks) }
+
+// VolumeMasksPresent filters VolumeMasks to the dirs present in the project
 func (c *Config) VolumeMasksPresent() []string {
 	return osutil.DirsPresent(c.projectDir, c.VolumeMasks)
 }
 
-// VolumeMasksAbsent filters VolumeMasks to the paths NOT present as dirs in the project
-func (c *Config) VolumeMasksAbsent() []string { return absentDirs(c.projectDir, c.VolumeMasks) }
+// VolumeMasksAbsent filters VolumeMasks to the dirs NOT present in the project
+func (c *Config) VolumeMasksAbsent() []string {
+	return slicex.Minus(c.VolumeMasks, osutil.DirsPresent(c.projectDir, c.VolumeMasks))
+}
 
 func (c *Config) readOnlyGlobsMatchers() []glob.Glob {
 	globs := make([]glob.Glob, 0, len(c.ReadOnlyGlobs))
@@ -152,7 +163,7 @@ func (c *Config) readOnlyGlobsMatchers() []glob.Glob {
 }
 
 // ReadOnlyPathsPresent matches ReadOnlyGlobs against the project to actual paths,
-// minus masked dirs and covered matches — a kept match covers the matches under it
+// minus masked paths and covered matches — a kept match covers the matches under it
 func (c *Config) ReadOnlyPathsPresent() []string {
 	covered := map[string]bool{}
 	for _, mask := range slices.Concat(c.TmpfsMasks, c.VolumeMasks) {
@@ -307,17 +318,6 @@ func (v *VNC) InfoJSON() (string, error) {
 		return "", fmt.Errorf("vnc config: %w", err)
 	}
 	return string(body), nil
-}
-
-func absentDirs(projectDir string, dirs []string) []string {
-	present := osutil.DirsPresent(projectDir, dirs)
-	var out []string
-	for _, d := range dirs {
-		if !slices.Contains(present, d) {
-			out = append(out, d)
-		}
-	}
-	return out
 }
 
 // presentKeys filters binds to the keys present as dirs on disk

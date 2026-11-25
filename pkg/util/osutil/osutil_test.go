@@ -37,9 +37,7 @@ func TestDirEmpty(t *testing.T) {
 }
 
 func TestDirs_Present(t *testing.T) {
-	dir := t.TempDir()
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "present/nested"), Dir))
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "afile"), nil, File))
+	dir := statTree(t)
 
 	tests := []struct {
 		name string
@@ -54,6 +52,44 @@ func TestDirs_Present(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, DirsPresent(dir, tt.dirs))
+		})
+	}
+}
+
+func TestFiles_Present(t *testing.T) {
+	dir := statTree(t)
+
+	tests := []struct {
+		name  string
+		paths []string
+		want  []string
+	}{
+		{"present stays, absent drops out", []string{"missing", "afile"}, []string{"afile"}},
+		{"a dir doesn't count", []string{"present", "afile"}, []string{"afile"}},
+		{"nothing present", []string{"missing", "present"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, FilesPresent(dir, tt.paths))
+		})
+	}
+}
+
+func TestPaths_Present(t *testing.T) {
+	dir := statTree(t)
+
+	tests := []struct {
+		name  string
+		paths []string
+		want  []string
+	}{
+		{"all present, in order", []string{"present", "afile", "present/nested"}, []string{"present", "afile", "present/nested"}},
+		{"absent drops out", []string{"missing", "present"}, []string{"present"}},
+		{"nothing present", []string{"missing", "also-missing"}, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, PathsPresent(dir, tt.paths))
 		})
 	}
 }
@@ -310,4 +346,13 @@ func TestPruneImplied(t *testing.T) {
 func TestBlockedCloser(t *testing.T) {
 	wc := BlockedCloser(os.Stdout)
 	require.NoError(t, wc.Close(), "the no-op Close never fails")
+}
+
+// statTree writes a dir holding a nested dir and a file, for the present filters
+func statTree(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "present/nested"), Dir))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "afile"), nil, File))
+	return dir
 }

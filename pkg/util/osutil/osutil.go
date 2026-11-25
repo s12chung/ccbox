@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/s12chung/ccbox/pkg/util/errs"
+	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 
@@ -127,13 +128,26 @@ func IsSymlinkTo(path, target string) bool {
 
 // DirsPresent returns the entries of dirs that exist as directories under src.
 func DirsPresent(src string, dirs []string) []string {
-	var out []string
-	for _, d := range dirs {
-		if info, err := os.Stat(filepath.Join(src, d)); err == nil && info.IsDir() {
-			out = append(out, d)
-		}
-	}
-	return out
+	return slicex.Filter(dirs, func(d string) bool {
+		info, err := os.Stat(filepath.Join(src, d))
+		return err == nil && info.IsDir()
+	})
+}
+
+// PathsPresent returns the entries of paths that exist under src.
+func PathsPresent(src string, paths []string) []string {
+	return slicex.Filter(paths, func(p string) bool {
+		_, err := os.Stat(filepath.Join(src, p))
+		return err == nil
+	})
+}
+
+// FilesPresent returns the entries of paths that exist as files under src.
+func FilesPresent(src string, paths []string) []string {
+	return slicex.Filter(paths, func(p string) bool {
+		info, err := os.Stat(filepath.Join(src, p))
+		return err == nil && !info.IsDir()
+	})
 }
 
 // ExpandHome resolves path's leading ~/ to home.

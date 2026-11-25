@@ -33,7 +33,7 @@ func init() {
 	firm.MustRegisterType(firm.NewDefinition[Setup]().
 		Validates(firm.RuleMap{
 			"Env":       {firm.Keys[map[string]string](firmrule.EnvVar), firm.Values[map[string]string](rule.Present{})},
-			"DataBinds": {firm.Keys[map[string]*string](firmrule.MaskDir)},
+			"DataBinds": {firm.Keys[map[string]*string](firmrule.MaskPath)},
 			"Proxied":   {firm.Backed()},
 		}))
 }
@@ -50,7 +50,7 @@ func init() {
 	firm.MustRegisterType(firm.NewDefinition[Proxied]().
 		Validates(firm.RuleMap{
 			"AllowDomains": {firm.Elems[[]string](firmrule.DomainOrAlias(provider.Set().Aliases))},
-			"DataBinds":    {firm.Keys[map[string]*string](firmrule.MaskDir)},
+			"DataBinds":    {firm.Keys[map[string]*string](firmrule.MaskPath)},
 		}))
 }
 
