@@ -61,11 +61,11 @@ func TestLoad(t *testing.T) {
 	})
 }
 
-func TestBinFor(t *testing.T) {
-	bin, err := binFor(debInfo)
+func TestAppPkgDir(t *testing.T) {
+	pkgDir, err := appPkgDir(debInfo)
 
 	require.NoError(t, err)
-	assert.Equal(t, "/opt/ccbox/bin/app", bin)
+	assert.Equal(t, "/opt/ccbox/bin/app", pkgDir.BinLink())
 }
 
 func TestInstall_Errors(t *testing.T) {

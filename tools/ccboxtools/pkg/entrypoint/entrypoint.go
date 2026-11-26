@@ -26,7 +26,7 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	if err := identity.Verify(ctx, isProxy); err != nil {
 		return err
 	}
-	pkgDir, err := install.EnvPkgDir()
+	pkgDir, err := install.FromEnv()
 	if err != nil {
 		return err
 	}
@@ -44,7 +44,7 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 			return err
 		}
 		svcs = append(svcs, tproxy)
-	} else if err := install.FromPkgDir(ctx, pkgDir); err != nil {
+	} else if err := pkgDir.Settle(ctx); err != nil {
 		return err
 	}
 	if vncInfo != nil {
@@ -57,7 +57,7 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	releaseHold := func() error { return nil }
 	defer func() { log.Defer("release held version", releaseHold) }()
 	return supervise.Run(ctx, func() error {
-		release, err := install.Hold(pkgDir)
+		release, err := pkgDir.Hold()
 		if err != nil {
 			return err
 		}
@@ -89,11 +89,11 @@ func RunChild(ctx context.Context) error {
 	if err := proxy.Validate(ctx); err != nil {
 		return err
 	}
-	pkgDir, err := install.EnvPkgDir()
+	pkgDir, err := install.FromEnv()
 	if err != nil {
 		return err
 	}
-	return install.FromPkgDir(ctx, pkgDir)
+	return pkgDir.Settle(ctx)
 }
 
 // verifyAndResetDrop proves the drop and resets HOME to it before any exec — a var

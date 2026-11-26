@@ -5,9 +5,7 @@ package pkger
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
+	"io"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/artifact"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/dler"
@@ -68,34 +66,47 @@ func newInstaller(rel pkginfo.ReleaseURL, name string) (Installer, error) {
 	}
 }
 
-// PkgDir is a Pkger bound to a clis root: the volume paths the CLI installs to.
-type PkgDir struct {
-	Pkger
-
-	Root string
+// Downloader resolves a release channel's latest version and fetches a
+// version's file for the running arch.
+type Downloader interface {
+	// Latest returns the release channel's latest version.
+	Latest(ctx context.Context) (string, error)
+	// Download fetches version's file for the running arch; the caller closes it.
+	Download(ctx context.Context, version string) (io.ReadCloser, error)
 }
 
-// Dir is the CLI's dir under the root, holding every installed version.
-func (d PkgDir) Dir() string { return filepath.Join(d.Root, d.Name()) }
+// Installer places a downloaded executable into an install dir.
+type Installer interface {
+	// Install writes the downloaded executable into dir, executable.
+	Install(ctx context.Context, dir string, exe io.Reader) error
+	// RelBin is the installed executable's path relative to the install dir.
+	RelBin() string
+}
 
-// VersionDir is a version's install dir.
-func (d PkgDir) VersionDir(version string) string { return filepath.Join(d.Dir(), version) }
+// FilePkger installs a CLI that is one downloaded file: the Downloader
+// fetches the version's file, the Installer puts it in place.
+type FilePkger struct {
+	Downloader
+	Installer
 
-// TmpDir is a version's staging dir, renamed onto VersionDir once installed.
-func (d PkgDir) TmpDir(version string) string { return filepath.Join(d.Dir(), ".tmp-"+version) }
+	name string
+}
 
-// BinLink is the PATH-exposed symlink naming the active executable, in the
-// container's own bin dir — never the volume's.
-func (d PkgDir) BinLink() string { return filepath.Join(filepath.Dir(d.Root), "bin", d.Name()) }
+// Name is the CLI's name.
+func (p FilePkger) Name() string { return p.name }
 
-// LinkedVersion is the version BinLink names — whatever the boot's install wrote.
-func (d PkgDir) LinkedVersion() (string, error) {
-	dest, err := os.Readlink(d.BinLink())
+// Latest returns the release channel's latest version.
+func (p FilePkger) Latest(ctx context.Context) (string, error) { return p.Downloader.Latest(ctx) }
+
+// Install downloads the version's file and places it into dir.
+func (p FilePkger) Install(ctx context.Context, dir, version string) error {
+	exe, err := p.Download(ctx, version)
 	if err != nil {
-		return "", fmt.Errorf("read %s's bin link: %w", d.Name(), err)
+		return err
 	}
-	return filepath.Base(strings.TrimSuffix(dest, d.RelBin())), nil
+	defer exe.Close() //nolint:errcheck // failing is ok
+	return p.Installer.Install(ctx, dir, exe)
 }
 
-// LockPath is the per-CLI install lock — at the root, out of prune's reach.
-func (d PkgDir) LockPath() string { return filepath.Join(d.Root, d.Name()+".lock") }
+// RelBin is the installed executable's path relative to the install dir.
+func (p FilePkger) RelBin() string { return p.Installer.RelBin() }

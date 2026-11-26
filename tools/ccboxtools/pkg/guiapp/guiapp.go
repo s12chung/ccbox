@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
@@ -59,7 +58,11 @@ func Install(ctx context.Context, guiApp pkginfo.GUIPkgInfo) error {
 	if err := writeDesktopEntry(guiApp); err != nil {
 		return fmt.Errorf("guiapp: write %s menu entry: %w", guiApp.Name, err)
 	}
-	if err := install.FromPkgInfo(ctx, guiApp.PkgInfo, install.AppsRoot); err != nil {
+	pkgDir, err := appPkgDir(guiApp)
+	if err != nil {
+		return err
+	}
+	if err := pkgDir.Settle(ctx); err != nil {
 		return fmt.Errorf("guiapp: %w", err)
 	}
 	return nil
@@ -97,10 +100,11 @@ func Autostart(ctx context.Context, guiApp pkginfo.GUIPkgInfo) error {
 }
 
 func launch(ctx context.Context, guiApp pkginfo.GUIPkgInfo, wait bool, args []string) error {
-	bin, err := binFor(guiApp)
+	pkgDir, err := appPkgDir(guiApp)
 	if err != nil {
 		return err
 	}
+	bin := pkgDir.BinLink()
 	if wait {
 		if err := waitInstalled(ctx, bin, func() { time.Sleep(pollInterval) }); err != nil {
 			return err
@@ -112,16 +116,6 @@ func launch(ctx context.Context, guiApp pkginfo.GUIPkgInfo, wait bool, args []st
 	argv := append([]string{bin}, append(append([]string{}, guiApp.Args...), args...)...)
 	//nolint:gosec // the launcher's job: exec the app the run's env names
 	return syscall.Exec(bin, argv, os.Environ())
-}
-
-// binFor resolves the app's executable: the container's own link, which the
-// boot's install writes once the app is in place.
-func binFor(guiApp pkginfo.GUIPkgInfo) (string, error) {
-	p, err := pkger.ForPkgInfo(guiApp.PkgInfo)
-	if err != nil {
-		return "", fmt.Errorf("guiapp: %w", err)
-	}
-	return pkger.PkgDir{Pkger: p, Root: install.AppsRoot}.BinLink(), nil
 }
 
 // installed reports whether bin exists with an exec bit — the link can outlive
@@ -160,4 +154,14 @@ func logLaunch(name string) {
 			log.WarnErr("gui app stream redirect", err)
 		}
 	}
+}
+
+// appPkgDir is the GUI app's install under the apps root: the boot's install
+// settles it, the exec entry points launch its bin link.
+func appPkgDir(guiApp pkginfo.GUIPkgInfo) (install.PkgDir, error) {
+	pkgDir, err := install.ForPkgInfo(guiApp.PkgInfo, install.AppsRoot)
+	if err != nil {
+		return install.PkgDir{}, fmt.Errorf("guiapp: %w", err)
+	}
+	return pkgDir, nil
 }

@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,7 +15,6 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/dler"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/npm"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
-	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 )
 
 func TestForPkgInfo(t *testing.T) {
@@ -102,26 +102,60 @@ func TestPkgerize_ConfigError(t *testing.T) {
 	}
 }
 
-func TestPkgDir(t *testing.T) {
-	p, err := ForPkgInfo(pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "a"}})
-	require.NoError(t, err)
-	d := PkgDir{Pkger: p, Root: "/opt/ccbox/clis"}
+func TestFilePkger_Install(t *testing.T) {
+	var hits []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits = append(hits, r.URL.Path)
+		if r.URL.Path == "/stable" {
+			_, _ = w.Write([]byte("1.0.5"))
+			return
+		}
+		_, _ = w.Write([]byte("#!/bin/sh\n"))
+	}))
+	defer srv.Close()
 
-	assert.Equal(t, "/opt/ccbox/clis/claude", d.Dir())
-	assert.Equal(t, "/opt/ccbox/clis/claude/1.2.3", d.VersionDir("1.2.3"))
-	assert.Equal(t, "/opt/ccbox/clis/claude/.tmp-1.2.3", d.TmpDir("1.2.3"))
-	assert.Equal(t, "/opt/ccbox/bin/claude", d.BinLink())
+	d, err := pkgerize(pkginfo.ReleaseURL{
+		URL:              srv.URL + "/stable",
+		DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL + "/grok-$version-x64", Arm64URL: srv.URL + "/grok-$version-arm64"},
+	})
+	require.NoError(t, err)
+	p := FilePkger{Downloader: d, Installer: artifact.NewRawBin("grok"), name: "grok"}
+
+	dir := t.TempDir()
+	require.NoError(t, p.Install(t.Context(), dir, "1.0.5"))
+
+	// the download lands at the dir root, executable
+	//nolint:gosec // test fixture path
+	body, err := os.ReadFile(filepath.Join(dir, "grok"))
+	require.NoError(t, err)
+	assert.Equal(t, "#!/bin/sh\n", string(body))
+	info, err := os.Stat(filepath.Join(dir, "grok"))
+	require.NoError(t, err)
+	assert.Equal(t, os.FileMode(0o755), info.Mode().Perm())
+
+	// the arch template was hit with the version substituted
+	want := []string{"/grok-1.0.5-x64"}
+	if runtime.GOARCH == "arm64" {
+		want = []string{"/grok-1.0.5-arm64"}
+	}
+	assert.Equal(t, want, hits)
+
+	assert.Equal(t, "grok", p.RelBin())
 }
 
-func TestPkgDir_LinkedVersion(t *testing.T) {
-	d := PkgDir{Pkger: FilePkger{name: "grok", Installer: artifact.NewRawBin("grok")}, Root: filepath.Join(t.TempDir(), "clis")}
-	_, err := d.LinkedVersion()
-	require.ErrorContains(t, err, "read grok's bin link")
+func TestFilePkger_Latest(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("1.2.3"))
+	}))
+	defer srv.Close()
 
-	require.NoError(t, os.MkdirAll(filepath.Dir(d.BinLink()), installutil.DirMode))
-	require.NoError(t, os.Symlink(filepath.Join(d.VersionDir("1.2.3"), d.RelBin()), d.BinLink()))
-
-	version, err := d.LinkedVersion()
+	d, err := pkgerize(pkginfo.ReleaseURL{
+		URL:              srv.URL,
+		DownloadTemplate: &pkginfo.DownloadTemplate{X64URL: srv.URL, Arm64URL: srv.URL},
+	})
 	require.NoError(t, err)
-	assert.Equal(t, "1.2.3", version)
+	p := FilePkger{Downloader: d, Installer: artifact.NewRawBin("grok"), name: "grok"}
+	v, err := p.Latest(t.Context())
+	require.NoError(t, err)
+	assert.Equal(t, "1.2.3", v)
 }
