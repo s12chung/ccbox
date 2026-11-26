@@ -65,7 +65,7 @@ func TestBinFor(t *testing.T) {
 	bin, err := binFor(debInfo)
 
 	require.NoError(t, err)
-	assert.Equal(t, "/opt/ccbox/apps/app/current/opt/App/app", bin)
+	assert.Equal(t, "/opt/ccbox/bin/app", bin)
 }
 
 func TestInstall_Errors(t *testing.T) {
@@ -122,7 +122,7 @@ func TestExec_NotInstalled(t *testing.T) {
 	err := Exec(t.Context(), debInfo, nil)
 
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not installed at /opt/ccbox/apps/app/current/opt/App/app")
+	assert.Contains(t, err.Error(), "not installed at /opt/ccbox/bin/app")
 }
 
 func TestInstalled_ExecBit(t *testing.T) {

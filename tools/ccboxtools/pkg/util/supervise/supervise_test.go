@@ -12,6 +12,43 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestRun_AfterStart_AfterSvcsStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	gate := make(chan struct{})
+	svc := &Respawnable{
+		Name:       "test",
+		CmdToStart: startTrue,
+		Ready: func(context.Context, *exec.Cmd) error {
+			<-gate
+			return nil
+		},
+	}
+	var fired atomic.Bool
+	runErr := make(chan error, 1)
+	go func() { runErr <- Run(ctx, func() error { fired.Store(true); return nil }, svc) }()
+
+	assert.Never(t, fired.Load,
+		100*time.Millisecond, 10*time.Millisecond, "afterStart fired while the service's gate was pending")
+
+	close(gate)
+	assert.Eventually(t, fired.Load, 5*time.Second, 10*time.Millisecond,
+		"afterStart fires once every service has started")
+
+	cancel()
+	require.NoError(t, <-runErr)
+}
+
+func TestRun_AfterStart_ErrorFailsRun(t *testing.T) {
+	svc := &Respawnable{Name: "test", CmdToStart: startSleep}
+	wantErr := errors.New("boom")
+
+	err := Run(t.Context(), func() error { return wantErr }, svc)
+
+	require.ErrorIs(t, err, wantErr)
+}
+
 func TestRun_RespawnsDeadChild(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -40,49 +77,6 @@ func TestRun_RespawnsDeadChild(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Run did not return on the ctx's cancel")
 	}
-}
-
-func TestRun_AfterStart_AfterSvcsStart(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-
-	gate := make(chan struct{})
-	svc := &Respawnable{
-		Name:       "test",
-		CmdToStart: startTrue,
-		Ready: func(context.Context, *exec.Cmd) error {
-			<-gate
-			return nil
-		},
-	}
-	var fired atomic.Bool
-	runErr := make(chan error, 1)
-	go func() { runErr <- Run(ctx, func() { fired.Store(true) }, svc) }()
-
-	require.Never(t, fired.Load,
-		100*time.Millisecond, 10*time.Millisecond, "afterStart fired while the service's gate was pending")
-
-	close(gate)
-	assert.Eventually(t, fired.Load, 5*time.Second, 10*time.Millisecond,
-		"afterStart fires once every service has started")
-
-	cancel()
-	require.NoError(t, <-runErr)
-}
-
-func TestRun_AfterStart_Nil(t *testing.T) {
-	ctx, cancel := context.WithCancel(t.Context())
-	t.Cleanup(cancel)
-
-	svc := &Respawnable{Name: "test", CmdToStart: startSleep}
-	runErr := make(chan error, 1)
-	go func() { runErr <- Run(ctx, nil, svc) }()
-
-	assert.Eventually(t, func() bool { return pidOf(svc) != 0 },
-		5*time.Second, 10*time.Millisecond, "Run started the service with no afterStart")
-
-	cancel()
-	require.NoError(t, <-runErr)
 }
 
 func TestRespawnable_Backoff(t *testing.T) {

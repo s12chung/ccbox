@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -76,12 +75,40 @@ func TestEx_WaitsForRelease(t *testing.T) {
 	require.NoError(t, res.l.Release())
 }
 
+func TestHold(t *testing.T) {
+	dir := t.TempDir() // a held version's own dir: no lockfile beside it
+
+	first, err := Hold(dir)
+	require.NoError(t, err)
+	second, err := Hold(dir)
+	require.NoError(t, err, "holds on the same path coexist")
+	assert.True(t, Held(dir))
+
+	require.NoError(t, first())
+	require.NoError(t, second())
+	assert.False(t, Held(dir), "released with its holders")
+}
+
 func TestEx_LockFileCreated(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", ".lock")
 	l, err := Ex(path)
 	require.NoError(t, err, "the lockfile's parent dir is created")
 	require.NoError(t, l.Release())
 	assert.FileExists(t, path)
+}
+
+func TestHeld(t *testing.T) {
+	path := filepath.Join(t.TempDir(), ".lock")
+
+	assert.False(t, Held(path), "a missing path is never held")
+	assert.NoFileExists(t, path, "the probe creates no lockfile")
+	require.NoError(t, os.WriteFile(path, nil, fileMode))
+
+	ex, err := Ex(path)
+	require.NoError(t, err)
+	assert.True(t, Held(path), "held under an exclusive holder")
+	require.NoError(t, ex.Release())
+	assert.False(t, Held(path))
 }
 
 // hold takes an uncontended lock the way Do does, for the test to contend against.
@@ -105,80 +132,65 @@ func hold(t *testing.T, lockPath string) func() {
 	}
 }
 
-func TestDo(t *testing.T) {
+func TestDo_RunsFnAndReleases(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "claude.lock")
+	var ran bool
+	require.NoError(t, Do(t.Context(), lockPath, func() error { ran = true; return nil }, nil))
+
+	assert.True(t, ran)
+	release := hold(t, lockPath) // fails the require, never hangs, on a leaked lock
+	release()
+}
+
+func TestDo_Held_Skips(t *testing.T) {
+	lockPath := filepath.Join(t.TempDir(), "claude.lock")
+	release := hold(t, lockPath)
+	defer release()
+
+	var ran bool
+	err := Do(t.Context(), lockPath, func() error { ran = true; return nil }, func() bool { return true })
+
+	require.NoError(t, err)
+	assert.False(t, ran, "a skip's true leaves fn unrun, the lock unwaited")
+}
+
+func TestDo_Held_WaitsThenRunsFn(t *testing.T) {
 	cases := []struct {
 		name string
-		held bool
+		skip func() bool
 	}{
-		{"Uncontended", false},
-		{"Held_Skip", true},
+		{"NilSkip", nil},
+		{"SkipFalse", func() bool { return false }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			var ran, skipCalled bool
 			lockPath := filepath.Join(t.TempDir(), "claude.lock")
-			if tc.held {
-				release := hold(t, lockPath)
-				defer release()
+			release := hold(t, lockPath)
+
+			done := make(chan error, 1)
+			go func() { done <- Do(t.Context(), lockPath, func() error { return nil }, tc.skip) }()
+
+			assert.Never(t, func() bool { return len(done) > 0 },
+				100*time.Millisecond, 10*time.Millisecond, "Do returned while the lock was held")
+
+			release()
+			select {
+			case err := <-done:
+				require.NoError(t, err, "Do runs fn once the holder releases")
+			case <-time.After(5 * time.Second):
+				t.Fatal("Do did not return after the release")
 			}
-
-			err := Do(t.Context(), lockPath, func() error { ran = true; return nil }, func() bool {
-				skipCalled = true
-				return true
-			})
-
-			require.NoError(t, err)
-			assert.Equal(t, !tc.held, ran)       // fn runs only uncontended
-			assert.Equal(t, tc.held, skipCalled) // skip runs only when held
 		})
 	}
-}
-
-func TestDo_Held_NoSkip_WaitsThenRunsFn(t *testing.T) {
-	lockPath := filepath.Join(t.TempDir(), "claude.lock")
-	release := hold(t, lockPath)
-
-	var mu sync.Mutex
-	var order []string
-	step := func(s string) { mu.Lock(); defer mu.Unlock(); order = append(order, s) }
-
-	skipped := make(chan struct{})
-	go func() {
-		<-skipped // Do's non-blocking try hit the held lock
-		release()
-	}()
-
-	err := Do(t.Context(), lockPath, func() error { step("fn"); return nil }, func() bool {
-		step("skip")
-		close(skipped)
-		return false
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, []string{"skip", "fn"}, order)
 }
 
 func TestDo_FnError_PropagatesAndReleases(t *testing.T) {
 	lockPath := filepath.Join(t.TempDir(), "claude.lock")
 	wantErr := errors.New("boom")
 
-	err := Do(t.Context(), lockPath, func() error { return wantErr }, func() bool {
-		t.Fatal("skip consulted on an uncontended lock")
-		return true
-	})
+	err := Do(t.Context(), lockPath, func() error { return wantErr }, nil)
 
 	require.ErrorIs(t, err, wantErr)
 	release := hold(t, lockPath) // fails the require, never hangs, on a leaked lock
 	release()
-}
-
-func TestDo_ReleasesAfterRun(t *testing.T) {
-	lockPath := filepath.Join(t.TempDir(), "claude.lock")
-	fn := func() error { return nil }
-
-	require.NoError(t, Do(t.Context(), lockPath, fn, func() bool { return true }))
-
-	var ran bool // a second Do takes the lock rather than skipping to it
-	require.NoError(t, Do(t.Context(), lockPath, func() error { ran = true; return nil }, func() bool { return true }))
-	assert.True(t, ran)
 }

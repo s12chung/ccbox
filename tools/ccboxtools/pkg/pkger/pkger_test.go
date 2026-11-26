@@ -3,6 +3,8 @@ package pkger
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -12,6 +14,7 @@ import (
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/dler"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/npm"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 )
 
 func TestForPkgInfo(t *testing.T) {
@@ -107,7 +110,18 @@ func TestPkgDir(t *testing.T) {
 	assert.Equal(t, "/opt/ccbox/clis/claude", d.Dir())
 	assert.Equal(t, "/opt/ccbox/clis/claude/1.2.3", d.VersionDir("1.2.3"))
 	assert.Equal(t, "/opt/ccbox/clis/claude/.tmp-1.2.3", d.TmpDir("1.2.3"))
-	assert.Equal(t, "/opt/ccbox/clis/claude/current", d.Current())
-	assert.Equal(t, "/opt/ccbox/clis/bin/claude", d.BinLink())
-	assert.Equal(t, "../claude/current/bin/claude", d.BinLinkTarget())
+	assert.Equal(t, "/opt/ccbox/bin/claude", d.BinLink())
+}
+
+func TestPkgDir_LinkedVersion(t *testing.T) {
+	d := PkgDir{Pkger: FilePkger{name: "grok", Installer: artifact.NewRawBin("grok")}, Root: filepath.Join(t.TempDir(), "clis")}
+	_, err := d.LinkedVersion()
+	require.ErrorContains(t, err, "read grok's bin link")
+
+	require.NoError(t, os.MkdirAll(filepath.Dir(d.BinLink()), installutil.DirMode))
+	require.NoError(t, os.Symlink(filepath.Join(d.VersionDir("1.2.3"), d.RelBin()), d.BinLink()))
+
+	version, err := d.LinkedVersion()
+	require.NoError(t, err)
+	assert.Equal(t, "1.2.3", version)
 }

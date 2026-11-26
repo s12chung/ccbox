@@ -5,7 +5,9 @@ package pkger
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/artifact"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkger/dler"
@@ -82,18 +84,18 @@ func (d PkgDir) VersionDir(version string) string { return filepath.Join(d.Dir()
 // TmpDir is a version's staging dir, renamed onto VersionDir once installed.
 func (d PkgDir) TmpDir(version string) string { return filepath.Join(d.Dir(), ".tmp-"+version) }
 
-// Current is the symlink pointing at the active VersionDir.
-func (d PkgDir) Current() string { return filepath.Join(d.Dir(), "current") }
+// BinLink is the PATH-exposed symlink naming the active executable, in the
+// container's own bin dir — never the volume's.
+func (d PkgDir) BinLink() string { return filepath.Join(filepath.Dir(d.Root), "bin", d.Name()) }
 
-// BinLink is the PATH-exposed symlink pointing at the active executable.
-func (d PkgDir) BinLink() string { return filepath.Join(d.Root, "bin", d.Name()) }
-
-// BinLinkTarget is BinLink's target, relative to the bin dir.
-func (d PkgDir) BinLinkTarget() string {
-	return filepath.Join("..", d.Name(), "current", d.RelBin())
+// LinkedVersion is the version BinLink names — whatever the boot's install wrote.
+func (d PkgDir) LinkedVersion() (string, error) {
+	dest, err := os.Readlink(d.BinLink())
+	if err != nil {
+		return "", fmt.Errorf("read %s's bin link: %w", d.Name(), err)
+	}
+	return filepath.Base(strings.TrimSuffix(dest, d.RelBin())), nil
 }
 
-// LockPath is the per-CLI lock file guarding installs. The flock on it is
-// kernel-held — released when the holding container dies — so the persisted
-// file needs no stale handling.
+// LockPath is the per-CLI install lock — at the root, out of prune's reach.
 func (d PkgDir) LockPath() string { return filepath.Join(d.Root, d.Name()+".lock") }

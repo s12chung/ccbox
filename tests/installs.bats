@@ -20,13 +20,13 @@ teardown() {
 
     run bash -lc 'echo "$PATH"'
     [[ "$output" == *"/usr/local/share/mise/shims"* ]]
-    [[ "$output" == *"/opt/ccbox/clis/bin"* ]]
+    [[ "$output" == *"/opt/ccbox/bin"* ]]
 }
 
 @test "coding cli: installed into the clis volume and runs" {
     local cli
     cli="$(jq -r .name <<<"$CLI_PKGINFO")"
-    assert_on_path_under "$cli" "/opt/ccbox/clis/bin"
+    assert_on_path_under "$cli" "/opt/ccbox/bin"
 
     run "$cli" --version
     [ "$status" -eq 0 ]

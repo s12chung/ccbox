@@ -23,16 +23,19 @@ const (
 	respawnResets = time.Minute // alive this long → the next death restarts the backoff
 )
 
-// Run starts svcs in order, calls afterStart when set, then supervises them
-// until the ctx's cancel. SIGCHLD wakes it as children die.
-func Run(ctx context.Context, afterStart func(), svcs ...*Respawnable) error {
+// Run starts svcs in order, calls afterStart when set — a failed one fails the
+// run — then supervises them until the ctx's cancel. SIGCHLD wakes it as
+// children die.
+func Run(ctx context.Context, afterStart func() error, svcs ...*Respawnable) error {
 	for _, svc := range svcs {
 		if err := svc.Start(ctx); err != nil {
 			return err
 		}
 	}
 	if afterStart != nil {
-		afterStart()
+		if err := afterStart(); err != nil {
+			return err
+		}
 	}
 
 	sig := make(chan os.Signal, 1)

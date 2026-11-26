@@ -66,24 +66,17 @@ func TestReplaceSymlink(t *testing.T) {
 	assert.NoFileExists(t, link+".tmp")
 }
 
-func TestCurrentVersion(t *testing.T) {
-	dir := t.TempDir()
-	link := filepath.Join(dir, "current")
-
-	assert.Empty(t, CurrentVersion(link)) // unset
-
-	require.NoError(t, os.Symlink(filepath.Join(dir, "1.2.3"), link))
-	assert.Equal(t, "1.2.3", CurrentVersion(link))
-}
-
 func TestPrune(t *testing.T) {
 	dir := t.TempDir()
-	for _, name := range []string{"1.0.0", "2.0.0", "current", ".tmp-3.0.0"} {
+	for _, name := range []string{"1.0.0", "2.0.0", "3.0.0", ".tmp-4.0.0"} {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, name), DirMode))
 	}
 
-	require.NoError(t, Prune(dir, "2.0.0"))
+	// 1.0.0 stands in for another devbox's held version
+	require.NoError(t, Prune(dir, "2.0.0", func(version string) bool {
+		return version == "1.0.0"
+	}))
 
-	// everything but the active version and current is gone, .tmp leftovers included
-	assert.Equal(t, []string{"2.0.0", "current"}, entryNames(t, dir))
+	// only the kept and held versions stay; everything else goes, .tmp leftovers included
+	assert.Equal(t, []string{"1.0.0", "2.0.0"}, entryNames(t, dir))
 }

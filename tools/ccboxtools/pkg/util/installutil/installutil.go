@@ -1,5 +1,5 @@
 // Package installutil holds utils for versioned installs under the
-// clis and apps volumes: staging renames, the current-symlink flip, and pruning.
+// clis and apps volumes: staging renames, symlinks, and pruning.
 package installutil
 
 import (
@@ -42,28 +42,19 @@ func ReplaceSymlink(src, dest string) error {
 	return os.Rename(tmp, dest)
 }
 
-// CurrentVersion returns the version the current symlink at link points at, ""
-// when unset.
-func CurrentVersion(link string) string {
-	dest, err := os.Readlink(link)
-	if err != nil {
-		return ""
-	}
-	return filepath.Base(dest)
-}
-
-// Prune removes every entry under dir except current and keep — including
-// .tmp leftovers from a crashed install.
-func Prune(dir, keep string) error {
+// Prune removes every entry under dir except keep and the versions held
+// reports — including .tmp leftovers from a crashed install.
+func Prune(dir, keep string, held func(version string) bool) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
 	for _, entry := range entries {
-		if entry.Name() == keep || entry.Name() == "current" {
+		name := entry.Name()
+		if name == keep || held(name) {
 			continue
 		}
-		if err := os.RemoveAll(filepath.Join(dir, entry.Name())); err != nil {
+		if err := os.RemoveAll(filepath.Join(dir, name)); err != nil {
 			return err
 		}
 	}

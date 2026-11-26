@@ -26,6 +26,10 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	if err := identity.Verify(ctx, isProxy); err != nil {
 		return err
 	}
+	pkgDir, err := install.EnvPkgDir()
+	if err != nil {
+		return err
+	}
 	var svcs []*supervise.Respawnable
 	if isProxy {
 		if err := identity.Harden(); err != nil {
@@ -40,7 +44,7 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 			return err
 		}
 		svcs = append(svcs, tproxy)
-	} else if err := install.FromEnv(ctx); err != nil {
+	} else if err := install.FromPkgDir(ctx, pkgDir); err != nil {
 		return err
 	}
 	if vncInfo != nil {
@@ -50,7 +54,17 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 		}
 		svcs = append(svcs, desktopSvcs...)
 	}
-	return supervise.Run(ctx, func() { log.Info(pkginfo.ReadyMarker) }, svcs...)
+	releaseHold := func() error { return nil }
+	defer func() { log.Defer("release held version", releaseHold) }()
+	return supervise.Run(ctx, func() error {
+		release, err := install.Hold(pkgDir)
+		if err != nil {
+			return err
+		}
+		releaseHold = release
+		log.Info(pkginfo.ReadyMarker)
+		return nil
+	}, svcs...)
 }
 
 // portBindingsAndGateway reads the run's port asks off the container env.
@@ -75,7 +89,11 @@ func RunChild(ctx context.Context) error {
 	if err := proxy.Validate(ctx); err != nil {
 		return err
 	}
-	return install.FromEnv(ctx)
+	pkgDir, err := install.EnvPkgDir()
+	if err != nil {
+		return err
+	}
+	return install.FromPkgDir(ctx, pkgDir)
 }
 
 // verifyAndResetDrop proves the drop and resets HOME to it before any exec — a var

@@ -114,18 +114,18 @@ func launch(ctx context.Context, guiApp pkginfo.GUIPkgInfo, wait bool, args []st
 	return syscall.Exec(bin, argv, os.Environ())
 }
 
-// binFor resolves the app's executable path under the apps volume:
-// <AppsRoot>/<name>/current/<RelBin>.
+// binFor resolves the app's executable: the container's own link, which the
+// boot's install writes once the app is in place.
 func binFor(guiApp pkginfo.GUIPkgInfo) (string, error) {
 	p, err := pkger.ForPkgInfo(guiApp.PkgInfo)
 	if err != nil {
 		return "", fmt.Errorf("guiapp: %w", err)
 	}
-	return filepath.Join(install.AppsRoot, guiApp.Name, "current", p.RelBin()), nil
+	return pkger.PkgDir{Pkger: p, Root: install.AppsRoot}.BinLink(), nil
 }
 
-// installed reports whether bin exists with an exec bit — the symlink chain can
-// outlive its target on the shared volume, and only the stat catches it.
+// installed reports whether bin exists with an exec bit — the link can outlive
+// its target on the shared volume, and only the stat catches it.
 func installed(bin string) bool {
 	info, err := os.Stat(bin)
 	return err == nil && info.Mode()&0o111 != 0
