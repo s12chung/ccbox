@@ -7,8 +7,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/guiapp"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/identity"
@@ -57,7 +59,11 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	releaseHold := func() error { return nil }
 	defer func() { log.Defer("release held version", releaseHold) }()
 	return supervise.Run(ctx, func() error {
-		release, err := pkgDir.Hold()
+		var guiApp *pkginfo.GUIPkgInfo
+		if vncInfo != nil && !isProxy {
+			guiApp = vncInfo.GUIApp
+		}
+		release, err := holdInstalled(pkgDir, guiApp)
 		if err != nil {
 			return err
 		}
@@ -81,6 +87,24 @@ func portBindingsAndGateway(serveVNC bool) ([]uint16, []uint16, error) {
 		return nil, nil, err
 	}
 	return portBindings, gatewayPorts, nil
+}
+
+// holdInstalled holds the boot-installed versions for the container's life —
+// the CLI's, plus the GUI app's when set — so other devboxes' prunes can't
+// delete them under a running session; returns the release.
+func holdInstalled(pkgDir install.PkgDir, guiApp *pkginfo.GUIPkgInfo) (func() error, error) {
+	release, err := pkgDir.Hold()
+	if err != nil {
+		return nil, err
+	}
+	if guiApp == nil {
+		return release, nil
+	}
+	guiRelease, err := guiapp.Hold(*guiApp)
+	if err != nil {
+		return nil, errors.Join(err, release())
+	}
+	return func() error { return errors.Join(release(), guiRelease()) }, nil
 }
 
 // RunChild is the proxy child's landing: the proof, then the boot's install —
@@ -116,10 +140,13 @@ func Exec(_ context.Context, argv []string) error {
 }
 
 // ExecArgv execs argv with the shell `exec`'s semantics — the process is replaced in
-// place, its pid and TTY preserved.
+// place, its pid and TTY preserved, holding the run CLI's version across the exec.
 func ExecArgv(argv []string) error {
 	if len(argv) == 0 {
 		return errors.New("no command to exec")
+	}
+	if err := holdForExec(); err != nil {
+		return err
 	}
 	if err := (cmdgen.SyscallCmd{Bin: argv[0], Args: argv[1:]}).Run(); err != nil {
 		return fmt.Errorf("exec %s: %w", argv[0], err)
@@ -127,12 +154,32 @@ func ExecArgv(argv []string) error {
 	return nil
 }
 
+// holdForExec holds the run CLI's linked version across the exec, backstopping
+// PID 1's hold — a session outlives it only in the shutdown's release-to-exit
+// gap. A landing whose env names no cli has no version to hold.
+func holdForExec() error {
+	if os.Getenv(pkginfo.EnvVar) == "" {
+		return nil
+	}
+	pkgDir, err := install.FromEnv()
+	if err != nil {
+		return err
+	}
+	return pkgDir.HoldExec()
+}
+
 // ExecDesktop is the desktop session's landing inside the egress wall's netns —
-// the session execs the image's XFCE on the bare server's display.
+// the session execs the image's XFCE on the bare server's display, holding the
+// GUI app's version across the exec for the session's life.
 func ExecDesktop(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	cmd, err := vnc.SetupDesktop(ctx, vncInfo)
 	if err != nil {
 		return err
+	}
+	if vncInfo != nil && vncInfo.GUIApp != nil {
+		if err := guiapp.HoldExec(*vncInfo.GUIApp); err != nil {
+			return err
+		}
 	}
 	if err := vnc.SendReady(); err != nil {
 		return fmt.Errorf("vnc requested: %w", err)

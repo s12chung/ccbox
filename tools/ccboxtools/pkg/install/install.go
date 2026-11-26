@@ -87,11 +87,21 @@ func (d PkgDir) Settle(ctx context.Context) error {
 // Hold holds the bin link's version for the container's life, so other
 // devboxes' prunes can't delete it under a running session; returns the release.
 func (d PkgDir) Hold() (func() error, error) {
-	version, err := d.LinkedVersion()
+	dir, err := d.linkedVersionDir()
 	if err != nil {
 		return nil, err
 	}
-	return flock.Hold(d.VersionDir(version))
+	return flock.Hold(dir)
+}
+
+// HoldExec holds the bin link's version across syscall.Exec: the exec'd
+// session inherits the hold, keeping its version prune-safe for its life.
+func (d PkgDir) HoldExec() error {
+	dir, err := d.linkedVersionDir()
+	if err != nil {
+		return err
+	}
+	return flock.HoldExec(dir)
 }
 
 // Dir is the CLI's dir under the root, holding every installed version.
@@ -136,4 +146,13 @@ func (d PkgDir) installVersion(ctx context.Context, version string) error {
 		return fmt.Errorf("install %s %s: %w", d.Name(), version, err)
 	}
 	return installutil.SafeMv(tmp, d.VersionDir(version))
+}
+
+// linkedVersionDir is the version dir the bin link names.
+func (d PkgDir) linkedVersionDir() (string, error) {
+	version, err := d.LinkedVersion()
+	if err != nil {
+		return "", err
+	}
+	return d.VersionDir(version), nil
 }

@@ -1,6 +1,7 @@
 // Package guiapp wires the GUI app the run's env names (pkginfo.VNCConfigEnvVar):
 // the boot installs it into the apps volume and writes its session menu entry,
-// while the exec entry points launch the installed app.
+// while the exec entry points launch the installed app — its version held for
+// the session's life, as the holds here let a landing or PID 1 do.
 package guiapp
 
 import (
@@ -99,6 +100,26 @@ func Autostart(ctx context.Context, guiApp pkginfo.GUIPkgInfo) error {
 	return launch(ctx, guiApp, true, nil)
 }
 
+// Hold holds the GUI app's linked version — so other devboxes' prunes can't
+// delete it under a running session — for the holder's life; returns the release.
+func Hold(guiApp pkginfo.GUIPkgInfo) (func() error, error) {
+	pkgDir, err := appPkgDir(guiApp)
+	if err != nil {
+		return nil, err
+	}
+	return pkgDir.Hold()
+}
+
+// HoldExec holds the GUI app's linked version across syscall.Exec: the exec'd
+// session inherits the hold, keeping the version from its install to the app's launch.
+func HoldExec(guiApp pkginfo.GUIPkgInfo) error {
+	pkgDir, err := appPkgDir(guiApp)
+	if err != nil {
+		return err
+	}
+	return pkgDir.HoldExec()
+}
+
 func launch(ctx context.Context, guiApp pkginfo.GUIPkgInfo, wait bool, args []string) error {
 	pkgDir, err := appPkgDir(guiApp)
 	if err != nil {
@@ -112,6 +133,9 @@ func launch(ctx context.Context, guiApp pkginfo.GUIPkgInfo, wait bool, args []st
 		logLaunch(guiApp.Name)
 	} else if !installed(bin) {
 		return fmt.Errorf("guiapp: %s is not installed at %s", guiApp.Name, bin)
+	}
+	if err := pkgDir.HoldExec(); err != nil {
+		return err
 	}
 	argv := append([]string{bin}, append(append([]string{}, guiApp.Args...), args...)...)
 	//nolint:gosec // the launcher's job: exec the app the run's env names

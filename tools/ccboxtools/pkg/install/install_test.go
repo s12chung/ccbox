@@ -211,6 +211,23 @@ func TestPkgDir_Hold_MissingBinLink(t *testing.T) {
 	assert.Contains(t, err.Error(), "bin link")
 }
 
+func TestPkgDir_HoldExec_HoldsLinkedVersion(t *testing.T) {
+	pkgDir := settledPkgDir(t, "1.2.3")
+
+	require.NoError(t, pkgDir.HoldExec())
+
+	assert.True(t, flock.Held(pkgDir.VersionDir("1.2.3")))
+}
+
+func TestPkgDir_HoldExec_MissingBinLink(t *testing.T) {
+	pkgDir := PkgDir{Pkger: &fakePkger{name: "claude"}, Root: clisRoot(t)}
+
+	err := pkgDir.HoldExec()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "bin link")
+}
+
 func TestPkgDir_Paths(t *testing.T) {
 	d := PkgDir{Pkger: &fakePkger{name: "claude"}, Root: "/opt/ccbox/clis"}
 

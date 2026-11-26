@@ -125,6 +125,20 @@ func TestExec_NotInstalled(t *testing.T) {
 	assert.Contains(t, err.Error(), "not installed at /opt/ccbox/bin/app")
 }
 
+func TestHold_NotInstalled(t *testing.T) {
+	_, err := Hold(debInfo)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read app's bin link")
+}
+
+func TestHoldExec_NotInstalled(t *testing.T) {
+	err := HoldExec(debInfo)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "read app's bin link")
+}
+
 func TestInstalled_ExecBit(t *testing.T) {
 	dir := t.TempDir()
 	tests := []struct {

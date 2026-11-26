@@ -3,7 +3,9 @@ package flock
 import (
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"testing"
 	"time"
@@ -87,6 +89,55 @@ func TestHold(t *testing.T) {
 	require.NoError(t, first())
 	require.NoError(t, second())
 	assert.False(t, Held(dir), "released with its holders")
+}
+
+func TestHoldExec(t *testing.T) {
+	dir := t.TempDir()
+
+	require.NoError(t, HoldExec(dir))
+	assert.True(t, Held(dir), "held across the exec's process")
+
+	hold, err := Hold(dir)
+	require.NoError(t, err, "coexists with the other holders")
+	require.NoError(t, hold())
+
+	err = HoldExec(filepath.Join(t.TempDir(), "absent"))
+	require.Error(t, err)
+	assert.ErrorIs(t, err, os.ErrNotExist, "a missing path is never created")
+}
+
+const (
+	holdExecChildEnv     = "FLOCK_TEST_HOLD_EXEC_PATH"
+	holdExecConflictExit = 42 // flock's -E: apart from the probe's own failures, which exit 1
+)
+
+func TestHoldExec_SurvivesExec(t *testing.T) {
+	if heldPath := os.Getenv(holdExecChildEnv); heldPath != "" {
+		holdExecExecProbe(t, heldPath) // execs the probe; never returns
+		return
+	}
+	if _, err := exec.LookPath("flock"); err != nil {
+		t.Skipf("flock probe unavailable: %v", err)
+	}
+	// only the child holds — a parent's hold would leak into the probe — and the
+	// probe's conflict exit proves the hold survived the exec
+	cmd := exec.CommandContext(t.Context(), os.Args[0], "-test.run=^"+t.Name()+"$") // #nosec G204,G702 -- re-execs the test binary itself
+	cmd.Env = append(os.Environ(), holdExecChildEnv+"="+t.TempDir())
+	out, err := cmd.CombinedOutput()
+	var exitErr *exec.ExitError
+	require.ErrorAs(t, err, &exitErr, "the exec'd probe found the path unheld: %s", out)
+	assert.Equal(t, holdExecConflictExit, exitErr.ExitCode(), "flock's conflict exit, not the probe's own failure: %s", out)
+}
+
+// holdExecExecProbe takes the hold then execs flock's non-blocking probe — the
+// probe's conflict exit proves the hold survived the exec. Never returns.
+func holdExecExecProbe(t *testing.T, path string) {
+	t.Helper()
+	require.NoError(t, HoldExec(path))
+	flockBin, err := exec.LookPath("flock")
+	require.NoError(t, err)
+	argv := []string{"flock", "-n", "-x", "-E", strconv.Itoa(holdExecConflictExit), path, "-c", "true"}
+	require.NoError(t, syscall.Exec(flockBin, argv, os.Environ())) // #nosec G204,G702 -- the test's own probe; success replaces the process
 }
 
 func TestEx_LockFileCreated(t *testing.T) {

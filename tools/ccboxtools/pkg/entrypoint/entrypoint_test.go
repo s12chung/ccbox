@@ -69,6 +69,17 @@ func TestExecArgv(t *testing.T) {
 	}
 }
 
+func TestHoldForExec(t *testing.T) {
+	t.Setenv(pkginfo.EnvVar, "")
+	require.NoError(t, holdForExec(), "a landing whose env names no cli has no version to hold")
+
+	t.Setenv(pkginfo.EnvVar, `{"name":`)
+	err := holdForExec()
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "pkginfo: parse")
+}
+
 func TestPortBindingsAndGateway(t *testing.T) {
 	tests := []struct {
 		name         string

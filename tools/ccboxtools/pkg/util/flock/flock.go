@@ -44,6 +44,20 @@ func Hold(path string) (func() error, error) {
 	return l.Release, nil
 }
 
+// HoldExec takes a shared hold on the existing path that survives syscall.Exec:
+// syscall.Open, unlike os.Open, leaves close-on-exec off, so the exec'd command
+// inherits the fd and its hold — the kernel releases it when the process dies.
+func HoldExec(path string) error {
+	fd, err := syscall.Open(path, syscall.O_RDONLY, 0) // #nosec G304 -- the caller's own path, not user input
+	if err != nil {
+		return err
+	}
+	if err := syscall.Flock(fd, syscall.LOCK_SH); err != nil {
+		return errors.Join(err, syscall.Close(fd))
+	}
+	return nil
+}
+
 // TryEx takes a non-blocking exclusive lock at path: ErrHeld when held elsewhere
 func TryEx(path string) (*Lock, error) {
 	l, err := take(path, syscall.LOCK_EX|syscall.LOCK_NB)
