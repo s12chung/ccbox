@@ -4,16 +4,14 @@ package dler
 
 import (
 	"fmt"
-	"regexp"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
-// versionRe guards the resolved version: anything else (an error page, HTML)
+// guardVersion refuses anything but an exact version — an error page or HTML
 // must not become the installed version.
-var versionRe = regexp.MustCompile(`^\d+(\.\d+)*([-+].+)?$`)
-
-// guardVersion checks v against versionRe.
 func guardVersion(url, v string) (string, error) {
-	if !versionRe.MatchString(v) {
+	if !pkginfo.IsPinned(v) {
 		return "", fmt.Errorf("%s: %q is not a version", url, v)
 	}
 	return v, nil

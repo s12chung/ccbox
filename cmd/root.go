@@ -97,7 +97,7 @@ func Execute(buildContext embed.FS) error {
 func init() {
 	// see exec.go's init for more flags set for rootCmd
 	pf := rootCmd.PersistentFlags()
-	pf.Var(flagptr.String(&flags.CLI), "cli", "override the coding CLI set in .ccbox.yaml")
+	pf.Var(flagptr.String(&flags.CLI), "cli", "override the coding CLI set in .ccbox.yaml: cli_name for latest or cli_name@version")
 	pf.Var(flagptr.String(&flags.PortBindingsTCP), "port-bindings-tcp", "bind tcp ports on localhost, host = container port")
 	pf.Var(flagptr.String(&flags.HostGatewayTCP), "host-gateway-tcp", "open tcp ports on the host to the devbox at host.docker.internal")
 	// unreachable error: "cli" is registered above

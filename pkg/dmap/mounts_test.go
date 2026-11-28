@@ -33,15 +33,11 @@ func TestTmpfsMasks(t *testing.T) {
 }
 
 // writeConfigYaml writes body as the project's .ccbox.yaml in a fresh temp project,
-// returning the project dir
+// the pinned images before it — returning the project dir
 func writeConfigYaml(t *testing.T, body string) string {
 	t.Helper()
 	dir := t.TempDir()
-	cli, rest, found := strings.Cut(body, "\n")
-	require.Truef(t, found && strings.HasPrefix(cli, "cli:"), "body must lead with the cli line: %q", body)
-	body = cli + "\n" +
-		"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
-		rest
+	body = "images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" + body
 	require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
 	return dir
 }
@@ -61,7 +57,7 @@ func loadConfig(t *testing.T, body string) *cfg.Config {
 func testRunMap(t *testing.T, body string) *RunMap {
 	t.Helper()
 	if !strings.Contains(body, "cli:") {
-		body = "cli: codex\n" + body
+		body = "cli: codex@latest\n" + body
 	}
 	return NewRunMap(loadConfig(t, body), runtime.AllCacheVolumes(), false)
 }
@@ -131,7 +127,7 @@ func TestReadOnlyBinds(t *testing.T) {
 		home := testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 
-		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
+		config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"+"read_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
 		require.NoError(t, err)
 
 		assert.Equal(t, []docker.Mount{
@@ -142,7 +138,7 @@ func TestReadOnlyBinds(t *testing.T) {
 	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
 		testutil.Home(t)
 
-		config, err := cfg.Load(writeConfigYaml(t, "cli: codex\nread_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
+		config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"+"read_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
 		require.NoError(t, err)
 
 		assert.Empty(t, readOnlyBinds(config.ReadOnlyBindsPresent()))
@@ -176,7 +172,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	// newVncRunMap maps a vnc run naming guiApp
 	newVncRunMap := func(t *testing.T, guiApp string) *RunMap {
 		t.Helper()
-		body := "cli: claude\n"
+		body := "cli: claude@latest\n"
 		if guiApp != "" {
 			body += "vnc:\n  gui_app: " + guiApp + "\n"
 		}
@@ -214,7 +210,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	})
 
 	t.Run("none without a vnc run", func(t *testing.T) {
-		config := loadConfig(t, "cli: claude\nvnc:\n  gui_app: "+guiapp.App.Name+"\n")
+		config := loadConfig(t, "cli: claude@latest\n"+"vnc:\n  gui_app: "+guiapp.App.Name+"\n")
 
 		binds := NewRunMap(config, nil, false).guiAppDataBinds(true)
 		assert.Empty(t, binds)

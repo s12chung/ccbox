@@ -4,8 +4,8 @@ package cfg
 
 func (x *config) toInnerModel() Config {
 	var out Config
-	if x.CLIName != nil {
-		out.CLIName = *x.CLIName
+	if x.CLIRef != nil {
+		out.CLIRef = *x.CLIRef
 	}
 	if x.Images != nil {
 		out.Images = x.Images.toInnerModel()

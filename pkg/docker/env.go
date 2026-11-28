@@ -9,13 +9,13 @@ import (
 
 // envString renders env as KEY=VALUE in sorted-key order, the proxy vars last — overriding
 // user-supplied settings; the container reads their presence as the egress wall being on
-func envString(env map[string]string, isProxied bool) []string {
+func envString(env map[string]string, isProxied, hasHostGateway bool) []string {
 	renderedEnv := sortedEnv(env)
 	if !isProxied {
 		return renderedEnv
 	}
 	noProxy := "localhost,127.0.0.1,::1"
-	if _, ok := env[pkginfo.HostGatewayTCPEnvVar]; ok {
+	if hasHostGateway {
 		// the host gateway's flows bypass tinyproxy — its http must too, else the
 		// allowlist refuses it
 		noProxy += "," + pkginfo.HostGatewayHost

@@ -1,7 +1,7 @@
 # Run `ccbox config` to see the effective config — arrays and maps merge down scoped configs.
 # Commented reference: https://github.com/s12chung/ccbox/blob/main/docs/config_commented.yaml
 
-cli:
+# cli: pi@latest
 
 # images:
 #   base: debian:trixie-YYYYMMDD-slim

@@ -37,7 +37,11 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 		if err := identity.Harden(); err != nil {
 			return err
 		}
-		portBindings, gatewayPorts, err := portBindingsAndGateway(vncInfo != nil)
+		config, err := pkginfo.RunConfigFromEnv()
+		if err != nil {
+			return err
+		}
+		portBindings, gatewayPorts, err := portBindingsAndGateway(config, vncInfo != nil)
 		if err != nil {
 			return err
 		}
@@ -73,16 +77,16 @@ func Run(ctx context.Context, vncInfo *pkginfo.VNCInfo) error {
 	}, svcs...)
 }
 
-// portBindingsAndGateway reads the run's port asks off the container env.
-func portBindingsAndGateway(serveVNC bool) ([]uint16, []uint16, error) {
-	portBindings, err := pkginfo.EnvPorts(pkginfo.PortBindingsTCPEnvVar)
+// portBindingsAndGateway reads the run's port asks off the config.
+func portBindingsAndGateway(config pkginfo.RunConfig, serveVNC bool) ([]uint16, []uint16, error) {
+	portBindings, err := config.BoundPorts()
 	if err != nil {
 		return nil, nil, err
 	}
 	if serveVNC && !slices.Contains(portBindings, pkginfo.VNCPort) {
 		portBindings = append(portBindings, pkginfo.VNCPort)
 	}
-	gatewayPorts, err := pkginfo.EnvPorts(pkginfo.HostGatewayTCPEnvVar)
+	gatewayPorts, err := config.GatewayPorts()
 	if err != nil {
 		return nil, nil, err
 	}

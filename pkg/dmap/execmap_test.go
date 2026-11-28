@@ -9,7 +9,7 @@ import (
 )
 
 func TestExecMap_Cmd(t *testing.T) {
-	config := loadConfig(t, "cli: claude\n")
+	config := loadConfig(t, "cli: claude@latest\n")
 	em := NewExecMap(config.CLI())
 
 	assert.Equal(t, execArgv("claude"), em.cmd(ExecMode{}, true))

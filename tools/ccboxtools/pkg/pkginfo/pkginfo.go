@@ -1,27 +1,21 @@
-// Package pkginfo describes an install source — a coding CLI or the GUI app —
-// as the env JSON the container consumes to install it at start.
+// Package pkginfo is the host's env contract with the container: an install
+// source — a coding CLI or the GUI app — and the run's config asks.
 package pkginfo
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
 	"regexp"
-	"strconv"
-	"strings"
 
 	"github.com/s12chung/firm"
 	"github.com/s12chung/firm/rule"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/errs"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/jsonutil"
 )
 
 const (
 	// EnvVar is the container env var carrying a coding CLI's PkgInfo JSON.
 	EnvVar = "CLI_PKGINFO"
 
-	// PortBindingsTCPEnvVar is the container env var carrying the run's tcp port bindings as csv
-	PortBindingsTCPEnvVar = "PORT_BINDINGS_TCP"
-	// HostGatewayTCPEnvVar is the container env var carrying the run's host gateway tcp ports as csv
-	HostGatewayTCPEnvVar = "HOST_GATEWAY_TCP"
 	// HostGatewayHost is the /etc/hosts name resolving to the host gateway — the devbox's
 	// address for the host's own services
 	HostGatewayHost = "host.docker.internal"
@@ -51,6 +45,19 @@ const (
 	// desktop serve are done, so sessions may land
 	ReadyMarker = "devbox: ready"
 )
+
+// LatestVersion is the version ask tracking each release.
+const LatestVersion = "latest"
+
+// versionRe is an exact version — 1.2.3, 2.0.0-beta.1
+var versionRe = regexp.MustCompile(`^\d+(\.\d+)*([-+].+)?$`)
+
+// IsPinned reports whether the version ask is an exact version.
+func IsPinned(version string) bool { return versionRe.MatchString(version) }
+
+// VersionRule accepts a version ask: "latest" or an exact version — dist-tags
+// and ranges are rejected.
+var VersionRule = rule.Or(rule.Equal[string]{To: LatestVersion}, rule.Match{Regexp: versionRe})
 
 // PkgInfo describes a CLI's install source: its name plus exactly one of Npm or
 // ReleaseURL. It travels to the container as the CLI_PKGINFO env JSON, and is
@@ -82,32 +89,6 @@ func init() {
 
 // FromJSON parses CLI_PKGINFO JSON, rejecting unknown fields and invalid values.
 func FromJSON(body string) (PkgInfo, error) {
-	var p PkgInfo
-	dec := json.NewDecoder(strings.NewReader(body))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&p); err != nil {
-		return PkgInfo{}, fmt.Errorf("pkginfo: parse %s: %w", body, err)
-	}
-	if errMap := firm.ValidateAny(p); errMap != nil {
-		return PkgInfo{}, fmt.Errorf("pkginfo: %w", errMap)
-	}
-	return p, nil
-}
-
-// EnvPorts parses an env var's ports csv — an unset var names none.
-func EnvPorts(envVar string) ([]uint16, error) {
-	body := os.Getenv(envVar)
-	if body == "" {
-		return nil, nil
-	}
-	entries := strings.Split(body, ",")
-	ports := make([]uint16, 0, len(entries))
-	for _, entry := range entries {
-		port, err := strconv.ParseUint(entry, 10, 16)
-		if err != nil {
-			return nil, fmt.Errorf("pkginfo: parse %s=%s: %w", envVar, body, err)
-		}
-		ports = append(ports, uint16(port))
-	}
-	return ports, nil
+	pkgInfo, err := jsonutil.Decode[PkgInfo](body)
+	return pkgInfo, errs.Prefix("pkginfo", err)
 }

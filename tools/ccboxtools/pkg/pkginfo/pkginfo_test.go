@@ -93,6 +93,26 @@ func TestPkgInfoFromJSON(t *testing.T) {
 	}
 }
 
+func TestIsPinned(t *testing.T) {
+	tests := []struct {
+		name    string
+		version string
+		want    bool
+	}{
+		{"exact", "0.9.2", true},
+		{"prerelease", "2.0.0-beta.1", true},
+		{"latest", "latest", false},
+		{"unset", "", false},
+		{"range", "^1.0", false},
+		{"dist-tag", "next", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, IsPinned(tt.version))
+		})
+	}
+}
+
 func TestFromJSON_BadFormat(t *testing.T) {
 	body := `{"name":"z","version_url":{"url":"https://z",` +
 		`"jq_schema":{"format":"xml","version":".version","download_url":".url"}}}`
@@ -107,36 +127,4 @@ func TestFromJSON_BadSelector(t *testing.T) {
 	_, err := FromJSON(body)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Version.JQExpr")
-}
-
-func TestEnvPorts(t *testing.T) {
-	tests := []struct {
-		name    string
-		envVar  string
-		body    string
-		want    []uint16
-		wantErr string
-	}{
-		{"empty", PortBindingsTCPEnvVar, "", nil, ""},
-		{"one", PortBindingsTCPEnvVar, "3000", []uint16{3000}, ""},
-		{"csv", PortBindingsTCPEnvVar, "3000,5900,7200", []uint16{3000, 5900, 7200}, ""},
-		{"garbage", PortBindingsTCPEnvVar, "3000,http", nil, "parse PORT_BINDINGS_TCP=3000,http"},
-		{"overflows a port", PortBindingsTCPEnvVar, "65536", nil, "parse PORT_BINDINGS_TCP=65536"},
-		{"host csv", HostGatewayTCPEnvVar, "5432,6379", []uint16{5432, 6379}, ""},
-		{"host garbage names the var", HostGatewayTCPEnvVar, "db", nil, "parse HOST_GATEWAY_TCP=db"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(tt.envVar, tt.body)
-
-			ports, err := EnvPorts(tt.envVar)
-			if tt.wantErr == "" {
-				require.NoError(t, err)
-				assert.Equal(t, tt.want, ports)
-				return
-			}
-			require.Error(t, err)
-			assert.Contains(t, err.Error(), tt.wantErr)
-		})
-	}
 }

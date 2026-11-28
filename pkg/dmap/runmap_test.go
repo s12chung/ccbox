@@ -25,8 +25,7 @@ func TestRunMap_RunOptions(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
-	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
-proxy:
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"+`proxy:
   enabled: true
   allowlist:
     - ccbox-defaults
@@ -39,7 +38,7 @@ proxy:
 	hostOptions, hostClean, err := rm.HostOptions(false, true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
-	env, err := rm.Env(false, []string{}, []string{})
+	env, err := rm.Env(false)
 	require.NoError(t, err)
 
 	options, clean, err := rm.RunOptions(NewProxyMap(config).Options(func(string) {}))
@@ -70,8 +69,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	// the base layer carries the gui_app, as a project's config would
-	config, err := cfg.Load(writeConfigYaml(t, `cli: claude
-vnc:
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"+`vnc:
   enabled: true
   gui_app: `+guiapp.App.Name+`
 proxy:
@@ -106,7 +104,7 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
 	// the --vnc flag on a config without a vnc section, as `ccbox proxy --vnc` arrives
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, ProxyCmd: true})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"), cfg.Flags{VNC: true, ProxyCmd: true})
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).RunOptions(NewProxyMap(config).Options(func(string) {}))
@@ -126,7 +124,7 @@ func TestRunMap_RunOptions_PortBindings(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"+
 		"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n"+
 		"proxy:\n  enabled: true\n"), cfg.Flags{})
 	require.NoError(t, err)
@@ -137,7 +135,9 @@ func TestRunMap_RunOptions_PortBindings(t *testing.T) {
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 	assert.Equal(t, []string{"3000", "7200"}, options.PortBindingsTCP)
-	assert.Equal(t, "3000,7200", options.Env[pkginfo.PortBindingsTCPEnvVar], "the egress wall's boot opens each into the workload's netns")
+	runConfig, err := pkginfo.RunConfigFromJSON(options.Env[pkginfo.RunConfigEnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, []string{"3000", "7200"}, runConfig.PortBindingsTCP, "the egress wall's boot opens each into the workload's netns")
 }
 
 func TestRunMap_RunOptions_PortBindings_OtherAsks(t *testing.T) {
@@ -145,7 +145,7 @@ func TestRunMap_RunOptions_PortBindings_OtherAsks(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd())
 
 	// the --no-proxy ask boots another devbox: the config's section doesn't apply to it
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"+
 		"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n"+
 		"proxy:\n  enabled: true\n"), cfg.Flags{NoProxy: true})
 	require.NoError(t, err)
@@ -162,7 +162,7 @@ func TestRunMap_RunOptions_PortBindings_FlagsSetDefaultVariant(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd())
 
 	// a --vnc ask on a vnc-enabled config lands on the config's own default variant
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"+
 		"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n"+
 		"vnc:\n  enabled: true\n"+
 		"proxy:\n  enabled: true\n"), cfg.Flags{VNC: true})
@@ -181,7 +181,7 @@ func TestRunMap_RunOptions_PortBindings_FlagOnAnyAsk(t *testing.T) {
 	require.NoError(t, share.SafeSeedAgentsMd())
 
 	// the --port-bindings-tcp flag on a --vnc ask, as `ccbox run --vnc --port-bindings-tcp 8080` arrives
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{VNC: true, PortBindingsTCP: new("8080")})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"), cfg.Flags{VNC: true, PortBindingsTCP: new("8080")})
 	require.NoError(t, err)
 
 	options, clean, err := NewRunMap(config, nil, false).RunOptions(nil)
@@ -197,7 +197,7 @@ func TestRunMap_RunOptions_HostGateway(t *testing.T) {
 
 	// the flag's ask over the section, as `ccbox run --host-gateway-tcp 3306,6379` arrives —
 	// proxied, where the egress wall's boot forwards each onto the host
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"+
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"+
 		"host_gateway:\n  tcp: 5432\n"+"proxy:\n  enabled: true\n"), cfg.Flags{HostGatewayTCP: new("3306,6379")})
 	require.NoError(t, err)
 
@@ -206,7 +206,9 @@ func TestRunMap_RunOptions_HostGateway(t *testing.T) {
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 	assert.Equal(t, []string{"3306", "6379"}, options.HostGatewayTCP)
-	assert.Equal(t, "3306,6379", options.Env[pkginfo.HostGatewayTCPEnvVar],
+	runConfig, err := pkginfo.RunConfigFromJSON(options.Env[pkginfo.RunConfigEnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, []string{"3306", "6379"}, runConfig.HostGatewayTCP,
 		"the egress wall's boot forwards each onto the host")
 }
 
@@ -214,8 +216,7 @@ func TestRunMap_RunOptions_TagByProject(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
-	projectDir := writeConfigYaml(t, `cli: claude
-proxy:
+	projectDir := writeConfigYaml(t, "cli: claude@latest\n"+`proxy:
   allowlist:
     - ccbox-defaults
     - example.com
@@ -235,8 +236,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	home := testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
-	projectDir := writeConfigYaml(t, `cli: codex
-tmpfs_masks:
+	projectDir := writeConfigYaml(t, "cli: codex@latest\n"+`tmpfs_masks:
   - dist
   - notes.txt
 volume_masks:
@@ -301,7 +301,7 @@ func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), cfg.Flags{})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
@@ -315,7 +315,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: codex\n"), cfg.Flags{})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
@@ -332,7 +332,7 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude\n"), cfg.Flags{})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true, true)
@@ -349,8 +349,7 @@ func TestRunMap_Env(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("DISABLE_AUTOUPDATER", "0")
-	rm := testRunMap(t, `cli: claude
-forward_env:
+	rm := testRunMap(t, "cli: claude@latest\n"+`forward_env:
   - TERM
   - COLORTERM
   - GH_TOKEN
@@ -359,7 +358,7 @@ vnc:
   enabled: true
   gui_app: `+guiapp.App.Name+`
 `)
-	env, err := rm.Env(true, nil, nil)
+	env, err := rm.Env(true)
 	require.NoError(t, err)
 
 	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
@@ -373,6 +372,7 @@ vnc:
 		"TERM":                                     "xterm-256color",
 		"COLORTERM":                                "truecolor",
 		pkginfo.EnvVar:                             pkgInfo,
+		pkginfo.RunConfigEnvVar:                    `{"cli_version":"latest"}`,
 		pkginfo.VNCConfigEnvVar:                    vncInfo,
 		"GH_TOKEN":                                 "tok",
 		"XDG_DATA_DIRS":                            "/home/ccbox/.ccbox/xdg/share:/usr/local/share:/usr/share", // from the GUI app
@@ -380,13 +380,27 @@ vnc:
 	}, env)
 }
 
+func TestRunMap_Env_PinnedVersion(t *testing.T) {
+	rm := testRunMap(t, "cli: claude@0.9.2\n")
+
+	env, err := rm.Env(false)
+	require.NoError(t, err)
+	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, "0.9.2", runConfig.CLIVersion, "the config carries the ask")
+	info, err := pkginfo.FromJSON(env[pkginfo.EnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, pkginfo.PkgInfo{Name: "claude", Npm: &pkginfo.Npm{Package: "@anthropic-ai/claude-code"}}, info,
+		"the install source carries no version")
+}
+
 func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 	t.Setenv("TERM", "")
 	t.Setenv("COLORTERM", "")
-	rm := testRunMap(t, "cli: claude\nforward_env:\n  - TERM\n  - COLORTERM\n  - GH_TOKEN\n")
+	rm := testRunMap(t, "cli: claude@latest\n"+"forward_env:\n  - TERM\n  - COLORTERM\n  - GH_TOKEN\n")
 
-	env, err := rm.Env(false, nil, nil)
+	env, err := rm.Env(false)
 	require.NoError(t, err)
 	assert.NotContains(t, env, "TERM")
 	assert.NotContains(t, env, "COLORTERM")
@@ -394,41 +408,47 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 }
 
 func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
-	rm := testRunMap(t, "cli: claude\n")
+	rm := testRunMap(t, "cli: claude@latest\n")
 
-	env, err := rm.Env(false, nil, nil)
+	env, err := rm.Env(false)
 	require.NoError(t, err)
 	assert.NotContains(t, env, pkginfo.VNCConfigEnvVar)
 }
 
 func TestRunMap_Env_EmptyVNC(t *testing.T) {
-	rm := testRunMap(t, "cli: claude\nvnc:\n  enabled: true\n")
+	rm := testRunMap(t, "cli: claude@latest\n"+"vnc:\n  enabled: true\n")
 
-	env, err := rm.Env(true, nil, nil)
+	env, err := rm.Env(true)
 	require.NoError(t, err)
 	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "an empty vnc section serves the desktop with no GUI app")
 }
 
 func TestRunMap_Env_PortBindings(t *testing.T) {
-	rm := testRunMap(t, "cli: claude\n")
+	rm := testRunMap(t, "cli: claude@latest\n"+"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n")
 
-	env, err := rm.Env(false, []string{"3000", "7200"}, nil)
+	env, err := rm.Env(false)
 	require.NoError(t, err)
-	assert.Equal(t, "3000,7200", env[pkginfo.PortBindingsTCPEnvVar])
+	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, []string{"3000", "7200"}, runConfig.PortBindingsTCP)
 
-	env, err = rm.Env(false, nil, nil)
+	rm = testRunMap(t, "cli: claude@latest\n")
+	env, err = rm.Env(false)
 	require.NoError(t, err)
-	assert.NotContains(t, env, pkginfo.PortBindingsTCPEnvVar)
+	assert.JSONEq(t, `{"cli_version":"latest"}`, env[pkginfo.RunConfigEnvVar], "unasked ports add no key")
 }
 
 func TestRunMap_Env_HostGateway(t *testing.T) {
-	rm := testRunMap(t, "cli: claude\n")
+	rm := testRunMap(t, "cli: claude@latest\n"+"host_gateway:\n  tcp: 5432,6379\n")
 
-	env, err := rm.Env(false, nil, []string{"5432", "6379"})
+	env, err := rm.Env(false)
 	require.NoError(t, err)
-	assert.Equal(t, "5432,6379", env[pkginfo.HostGatewayTCPEnvVar], "the egress wall's boot forwards each onto the host")
+	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, []string{"5432", "6379"}, runConfig.HostGatewayTCP, "the egress wall's boot forwards each onto the host")
 
-	env, err = rm.Env(false, nil, nil)
+	rm = testRunMap(t, "cli: claude@latest\n")
+	env, err = rm.Env(false)
 	require.NoError(t, err)
-	assert.NotContains(t, env, pkginfo.HostGatewayTCPEnvVar)
+	assert.JSONEq(t, `{"cli_version":"latest"}`, env[pkginfo.RunConfigEnvVar], "unasked ports add no key")
 }

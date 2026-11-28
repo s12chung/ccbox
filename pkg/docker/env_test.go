@@ -14,7 +14,7 @@ func TestEnvString_BaseWins(t *testing.T) {
 		"GH_TOKEN":   "gh",
 		"GOFLAGS":    "-mod=mod",
 		"http_proxy": "evil",
-	}, true)
+	}, true, false)
 
 	// o.Env sorted, then the proxy vars last — so the base http_proxy is the
 	// final (winning) value.
@@ -30,7 +30,7 @@ func TestEnvString_BaseWins(t *testing.T) {
 }
 
 func TestEnvString_HostGatewayJoinsNoProxy(t *testing.T) {
-	got := envString(map[string]string{pkginfo.HostGatewayTCPEnvVar: "5432"}, true)
+	got := envString(map[string]string{"GH_TOKEN": "gh"}, true, true)
 
 	// the host gateway routes direct: tinyproxy's allowlist would refuse its raw flows
 	assert.Contains(t, got, "no_proxy=localhost,127.0.0.1,::1,"+pkginfo.HostGatewayHost)
@@ -38,7 +38,7 @@ func TestEnvString_HostGatewayJoinsNoProxy(t *testing.T) {
 }
 
 func TestEnvString_NoProxy(t *testing.T) {
-	got := envString(map[string]string{"GH_TOKEN": "gh"}, false)
+	got := envString(map[string]string{"GH_TOKEN": "gh"}, false, true)
 	// No proxy, no proxy vars — just the caller's env.
 	assert.Equal(t, []string{"GH_TOKEN=gh"}, got)
 }

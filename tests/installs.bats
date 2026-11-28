@@ -33,6 +33,15 @@ teardown() {
     [[ "$output" =~ [0-9]+\.[0-9]+\.[0-9]+ ]]
 }
 
+@test "coding cli: a pinned ask links its version" {
+    # the ask's version is what the container's own bin links at — a pinned ask
+    # never flips to the channel's latest
+    local ask linked
+    ask="$(jq -r .cli_version <<<"$CCBOX_CONFIG")"
+    linked="$(readlink "/opt/ccbox/bin/$(jq -r .name <<<"$CLI_PKGINFO")")"
+    [[ "$linked" == *"/$ask/"* ]]
+}
+
 @test "apt bootstrap: source-build toolchain present" {
     # pip sdists, C-dep crates, and cgo all compile against this baked toolchain
     for pkg in build-essential libatomic1 pkg-config; do

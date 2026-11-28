@@ -130,7 +130,7 @@ func aliasSections() []printutil.Section {
 			{Header: "proxy.allowlist:", Items: cfg.AllowlistDefaults(), Depth: 1},
 		},
 		[]printutil.Section{{
-			Header: cfg.SetHarnessAlias + " (cli " + config.CLIName +
+			Header: cfg.SetHarnessAlias + " (cli " + config.CLIName() +
 				"; a --vnc load adds the desktop's GUI app):",
 			Items: config.SetHarnessDomains(),
 		}},

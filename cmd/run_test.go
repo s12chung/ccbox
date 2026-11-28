@@ -114,7 +114,7 @@ func TestSeedRunMounts(t *testing.T) {
 		t.Helper()
 		testutil.Home(t)
 		dir := t.TempDir()
-		body := "cli: opencode\n" +
+		body := "cli: opencode@latest\n" +
 			"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
 			"vnc:\n  gui_app: " + guiapp.App.Name + "\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
@@ -159,7 +159,7 @@ func setMasksConfig(t *testing.T) {
 	t.Helper()
 	testutil.Home(t)
 	dir := t.TempDir()
-	body := "cli: codex\n" +
+	body := "cli: codex@latest\n" +
 		"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
 		"tmpfs_masks:\n  - dist\n  - notes.txt\n  - build\n" +
 		"volume_masks:\n  - node_modules\n"

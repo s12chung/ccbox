@@ -33,7 +33,7 @@ const (
 
 // Config is the loaded .ccbox.yaml
 type Config struct {
-	CLIName        string            // coding CLI to install + launch
+	CLIRef         string            // the coding CLI to install + launch, as name@version
 	Images         Images            // the devbox image's FROM refs
 	DefaultVariant *DefaultVariant   // the default variant ask's section — the devbox the config's own ask boots
 	HostGateway    *HostGateway      // the host tcp ports' section; nil names no ports
@@ -101,9 +101,21 @@ func (c *Config) isDefaultVariant(filesConfig Config) bool {
 	return (c.VNC != nil) == (filesConfig.VNC != nil) && (c.Proxy != nil) == (filesConfig.Proxy != nil)
 }
 
-// CLI resolves the config's cli name to its cli.CLI; MustFor is
-// infallible for a loaded config
-func (c *Config) CLI() cli.CLI { return cli.MustFor(c.CLIName) }
+// CLIName is the CLIRef's cli.
+func (c *Config) CLIName() string {
+	name, _, _ := strings.Cut(c.CLIRef, "@")
+	return name
+}
+
+// CLIVersion is the CLIRef's version — "latest" or an exact one.
+func (c *Config) CLIVersion() string {
+	_, version, _ := strings.Cut(c.CLIRef, "@")
+	return version
+}
+
+// CLI resolves the config's cli to its cli.CLI; MustFor is infallible for a
+// loaded config
+func (c *Config) CLI() cli.CLI { return cli.MustFor(c.CLIName()) }
 
 // GUIApp resolves the run's GUI app: nil on a headless run or a vnc section naming
 // no gui_app; MustFor is infallible for a loaded config
@@ -270,7 +282,7 @@ func expandDomain(entry string) []string {
 // shape — what `ccbox config` prints.
 func (c *Config) MarshalYAML() (any, error) {
 	out := config{
-		CLIName:        new(c.CLIName),
+		CLIRef:         new(c.CLIRef),
 		Images:         new(images(c.Images)),
 		DefaultVariant: c.marshalDefaultVariant(),
 		HostGateway:    c.marshalHostGateway(),
@@ -304,6 +316,19 @@ func (c *Config) marshalHostGateway() *hostGateway {
 		return nil
 	}
 	return &hostGateway{TCP: strings.Join(c.HostGatewayTCP(), ",")}
+}
+
+// RunConfigJSON renders the config's asks as the RunConfigEnvVar JSON
+func (c *Config) RunConfigJSON() (string, error) {
+	body, err := json.Marshal(pkginfo.RunConfig{
+		CLIVersion:      c.CLIVersion(),
+		PortBindingsTCP: c.PortBindingsTCP(),
+		HostGatewayTCP:  c.HostGatewayTCP(),
+	})
+	if err != nil {
+		return "", fmt.Errorf("run config: %w", err)
+	}
+	return string(body), nil
 }
 
 // InfoJSON renders the section as the VNCConfigEnvVar JSON: the GUI app the run

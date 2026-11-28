@@ -25,6 +25,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/ptrx"
 	"github.com/s12chung/ccbox/pkg/util/seed"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 const (
@@ -66,7 +67,7 @@ func LoadedPaths(projectDir string) ([]string, []string) {
 //
 //toinnermodel:gen
 type config struct {
-	CLIName        *string            `yaml:"cli"`             // coding CLI to install + launch
+	CLIRef         *string            `yaml:"cli"`             // the coding CLI to install + launch, as name@version
 	Images         *images            `yaml:"images"`          // the devbox image's FROM refs
 	DefaultVariant *defaultVariant    `yaml:"default_variant"` // the default variant ask's section — the devbox with no run flags
 	HostGateway    *hostGateway       `yaml:"host_gateway"`    // the host tcp ports' section
@@ -81,9 +82,9 @@ type config struct {
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[config]().
-		NotNil("CLIName", "Images").
+		NotNil("CLIRef", "Images").
 		Validates(firm.RuleMap{
-			"CLIName":        {rule.OneOf[string]{ValuesFunc: cli.Names}},
+			"CLIRef":         {firmrule.CLIRef(cli.Names)},
 			"Images":         {firm.Backed()},
 			"DefaultVariant": {firm.Backed()},
 			"HostGateway":    {firm.Backed()},
@@ -279,7 +280,7 @@ var (
 // userSeedConfig is the user-level seed's data with ccbox defaults — referenced in tests
 func userSeedConfig(cliName string, refs Images) *config {
 	return &config{
-		CLIName:       new(cliName),
+		CLIRef:        new(cliName + "@" + pkginfo.LatestVersion),
 		Images:        new(images(refs)),
 		ForwardEnv:    new([]string{"TERM", "COLORTERM"}),
 		TmpfsMasks:    new(tmpfsDefaults),
@@ -328,7 +329,14 @@ type Flags struct {
 }
 
 func (f Flags) toLayer() config {
-	c := config{CLIName: f.CLI}
+	var c config
+	if f.CLI != nil {
+		ref := *f.CLI
+		if !strings.Contains(ref, "@") { // bare name is latest
+			ref += "@" + pkginfo.LatestVersion
+		}
+		c.CLIRef = new(ref)
+	}
 	if f.ProxyCmd {
 		c.Proxy = &proxy{Enabled: new(true)}
 	} else if f.NoProxy {

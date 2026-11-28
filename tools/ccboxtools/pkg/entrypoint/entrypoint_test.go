@@ -51,6 +51,7 @@ func TestExec_RefusesProxiedBoot(t *testing.T) {
 }
 
 func TestExecArgv(t *testing.T) {
+	t.Setenv(pkginfo.EnvVar, "") // nothing to hold — a devbox's own env would otherwise
 	tests := []struct {
 		name    string
 		argv    []string
@@ -83,29 +84,28 @@ func TestHoldForExec(t *testing.T) {
 func TestPortBindingsAndGateway(t *testing.T) {
 	tests := []struct {
 		name         string
-		body         string
-		gatewayBody  string
+		bound        []string
+		gateway      []string
 		serveVNC     bool
 		wantBindings []uint16
 		wantGateway  []uint16
 		wantErr      bool
 	}{
-		{"no env, no vnc", "", "", false, nil, nil, false},
-		{"vnc only", "", "", true, []uint16{pkginfo.VNCPort}, nil, false},
-		{"bound only", "3000,7200", "", false, []uint16{3000, 7200}, nil, false},
-		{"bound and vnc", "3000,7200", "", true, []uint16{3000, 7200, pkginfo.VNCPort}, nil, false},
-		{"bound vnc port", "3000,5900", "", true, []uint16{3000, 5900}, nil, false},
-		{"gateway ports", "", "5432", false, nil, []uint16{5432}, false},
-		{"bound and gateway", "3000", "5432,6379", false, []uint16{3000}, []uint16{5432, 6379}, false},
-		{"garbage", "3000,http", "", false, nil, nil, true},
-		{"garbage gateway", "", "http", false, nil, nil, true},
+		{"no ports, no vnc", nil, nil, false, nil, nil, false},
+		{"vnc only", nil, nil, true, []uint16{pkginfo.VNCPort}, nil, false},
+		{"bound only", []string{"3000", "7200"}, nil, false, []uint16{3000, 7200}, nil, false},
+		{"bound and vnc", []string{"3000", "7200"}, nil, true, []uint16{3000, 7200, pkginfo.VNCPort}, nil, false},
+		{"bound vnc port", []string{"3000", "5900"}, nil, true, []uint16{3000, 5900}, nil, false},
+		{"gateway ports", nil, []string{"5432"}, false, nil, []uint16{5432}, false},
+		{"bound and gateway", []string{"3000"}, []string{"5432", "6379"}, false, []uint16{3000}, []uint16{5432, 6379}, false},
+		{"garbage", []string{"3000", "http"}, nil, false, nil, nil, true},
+		{"garbage gateway", nil, []string{"http"}, false, nil, nil, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(pkginfo.PortBindingsTCPEnvVar, tt.body)
-			t.Setenv(pkginfo.HostGatewayTCPEnvVar, tt.gatewayBody)
+			config := pkginfo.RunConfig{CLIVersion: pkginfo.LatestVersion, PortBindingsTCP: tt.bound, HostGatewayTCP: tt.gateway}
 
-			portBindings, gatewayPorts, err := portBindingsAndGateway(tt.serveVNC)
+			portBindings, gatewayPorts, err := portBindingsAndGateway(config, tt.serveVNC)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

@@ -1,11 +1,10 @@
 package pkginfo
 
 import (
-	"encoding/json"
-	"fmt"
-	"strings"
-
 	"github.com/s12chung/firm"
+
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/errs"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/jsonutil"
 )
 
 // GUIPkgInfo describes a GUI app: its PkgInfo install source plus the session's
@@ -45,14 +44,6 @@ func init() {
 // VNCInfoFromJSON parses VNCConfigEnvVar JSON, rejecting unknown fields and
 // invalid values.
 func VNCInfoFromJSON(body string) (VNCInfo, error) {
-	var v VNCInfo
-	dec := json.NewDecoder(strings.NewReader(body))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(&v); err != nil {
-		return VNCInfo{}, fmt.Errorf("pkginfo: parse %s: %w", body, err)
-	}
-	if errMap := firm.ValidateAny(v); errMap != nil {
-		return VNCInfo{}, fmt.Errorf("pkginfo: %w", errMap)
-	}
-	return v, nil
+	info, err := jsonutil.Decode[VNCInfo](body)
+	return info, errs.Prefix("pkginfo", err)
 }

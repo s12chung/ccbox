@@ -280,31 +280,96 @@ func claimDevbox(ctxD *dock.CtxD, o RunOptions) (*container.InspectResponse, err
 // conflictErr refuses the run when a devbox under the run's own name is already
 // running off diverging flags + config
 func (o RunOptions) conflictErr(own *container.InspectResponse) error {
+	config, err := pkginfo.RunConfigFromJSON(o.Env[pkginfo.RunConfigEnvVar])
+	if err != nil {
+		return fmt.Errorf("run env: %w", err)
+	}
+	info, err := pkginfo.FromJSON(o.Env[pkginfo.EnvVar])
+	if err != nil {
+		return fmt.Errorf("run env: %w", err)
+	}
+
+	env := own.Config.Env
+	installedConfig, err := pkginfo.RunConfigFromJSON(envEntry(env, pkginfo.RunConfigEnvVar))
+	if err != nil {
+		return fmt.Errorf("devbox env: %w", err)
+	}
+	installedInfo, err := pkginfo.FromJSON(envEntry(env, pkginfo.EnvVar))
+	if err != nil {
+		return fmt.Errorf("devbox env: %w", err)
+	}
+
+	divergences := installedAsks(own, installedConfig, installedInfo).divergencesFrom(o.asks(config, info))
+	if len(divergences) > 0 {
+		return fmt.Errorf("devbox %s is already running for this project, %s — exit its session or `docker rm -f %s`",
+			o.Name, strings.Join(divergences, " and "), o.Name)
+	}
+	return nil
+}
+
+// devboxAsks are what a run asks of its devbox, which a running one must match to be reused
+type devboxAsks struct {
+	projectDir   string
+	hasProxy     bool
+	portBindings nat.PortMap
+	cliName      string
+	cliVersion   string
+	gatewayTCP   []string // sorted: a port list's order carries no meaning
+}
+
+// installedAsks reads a running devbox's asks off its inspect
+func installedAsks(own *container.InspectResponse, config pkginfo.RunConfig, info pkginfo.PkgInfo) devboxAsks {
 	labels := own.Config.Labels
+	return devboxAsks{
+		projectDir:   labels[ccboxProjectLabelKey],
+		hasProxy:     labels[ccboxHasProxyLabelKey] == trueVolValue,
+		portBindings: own.HostConfig.PortBindings,
+		cliName:      info.Name,
+		cliVersion:   config.CLIVersion,
+		gatewayTCP:   slicex.SortNumbers(config.HostGatewayTCP),
+	}
+}
+
+// asks renders the run's own asks
+func (o RunOptions) asks(config pkginfo.RunConfig, info pkginfo.PkgInfo) devboxAsks {
+	return devboxAsks{
+		projectDir:   o.ProjectDir,
+		hasProxy:     o.Proxy != nil,
+		portBindings: o.portBindingsTCP(),
+		cliName:      info.Name,
+		cliVersion:   config.CLIVersion,
+		gatewayTCP:   slicex.SortNumbers(config.HostGatewayTCP),
+	}
+}
+
+// divergencesFrom names where the devbox's asks differ from the run's, in the run's voice
+func (own devboxAsks) divergencesFrom(asked devboxAsks) []string {
 	var divergences []string
-	if labels[ccboxProjectLabelKey] != o.ProjectDir {
+	if own.projectDir != asked.projectDir {
 		divergences = append(divergences, "not matching the project label")
 	}
-	if (labels[ccboxHasProxyLabelKey] == trueVolValue) != (o.Proxy != nil) {
-		proxy := "without the proxy"
-		if o.Proxy != nil {
-			proxy = "with the proxy"
+	if own.hasProxy != asked.hasProxy {
+		if asked.hasProxy {
+			divergences = append(divergences, "with the proxy")
+		} else {
+			divergences = append(divergences, "without the proxy")
 		}
-		divergences = append(divergences, proxy)
 	}
-	if !o.matchesPortBindings(own.HostConfig.PortBindings) {
+	if !equalPortBindings(own.portBindings, asked.portBindings) {
 		divergences = append(divergences, fmt.Sprintf("published %s (command asks %s)",
-			portsPhrase(own.HostConfig.PortBindings), portsPhrase(o.portBindingsTCP())))
+			portsPhrase(own.portBindings), portsPhrase(asked.portBindings)))
 	}
-	if !o.matchesHostGateway(own.Config.Env) {
+	if !slices.Equal(own.gatewayTCP, asked.gatewayTCP) {
 		divergences = append(divergences, fmt.Sprintf("opened host gateway %s (command asks %s)",
-			portsCSV(hostGatewayPorts(own.Config.Env)), portsCSV(o.HostGatewayTCP)))
+			portsCSV(own.gatewayTCP), portsCSV(asked.gatewayTCP)))
 	}
-	if len(divergences) == 0 {
-		return nil
+	if own.cliVersion != asked.cliVersion {
+		divergences = append(divergences, fmt.Sprintf("cli version %s (command asks %s)", own.cliVersion, asked.cliVersion))
 	}
-	return fmt.Errorf("devbox %s is already running for this project, %s — exit its session or `docker rm -f %s`",
-		o.Name, strings.Join(divergences, " and "), o.Name)
+	if own.cliName != asked.cliName {
+		divergences = append(divergences, fmt.Sprintf("installed cli %s (command asks %s)", own.cliName, asked.cliName))
+	}
+	return divergences
 }
 
 func portsPhrase(bindings nat.PortMap) string {
@@ -323,14 +388,13 @@ func portsCSV(ports []string) string {
 	return strings.Join(slicex.SortNumbers(ports), ", ")
 }
 
-// matchesPortBindings reports the devbox's published bindings match the run's asks
-func (o RunOptions) matchesPortBindings(bindings nat.PortMap) bool {
-	want := o.portBindingsTCP()
-	if len(want) != len(bindings) {
+// equalPortBindings reports two published-binding sets match — HostIP and HostPort per port
+func equalPortBindings(a, b nat.PortMap) bool {
+	if len(a) != len(b) {
 		return false
 	}
-	for port, wantBindings := range want {
-		if !slices.Equal(wantBindings, bindings[port]) {
+	for port, aBindings := range a {
+		if !slices.Equal(aBindings, b[port]) {
 			return false
 		}
 	}
@@ -350,19 +414,14 @@ func (o RunOptions) portBindingsTCP() nat.PortMap {
 	return bindings
 }
 
-// matchesHostGateway reports the devbox's host-gateway env answers the run's ask
-func (o RunOptions) matchesHostGateway(env []string) bool {
-	return slices.Equal(slicex.SortNumbers(hostGatewayPorts(env)), slicex.SortNumbers(o.HostGatewayTCP))
-}
-
-// hostGatewayPorts reads the devbox env's host-gateway ports csv — nil without the var
-func hostGatewayPorts(env []string) []string {
+// envEntry reads one var's value off the container env — "" without it
+func envEntry(env []string, name string) string {
 	for _, entry := range env {
-		if value, ok := strings.CutPrefix(entry, pkginfo.HostGatewayTCPEnvVar+"="); ok {
-			return strings.Split(value, ",")
+		if value, ok := strings.CutPrefix(entry, name+"="); ok {
+			return value
 		}
 	}
-	return nil
+	return ""
 }
 
 // startDevbox replaces any stale devbox with a fresh one off the run's options
@@ -438,7 +497,7 @@ func runConfig(o RunOptions) *container.Config {
 		Image:      o.Tag,
 		Labels:     map[string]string{ccboxProjectLabelKey: o.ProjectDir},
 		WorkingDir: o.WorkspaceMount,
-		Env:        envString(o.Env, o.Proxy != nil),
+		Env:        envString(o.Env, o.Proxy != nil, len(o.HostGatewayTCP) > 0),
 	}
 	if o.Proxy != nil {
 		// the egress wall's devbox stays root to build, prove, and supervise tinyproxy —

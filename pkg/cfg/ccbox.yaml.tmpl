@@ -1,7 +1,12 @@
 ## Run `ccbox config` to see the effective config — arrays and maps merge down scoped configs.
 
-## cli: which coding CLI the image installs and launches
-cli:{{yaml .CLIName nil}}
+## cli: which coding CLI the image installs and launches, at a version:
+## "@latest" tracks each release; an exact version (pi@1.2.3) stays on it
+{{- if .CLIRef}}
+cli:{{yaml .CLIRef nil}}
+{{- else}}
+# cli: pi@latest
+{{- end}}
 
 ## images: the devbox image's FROM refs, pinned so the image never changes underneath
 {{- if .Images}}

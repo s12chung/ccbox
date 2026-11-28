@@ -18,17 +18,20 @@ import (
 )
 
 func TestFromEnv_BadEnv(t *testing.T) {
+	const goodConfig = `{"cli_version":"latest"}` // so each case's own fault is the one that fails
 	tests := []struct {
-		name    string
-		body    string
-		wantErr string
+		name        string
+		cli, config string
+		wantErr     string
 	}{
-		{"unset fails the boot", "", pkginfo.EnvVar},
-		{"bad json", `{"name":`, "pkginfo: parse"},
+		{"cli unset", "", goodConfig, pkginfo.EnvVar},
+		{"cli bad json", `{"name":`, goodConfig, "pkginfo: parse"},
+		{"config unset", `{"name":"claude","npm":{"package":"a"}}`, "", pkginfo.RunConfigEnvVar},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Setenv(pkginfo.EnvVar, tt.body)
+			t.Setenv(pkginfo.EnvVar, tt.cli)
+			t.Setenv(pkginfo.RunConfigEnvVar, tt.config)
 
 			_, err := FromEnv()
 
@@ -40,12 +43,14 @@ func TestFromEnv_BadEnv(t *testing.T) {
 
 func TestFromEnv_Root(t *testing.T) {
 	t.Setenv(pkginfo.EnvVar, `{"name":"claude","npm":{"package":"a"}}`)
+	t.Setenv(pkginfo.RunConfigEnvVar, `{"cli_version":"0.9.2"}`)
 
 	pkgDir, err := FromEnv()
 
 	require.NoError(t, err)
 	assert.Equal(t, "claude", pkgDir.Name())
 	assert.Equal(t, DefaultRoot, pkgDir.Root)
+	assert.Equal(t, "0.9.2", pkgDir.Version) // the config's ask lands on the pkgDir
 }
 
 func TestForPkgInfo_UnknownArtifact(t *testing.T) {
@@ -132,6 +137,21 @@ func TestPkgDir_Settle_ChannelFails_Fails(t *testing.T) {
 	err := pkgDir.Settle(t.Context())
 
 	require.ErrorContains(t, err, "channel down")
+}
+
+func TestPkgDir_Settle_Pinned(t *testing.T) {
+	// a pinned ask never consults the channel — not even to judge an installed version stale
+	p := &fakePkger{name: "claude", latestErr: errors.New("channel down")}
+	root := clisRoot(t)
+	pkgDir := PkgDir{Pkger: p, Root: root, Version: "0.9.2"}
+
+	require.NoError(t, pkgDir.Settle(t.Context()))
+	require.NoError(t, pkgDir.Settle(t.Context())) // up to date: no re-install
+
+	assert.Equal(t, []string{"0.9.2"}, p.installed)
+	assert.Equal(t,
+		filepath.Join(root, "claude", "0.9.2", "bin", "claude"),
+		binLink(t, root))
 }
 
 func TestPkgDir_Settle_LockHeld_Waits(t *testing.T) {
