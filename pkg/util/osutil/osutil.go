@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/errs"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 

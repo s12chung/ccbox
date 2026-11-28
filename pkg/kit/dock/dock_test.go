@@ -1,64 +1,62 @@
 package dock
 
 import (
-	"archive/tar"
-	"bytes"
-	"io"
-	"strings"
+	"context"
+	"net"
 	"testing"
-	"testing/iotest"
 
-	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/docker/docker/client"
+	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestChownMnt(t *testing.T) {
-	assert.Equal(t, "/mnt/ccbox-vol", chownMnt(OwnedVolume{Name: "ccbox-vol"}))
+func TestCtxD_BackgroundedCtx(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	d, err := client.NewClientWithOpts()
+	require.NoError(t, err)
+	ctxD := &CtxD{Ctx: ctx, D: d}
+
+	bg := ctxD.BackgroundedCtx()
+	cancel()
+	assert.Same(t, d, bg.D)
+	assert.NoError(t, bg.Ctx.Err()) // outlives the parent's cancel
 }
 
-func TestChownBind(t *testing.T) {
-	assert.Equal(t, "ccbox-vol:/mnt/ccbox-vol", chownBind(OwnedVolume{Name: "ccbox-vol"}))
+func TestRefuseHeldPorts_Free(t *testing.T) {
+	ctxD, err := NewCtxD(t.Context())
+	require.NoError(t, err)
+
+	li, port := loopbackPort(t)
+	require.NoError(t, li.Close()) // free the port for the probe
+
+	bindings := nat.PortMap{nat.Port(port + "/tcp"): []nat.PortBinding{{HostPort: port}}}
+	assert.NoError(t, RefuseHeldPorts(ctxD, bindings))
 }
 
-func TestDemuxReader_Read(t *testing.T) {
-	big := strings.Repeat("x", 1200)
-
-	var framed bytes.Buffer
-	_, err := stdcopy.NewStdWriter(&framed, stdcopy.Stdout).Write([]byte("one\ntwo\n"))
-	require.NoError(t, err)
-	_, err = stdcopy.NewStdWriter(&framed, stdcopy.Stderr).Write([]byte("three\n"))
-	require.NoError(t, err)
-	_, err = stdcopy.NewStdWriter(&framed, stdcopy.Stdout).Write([]byte(big))
+func TestRefuseHeldPorts_Held(t *testing.T) {
+	ctxD, err := NewCtxD(t.Context())
 	require.NoError(t, err)
 
-	// byte-wise reads force a frame's bytes to survive across reads
-	got, err := io.ReadAll(iotest.OneByteReader(&demuxReader{r: io.NopCloser(&framed)}))
-	require.NoError(t, err)
-	assert.Equal(t, "one\ntwo\nthree\n"+big, string(got))
+	li, port := loopbackPort(t)
+	t.Cleanup(func() { require.NoError(t, li.Close()) })
+
+	// a plain listener holds the port — the daemon finds no container to name, so
+	// the error blames the port alone
+	bindings := nat.PortMap{nat.Port(port + "/tcp"): []nat.PortBinding{{HostPort: port}}}
+	err = RefuseHeldPorts(ctxD, bindings)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "127.0.0.1:"+port)
+	assert.Contains(t, err.Error(), "already taken")
 }
 
-func TestFilesFromTar(t *testing.T) {
-	var buf bytes.Buffer
-	tw := tar.NewWriter(&buf)
-	dirs := []string{"tree", "tree/nested"}
-	for _, dir := range dirs {
-		require.NoError(t, tw.WriteHeader(&tar.Header{Name: dir, Typeflag: tar.TypeDir}))
-	}
-	for name, body := range map[string]string{
-		"tree/nested/a.txt": "a",
-		"tree/b.txt":        "b",
-	} {
-		require.NoError(t, tw.WriteHeader(&tar.Header{Name: name, Typeflag: tar.TypeReg, Size: int64(len(body))}))
-		_, err := tw.Write([]byte(body))
-		require.NoError(t, err)
-	}
-	require.NoError(t, tw.Close())
-
-	files, err := filesFromTar(&buf, "tree/")
+// loopbackPort opens a listener on a random loopback port, returning its port —
+// the caller owns closing the listener
+func loopbackPort(t *testing.T) (net.Listener, string) {
+	t.Helper()
+	li, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	assert.Equal(t, map[string][]byte{
-		"nested/a.txt": []byte("a"),
-		"b.txt":        []byte("b"),
-	}, files, "the files keyed by their paths under the tree, dirs dropped")
+	_, port, err := net.SplitHostPort(li.Addr().String())
+	require.NoError(t, err)
+	return li, port
 }

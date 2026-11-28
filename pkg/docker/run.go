@@ -20,7 +20,6 @@ import (
 	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/tinyproxy"
 	"github.com/s12chung/ccbox/pkg/userdir"
-	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
@@ -28,6 +27,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/term"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/security/identity"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/errs"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/flock"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/logmux"
@@ -290,11 +290,11 @@ func (o RunOptions) conflictErr(own *container.InspectResponse) error {
 	}
 
 	env := own.Config.Env
-	installedConfig, err := pkginfo.RunConfigFromJSON(envEntry(env, pkginfo.RunConfigEnvVar))
+	installedConfig, err := pkginfo.RunConfigFromJSON(dock.EnvEntry(env, pkginfo.RunConfigEnvVar))
 	if err != nil {
 		return fmt.Errorf("devbox env: %w", err)
 	}
-	installedInfo, err := pkginfo.FromJSON(envEntry(env, pkginfo.EnvVar))
+	installedInfo, err := pkginfo.FromJSON(dock.EnvEntry(env, pkginfo.EnvVar))
 	if err != nil {
 		return fmt.Errorf("devbox env: %w", err)
 	}
@@ -412,16 +412,6 @@ func (o RunOptions) portBindingsTCP() nat.PortMap {
 		bindings[nat.Port(port+"/tcp")] = []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
 	}
 	return bindings
-}
-
-// envEntry reads one var's value off the container env — "" without it
-func envEntry(env []string, name string) string {
-	for _, entry := range env {
-		if value, ok := strings.CutPrefix(entry, name+"="); ok {
-			return value
-		}
-	}
-	return ""
 }
 
 // startDevbox replaces any stale devbox with a fresh one off the run's options

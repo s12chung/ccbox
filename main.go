@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/s12chung/ccbox/cmd"
-	"github.com/s12chung/ccbox/pkg/util/errs"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/errs"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
 

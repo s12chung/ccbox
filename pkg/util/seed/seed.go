@@ -11,8 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/s12chung/ccbox/pkg/util/errs"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/errs"
 )
 
 // ErrExists reports that File's path already exists: an existing file is never
