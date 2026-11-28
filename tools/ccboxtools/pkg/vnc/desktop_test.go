@@ -94,6 +94,8 @@ func TestDesktopSession_Ready_EOFsOnDeath(t *testing.T) {
 func TestSetupDesktop_ErrorsWhenInstallFails(t *testing.T) {
 	// the install precedes the exec — a failing download can't leave a bare session
 	t.Setenv("HOME", t.TempDir()) // writeDesktopEntry aims at the home
+	// the devbox running the tests may name no gui_app_version — the install must be what fails
+	t.Setenv(pkginfo.RunConfigEnvVar, `{"cli_version":"latest","gui_app_version":"latest"}`)
 
 	_, err := SetupDesktop(t.Context(), &pkginfo.VNCInfo{GUIApp: failingGUIApp})
 

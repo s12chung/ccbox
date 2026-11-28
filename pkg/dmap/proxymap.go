@@ -25,7 +25,7 @@ func NewProxyMap(cfg *cfg.Config) *ProxyMap { return &ProxyMap{cfg: cfg} }
 func (pm *ProxyMap) Options(onChanged func(changed string)) *docker.ProxyOptions {
 	return &docker.ProxyOptions{
 		HostDir: proxyLiveDir(),
-		LogFile: proxyLogPath(pm.cfg.ProjectDir(), pm.cfg.VNC != nil),
+		LogFile: proxyLogPath(pm.cfg.ProjectDir(), pm.cfg.IsVNC()),
 		BeforeStart: func() error {
 			_, err := pm.Refresh()
 			return err

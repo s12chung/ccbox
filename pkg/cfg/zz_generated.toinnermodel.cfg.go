@@ -73,7 +73,7 @@ func (x *hostGateway) toInnerModel() HostGateway {
 
 func (x *vnc) toInnerModel() VNC {
 	var out VNC
-	out.GUIAppName = x.GUIAppName
+	out.GUIAppRef = x.GUIAppRef
 	return out
 }
 

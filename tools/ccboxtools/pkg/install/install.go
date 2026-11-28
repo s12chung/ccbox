@@ -54,7 +54,7 @@ func FromEnv() (PkgDir, error) {
 	if err != nil {
 		return PkgDir{}, err
 	}
-	pkgDir.Version = config.CLIVersion // the GUI app's ForPkgInfo tracks the channel
+	pkgDir.Version = config.CLIVersion
 	return pkgDir, nil
 }
 

@@ -180,12 +180,20 @@ func logLaunch(name string) {
 	}
 }
 
-// appPkgDir is the GUI app's install under the apps root: the boot's install
-// settles it, the exec entry points launch its bin link.
+// appPkgDir is the GUI app's install under the apps root, at the config's version
+// ask: the boot's install settles it, the exec entry points launch its bin link.
 func appPkgDir(guiApp pkginfo.GUIPkgInfo) (install.PkgDir, error) {
+	config, err := pkginfo.RunConfigFromEnv()
+	if err != nil {
+		return install.PkgDir{}, fmt.Errorf("guiapp: %w", err)
+	}
+	if config.GUIAppVersion == nil { // the app is named, so a missing ask is a broken host contract
+		return install.PkgDir{}, fmt.Errorf("guiapp: %s names no gui_app_version for %s", pkginfo.RunConfigEnvVar, guiApp.Name)
+	}
 	pkgDir, err := install.ForPkgInfo(guiApp.PkgInfo, install.AppsRoot)
 	if err != nil {
 		return install.PkgDir{}, fmt.Errorf("guiapp: %w", err)
 	}
+	pkgDir.Version = *config.GUIAppVersion
 	return pkgDir, nil
 }

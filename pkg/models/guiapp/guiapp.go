@@ -91,28 +91,20 @@ func Names() []string { return slices.Sorted(maps.Keys(Apps)) }
 func lookup(name string) (GUIApp, error) {
 	guiApp, ok := Apps[name]
 	if !ok {
-		return GUIApp{}, fmt.Errorf("guiapp: %s is not one of %v", name, Names())
+		return GUIApp{}, fmt.Errorf("guiapp: %q is not one of %v", name, Names())
 	}
 	return guiApp, nil
 }
 
 // MustFor resolves a name already validated (cfg.Load rejects unknown
-// gui_app values); it panics on an unknown name. The empty name — no app —
-// resolves to nil.
+// gui_app values); it panics on an unknown name.
 func MustFor(name string) *GUIApp {
-	if name == "" {
-		return nil
-	}
 	app, err := lookup(name)
 	if err != nil {
 		panic(err)
 	}
 	return &app
 }
-
-// AllowDomains resolves the named app's download domains — empty when the
-// name names no app
-func AllowDomains(name string) []string { return Apps[name].Setup.Proxied.AllowDomains }
 
 // systemDesktopEntry seeds the system-level zcode.desktop the app's deep-link
 // registration defers to — without one, it rewrites the menu entry to launch

@@ -486,7 +486,7 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 
 	t.Run("the GUI app's domains enter only through the harness alias on a vnc load", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+
-			"vnc:\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
+			"vnc:\n  gui_app: zcode@latest\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
 
 		headlessConfig, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -496,13 +496,13 @@ func TestConfig_AllowlistExpanded(t *testing.T) {
 		// the flag turns the section on: its gui_app stands, its domains enter
 		vncConfig, err := Load(dir, Flags{VNC: true})
 		require.NoError(t, err)
-		assert.Equal(t, &VNC{GUIAppName: "zcode"}, vncConfig.VNC)
+		assert.Equal(t, &VNC{GUIAppRef: new("zcode@latest")}, vncConfig.VNC)
 		assert.Equal(t, slices.Concat(harnessDomains, guiapp.App.Setup.Proxied.AllowDomains), vncConfig.AllowlistExpanded())
 	})
 
 	t.Run("a present vnc section pulls the harness alias's GUI app domains without the flag", func(t *testing.T) {
 		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+
-			"vnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
+			"vnc:\n  enabled: true\n  gui_app: zcode@latest\nproxy:\n  enabled: true\n  allowlist:\n    - ccbox-set-harness\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -524,7 +524,7 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 		Images:         testImages,
 		DefaultVariant: &DefaultVariant{PortBindings: PortBindings{TCP: []string{"3000", "7200"}}},
 		HostGateway:    &HostGateway{TCP: []string{"5432", "6379"}},
-		VNC:            &VNC{GUIAppName: guiapp.App.Name},
+		VNC:            &VNC{GUIAppRef: new(guiapp.App.Name + "@latest")},
 		TmpfsMasks:     slices.Concat(tmpfsDefaults, []string{"dist", "build", "notes.txt"}),
 		VolumeMasks:    append(append([]string{}, volumeDefaults...), "cache"),
 		ReadOnlyGlobs:  roGlobDefaults,
@@ -544,9 +544,9 @@ func TestConfig_MarshalYAMLResolves(t *testing.T) {
 	want := config{
 		CLIRef:         new("claude@latest"),
 		Images:         new(images(testImages)),
-		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000,7200"}}, // the loaded ports render as csv
-		HostGateway:    &hostGateway{TCP: "5432,6379"},                                 // the ask's ports render as csv
-		VNC:            &vnc{Enabled: new(true), GUIAppName: guiapp.App.Name},          // the printed key pins the section on
+		DefaultVariant: &defaultVariant{PortBindings: &portBindings{TCP: "3000,7200"}},        // the loaded ports render as csv
+		HostGateway:    &hostGateway{TCP: "5432,6379"},                                        // the ask's ports render as csv
+		VNC:            &vnc{Enabled: new(true), GUIAppRef: new(guiapp.App.Name + "@latest")}, // the printed key pins the section on
 		TmpfsMasks:     new(slices.Concat(tmpfsDefaults, []string{"dist", "notes.txt"})),
 		VolumeMasks:    new([]string{"node_modules", "target"}),
 		ReadOnlyGlobs:  new([]string{"secrets"}),
@@ -572,13 +572,17 @@ func TestConfig_RunConfigJSON(t *testing.T) {
 			"every ask",
 			Config{
 				CLIRef:         "claude@0.9.2",
+				VNC:            &VNC{GUIAppRef: new("zcode@1.2.3")},
 				DefaultVariant: &DefaultVariant{PortBindings: PortBindings{TCP: []string{"3000", "7200"}}},
 				HostGateway:    &HostGateway{TCP: []string{"5432"}},
 			},
-			pkginfo.RunConfig{CLIVersion: "0.9.2", PortBindingsTCP: []string{"3000", "7200"}, HostGatewayTCP: []string{"5432"}},
+			pkginfo.RunConfig{
+				CLIVersion: "0.9.2", GUIAppVersion: new("1.2.3"),
+				PortBindingsTCP: []string{"3000", "7200"}, HostGatewayTCP: []string{"5432"},
+			},
 		},
 		{
-			"no ports, latest",
+			"no ports, latest, no gui app",
 			Config{CLIRef: "claude@latest"},
 			pkginfo.RunConfig{CLIVersion: pkginfo.LatestVersion},
 		},
@@ -599,9 +603,9 @@ func TestConfig_RunConfigJSON(t *testing.T) {
 
 func TestVNC_InfoJSON(t *testing.T) {
 	t.Run("with gui app", func(t *testing.T) {
-		v := &VNC{GUIAppName: guiapp.App.Name}
+		vnc := &VNC{GUIAppRef: new("zcode@1.2.3")}
 
-		body, err := v.InfoJSON()
+		body, err := vnc.InfoJSON()
 		require.NoError(t, err)
 
 		// the container parses it back through firm validation — the host-built
@@ -609,28 +613,29 @@ func TestVNC_InfoJSON(t *testing.T) {
 		info, err := pkginfo.VNCInfoFromJSON(body)
 		require.NoError(t, err)
 		require.NotNil(t, info.GUIApp)
-		assert.Equal(t, guiapp.App.GUIPkgInfo, *info.GUIApp)
+		assert.Equal(t, guiapp.App.GUIPkgInfo, *info.GUIApp, "the install source carries no version — the run config does")
 	})
 
-	t.Run("empty gui app", func(t *testing.T) {
-		v := &VNC{}
-
-		body, err := v.InfoJSON()
+	t.Run("no gui app", func(t *testing.T) {
+		vnc := &VNC{}
+		body, err := vnc.InfoJSON()
 		require.NoError(t, err)
 		assert.JSONEq(t, `{}`, body)
 	})
 }
 
 func TestConfig_GUIApp(t *testing.T) {
-	t.Run("the vnc section's gui app resolves", func(t *testing.T) {
+	t.Run("the vnc section's gui app resolves, its ref splitting into name and version", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "vnc:\n  gui_app: "+guiapp.App.Name+"\n")
+		writeConfig(t, dir, projectConfigFileName, "vnc:\n  gui_app: "+guiapp.App.Name+"@1.2.3\n")
 
 		c, err := Load(dir, Flags{VNC: true})
 		require.NoError(t, err)
 
-		app := c.GUIApp()
+		app := c.VNC.GUIApp()
 		assert.Equal(t, &guiapp.App, app)
+		assert.Equal(t, guiapp.App.Name, c.VNC.GUIAppName())
+		assert.Equal(t, new("1.2.3"), c.VNC.GUIAppVersion())
 	})
 
 	t.Run("no vnc section or an empty gui app name names none", func(t *testing.T) {
@@ -643,8 +648,16 @@ func TestConfig_GUIApp(t *testing.T) {
 				c, err := Load(dir, Flags{VNC: vncFlag})
 				require.NoError(t, err)
 
-				assert.Nil(t, c.GUIApp())
+				assert.False(t, c.HasGUIApp())
 			}
+		}
+	})
+
+	t.Run("the resolvers panic without the ask", func(t *testing.T) {
+		for _, vnc := range []*VNC{nil, {}} {
+			assert.Panics(t, func() { vnc.GUIApp() })
+			assert.Panics(t, func() { vnc.GUIAppName() })
+			assert.Panics(t, func() { vnc.GUIAppVersion() })
 		}
 	})
 }

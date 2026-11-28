@@ -84,7 +84,7 @@ func init() {
 	firm.MustRegisterType(firm.NewDefinition[config]().
 		NotNil("CLIRef", "Images").
 		Validates(firm.RuleMap{
-			"CLIRef":         {firmrule.CLIRef(cli.Names)},
+			"CLIRef":         {firmrule.AppRef{Kind: "cli", Names: cli.Names}},
 			"Images":         {firm.Backed()},
 			"DefaultVariant": {firm.Backed()},
 			"HostGateway":    {firm.Backed()},
@@ -232,16 +232,14 @@ type vnc struct {
 	//
 	//toinnermodel:skip
 	Enabled *bool `yaml:"enabled,omitempty"`
-	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
-	GUIAppName string `yaml:"gui_app,omitempty"`
+	// GUIAppRef is the GUI app to install + launch, as name@version; nil means no GUI app
+	GUIAppRef *string `yaml:"gui_app,omitempty"`
 }
 
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[vnc]().
 		Validates(firm.RuleMap{
-			"GUIAppName": {rule.OneOf[string]{
-				Values: append(guiapp.Names(), ""), // empty name means no GUI app to run
-			}},
+			"GUIAppRef": {firmrule.AppRef{Kind: "gui app", Names: guiapp.Names}},
 		}))
 }
 

@@ -21,7 +21,7 @@ host_gateway:
 # vnc: Experimental --vnc session via. port 5900 (macOS Screen Sharing is limited, clipboard sync, auto-resize, etc.)
 vnc:
   enabled: true
-  gui_app: # the GUI app's name; empty means none
+  gui_app: # the GUI app at a version like cli's (app@latest, app@1.2.3); empty means none
 
 # tmpfs_masks: hide project-relative directories behind a throwaway temp filesystem, or files behind an empty one: in-session reads see nothing, writes are discarded.
 # Use for editor junk or throwaway build output. Paths that do not exist in the project are safely ignored.

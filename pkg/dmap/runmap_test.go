@@ -35,10 +35,10 @@ func TestRunMap_RunOptions(t *testing.T) {
 	rm := NewRunMap(config, runtime.AllCacheVolumes(), false)
 
 	// the pieces RunOptions composes
-	hostOptions, hostClean, err := rm.HostOptions(false, true)
+	hostOptions, hostClean, err := rm.HostOptions(true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, hostClean()) }()
-	env, err := rm.Env(false)
+	env, err := rm.Env()
 	require.NoError(t, err)
 
 	options, clean, err := rm.RunOptions(NewProxyMap(config).Options(func(string) {}))
@@ -71,7 +71,7 @@ func TestRunMap_RunOptions_VNC(t *testing.T) {
 	// the base layer carries the gui_app, as a project's config would
 	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"+`vnc:
   enabled: true
-  gui_app: `+guiapp.App.Name+`
+  gui_app: `+guiapp.App.Name+`@latest
 proxy:
   enabled: true
   allowlist:
@@ -112,10 +112,9 @@ func TestRunMap_RunOptions_VNC_Proxied(t *testing.T) {
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
 
-	serveVNC := true
 	assert.Equal(t, docker.ImageTag+"-vnc", options.Tag, "the tag carries the vnc suffix only — the egress wall is runtime-only")
-	assert.Equal(t, devboxName(config.ProjectDir(), serveVNC, true), options.Name, "the egress wall makes the proxied vnc combo its own devbox")
-	assert.Equal(t, devboxLogPath(config.ProjectDir(), serveVNC, true), options.LogFile)
+	assert.Equal(t, devboxName(config.ProjectDir(), config.IsVNC(), true), options.Name, "the egress wall makes the proxied vnc combo its own devbox")
+	assert.Equal(t, devboxLogPath(config.ProjectDir(), config.IsVNC(), true), options.LogFile)
 	assert.True(t, options.ServeVNC)
 	assert.NotNil(t, options.Proxy)
 }
@@ -259,7 +258,7 @@ read_only_binds:
 	config, err := cfg.Load(projectDir, cfg.Flags{})
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -304,7 +303,7 @@ func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {
 	config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"), cfg.Flags{})
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, true)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true)
 	require.NoError(t, err)
 	defer func() { require.NoError(t, clean()) }()
 
@@ -318,7 +317,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"), cfg.Flags{})
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false, false)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -332,10 +331,10 @@ func TestRunMap_HostOptions_VNC(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\n"), cfg.Flags{})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: claude@latest\nvnc:\n  enabled: true\n"), cfg.Flags{})
 	require.NoError(t, err)
 
-	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true, true)
+	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true)
 	require.NoError(t, err)
 	require.NotNil(t, clean)
 	defer func() { require.NoError(t, clean()) }()
@@ -356,9 +355,9 @@ func TestRunMap_Env(t *testing.T) {
   - DISABLE_AUTOUPDATER
 vnc:
   enabled: true
-  gui_app: `+guiapp.App.Name+`
+  gui_app: `+guiapp.App.Name+`@latest
 `)
-	env, err := rm.Env(true)
+	env, err := rm.Env()
 	require.NoError(t, err)
 
 	pkgInfo, err := cli.MustFor("claude").PkgInfoJSON()
@@ -372,7 +371,7 @@ vnc:
 		"TERM":                                     "xterm-256color",
 		"COLORTERM":                                "truecolor",
 		pkginfo.EnvVar:                             pkgInfo,
-		pkginfo.RunConfigEnvVar:                    `{"cli_version":"latest"}`,
+		pkginfo.RunConfigEnvVar:                    `{"cli_version":"latest","gui_app_version":"latest"}`,
 		pkginfo.VNCConfigEnvVar:                    vncInfo,
 		"GH_TOKEN":                                 "tok",
 		"XDG_DATA_DIRS":                            "/home/ccbox/.ccbox/xdg/share:/usr/local/share:/usr/share", // from the GUI app
@@ -383,7 +382,7 @@ vnc:
 func TestRunMap_Env_PinnedVersion(t *testing.T) {
 	rm := testRunMap(t, "cli: claude@0.9.2\n")
 
-	env, err := rm.Env(false)
+	env, err := rm.Env()
 	require.NoError(t, err)
 	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
 	require.NoError(t, err)
@@ -394,13 +393,26 @@ func TestRunMap_Env_PinnedVersion(t *testing.T) {
 		"the install source carries no version")
 }
 
+func TestRunMap_Env_PinnedGUIAppVersion(t *testing.T) {
+	rm := testRunMap(t, "cli: claude@latest\nvnc:\n  enabled: true\n  gui_app: "+guiapp.App.Name+"@1.2.3\n")
+
+	env, err := rm.Env()
+	require.NoError(t, err)
+	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, new("1.2.3"), runConfig.GUIAppVersion, "the config carries the GUI app's ask")
+	info, err := pkginfo.VNCInfoFromJSON(env[pkginfo.VNCConfigEnvVar])
+	require.NoError(t, err)
+	assert.Equal(t, guiapp.App.GUIPkgInfo, *info.GUIApp, "the install source carries no version")
+}
+
 func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 	t.Setenv("GH_TOKEN", "")
 	t.Setenv("TERM", "")
 	t.Setenv("COLORTERM", "")
 	rm := testRunMap(t, "cli: claude@latest\n"+"forward_env:\n  - TERM\n  - COLORTERM\n  - GH_TOKEN\n")
 
-	env, err := rm.Env(false)
+	env, err := rm.Env()
 	require.NoError(t, err)
 	assert.NotContains(t, env, "TERM")
 	assert.NotContains(t, env, "COLORTERM")
@@ -410,7 +422,7 @@ func TestRunMap_Env_SkipsEmpty(t *testing.T) {
 func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 	rm := testRunMap(t, "cli: claude@latest\n")
 
-	env, err := rm.Env(false)
+	env, err := rm.Env()
 	require.NoError(t, err)
 	assert.NotContains(t, env, pkginfo.VNCConfigEnvVar)
 }
@@ -418,22 +430,25 @@ func TestRunMap_Env_SkipsUnsetVNC(t *testing.T) {
 func TestRunMap_Env_EmptyVNC(t *testing.T) {
 	rm := testRunMap(t, "cli: claude@latest\n"+"vnc:\n  enabled: true\n")
 
-	env, err := rm.Env(true)
+	env, err := rm.Env()
 	require.NoError(t, err)
 	assert.Equal(t, "{}", env[pkginfo.VNCConfigEnvVar], "an empty vnc section serves the desktop with no GUI app")
+	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
+	require.NoError(t, err)
+	assert.Nil(t, runConfig.GUIAppVersion, "no GUI app, no version ask")
 }
 
 func TestRunMap_Env_PortBindings(t *testing.T) {
 	rm := testRunMap(t, "cli: claude@latest\n"+"default_variant:\n  port_bindings:\n    tcp: 3000,7200\n")
 
-	env, err := rm.Env(false)
+	env, err := rm.Env()
 	require.NoError(t, err)
 	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
 	require.NoError(t, err)
 	assert.Equal(t, []string{"3000", "7200"}, runConfig.PortBindingsTCP)
 
 	rm = testRunMap(t, "cli: claude@latest\n")
-	env, err = rm.Env(false)
+	env, err = rm.Env()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"cli_version":"latest"}`, env[pkginfo.RunConfigEnvVar], "unasked ports add no key")
 }
@@ -441,14 +456,14 @@ func TestRunMap_Env_PortBindings(t *testing.T) {
 func TestRunMap_Env_HostGateway(t *testing.T) {
 	rm := testRunMap(t, "cli: claude@latest\n"+"host_gateway:\n  tcp: 5432,6379\n")
 
-	env, err := rm.Env(false)
+	env, err := rm.Env()
 	require.NoError(t, err)
 	runConfig, err := pkginfo.RunConfigFromJSON(env[pkginfo.RunConfigEnvVar])
 	require.NoError(t, err)
 	assert.Equal(t, []string{"5432", "6379"}, runConfig.HostGatewayTCP, "the egress wall's boot forwards each onto the host")
 
 	rm = testRunMap(t, "cli: claude@latest\n")
-	env, err = rm.Env(false)
+	env, err = rm.Env()
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"cli_version":"latest"}`, env[pkginfo.RunConfigEnvVar], "unasked ports add no key")
 }

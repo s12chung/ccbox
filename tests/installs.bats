@@ -38,7 +38,18 @@ teardown() {
     # never flips to the channel's latest
     local ask linked
     ask="$(jq -r .cli_version <<<"$CCBOX_CONFIG")"
+    [ "$ask" != "latest" ] || skip "unpinned ask"
     linked="$(readlink "/opt/ccbox/bin/$(jq -r .name <<<"$CLI_PKGINFO")")"
+    [[ "$linked" == *"/$ask/"* ]]
+}
+
+@test "gui app: a pinned ask links its version" {
+    # as the cli's — only a --vnc run names a gui app to link
+    local ask linked
+    ask="$(jq -r '.gui_app_version // empty' <<<"$CCBOX_CONFIG")"
+    [ -n "$ask" ] || skip "no gui app on this run"
+    [ "$ask" != "latest" ] || skip "unpinned ask"
+    linked="$(readlink "/opt/ccbox/bin/$(jq -r .gui_app.name <<<"$VNC_CONFIG")")"
     [[ "$linked" == *"/$ask/"* ]]
 }
 

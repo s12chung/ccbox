@@ -39,6 +39,12 @@ func TestMap(t *testing.T) {
 	assert.Nil(t, Map([]int(nil), strconv.Itoa))
 }
 
+func TestToMap(t *testing.T) {
+	length := func(s string) (string, int) { return s, len(s) }
+	assert.Empty(t, ToMap(nil, length))
+	assert.Equal(t, map[string]int{"a": 1, "bb": 2}, ToMap([]string{"a", "bb", "a"}, length))
+}
+
 func TestSortNumbers(t *testing.T) {
 	assert.Equal(t, []string{"80", "3000", "5900"}, SortNumbers([]string{"5900", "80", "3000"}))
 	assert.Equal(t, []string{"9700", "12345"}, SortNumbers([]string{"12345", "9700"}))

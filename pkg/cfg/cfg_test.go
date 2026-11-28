@@ -17,6 +17,7 @@ import (
 
 	"github.com/s12chung/ccbox/pkg/kit/firmrule"
 	"github.com/s12chung/ccbox/pkg/models/cli"
+	"github.com/s12chung/ccbox/pkg/models/guiapp"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
 	"github.com/s12chung/ccbox/pkg/util/deepcopy"
 	"github.com/s12chung/ccbox/pkg/util/mergeempty"
@@ -349,7 +350,7 @@ func TestSeedConfig_ChoosesCLI(t *testing.T) {
 func TestConfig_mergeOverlays(t *testing.T) {
 	c := config{
 		CLIRef:        new("claude@latest"),
-		VNC:           &vnc{GUIAppName: "zcode", Enabled: new(true)},
+		VNC:           &vnc{GUIAppRef: new("zcode@latest"), Enabled: new(true)},
 		TmpfsMasks:    new([]string{"dist"}),
 		VolumeMasks:   new([]string{"target"}),
 		ReadOnlyGlobs: new([]string{".env"}),
@@ -377,8 +378,8 @@ func TestConfig_mergeOverlays(t *testing.T) {
 	assert.Equal(t, config{
 		CLIRef: new("codex@0.9.2"),
 		VNC: &vnc{ // the section merges per field: unset later fields keep the earlier's
-			GUIAppName: "zcode",
-			Enabled:    new(false), // an explicit later value wins — the --no-proxy fold's shape
+			GUIAppRef: new("zcode@latest"),
+			Enabled:   new(false), // an explicit later value wins — the --no-proxy fold's shape
 		},
 		TmpfsMasks:    new([]string{"dist", "build"}),
 		VolumeMasks:   new([]string{"target", "cache"}),
@@ -435,7 +436,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 	bodies := map[string]string{    // one entry per configFiles term
 		"user": "cli: opencode@0.9.2\n" + imagesYAML + "tmpfs_masks:\n  - .idea\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
-			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  enabled: true\n  gui_app: zcode\nproxy:\n  enabled: true\n  allowlist:\n    - user.example.dev\n",
+			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  enabled: true\n  gui_app: zcode@latest\nproxy:\n  enabled: true\n  allowlist:\n    - user.example.dev\n",
 		"project": "cli: claude@latest\n" + imagesYAML + "tmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
 			"forward_env:\n  - FOO\n  - BAZ\nproxy:\n  allowlist:\n    - ccbox-defaults\n",
@@ -449,7 +450,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 	assert.Equal(t, "claude@latest", c.CLIRef) // later layer wins, whole: the user's version stays with the user's cli
 
 	// per-field merge: the project layer's unset section leaves the user's gui_app standing
-	assert.Equal(t, &VNC{GUIAppName: "zcode"}, c.VNC)
+	assert.Equal(t, &VNC{GUIAppRef: new("zcode@latest")}, c.VNC)
 
 	// lists append raw, lowest layer first
 	assert.Equal(t, []string{".idea", "dist", "build"}, c.TmpfsMasks)
@@ -493,18 +494,18 @@ func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
 	assert.Equal(t, &VNC{}, c.VNC)
-	assert.Nil(t, c.GUIApp())
+	assert.False(t, c.HasGUIApp())
 }
 
 func TestLoad_VNC(t *testing.T) {
 	t.Run("a section in any layer serves the desktop, the later layer's fields standing", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode\n")
+		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode@latest\n")
 		writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc: {}\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
-		assert.Equal(t, &VNC{GUIAppName: "zcode"}, c.VNC)
+		assert.Equal(t, &VNC{GUIAppRef: new("zcode@latest")}, c.VNC)
 	})
 
 	t.Run("the --vnc flag adds a section with no app", func(t *testing.T) {
@@ -525,6 +526,47 @@ func TestLoad_VNC(t *testing.T) {
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Nil(t, c.VNC)
+	})
+}
+
+func TestLoad_GUIApp(t *testing.T) {
+	tests := []struct {
+		name        string
+		body        string
+		wantName    string
+		wantVersion *string
+	}{
+		{"a pinned gui_app", "vnc:\n  enabled: true\n  gui_app: zcode@1.2.3\n", "zcode", new("1.2.3")},
+		{"a latest gui_app", "vnc:\n  enabled: true\n  gui_app: zcode@latest\n", "zcode", new("latest")},
+		{"an empty gui_app", "vnc:\n  enabled: true\n  gui_app:\n", "", nil},
+		{"no gui_app key", "vnc:\n  enabled: true\n", "", nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+tt.body)
+
+			c, err := Load(dir, Flags{})
+			require.NoError(t, err)
+
+			if tt.wantName == "" {
+				assert.False(t, c.HasGUIApp())
+				return
+			}
+			assert.Equal(t, tt.wantName, c.VNC.GUIAppName())
+			assert.Equal(t, tt.wantVersion, c.VNC.GUIAppVersion())
+			assert.Equal(t, &guiapp.App, c.VNC.GUIApp())
+		})
+	}
+
+	t.Run("a later layer's ref wins whole, version included", func(t *testing.T) {
+		dir := t.TempDir()
+		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode@1.2.3\n")
+		writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc:\n  gui_app: zcode@latest\n")
+
+		c, err := Load(dir, Flags{})
+		require.NoError(t, err)
+		assert.Equal(t, new("latest"), c.VNC.GUIAppVersion())
 	})
 }
 
@@ -622,7 +664,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		want []string
 	}{
 		{"unknown cli", "cli: emacs@latest\n", []string{"CLIRef", `names no known cli: "emacs" is not one of ["claude" "codex" "opencode" "pi"]`}},
-		{"version-less cli", "cli: claude\n", []string{"CLIRef", `is not a cli ref (cli_name@latest or cli_name@version): "claude"`}},
+		{"version-less cli", "cli: claude\n", []string{"CLIRef", `is not a cli ref (name@latest or name@version): "claude"`}},
 		{"range version", "cli: claude@^1.0\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "^1.0"`}},
 		{"dist-tag version", "cli: claude@next\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "next"`}},
 		{"absolute tmpfs_masks", "tmpfs_masks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
@@ -634,8 +676,13 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		{"bad forward_env name", "forward_env:\n  - bad-name\n", []string{"ForwardEnv", "Match"}},
 		{"empty forward_env name", "forward_env:\n  - \"\"\n", []string{"ForwardEnv", "Match"}},
 		{
-			"unknown gui_app", "vnc:\n  gui_app: emacs\n",
-			[]string{"GUIAppName", `is not one of ["zcode" ""]`},
+			"unknown gui_app", "vnc:\n  gui_app: emacs@latest\n",
+			[]string{"GUIAppRef", `names no known gui app: "emacs" is not one of ["zcode"]`},
+		},
+		{"version-less gui_app", "vnc:\n  gui_app: zcode\n", []string{"GUIAppRef", `is not a gui app ref (name@latest or name@version): "zcode"`}},
+		{
+			"range gui_app version", "vnc:\n  gui_app: zcode@^1.0\n",
+			[]string{"GUIAppRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "^1.0"`},
 		},
 		{"bad allow domain", "proxy:\n  allowlist:\n    - \"https://x.dev\"\n", []string{"Allowlist", "DomainOrAlias"}},
 		{"bare TLD allow domain", "proxy:\n  allowlist:\n    - com\n", []string{"Allowlist", "DomainOrAlias"}},

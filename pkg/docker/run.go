@@ -22,6 +22,7 @@ import (
 	"github.com/s12chung/ccbox/pkg/userdir"
 	"github.com/s12chung/ccbox/pkg/util/klean"
 	"github.com/s12chung/ccbox/pkg/util/osutil"
+	"github.com/s12chung/ccbox/pkg/util/ptrx"
 	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/pkg/util/stream"
 	"github.com/s12chung/ccbox/pkg/util/term"
@@ -280,27 +281,15 @@ func claimDevbox(ctxD *dock.CtxD, o RunOptions) (*container.InspectResponse, err
 // conflictErr refuses the run when a devbox under the run's own name is already
 // running off diverging flags + config
 func (o RunOptions) conflictErr(own *container.InspectResponse) error {
-	config, err := pkginfo.RunConfigFromJSON(o.Env[pkginfo.RunConfigEnvVar])
+	asked, err := o.asks()
 	if err != nil {
 		return fmt.Errorf("run env: %w", err)
 	}
-	info, err := pkginfo.FromJSON(o.Env[pkginfo.EnvVar])
-	if err != nil {
-		return fmt.Errorf("run env: %w", err)
-	}
-
-	env := own.Config.Env
-	installedConfig, err := pkginfo.RunConfigFromJSON(dock.EnvEntry(env, pkginfo.RunConfigEnvVar))
+	installed, err := installedAsks(own)
 	if err != nil {
 		return fmt.Errorf("devbox env: %w", err)
 	}
-	installedInfo, err := pkginfo.FromJSON(dock.EnvEntry(env, pkginfo.EnvVar))
-	if err != nil {
-		return fmt.Errorf("devbox env: %w", err)
-	}
-
-	divergences := installedAsks(own, installedConfig, installedInfo).divergencesFrom(o.asks(config, info))
-	if len(divergences) > 0 {
+	if divergences := installed.divergencesFrom(asked); len(divergences) > 0 {
 		return fmt.Errorf("devbox %s is already running for this project, %s — exit its session or `docker rm -f %s`",
 			o.Name, strings.Join(divergences, " and "), o.Name)
 	}
@@ -309,37 +298,9 @@ func (o RunOptions) conflictErr(own *container.InspectResponse) error {
 
 // devboxAsks are what a run asks of its devbox, which a running one must match to be reused
 type devboxAsks struct {
-	projectDir   string
-	hasProxy     bool
-	portBindings nat.PortMap
-	cliName      string
-	cliVersion   string
-	gatewayTCP   []string // sorted: a port list's order carries no meaning
-}
-
-// installedAsks reads a running devbox's asks off its inspect
-func installedAsks(own *container.InspectResponse, config pkginfo.RunConfig, info pkginfo.PkgInfo) devboxAsks {
-	labels := own.Config.Labels
-	return devboxAsks{
-		projectDir:   labels[ccboxProjectLabelKey],
-		hasProxy:     labels[ccboxHasProxyLabelKey] == trueVolValue,
-		portBindings: own.HostConfig.PortBindings,
-		cliName:      info.Name,
-		cliVersion:   config.CLIVersion,
-		gatewayTCP:   slicex.SortNumbers(config.HostGatewayTCP),
-	}
-}
-
-// asks renders the run's own asks
-func (o RunOptions) asks(config pkginfo.RunConfig, info pkginfo.PkgInfo) devboxAsks {
-	return devboxAsks{
-		projectDir:   o.ProjectDir,
-		hasProxy:     o.Proxy != nil,
-		portBindings: o.portBindingsTCP(),
-		cliName:      info.Name,
-		cliVersion:   config.CLIVersion,
-		gatewayTCP:   slicex.SortNumbers(config.HostGatewayTCP),
-	}
+	projectDir string
+	hasProxy   bool
+	env        envAsks
 }
 
 // divergencesFrom names where the devbox's asks differ from the run's, in the run's voice
@@ -355,29 +316,31 @@ func (own devboxAsks) divergencesFrom(asked devboxAsks) []string {
 			divergences = append(divergences, "without the proxy")
 		}
 	}
-	if !equalPortBindings(own.portBindings, asked.portBindings) {
+	return append(divergences, own.env.divergencesFrom(asked.env)...)
+}
+
+// envAsks are the asks carried through the devbox's env entries
+type envAsks struct {
+	boundTCP   []string // sorted: a port list's order carries no meaning
+	gatewayTCP []string // sorted: a port list's order carries no meaning
+	cli        appAsk
+	guiApp     appAsk
+}
+
+// divergencesFrom names where the devbox's env-carried asks differ from the run's, in the run's voice
+func (own envAsks) divergencesFrom(asked envAsks) []string {
+	var divergences []string
+	if !slices.Equal(own.boundTCP, asked.boundTCP) {
 		divergences = append(divergences, fmt.Sprintf("published %s (command asks %s)",
-			portsPhrase(own.portBindings), portsPhrase(asked.portBindings)))
+			portsCSV(own.boundTCP), portsCSV(asked.boundTCP)))
 	}
 	if !slices.Equal(own.gatewayTCP, asked.gatewayTCP) {
 		divergences = append(divergences, fmt.Sprintf("opened host gateway %s (command asks %s)",
 			portsCSV(own.gatewayTCP), portsCSV(asked.gatewayTCP)))
 	}
-	if own.cliVersion != asked.cliVersion {
-		divergences = append(divergences, fmt.Sprintf("cli version %s (command asks %s)", own.cliVersion, asked.cliVersion))
-	}
-	if own.cliName != asked.cliName {
-		divergences = append(divergences, fmt.Sprintf("installed cli %s (command asks %s)", own.cliName, asked.cliName))
-	}
+	divergences = append(divergences, own.cli.divergencesFrom("cli", asked.cli)...)
+	divergences = append(divergences, own.guiApp.divergencesFrom("gui app", asked.guiApp)...)
 	return divergences
-}
-
-func portsPhrase(bindings nat.PortMap) string {
-	ports := make([]string, 0, len(bindings))
-	for port := range bindings {
-		ports = append(ports, port.Port())
-	}
-	return portsCSV(ports)
 }
 
 // portsCSV renders the ports ascending — "3000, 5900"; "none" without any
@@ -388,30 +351,91 @@ func portsCSV(ports []string) string {
 	return strings.Join(slicex.SortNumbers(ports), ", ")
 }
 
-// equalPortBindings reports two published-binding sets match — HostIP and HostPort per port
-func equalPortBindings(a, b nat.PortMap) bool {
-	if len(a) != len(b) {
-		return false
+// appAsk is an app's name and version — an empty name asks for none
+type appAsk struct{ name, version string }
+
+// divergencesFrom names where own's app differs from asked's, kind naming the app
+func (a appAsk) divergencesFrom(kind string, asked appAsk) []string {
+	var divergences []string
+	if a.version != asked.version {
+		divergences = append(divergences, fmt.Sprintf("%s version %s (command asks %s)", kind, noneIfEmpty(a.version), noneIfEmpty(asked.version)))
 	}
-	for port, aBindings := range a {
-		if !slices.Equal(aBindings, b[port]) {
-			return false
-		}
+	if a.name != asked.name {
+		divergences = append(divergences, fmt.Sprintf("installed %s %s (command asks %s)", kind, noneIfEmpty(a.name), noneIfEmpty(asked.name)))
 	}
-	return true
+	return divergences
 }
 
-// portBindingsTCP renders the run's published bindings
-func (o RunOptions) portBindingsTCP() nat.PortMap {
-	ports := slices.Clone(o.PortBindingsTCP)
-	if o.ServeVNC {
-		ports = append(ports, desktopVNCPort)
+func noneIfEmpty(s string) string {
+	if s == "" {
+		return "none"
 	}
-	bindings := nat.PortMap{}
-	for _, port := range ports {
-		bindings[nat.Port(port+"/tcp")] = []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
+	return s
+}
+
+// guiAppAsk reads the GUI app's ask — the name off the VNCConfigEnvVar body, the
+// version off the run config; none without a gui_app
+func guiAppAsk(config pkginfo.RunConfig, vncConfig string) (appAsk, error) {
+	if vncConfig == "" {
+		return appAsk{}, nil
 	}
-	return bindings
+	info, err := pkginfo.VNCInfoFromJSON(vncConfig)
+	if err != nil {
+		return appAsk{}, err
+	}
+	if info.GUIApp == nil {
+		return appAsk{}, nil
+	}
+	return appAsk{name: info.GUIApp.Name, version: ptrx.Deref(config.GUIAppVersion)}, nil
+}
+
+// installedAsks reads a running devbox's asks off its inspect
+func installedAsks(own *container.InspectResponse) (devboxAsks, error) {
+	env, err := parseEnvAsks(own.Config.Env)
+	if err != nil {
+		return devboxAsks{}, err
+	}
+	labels := own.Config.Labels
+	return devboxAsks{
+		env:        env,
+		projectDir: labels[ccboxProjectLabelKey],
+		hasProxy:   labels[ccboxHasProxyLabelKey] == trueVolValue,
+	}, nil
+}
+
+// asks renders the run's own asks off its env
+func (o RunOptions) asks() (devboxAsks, error) {
+	env, err := parseEnvAsks(dock.SortedEnv(o.Env))
+	if err != nil {
+		return devboxAsks{}, err
+	}
+	return devboxAsks{
+		env:        env,
+		projectDir: o.ProjectDir,
+		hasProxy:   o.Proxy != nil,
+	}, nil
+}
+
+// parseEnvAsks reads the env-carried asks off a container env's entries
+func parseEnvAsks(env []string) (envAsks, error) {
+	config, err := pkginfo.RunConfigFromJSON(dock.EnvEntry(env, pkginfo.RunConfigEnvVar))
+	if err != nil {
+		return envAsks{}, err
+	}
+	info, err := pkginfo.FromJSON(dock.EnvEntry(env, pkginfo.EnvVar))
+	if err != nil {
+		return envAsks{}, err
+	}
+	guiApp, err := guiAppAsk(config, dock.EnvEntry(env, pkginfo.VNCConfigEnvVar))
+	if err != nil {
+		return envAsks{}, err
+	}
+	return envAsks{
+		boundTCP:   slicex.SortNumbers(config.PortBindingsTCP),
+		gatewayTCP: slicex.SortNumbers(config.HostGatewayTCP),
+		cli:        appAsk{name: info.Name, version: config.CLIVersion},
+		guiApp:     guiApp,
+	}, nil
 }
 
 // startDevbox replaces any stale devbox with a fresh one off the run's options
@@ -470,7 +494,13 @@ func runHostConfig(ctxD *dock.CtxD, hostOptions RunOptions) (*container.HostConf
 		hostConfig.Sysctls = map[string]string{ipForwardSysctl: "0"}
 	}
 
-	hostConfig.PortBindings = hostOptions.portBindingsTCP()
+	ports := slices.Clone(hostOptions.PortBindingsTCP)
+	if hostOptions.ServeVNC {
+		ports = append(ports, desktopVNCPort)
+	}
+	hostConfig.PortBindings = slicex.ToMap(ports, func(port string) (nat.Port, []nat.PortBinding) {
+		return nat.Port(port + "/tcp"), []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
+	})
 	if err := refuseHeldPorts(ctxD, hostConfig.PortBindings); err != nil {
 		return nil, err
 	}

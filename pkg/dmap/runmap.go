@@ -23,36 +23,36 @@ func NewRunMap(cfg *cfg.Config, cacheVolumes []string, tagByProject bool) *RunMa
 
 // RunOptions renders the run's full docker.RunOptions; nil proxyOptions runs plain
 func (rm *RunMap) RunOptions(proxyOptions *docker.ProxyOptions) (docker.RunOptions, func() error, error) {
-	serveVNC, isProxied := rm.cfg.VNC != nil, proxyOptions != nil
-	hostOptions, clean, err := rm.HostOptions(serveVNC, isProxied)
+	isProxied := proxyOptions != nil
+	hostOptions, clean, err := rm.HostOptions(isProxied)
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
-	env, err := rm.Env(serveVNC)
+	env, err := rm.Env()
 	if err != nil {
 		return docker.RunOptions{}, clean, err
 	}
 
-	name := devboxName(rm.cfg.ProjectDir(), serveVNC, isProxied)
+	name := devboxName(rm.cfg.ProjectDir(), rm.cfg.IsVNC(), isProxied)
 	return docker.RunOptions{
 		RunHostOptions:  hostOptions,
 		Name:            name,
-		Tag:             docker.ImageTag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, serveVNC),
+		Tag:             docker.ImageTag + tagSuffix(rm.cfg.ProjectDir(), rm.tagByProject, rm.cfg.IsVNC()),
 		Env:             env,
 		Proxy:           proxyOptions,
-		ServeVNC:        serveVNC,
+		ServeVNC:        rm.cfg.IsVNC(),
 		PortBindingsTCP: rm.cfg.PortBindingsTCP(),
 		HostGatewayTCP:  rm.cfg.HostGatewayTCP(),
 		HoldersDir:      docker.HoldersDir(name),
-		LogFile:         devboxLogPath(rm.cfg.ProjectDir(), serveVNC, isProxied),
+		LogFile:         devboxLogPath(rm.cfg.ProjectDir(), rm.cfg.IsVNC(), isProxied),
 	}, clean, nil
 }
 
 // HostOptions renders the run's host options for docker.Run; vnc mounts the
 // GUI app's install volume, which seeds from the desktop variant's image.
-func (rm *RunMap) HostOptions(serveVNC, isProxied bool) (docker.RunHostOptions, func() error, error) {
+func (rm *RunMap) HostOptions(isProxied bool) (docker.RunHostOptions, func() error, error) {
 	projectDir := rm.cfg.ProjectDir()
-	binds, clean, err := rm.binds(serveVNC, isProxied)
+	binds, clean, err := rm.binds(isProxied)
 	if err != nil {
 		return docker.RunHostOptions{}, clean, err
 	}
@@ -66,7 +66,7 @@ func (rm *RunMap) HostOptions(serveVNC, isProxied bool) (docker.RunHostOptions, 
 }
 
 // Env renders the container's env in one map.
-func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
+func (rm *RunMap) Env() (map[string]string, error) {
 	cli := rm.cfg.CLI()
 	pkgInfo, err := cli.PkgInfoJSON()
 	if err != nil {
@@ -78,7 +78,7 @@ func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 	}
 	env := mergeempty.Map(cli.Setup.Env, forwardEnv(rm.cfg.ForwardEnv))
 	env = mergeempty.Map(env, map[string]string{pkginfo.EnvVar: pkgInfo, pkginfo.RunConfigEnvVar: runConfig})
-	if serveVNC {
+	if rm.cfg.IsVNC() {
 		body, err := rm.cfg.VNC.InfoJSON()
 		if err != nil {
 			return nil, err
@@ -86,9 +86,9 @@ func (rm *RunMap) Env(serveVNC bool) (map[string]string, error) {
 		// the container serves the desktop whenever pkginfo.VNCConfigEnvVar is set —
 		// even with the `{}` a config without a vnc section sends
 		env[pkginfo.VNCConfigEnvVar] = body
-		if app := rm.cfg.GUIApp(); app != nil {
-			env = mergeempty.Map(env, app.Setup.Env)
-		}
+	}
+	if rm.cfg.HasGUIApp() {
+		env = mergeempty.Map(env, rm.cfg.VNC.GUIApp().Setup.Env)
 	}
 	return env, nil
 }

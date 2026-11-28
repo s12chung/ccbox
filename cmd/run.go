@@ -41,7 +41,7 @@ func init() {
 // run builds the image, then boots the devbox streaming its logs to the foreground —
 // run and proxy both land here
 func run(ctx context.Context, proxyOptions *docker.ProxyOptions) error {
-	if err := build(ctx, config.VNC != nil); err != nil {
+	if err := build(ctx, config.IsVNC()); err != nil {
 		return err
 	}
 	options, clean, err := prepareRun(proxyOptions)
@@ -110,10 +110,10 @@ func seedRunMounts(userDir string, isProxied bool) error {
 	if err := seedDataBinds(dmap.CLIDataDir(userDir, c.Name), c.Setup.DataBindSeedMap(true), osutil.File); err != nil {
 		return err
 	}
-	app := config.GUIApp()
-	if app == nil {
+	if !config.HasGUIApp() {
 		return nil
 	}
+	app := config.VNC.GUIApp()
 	return seedDataBinds(dmap.GUIAppDataDir(userDir, app.Name, isProxied), app.Setup.DataBindSeedMap(isProxied), osutil.SecretFile)
 }
 

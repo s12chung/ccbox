@@ -44,7 +44,7 @@ func execSession(ctx context.Context, mode dmap.ExecMode) error {
 		return err
 	}
 	if !running {
-		if err := build(ctx, config.VNC != nil); err != nil {
+		if err := build(ctx, config.IsVNC()); err != nil {
 			return err
 		}
 	}

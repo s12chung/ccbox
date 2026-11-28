@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/install"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/installutil"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/testutil"
@@ -43,6 +44,12 @@ func load(t *testing.T, body string) *pkginfo.VNCInfo {
 	return Load()
 }
 
+// setVersionAsk sets the run's gui_app_version — the ask every entry point installs at
+func setVersionAsk(t *testing.T, version string) {
+	t.Helper()
+	t.Setenv(pkginfo.RunConfigEnvVar, `{"cli_version":"latest","gui_app_version":"`+version+`"}`)
+}
+
 func TestLoad(t *testing.T) {
 	t.Run("unset env reads as no vnc", func(t *testing.T) {
 		assert.Nil(t, load(t, ""))
@@ -62,10 +69,34 @@ func TestLoad(t *testing.T) {
 }
 
 func TestAppPkgDir(t *testing.T) {
+	setVersionAsk(t, "1.2.3")
+
 	pkgDir, err := appPkgDir(debInfo)
 
 	require.NoError(t, err)
+	assert.Equal(t, install.AppsRoot, pkgDir.Root)
 	assert.Equal(t, "/opt/ccbox/bin/app", pkgDir.BinLink())
+	assert.Equal(t, "1.2.3", pkgDir.Version, "the config's ask lands on the pkgDir")
+}
+
+func TestAppPkgDir_NoVersionAsk_Fails(t *testing.T) {
+	// the boot fails closed on a GUI app without its version ask
+	tests := []struct {
+		name, config, wantErr string
+	}{
+		{"config unset", "", pkginfo.RunConfigEnvVar + " is unset"},
+		{"version unset", `{"cli_version":"latest"}`, "names no gui_app_version for app"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(pkginfo.RunConfigEnvVar, tt.config)
+
+			_, err := appPkgDir(debInfo)
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }
 
 func TestInstall_Errors(t *testing.T) {
@@ -119,6 +150,8 @@ func TestWriteDesktopEntry(t *testing.T) {
 }
 
 func TestExec_NotInstalled(t *testing.T) {
+	setVersionAsk(t, "latest")
+
 	err := Exec(t.Context(), debInfo, nil)
 
 	require.Error(t, err)
@@ -126,6 +159,8 @@ func TestExec_NotInstalled(t *testing.T) {
 }
 
 func TestHold_NotInstalled(t *testing.T) {
+	setVersionAsk(t, "latest")
+
 	_, err := Hold(debInfo)
 
 	require.Error(t, err)
@@ -133,6 +168,8 @@ func TestHold_NotInstalled(t *testing.T) {
 }
 
 func TestHoldExec_NotInstalled(t *testing.T) {
+	setVersionAsk(t, "latest")
+
 	err := HoldExec(debInfo)
 
 	require.Error(t, err)

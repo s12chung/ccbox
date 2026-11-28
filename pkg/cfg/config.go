@@ -53,10 +53,38 @@ type Config struct {
 }
 
 // VNC is the desktop's session: the GUI app it installs and launches. A nil VNC
-// runs headless.
+// runs headless — the GUI app resolvers panic unless Config.HasGUIApp.
 type VNC struct {
-	// GUIAppName is the GUI app's name (guiapp.Names()); empty means no GUI app
-	GUIAppName string
+	// GUIAppRef is the GUI app to install + launch, as name@version; nil means no GUI app
+	GUIAppRef *string
+}
+
+// GUIAppName is the GUIAppRef's app.
+func (v *VNC) GUIAppName() string {
+	name, _, _ := strings.Cut(*v.GUIAppRef, "@")
+	return name
+}
+
+// GUIAppVersion is the GUIAppRef's version — "latest" or an exact one.
+func (v *VNC) GUIAppVersion() *string {
+	_, version, _ := strings.Cut(*v.GUIAppRef, "@")
+	return &version
+}
+
+// GUIApp resolves the GUIAppRef's app.
+func (v *VNC) GUIApp() *guiapp.GUIApp { return guiapp.MustFor(v.GUIAppName()) }
+
+// InfoJSON renders the desktop's session as the VNCConfigEnvVar JSON — {} without a GUI app.
+func (v *VNC) InfoJSON() (string, error) {
+	var info pkginfo.VNCInfo
+	if v.GUIAppRef != nil {
+		info.GUIApp = &v.GUIApp().GUIPkgInfo
+	}
+	body, err := json.Marshal(info)
+	if err != nil {
+		return "", fmt.Errorf("vnc config: %w", err)
+	}
+	return string(body), nil
 }
 
 // DefaultVariant is the default variant ask's section — the devbox the config's
@@ -96,9 +124,16 @@ type Images struct {
 // ProjectDir is the project dir the config was loaded from
 func (c *Config) ProjectDir() string { return c.projectDir }
 
+// IsVNC reports whether the run serves the desktop — the vnc section's presence.
+func (c *Config) IsVNC() bool { return c.VNC != nil }
+
+// HasGUIApp reports whether the run installs + launches a GUI app — the vnc
+// section naming one.
+func (c *Config) HasGUIApp() bool { return c.IsVNC() && c.VNC.GUIAppRef != nil }
+
 // isDefaultVariant returns true if the resolved VNC and Proxy enabledness matches filesConfig
 func (c *Config) isDefaultVariant(filesConfig Config) bool {
-	return (c.VNC != nil) == (filesConfig.VNC != nil) && (c.Proxy != nil) == (filesConfig.Proxy != nil)
+	return c.IsVNC() == filesConfig.IsVNC() && (c.Proxy != nil) == (filesConfig.Proxy != nil)
 }
 
 // CLIName is the CLIRef's cli.
@@ -116,15 +151,6 @@ func (c *Config) CLIVersion() string {
 // CLI resolves the config's cli to its cli.CLI; MustFor is infallible for a
 // loaded config
 func (c *Config) CLI() cli.CLI { return cli.MustFor(c.CLIName()) }
-
-// GUIApp resolves the run's GUI app: nil on a headless run or a vnc section naming
-// no gui_app; MustFor is infallible for a loaded config
-func (c *Config) GUIApp() *guiapp.GUIApp {
-	if c.VNC == nil {
-		return nil
-	}
-	return guiapp.MustFor(c.VNC.GUIAppName)
-}
 
 // PortBindingsTCP is the run's tcp ports to bind — nil off the default variant's ask
 func (c *Config) PortBindingsTCP() []string {
@@ -255,8 +281,8 @@ func (c *Config) SetHarnessDomains() []string {
 	for _, d := range c.CLI().Setup.Proxied.AllowDomains {
 		domains = append(domains, expandDomain(d)...)
 	}
-	if c.VNC != nil {
-		domains = append(domains, guiapp.AllowDomains(c.VNC.GUIAppName)...)
+	if c.HasGUIApp() {
+		domains = append(domains, c.VNC.GUIApp().Setup.Proxied.AllowDomains...)
 	}
 	return domains
 }
@@ -292,8 +318,8 @@ func (c *Config) MarshalYAML() (any, error) {
 		ReadOnlyBinds:  new(c.ReadOnlyBindsPresent()),
 		ForwardEnv:     new(c.ForwardEnv),
 	}
-	if c.VNC != nil {
-		out.VNC = &vnc{Enabled: new(true), GUIAppName: c.VNC.GUIAppName}
+	if c.IsVNC() {
+		out.VNC = &vnc{Enabled: new(true), GUIAppRef: c.VNC.GUIAppRef}
 	}
 	if c.Proxy != nil {
 		out.Proxy = &proxy{Enabled: new(true), Allowlist: c.Proxy.Allowlist}
@@ -320,27 +346,18 @@ func (c *Config) marshalHostGateway() *hostGateway {
 
 // RunConfigJSON renders the config's asks as the RunConfigEnvVar JSON
 func (c *Config) RunConfigJSON() (string, error) {
+	var guiAppVersion *string
+	if c.HasGUIApp() {
+		guiAppVersion = c.VNC.GUIAppVersion()
+	}
 	body, err := json.Marshal(pkginfo.RunConfig{
 		CLIVersion:      c.CLIVersion(),
+		GUIAppVersion:   guiAppVersion,
 		PortBindingsTCP: c.PortBindingsTCP(),
 		HostGatewayTCP:  c.HostGatewayTCP(),
 	})
 	if err != nil {
 		return "", fmt.Errorf("run config: %w", err)
-	}
-	return string(body), nil
-}
-
-// InfoJSON renders the section as the VNCConfigEnvVar JSON: the GUI app the run
-// installs and launches
-func (v *VNC) InfoJSON() (string, error) {
-	var info pkginfo.VNCInfo
-	if app := guiapp.MustFor(v.GUIAppName); app != nil {
-		info.GUIApp = &app.GUIPkgInfo
-	}
-	body, err := json.Marshal(info)
-	if err != nil {
-		return "", fmt.Errorf("vnc config: %w", err)
 	}
 	return string(body), nil
 }

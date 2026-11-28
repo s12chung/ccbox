@@ -62,6 +62,16 @@ func Map[E, R any](s []E, f func(E) R) []R {
 	return out
 }
 
+// ToMap renders each element as a key-value pair, later pairs overwriting earlier ones.
+func ToMap[E any, K comparable, V any](s []E, pair func(E) (K, V)) map[K]V {
+	m := make(map[K]V, len(s))
+	for _, e := range s {
+		k, v := pair(e)
+		m[k] = v
+	}
+	return m
+}
+
 // SortNumbers returns s's digit strings in numeric order — "80" sorts after "3000".
 func SortNumbers(s []string) []string {
 	numbers := make([]int, len(s))

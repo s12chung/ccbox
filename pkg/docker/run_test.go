@@ -26,19 +26,6 @@ import (
 )
 
 func TestRunOptions_ConflictErr(t *testing.T) {
-	loopback := func(port string) []nat.PortBinding {
-		return []nat.PortBinding{{HostIP: "127.0.0.1", HostPort: port}}
-	}
-	labeledRun := func(hasProxy bool, bindings nat.PortMap, env ...string) *container.InspectResponse {
-		labels := map[string]string{ccboxProjectLabelKey: "/host/proj"}
-		if hasProxy {
-			labels[ccboxHasProxyLabelKey] = trueVolValue
-		}
-		return inspectRun(labels, bindings, env...)
-	}
-	conflict := func(divergences string) string {
-		return "devbox ccbox-proj is already running for this project, " + divergences + " — exit its session or `docker rm -f ccbox-proj`"
-	}
 	_, unreadable := pkginfo.RunConfigFromJSON("{") // the devbox's own parse failure, named back to the user
 	require.Error(t, unreadable)
 	tests := []struct {
@@ -50,109 +37,35 @@ func TestRunOptions_ConflictErr(t *testing.T) {
 		{
 			name: "Plain",
 			o:    plainRun(),
-			c:    labeledRun(false, nil),
+			c:    labeledRun(false),
 		},
 		{
 			name: "Proxy",
 			o:    proxyRun(),
-			c:    labeledRun(true, nil),
-		},
-		{
-			name: "Ports",
-			o:    withPorts(plainRun(), []string{"3000", "7200"}),
-			c: labeledRun(false, nat.PortMap{
-				"3000/tcp": loopback("3000"),
-				"7200/tcp": loopback("7200"),
-			}),
-		},
-		{
-			name: "HostGateway",
-			o:    withHostGateway(plainRun(), []string{"5432"}),
-			c:    labeledRun(false, nil, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, []string{"5432"})),
-		},
-		{
-			name: "HostGatewayOrderless",
-			o:    withHostGateway(plainRun(), []string{"5432", "6379"}),
-			c:    labeledRun(false, nil, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, []string{"6379", "5432"})),
+			c:    labeledRun(true),
 		},
 		{
 			name: "UnlabeledPreLabel",
 			o:    plainRun(),
-			c:    inspectRun(nil, nil),
+			c:    inspectRun(nil),
 			want: conflict("not matching the project label"),
 		},
 		{
 			name: "UnlabeledPreLabel_Proxy",
 			o:    proxyRun(),
-			c:    inspectRun(nil, nil),
+			c:    inspectRun(nil),
 			want: conflict("not matching the project label and with the proxy"),
 		},
 		{
 			name: "DifferingProxy",
 			o:    plainRun(),
-			c:    labeledRun(true, nil),
+			c:    labeledRun(true),
 			want: conflict("without the proxy"),
-		},
-		{
-			name: "DifferingPorts",
-			o:    withPorts(plainRun(), []string{"3000"}),
-			c:    labeledRun(false, nil),
-			want: conflict("published none (command asks 3000)"),
-		},
-		{
-			name: "DifferingBinding",
-			o:    withPorts(plainRun(), []string{"3000"}),
-			c:    labeledRun(false, nat.PortMap{"3000/tcp": []nat.PortBinding{{HostPort: "3000"}}}),
-			want: conflict("published 3000 (command asks 3000)"),
-		},
-		{
-			name: "ProxyAndPorts",
-			o:    withPorts(proxyRun(), []string{"3000"}),
-			c:    labeledRun(false, nil),
-			want: conflict("with the proxy and published none (command asks 3000)"),
-		},
-		{
-			name: "SwappedPorts",
-			o:    withPorts(plainRun(), []string{"3000"}),
-			c: labeledRun(false, nat.PortMap{
-				"12345/tcp": {{HostIP: "127.0.0.1", HostPort: "12345"}},
-				"9700/tcp":  {{HostIP: "127.0.0.1", HostPort: "9700"}},
-			}),
-			want: conflict("published 9700, 12345 (command asks 3000)"),
-		},
-		{
-			name: "DifferingHostGateway",
-			o:    withHostGateway(plainRun(), []string{"3306"}),
-			c:    labeledRun(false, nil, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, []string{"5432", "6379"})),
-			want: conflict("opened host gateway 5432, 6379 (command asks 3306)"),
-		},
-		{
-			name: "ProxyAndHostGateway",
-			o:    withHostGateway(proxyRun(), []string{"3306"}),
-			c:    labeledRun(false, nil, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, nil)),
-			want: conflict("with the proxy and opened host gateway none (command asks 3306)"),
-		},
-		{
-			name: "CLI",
-			o:    withCLIEnv(plainRun(), "pi", "0.9.2"),
-			c:    labeledRun(false, nil, pkginfo.EnvVar+"="+cliBody("pi"), pkginfo.RunConfigEnvVar+"="+runConfigBody("0.9.2", nil)),
-		},
-		{
-			name: "DifferingCLIVersion",
-			o:    withCLIEnv(plainRun(), "pi", "0.9.2"),
-			c:    labeledRun(false, nil, pkginfo.EnvVar+"="+cliBody("pi"), pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, nil)),
-			want: conflict("cli version latest (command asks 0.9.2)"),
-		},
-		{
-			name: "DifferingCLIName",
-			o:    withCLIEnv(plainRun(), "codex", pkginfo.LatestVersion),
-			c:    labeledRun(false, nil, pkginfo.EnvVar+"="+cliBody("pi"), pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, nil)),
-			want: conflict("installed cli pi (command asks codex)"),
 		},
 		{
 			name: "UnreadableEnv",
 			o:    plainRun(),
-			c:    labeledRun(false, nil, pkginfo.RunConfigEnvVar+"={"),
+			c:    labeledRun(false, pkginfo.RunConfigEnvVar+"={"),
 			want: "devbox env: " + unreadable.Error(),
 		},
 	}
@@ -168,11 +81,121 @@ func TestRunOptions_ConflictErr(t *testing.T) {
 	}
 }
 
-// inspectRun fakes the devbox's inspect: its labels, published bindings, and env —
-// a devbox booted by this ccbox's env unless the case says otherwise
-func inspectRun(labels map[string]string, bindings nat.PortMap, env ...string) *container.InspectResponse {
+func TestRunOptions_ConflictErr_EnvAsks(t *testing.T) {
+	tests := []struct {
+		name string
+		o    RunOptions
+		c    *container.InspectResponse
+		want string // empty: the devbox answers the run's asks
+	}{
+		{
+			name: "Ports",
+			o:    withPorts(plainRun(), []string{"3000", "7200"}),
+			c:    labeledRun(false, pkginfo.RunConfigEnvVar+"="+boundBody([]string{"3000", "7200"})),
+		},
+		{
+			name: "DifferingPorts",
+			o:    withPorts(plainRun(), []string{"3000"}),
+			c:    labeledRun(false),
+			want: conflict("published none (command asks 3000)"),
+		},
+		{
+			name: "SwappedPorts",
+			o:    withPorts(plainRun(), []string{"3000"}),
+			c:    labeledRun(false, pkginfo.RunConfigEnvVar+"="+boundBody([]string{"9700", "12345"})),
+			want: conflict("published 9700, 12345 (command asks 3000)"),
+		},
+		{
+			name: "HostGateway",
+			o:    withHostGateway(plainRun(), []string{"5432"}),
+			c:    labeledRun(false, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, []string{"5432"})),
+		},
+		{
+			name: "HostGatewayOrderless",
+			o:    withHostGateway(plainRun(), []string{"5432", "6379"}),
+			c:    labeledRun(false, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, []string{"6379", "5432"})),
+		},
+		{
+			name: "DifferingHostGateway",
+			o:    withHostGateway(plainRun(), []string{"3306"}),
+			c:    labeledRun(false, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, []string{"5432", "6379"})),
+			want: conflict("opened host gateway 5432, 6379 (command asks 3306)"),
+		},
+		{
+			name: "CLI",
+			o:    withCLIEnv(plainRun(), "pi", "0.9.2"),
+			c:    labeledRun(false, pkginfo.EnvVar+"="+cliBody("pi"), pkginfo.RunConfigEnvVar+"="+runConfigBody("0.9.2", nil)),
+		},
+		{
+			name: "DifferingCLIVersion",
+			o:    withCLIEnv(plainRun(), "pi", "0.9.2"),
+			c:    labeledRun(false, pkginfo.EnvVar+"="+cliBody("pi"), pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, nil)),
+			want: conflict("cli version latest (command asks 0.9.2)"),
+		},
+		{
+			name: "DifferingCLIName",
+			o:    withCLIEnv(plainRun(), "codex", pkginfo.LatestVersion),
+			c:    labeledRun(false, pkginfo.EnvVar+"="+cliBody("pi"), pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, nil)),
+			want: conflict("installed cli pi (command asks codex)"),
+		},
+		{
+			name: "GUIApp",
+			o:    withGUIAppEnv(plainRun(), "ide", new("1.2.3")),
+			c:    labeledRun(false, guiAppEnv("ide", new("1.2.3"))...),
+		},
+		{
+			name: "DifferingGUIAppVersion",
+			o:    withGUIAppEnv(plainRun(), "ide", new("1.2.3")),
+			c:    labeledRun(false, guiAppEnv("ide", new(pkginfo.LatestVersion))...),
+			want: conflict("gui app version latest (command asks 1.2.3)"),
+		},
+		{
+			name: "DifferingGUIAppName",
+			o:    withGUIAppEnv(plainRun(), "other", new(pkginfo.LatestVersion)),
+			c:    labeledRun(false, guiAppEnv("ide", new(pkginfo.LatestVersion))...),
+			want: conflict("installed gui app ide (command asks other)"),
+		},
+		{
+			name: "GUIAppAgainstNone",
+			o:    withGUIAppEnv(plainRun(), "ide", new(pkginfo.LatestVersion)),
+			c:    labeledRun(false, pkginfo.VNCConfigEnvVar+"={}"),
+			want: conflict("gui app version none (command asks latest) and installed gui app none (command asks ide)"),
+		},
+		{
+			name: "NoneAgainstGUIApp",
+			o:    plainRun(),
+			c:    labeledRun(false, guiAppEnv("ide", new(pkginfo.LatestVersion))...),
+			want: conflict("gui app version latest (command asks none) and installed gui app ide (command asks none)"),
+		},
+		{
+			name: "ProxyAndPorts",
+			o:    withPorts(proxyRun(), []string{"3000"}),
+			c:    labeledRun(false),
+			want: conflict("with the proxy and published none (command asks 3000)"),
+		},
+		{
+			name: "ProxyAndHostGateway",
+			o:    withHostGateway(proxyRun(), []string{"3306"}),
+			c:    labeledRun(false, pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, nil)),
+			want: conflict("with the proxy and opened host gateway none (command asks 3306)"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.o.conflictErr(tt.c)
+			if tt.want == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.EqualError(t, err, tt.want)
+			}
+		})
+	}
+}
+
+// inspectRun fakes the devbox's inspect: its labels and env — a devbox booted by
+// this ccbox's env unless the case says otherwise
+func inspectRun(labels map[string]string, env ...string) *container.InspectResponse {
 	return &container.InspectResponse{
-		ContainerJSONBase: &container.ContainerJSONBase{HostConfig: &container.HostConfig{PortBindings: bindings}},
 		Config: &container.Config{
 			Labels: labels,
 			Env:    slices.Concat(env, []string{pkginfo.EnvVar + "=" + freshPkgInfo, pkginfo.RunConfigEnvVar + "=" + freshRunConfig}),
@@ -180,10 +203,22 @@ func inspectRun(labels map[string]string, bindings nat.PortMap, env ...string) *
 	}
 }
 
-// withPorts aims o's run at the given published ports
+func labeledRun(hasProxy bool, env ...string) *container.InspectResponse {
+	labels := map[string]string{ccboxProjectLabelKey: "/host/proj"}
+	if hasProxy {
+		labels[ccboxHasProxyLabelKey] = trueVolValue
+	}
+	return inspectRun(labels, env...)
+}
+
+func conflict(divergences string) string {
+	return "devbox ccbox-proj is already running for this project, " + divergences + " — exit its session or `docker rm -f ccbox-proj`"
+}
+
+// withPorts aims o's run at the given published ports, in its config too
 func withPorts(o RunOptions, ports []string) RunOptions {
 	o.PortBindingsTCP = ports
-	return o
+	return withRunConfig(o, boundBody(ports))
 }
 
 // withHostGateway aims o's run at the given host-gateway ports, in its config too
@@ -199,10 +234,44 @@ func withCLIEnv(o RunOptions, name, version string) RunOptions {
 	return o
 }
 
+// withGUIAppEnv aims o's run at the given gui app and version, in its config too —
+// a nil version names none
+func withGUIAppEnv(o RunOptions, name string, version *string) RunOptions {
+	for _, entry := range guiAppEnv(name, version) {
+		key, value, _ := strings.Cut(entry, "=")
+		o.Env[key] = value
+	}
+	return o
+}
+
 // cliBody renders a CLI_PKGINFO env body in the host's shape
 func cliBody(name string) string {
-	return string(must.Get(json.Marshal(pkginfo.PkgInfo{Name: name, Npm: &pkginfo.Npm{Package: "a"}})))
+	return body(pkginfo.PkgInfo{Name: name, Npm: &pkginfo.Npm{Package: "a"}})
 }
+
+// vncBody renders a VNC_CONFIG env body in the host's shape — "{}" names no gui app
+func vncBody(name string) string {
+	var info pkginfo.VNCInfo
+	if name != "" {
+		info.GUIApp = &pkginfo.GUIPkgInfo{PkgInfo: pkginfo.PkgInfo{Name: name, Npm: &pkginfo.Npm{Package: "a"}}}
+	}
+	return body(info)
+}
+
+// guiAppEnv is the env entries naming the gui app at version over the latest cli —
+// a nil version names none
+func guiAppEnv(name string, version *string) []string {
+	return []string{pkginfo.VNCConfigEnvVar + "=" + vncBody(name), pkginfo.RunConfigEnvVar + "=" + guiAppRunConfigBody(version)}
+}
+
+// guiAppRunConfigBody renders a CCBOX_CONFIG env body over the latest cli, naming
+// the gui app's version
+func guiAppRunConfigBody(version *string) string {
+	return body(pkginfo.RunConfig{CLIVersion: pkginfo.LatestVersion, GUIAppVersion: version})
+}
+
+// body renders a pkginfo env body in the host's shape
+func body[T any](v T) string { return string(must.Get(json.Marshal(v))) }
 
 // the env a devbox booted by this ccbox carries: a latest pi, no ports
 var (
@@ -212,7 +281,12 @@ var (
 
 // runConfigBody renders a CCBOX_CONFIG env body in the host's shape
 func runConfigBody(version string, gateway []string) string {
-	return string(must.Get(json.Marshal(pkginfo.RunConfig{CLIVersion: version, HostGatewayTCP: gateway})))
+	return body(pkginfo.RunConfig{CLIVersion: version, HostGatewayTCP: gateway})
+}
+
+// boundBody renders a CCBOX_CONFIG env body over the latest cli, binding the ports
+func boundBody(ports []string) string {
+	return body(pkginfo.RunConfig{CLIVersion: pkginfo.LatestVersion, PortBindingsTCP: ports})
 }
 
 // withRunConfig aims o's run at a CCBOX_CONFIG env body

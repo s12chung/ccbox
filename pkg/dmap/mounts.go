@@ -33,7 +33,7 @@ func tmpfsMasks(projectDir string, relDirs []string) []string {
 }
 
 // binds composes the run's binds and volumes in a deterministic order
-func (rm *RunMap) binds(serveVNC, isProxied bool) ([]docker.Mount, func() error, error) {
+func (rm *RunMap) binds(isProxied bool) ([]docker.Mount, func() error, error) {
 	c := rm.cfg.CLI()
 	projectDir := rm.cfg.ProjectDir()
 	var scratchBind, persistBind klean.ShareBind
@@ -53,7 +53,7 @@ func (rm *RunMap) binds(serveVNC, isProxied bool) ([]docker.Mount, func() error,
 		},
 		shareBinds(share.SkillsBind(c.Name)),
 		proxyAllowBind(isProxied),
-		volumes(globalVolumes(serveVNC), true),
+		volumes(globalVolumes(rm.cfg.IsVNC()), true),
 		volumes(cacheVolumeNames(projectDir, rm.cacheVolumes), false),
 		fileMasks(projectDir, rm.cfg.TmpfsMasksFiles()),
 		volumeMasks(projectDir, rm.cfg.VolumeMasksPresent()),
@@ -134,10 +134,10 @@ func readOnlyBinds(binds map[string]string) []docker.Mount {
 // guiAppDataBinds renders the run's GUI app's data binds like the cli's — none
 // without a run naming one; the host side is the run's own mode tree
 func (rm *RunMap) guiAppDataBinds(isProxied bool) []docker.Mount {
-	app := rm.cfg.GUIApp()
-	if app == nil {
+	if !rm.cfg.HasGUIApp() {
 		return nil
 	}
+	app := rm.cfg.VNC.GUIApp()
 	return dataBinds(GUIAppDataDir(userdir.Dir(), app.Name, isProxied), app.Setup.DataBindMounts(isProxied))
 }
 

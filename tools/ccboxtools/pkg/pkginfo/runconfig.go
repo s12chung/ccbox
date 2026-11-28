@@ -14,10 +14,14 @@ import (
 // RunConfigEnvVar is the container env var carrying the run's RunConfig JSON.
 const RunConfigEnvVar = "CCBOX_CONFIG"
 
-// RunConfig is the run's config asks the container acts on; the cli's name is CLI_PKGINFO's
+// RunConfig is the run's config asks the container acts on
 type RunConfig struct {
-	// CLIVersion is "latest" to track each release, or an exact version to stay on
+	// CLIVersion is "latest" to track each release, or an exact version to stay on;
+	// the name is CLI_PKGINFO's
 	CLIVersion string `json:"cli_version"`
+	// GUIAppVersion is the GUI app's version ask, as CLIVersion's; the name is
+	// VNC_CONFIG's gui_app; nil names no GUI app
+	GUIAppVersion *string `json:"gui_app_version,omitempty"`
 	// PortBindingsTCP are the default variant's port bindings; nil binds none
 	PortBindingsTCP []string `json:"port_bindings_tcp,omitempty"`
 	// HostGatewayTCP are the host gateway's ports; nil names none
@@ -27,7 +31,8 @@ type RunConfig struct {
 func init() {
 	firm.MustRegisterType(firm.NewDefinition[RunConfig]().
 		Validates(firm.RuleMap{
-			"CLIVersion": {VersionRule},
+			"CLIVersion":    {VersionRule},
+			"GUIAppVersion": {VersionRule},
 		}))
 }
 

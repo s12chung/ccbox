@@ -116,7 +116,7 @@ func TestSeedRunMounts(t *testing.T) {
 		dir := t.TempDir()
 		body := "cli: opencode@latest\n" +
 			"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
-			"vnc:\n  gui_app: " + guiapp.App.Name + "\n"
+			"vnc:\n  gui_app: " + guiapp.App.Name + "@latest\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))
 		loaded, err := cfg.Load(dir, cfg.Flags{VNC: serveVNC})
 		require.NoError(t, err)

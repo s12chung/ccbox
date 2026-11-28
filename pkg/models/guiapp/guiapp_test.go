@@ -22,16 +22,8 @@ func TestLookup(t *testing.T) {
 
 func TestMustFor(t *testing.T) {
 	assert.Equal(t, App, *MustFor(App.Name))
-	assert.Nil(t, MustFor(""), "the empty name names no app")
-	assert.PanicsWithError(t, "guiapp: emacs is not one of [zcode]", func() { MustFor("emacs") })
-}
-
-func TestAllowDomains(t *testing.T) {
-	assert.Equal(t, App.Setup.Proxied.AllowDomains, AllowDomains(App.Name))
-
-	for _, name := range []string{"", "emacs"} {
-		assert.Emptyf(t, AllowDomains(name), "%q names no app to download", name)
-	}
+	assert.PanicsWithError(t, `guiapp: "" is not one of [zcode]`, func() { MustFor("") })
+	assert.PanicsWithError(t, `guiapp: "emacs" is not one of [zcode]`, func() { MustFor("emacs") })
 }
 
 // App is a declaration — the firm rules are its spec; this is its check

@@ -15,6 +15,11 @@ func TestRunConfigFromJSON(t *testing.T) {
 	}{
 		{"latest", `{"cli_version":"latest"}`, RunConfig{CLIVersion: LatestVersion}},
 		{
+			"pinned gui app",
+			`{"cli_version":"latest","gui_app_version":"1.2.3"}`,
+			RunConfig{CLIVersion: LatestVersion, GUIAppVersion: new("1.2.3")},
+		},
+		{
 			"pinned with ports",
 			`{"cli_version":"0.9.2","port_bindings_tcp":["3000","7200"],"host_gateway_tcp":["5432"]}`,
 			RunConfig{CLIVersion: "0.9.2", PortBindingsTCP: []string{"3000", "7200"}, HostGatewayTCP: []string{"5432"}},
@@ -38,6 +43,8 @@ func TestRunConfigFromJSON(t *testing.T) {
 		{"no version", `{}`, "CLIVersion.Or"},
 		{"range version", `{"cli_version":"^1.0"}`, "CLIVersion.Or"},
 		{"dist-tag version", `{"cli_version":"next"}`, "CLIVersion.Or"},
+		{"range gui app version", `{"cli_version":"latest","gui_app_version":"^1.0"}`, "GUIAppVersion.Or"},
+		{"dist-tag gui app version", `{"cli_version":"latest","gui_app_version":"next"}`, "GUIAppVersion.Or"},
 	}
 	for _, tt := range invalid {
 		t.Run(tt.name, func(t *testing.T) {

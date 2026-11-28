@@ -67,7 +67,7 @@ const (
 	domainOrAliasName = "DomainOrAlias"
 	portListName      = "PortList"
 	templateName      = "Template"
-	cliRefName        = "CLIRef"
+	appRefName        = "AppRef"
 )
 
 // Bind validates a read_only_binds key-value pair for rule.KeyValues
@@ -182,22 +182,24 @@ func DomainOrAlias(aliasesFunc func() []string) firm.RuleBasic {
 	)
 }
 
-// CLIRef validates a cli at a version: a known cli's name, then "@latest" or an exact one
-func CLIRef(namesFunc func() []string) firm.Rule { return cliRef{namesFunc: namesFunc} }
-
-// cliRef resolves the known cli names at validation time — clis load at startup
-type cliRef struct{ namesFunc func() []string }
+// AppRef validates an app's ref: a known app's name, then "@latest" or an exact version
+type AppRef struct {
+	// Kind names the app in its errors — "cli", "gui app"
+	Kind string
+	// Names resolves the known app names at validation time — apps load at startup
+	Names func() []string
+}
 
 // TypeCheck restricts the rule to strings
-func (cliRef) TypeCheck(typ reflect.Type) *firm.RuleTypeError {
+func (AppRef) TypeCheck(typ reflect.Type) *firm.RuleTypeError {
 	if typ.Kind() != reflect.String {
-		return firm.NewRuleTypeError(cliRefName, typ, "is not a string")
+		return firm.NewRuleTypeError(appRefName, typ, "is not a string")
 	}
 	return nil
 }
 
 // ValidateValue validates the ref (assumes TypeCheck is called)
-func (r cliRef) ValidateValue(value reflect.Value) firm.ErrorMap {
+func (r AppRef) ValidateValue(value reflect.Value) firm.ErrorMap {
 	ref, ok := reflect.TypeAssert[string](value)
 	if !ok {
 		return nil
@@ -205,21 +207,21 @@ func (r cliRef) ValidateValue(value reflect.Value) firm.ErrorMap {
 	name, version, found := strings.Cut(ref, "@")
 	switch {
 	case !found || strings.Contains(version, "@"):
-		return cliRefErr(`is not a cli ref (cli_name@latest or cli_name@version)`, ref)
-	case !slices.Contains(r.namesFunc(), name):
-		return firm.ErrorMap{cliRefName: firm.TemplateError{
-			TemplateFields: map[string]string{"Value": strconv.Quote(name), "Names": quotedValues(r.namesFunc())},
-			Template:       `names no known cli: {{.Value}} is not one of {{.Names}}`,
+		return appRefErr(fmt.Sprintf("is not a %s ref (name@latest or name@version)", r.Kind), ref)
+	case !slices.Contains(r.Names(), name):
+		return firm.ErrorMap{appRefName: firm.TemplateError{
+			TemplateFields: map[string]string{"Value": strconv.Quote(name), "Names": quotedValues(r.Names())},
+			Template:       fmt.Sprintf("names no known %s: {{.Value}} is not one of {{.Names}}", r.Kind),
 		}}
 	case version != pkginfo.LatestVersion && !pkginfo.IsPinned(version):
-		return cliRefErr(`is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1)`, version)
+		return appRefErr(`is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1)`, version)
 	}
 	return nil
 }
 
-// cliRefErr names the ref's failing part, quoted so an empty one shows
-func cliRefErr(template, value string) firm.ErrorMap {
-	return firm.ErrorMap{cliRefName: firm.TemplateError{
+// appRefErr names the ref's failing part, quoted so an empty one shows
+func appRefErr(template, value string) firm.ErrorMap {
+	return firm.ErrorMap{appRefName: firm.TemplateError{
 		TemplateFields: map[string]string{"Value": strconv.Quote(value)},
 		Template:       template + `: {{.Value}}`,
 	}}

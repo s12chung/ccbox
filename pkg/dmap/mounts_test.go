@@ -174,7 +174,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 		t.Helper()
 		body := "cli: claude@latest\n"
 		if guiApp != "" {
-			body += "vnc:\n  gui_app: " + guiApp + "\n"
+			body += "vnc:\n  gui_app: " + guiApp + "@latest\n"
 		}
 		config, err := cfg.Load(writeConfigYaml(t, body), cfg.Flags{VNC: true})
 		require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	})
 
 	t.Run("none without a vnc run", func(t *testing.T) {
-		config := loadConfig(t, "cli: claude@latest\n"+"vnc:\n  gui_app: "+guiapp.App.Name+"\n")
+		config := loadConfig(t, "cli: claude@latest\n"+"vnc:\n  gui_app: "+guiapp.App.Name+"@latest\n")
 
 		binds := NewRunMap(config, nil, false).guiAppDataBinds(true)
 		assert.Empty(t, binds)
