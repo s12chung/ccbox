@@ -106,7 +106,7 @@ func init() {
 		return cli.Names(), cobra.ShellCompDirectiveNoFileComp
 	}))
 
-	rootCmd.AddCommand(runCmd, execCmd, buildCmd, pkginfoCmd, proxyCmd, cleanCmd, psCmd, configCmd, doctorCmd, miseCmd)
+	rootCmd.AddCommand(runCmd, execCmd, buildCmd, proxyCmd, cleanCmd, psCmd, configCmd, doctorCmd, miseCmd)
 }
 
 // rootSeed seeds the user-level harness state if missing
