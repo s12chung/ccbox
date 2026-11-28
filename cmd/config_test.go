@@ -36,7 +36,7 @@ func TestPrintConfig(t *testing.T) {
 	writeConfig(t, filepath.Join(proj, ".env"), "K=v")
 	writeConfig(t, filepath.Join(proj, "notes.txt"), "some note")
 	writeConfig(t, cfg.UserConfigFile(),
-		"cli: claude@latest\n"+
+		"cli: pi@latest\n"+
 			"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n"+
 			"forward_env:\n  - TERM\n"+
 			"proxy:\n  enabled: true\n  allowlist:\n    - ccbox-defaults\n")
@@ -178,7 +178,7 @@ func TestConfirmReadOnlyPaths(t *testing.T) {
 	loadReadOnlyConfig := func(t *testing.T, dir string) {
 		t.Helper()
 		testutil.Home(t)
-		body := "cli: claude@latest\n" +
+		body := "cli: pi@latest\n" +
 			"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
 			"read_only_globs:\n  - \"**/.env\"\n"
 		require.NoError(t, os.WriteFile(filepath.Join(dir, ".ccbox.yaml"), []byte(body), osutil.File))

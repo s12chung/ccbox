@@ -19,7 +19,7 @@ func single(t *testing.T, p Picker) *picker[testModel] {
 }
 
 func TestPicker_UpdateEnterSelects(t *testing.T) {
-	p := NewPicker(testModels("claude", "codex"))
+	p := NewPicker(testModels("pi", "claude"))
 	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, p)
 	s.models[0].cursor = 1
 
@@ -29,11 +29,11 @@ func TestPicker_UpdateEnterSelects(t *testing.T) {
 
 	var choice testModel
 	require.NoError(t, p.respond(&choice))
-	assert.Equal(t, testModel{name: "codex"}, choice)
+	assert.Equal(t, testModel{name: "claude"}, choice)
 }
 
 func TestPicker_UpdateEnterOnSubmitRow(t *testing.T) {
-	p := NewPicker(testModels("claude", "codex"))
+	p := NewPicker(testModels("pi", "claude"))
 	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save"}, p)
 	key(t, s, tea.KeyEnter) // marking an item
 	key(t, s, tea.KeyDown)
@@ -43,11 +43,11 @@ func TestPicker_UpdateEnterOnSubmitRow(t *testing.T) {
 	require.NotNil(t, cmd, "submitting quits the program")
 	var choice testModel
 	require.NoError(t, p.respond(&choice))
-	assert.Equal(t, testModel{name: "claude"}, choice)
+	assert.Equal(t, testModel{name: "pi"}, choice)
 }
 
 func TestPicker_UpdateSubmitNeedsSelection(t *testing.T) {
-	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save", RequireSelected: true}, NewPicker(testModels("claude", "codex")))
+	s := stack(RunnerOptions{Header: "pick one", SubmitLabel: "Save", RequireSelected: true}, NewPicker(testModels("pi", "claude")))
 	w := s.models[0]
 	assert.False(t, s.isSubmitFocusable())
 
@@ -65,19 +65,19 @@ func TestPicker_UpdateSubmitNeedsSelection(t *testing.T) {
 }
 
 func TestPicker_Respond(t *testing.T) {
-	p := NewPicker(testModels("claude", "codex"))
+	p := NewPicker(testModels("pi", "claude"))
 	p.enter(1)
 
 	var choice testModel
 	require.NoError(t, p.respond(&choice))
-	assert.Equal(t, testModel{name: "codex"}, choice)
+	assert.Equal(t, testModel{name: "claude"}, choice)
 
 	err := p.respond(new(string))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "want *pick.testModel")
 
 	// nothing marked reads the zero model
-	p = NewPicker(testModels("claude", "codex"))
+	p = NewPicker(testModels("pi", "claude"))
 	choice = testModel{}
 	require.NoError(t, p.respond(&choice))
 	assert.Empty(t, choice.name)
@@ -88,17 +88,17 @@ func TestPicker_View(t *testing.T) {
 	submitLabel := "Save to ~/.ccbox/ccbox.yaml"
 	opts := RunnerOptions{Header: header, Subtext: []string{subtext}, SubmitLabel: submitLabel}
 
-	p := NewPicker(testModels("claude", "codex"))
+	p := NewPicker(testModels("pi", "claude"))
 	s := stack(opts, p)
 	s.models[0].cursor = 1
 
-	key(t, s, tea.KeyEnter) // mark codex
+	key(t, s, tea.KeyEnter) // mark claude
 	assert.Equal(t, []string{
 		"  Select a harness CLI",
 		"  (set in ~/.ccbox/ccbox.yaml)",
 		"",
-		"    ○ claude",
-		"  ❯ ◉ codex",
+		"    ○ pi",
+		"  ❯ ◉ claude",
 		"",
 		"    Save to ~/.ccbox/ccbox.yaml",
 		"",
@@ -106,12 +106,12 @@ func TestPicker_View(t *testing.T) {
 	}, trimmedLines(s.View()))
 
 	// no subtext: the header flows straight into the blank line before the items
-	p = NewPicker(testModels("claude", "codex"))
+	p = NewPicker(testModels("pi", "claude"))
 	assert.Equal(t, []string{
 		"  Select a harness CLI",
 		"",
-		"  ❯ ○ claude",
-		"    ○ codex",
+		"  ❯ ○ pi",
+		"    ○ claude",
 		"",
 		"    Save to ~/.ccbox/ccbox.yaml",
 		"",
@@ -119,11 +119,11 @@ func TestPicker_View(t *testing.T) {
 	}, trimmedLines(stack(RunnerOptions{Header: header, SubmitLabel: submitLabel}, p).View()))
 
 	// a hinted model carries its gray note parenthesized after its name
-	p = NewPicker([]testModel{{name: "claude", hint: "anthropic"}})
+	p = NewPicker([]testModel{{name: "pi", hint: "earendil"}})
 	assert.Equal(t, []string{
 		"  Select a harness CLI",
 		"",
-		"  ❯ ○ claude (anthropic)",
+		"  ❯ ○ pi (earendil)",
 		"",
 		"    Save to ~/.ccbox/ccbox.yaml",
 		"",
@@ -133,17 +133,17 @@ func TestPicker_View(t *testing.T) {
 	// the block is placed in the terminal's size, left-aligned: the run's
 	// 2-space padding sits over every line's own indent — the rows' 2-space mark
 	// column, the submit row's 2
-	p = NewPicker(testModels("claude", "codex"))
+	p = NewPicker(testModels("pi", "claude"))
 	s = stack(opts, p)
 	s.models[0].cursor = 1
-	key(t, s, tea.KeyEnter) // mark codex
+	key(t, s, tea.KeyEnter) // mark claude
 	s.width, s.height = 40, 10
 	view := s.View()
 	wantLeading := map[string]int{
 		"Select a harness CLI":               2,
 		"(set in ~/.ccbox/ccbox.yaml)":       2,
-		"○ claude":                           4,
-		"❯ ◉ codex":                          2,
+		"○ pi":                               4,
+		"❯ ◉ claude":                         2,
 		"Save to ~/.ccbox/ccbox.yaml":        4,
 		"↑/↓ move • enter select • esc quit": 2,
 	}

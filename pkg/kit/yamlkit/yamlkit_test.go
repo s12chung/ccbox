@@ -28,7 +28,7 @@ func TestValue(t *testing.T) {
 		{"nil slice", []string(nil), nil, "", ""},
 		{"nil map", map[string]string(nil), nil, "", ""},
 		{"pointer value", &foo, nil, " foo", ""},
-		{"string", "claude", nil, " claude", ""},
+		{"string", "pi", nil, " pi", ""},
 		{"bool", true, nil, " true", ""},
 		{"quoted string", "yes", nil, " \"yes\"", ""}, // yaml quotes bool-like strings
 
@@ -37,12 +37,12 @@ func TestValue(t *testing.T) {
 		{"slice", []string{"a", "b"}, nil, "\n  - a\n  - b", ""},
 		{"map sorts keys", map[string]string{"b": "1", "a": "2"}, nil, "\n  a: \"2\"\n  b: \"1\"", ""},
 
-		{"comment beside plain value", "claude", []string{"the cli"}, " claude # the cli", ""},
+		{"comment beside plain value", "pi", []string{"the cli"}, " pi # the cli", ""},
 		{"comment beside pointer value", &foo, []string{"why"}, " foo # why", ""},
-		{"empty comment beside plain value", "claude", []string{""}, " claude", ""},
+		{"empty comment beside plain value", "pi", []string{""}, " pi", ""},
 		{"comment beside unset", nil, []string{"why"}, " # why", ""},
 		{"comment beside empty slice", []string{}, []string{"why"}, "", "comments: got 1, want 0 or none"},
-		{"too many comments beside plain value", "claude", []string{"a", "b"}, "", "comments: got 2, want none or one"},
+		{"too many comments beside plain value", "pi", []string{"a", "b"}, "", "comments: got 2, want none or one"},
 		{"slice comments", []string{"a", "b"}, []string{"first", "second"}, "\n  - a # first\n  - b # second", ""},
 		{"slice empty comment", []string{"a", "b"}, []string{"", "second"}, "\n  - a\n  - b # second", ""},
 		{"slice comment count mismatch", []string{"a", "b"}, []string{"only"}, "", "comments: got 1, want 2 or none"},

@@ -24,16 +24,16 @@ func resetUserDir(t *testing.T) string {
 	return userdir.Dir()
 }
 
-// claudeMount is the scratch file's container path, as AgentsMd wires it
-const claudeMount = "/home/ccbox/.ccbox/tmp/agents/claude/AGENTS.md"
+// piMount is the scratch file's container path, as AgentsMd wires it
+const piMount = "/home/ccbox/.ccbox/tmp/agents/pi/AGENTS.md"
 
-func claudeTarget() string { return claudeMount }
+func piTarget() string { return piMount }
 
-// claudeShareBegin begins a bound share for claude, runs body with the bound scratch file,
+// piShareBegin begins a bound share for pi, runs body with the bound scratch file,
 // then cleans up
-func claudeShareBegin(t *testing.T, isProxied bool, body func(scratchFile string)) {
+func piShareBegin(t *testing.T, isProxied bool, body func(scratchFile string)) {
 	t.Helper()
-	bind, cleanup, err := AgentsMd("claude", isProxied).Begin()
+	bind, cleanup, err := AgentsMd("pi", isProxied).Begin()
 	require.NoError(t, err)
 	if body != nil {
 		body(bind.HostPath)
@@ -41,21 +41,21 @@ func claudeShareBegin(t *testing.T, isProxied bool, body func(scratchFile string
 	require.NoError(t, cleanup())
 }
 
-func claudeCliFile(userDir string) string { return filepath.Join(userDir, "claude", agentsMdFileName) }
+func piCliFile(userDir string) string { return filepath.Join(userDir, "pi", agentsMdFileName) }
 
-func claudeTmplMd(userDir string) string {
-	return filepath.Join(userDir, "claude", agentsTmplMdFileName)
+func piTmplMd(userDir string) string {
+	return filepath.Join(userDir, "pi", agentsTmplMdFileName)
 }
 
 func userAgentsTmplMd(userDir string) string {
 	return filepath.Join(userDir, agentsTmplMdFileName)
 }
 
-func claudeScratch(userDir string) string {
-	return filepath.Join(userDir, "tmp", "agents", "claude", agentsMdFileName)
+func piScratch(userDir string) string {
+	return filepath.Join(userDir, "tmp", "agents", "pi", agentsMdFileName)
 }
 
-func claudeBase(userDir string) string { return claudeScratch(userDir) + ".orig" }
+func piBase(userDir string) string { return piScratch(userDir) + ".orig" }
 
 func renderTmpl(t *testing.T, ctx agentsTmplCtx, body string) string {
 	t.Helper()
@@ -99,7 +99,7 @@ func assertSymlinked(t *testing.T, cliFile string) {
 	require.NotEqual(t, 0, info.Mode()&os.ModeSymlink, "a symlink, not a regular file")
 	target, err := os.Readlink(cliFile)
 	require.NoError(t, err)
-	assert.Equal(t, claudeTarget(), target)
+	assert.Equal(t, piTarget(), target)
 }
 
 func TestSafeSeedAgentsMd(t *testing.T) {
@@ -147,18 +147,18 @@ func TestAgentsMd_PromotesRendered(t *testing.T) {
 		body     string              // the template's body
 	}{
 		{caseName: "SharedTmpl", doc: userAgentsTmplMd, body: "<!--{{ adminSection }}-->\nadmin rules"},
-		{caseName: "CliTmpl", doc: claudeTmplMd, body: "<!--{{ sharedAgentsMd }}-->\ncli rules"},
+		{caseName: "CliTmpl", doc: piTmplMd, body: "<!--{{ sharedAgentsMd }}-->\ncli rules"},
 	} {
 		t.Run(tc.caseName, func(t *testing.T) {
 			userDir := resetUserDir(t)
 			writeFile(t, tc.doc(userDir), tc.body)
 			rendered := renderTmpl(t, agentsTmplCtx{isProxied: true}, tc.body)
 
-			claudeShareBegin(t, true, func(string) {
-				writeFile(t, claudeScratch(userDir), rendered+", edited")
+			piShareBegin(t, true, func(string) {
+				writeFile(t, piScratch(userDir), rendered+", edited")
 			})
 
-			assert.Equal(t, rendered+", edited", readFile(t, claudeCliFile(userDir)))
+			assert.Equal(t, rendered+", edited", readFile(t, piCliFile(userDir)))
 		})
 	}
 }
@@ -215,7 +215,7 @@ func TestAgentsMd_Begin(t *testing.T) {
 			caseName: "CliTmplOverridesShared",
 			setup: func(t *testing.T, userDir string) {
 				writeFile(t, userAgentsTmplMd(userDir), "shared")
-				writeFile(t, claudeTmplMd(userDir), "<!--{{ adminSection }}-->\ncli rules")
+				writeFile(t, piTmplMd(userDir), "<!--{{ adminSection }}-->\ncli rules")
 			},
 			binds: true,
 			body: func(t *testing.T) string {
@@ -225,7 +225,7 @@ func TestAgentsMd_Begin(t *testing.T) {
 		{
 			caseName: "SkipsWhenCliFileExists",
 			setup: func(t *testing.T, userDir string) {
-				writeFile(t, claudeCliFile(userDir), "cli")
+				writeFile(t, piCliFile(userDir), "cli")
 			},
 		},
 		{
@@ -257,29 +257,29 @@ func TestAgentsMd_Begin(t *testing.T) {
 			}
 
 			if tc.err {
-				bind, cleanup, err := AgentsMd("claude", true).Begin()
+				bind, cleanup, err := AgentsMd("pi", true).Begin()
 				require.Error(t, err)
 				assert.Empty(t, bind.HostPath)
-				assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
-				assert.True(t, gone(t, claudeBase(userDir)), "no baseline written")
+				assert.True(t, gone(t, piScratch(userDir)), "no scratch written")
+				assert.True(t, gone(t, piBase(userDir)), "no baseline written")
 				require.NoError(t, cleanup())
 				return
 			}
 
-			claudeShareBegin(t, true, func(scratchFile string) {
+			piShareBegin(t, true, func(scratchFile string) {
 				if !tc.binds {
 					assert.Empty(t, scratchFile)
-					assert.True(t, gone(t, claudeScratch(userDir)), "no scratch written")
-					assert.True(t, gone(t, claudeBase(userDir)), "no baseline written")
+					assert.True(t, gone(t, piScratch(userDir)), "no scratch written")
+					assert.True(t, gone(t, piBase(userDir)), "no baseline written")
 					return
 				}
-				assert.Equal(t, claudeScratch(userDir), scratchFile)
-				assert.Equal(t, tc.body(t), readFile(t, claudeScratch(userDir)), "the bound scratch's body")
-				assert.Equal(t, tc.body(t), readFile(t, claudeBase(userDir)), "the written baseline's body")
-				assertSymlinked(t, claudeCliFile(userDir))
+				assert.Equal(t, piScratch(userDir), scratchFile)
+				assert.Equal(t, tc.body(t), readFile(t, piScratch(userDir)), "the bound scratch's body")
+				assert.Equal(t, tc.body(t), readFile(t, piBase(userDir)), "the written baseline's body")
+				assertSymlinked(t, piCliFile(userDir))
 			})
-			assert.True(t, gone(t, claudeScratch(userDir)), "the cleanup drops the share")
-			assert.True(t, gone(t, claudeBase(userDir)), "the cleanup drops the baseline")
+			assert.True(t, gone(t, piScratch(userDir)), "the cleanup drops the share")
+			assert.True(t, gone(t, piBase(userDir)), "the cleanup drops the baseline")
 		})
 	}
 }

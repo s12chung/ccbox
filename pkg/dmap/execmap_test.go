@@ -9,10 +9,10 @@ import (
 )
 
 func TestExecMap_Cmd(t *testing.T) {
-	config := loadConfig(t, "cli: claude@latest\n")
+	config := loadConfig(t, "cli: pi@latest\n")
 	em := NewExecMap(config.CLI())
 
-	assert.Equal(t, execArgv("claude"), em.cmd(ExecMode{}, true))
+	assert.Equal(t, execArgv("pi"), em.cmd(ExecMode{}, true))
 	assert.Equal(t, execArgv("bash"), em.cmd(ExecMode{Shell: true}, true), "bare exec drops into the image's shell")
 	assert.Equal(t, execArgv("make", "test"),
 		em.cmd(ExecMode{Shell: true, Args: []string{"make", "test"}}, true), "exec execs the args")

@@ -134,9 +134,9 @@ func TestRunOptions_ConflictErr_EnvAsks(t *testing.T) {
 		},
 		{
 			name: "DifferingCLIName",
-			o:    withCLIEnv(plainRun(), "codex", pkginfo.LatestVersion),
+			o:    withCLIEnv(plainRun(), "claude", pkginfo.LatestVersion),
 			c:    labeledRun(false, pkginfo.EnvVar+"="+cliBody("pi"), pkginfo.RunConfigEnvVar+"="+runConfigBody(pkginfo.LatestVersion, nil)),
-			want: conflict("installed cli pi (command asks codex)"),
+			want: conflict("installed cli pi (command asks claude)"),
 		},
 		{
 			name: "GUIApp",

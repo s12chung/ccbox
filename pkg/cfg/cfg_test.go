@@ -130,7 +130,7 @@ func TestLoadedPaths(t *testing.T) {
 			useHome(t) // no user file unless written below
 			dir := t.TempDir()
 			for _, name := range tt.files {
-				writeConfig(t, dir, name, "cli: claude@latest\n"+imagesYAML)
+				writeConfig(t, dir, name, "cli: pi@latest\n"+imagesYAML)
 			}
 			var wantLoaded, wantNotLoaded []string
 			for _, name := range []string{userConfigFileName, projectConfigFileName} {
@@ -170,7 +170,7 @@ func TestConfig_ValidateErrors(t *testing.T) {
 		quoted[i] = strconv.Quote(a)
 	}
 	c := config{
-		CLIRef:        new("claude@latest"),
+		CLIRef:        new("pi@latest"),
 		TmpfsMasks:    new([]string{"/etc"}),
 		ReadOnlyGlobs: new([]string{"../escape"}),
 		ReadOnlyBinds: new(map[string]string{GitConfigKey: "/home/ccbox/.config/git", "~/fonts": "mnt"}),
@@ -193,7 +193,7 @@ func TestConfig_ValidateErrors(t *testing.T) {
 
 	t.Run("the images' refs must be full refs with a tag", func(t *testing.T) {
 		c := config{
-			CLIRef: new("claude@latest"),
+			CLIRef: new("pi@latest"),
 			Images: &images{Base: "Debian", Mise: "ghcr.io/jdx/mise"},
 		}
 
@@ -326,30 +326,30 @@ func TestSeedConfig(t *testing.T) {
 
 func TestSeedConfig_SkipsExisting(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, userConfigFileName, "cli: codex@latest\n")
+	writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n")
 
-	require.NoError(t, SeedConfig(UserConfigFile(), "pi", testImages))
+	require.NoError(t, SeedConfig(UserConfigFile(), "claude", testImages))
 
 	// #nosec G304 -- the package's own temp user file
 	body, err := os.ReadFile(UserConfigFile())
 	require.NoError(t, err)
-	assert.Equal(t, "cli: codex@latest\n", string(body)) // the user's own file is never touched
+	assert.Equal(t, "cli: pi@latest\n", string(body)) // the user's own file is never touched
 }
 
 func TestSeedConfig_ChoosesCLI(t *testing.T) {
 	useHome(t)
 
-	require.NoError(t, SeedConfig(UserConfigFile(), "codex", testImages))
+	require.NoError(t, SeedConfig(UserConfigFile(), "pi", testImages))
 
 	body, err := os.ReadFile(UserConfigFile()) // #nosec G304 -- the package's own temp user file
 	require.NoError(t, err)
-	assert.Contains(t, string(body), "cli: codex@latest")
+	assert.Contains(t, string(body), "cli: pi@latest")
 }
 
 // TestConfig_mergeOverlays pins the input view's fold: lists append, maps merge per key
 func TestConfig_mergeOverlays(t *testing.T) {
 	c := config{
-		CLIRef:        new("claude@latest"),
+		CLIRef:        new("pi@latest"),
 		VNC:           &vnc{GUIAppRef: new("zcode@latest"), Enabled: new(true)},
 		TmpfsMasks:    new([]string{"dist"}),
 		VolumeMasks:   new([]string{"target"}),
@@ -362,7 +362,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 		},
 	}
 	other := config{
-		CLIRef:        new("codex@0.9.2"), // a scalar: the later layer's value wins whole
+		CLIRef:        new("claude@0.9.2"), // a scalar: the later layer's value wins whole
 		VNC:           &vnc{Enabled: new(false)},
 		TmpfsMasks:    new([]string{"build"}),
 		VolumeMasks:   new([]string{"cache"}),
@@ -376,7 +376,7 @@ func TestConfig_mergeOverlays(t *testing.T) {
 
 	assert.Equal(t, deepcopy.Of(other), other) // merging never touches the later layer
 	assert.Equal(t, config{
-		CLIRef: new("codex@0.9.2"),
+		CLIRef: new("claude@0.9.2"),
 		VNC: &vnc{ // the section merges per field: unset later fields keep the earlier's
 			GUIAppRef: new("zcode@latest"),
 			Enabled:   new(false), // an explicit later value wins — the --no-proxy fold's shape
@@ -410,7 +410,7 @@ func TestLoad_InvalidBindsErrors(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: claude@latest\n"+imagesYAML+"read_only_binds:\n  fonts: enabled\n")
+			writeConfig(t, dir, cf.name, "cli: pi@latest\n"+imagesYAML+"read_only_binds:\n  fonts: enabled\n")
 
 			_, err := Load(dir, Flags{})
 			require.Error(t, err)
@@ -434,10 +434,10 @@ func TestLoad_LayersFiles(t *testing.T) {
 	mkDirs(t, dir, tmpfsDefaults...)
 	mkDirs(t, dir, "dist", "build") // the layers' own mask dirs must exist to survive
 	bodies := map[string]string{    // one entry per configFiles term
-		"user": "cli: opencode@0.9.2\n" + imagesYAML + "tmpfs_masks:\n  - .idea\n  - dist\n" +
+		"user": "cli: pi@0.9.2\n" + imagesYAML + "tmpfs_masks:\n  - .idea\n  - dist\n" +
 			"read_only_binds:\n  gitconfig: enabled\n  ~/fonts: /home/ccbox/fonts\n" +
 			"forward_env:\n  - FOO\n  - BAR\nvnc:\n  enabled: true\n  gui_app: zcode@latest\nproxy:\n  enabled: true\n  allowlist:\n    - user.example.dev\n",
-		"project": "cli: claude@latest\n" + imagesYAML + "tmpfs_masks:\n  - build\n" +
+		"project": "cli: pi@latest\n" + imagesYAML + "tmpfs_masks:\n  - build\n" +
 			"read_only_binds:\n  ~/fonts: /mnt/fonts\n  ~/certs: /home/ccbox/certs\n" +
 			"forward_env:\n  - FOO\n  - BAZ\nproxy:\n  allowlist:\n    - ccbox-defaults\n",
 	}
@@ -447,7 +447,7 @@ func TestLoad_LayersFiles(t *testing.T) {
 
 	c, err := Load(dir, Flags{})
 	require.NoError(t, err)
-	assert.Equal(t, "claude@latest", c.CLIRef) // later layer wins, whole: the user's version stays with the user's cli
+	assert.Equal(t, "pi@latest", c.CLIRef) // later layer wins, whole: the user's version stays with the user's cli
 
 	// per-field merge: the project layer's unset section leaves the user's gui_app standing
 	assert.Equal(t, &VNC{GUIAppRef: new("zcode@latest")}, c.VNC)
@@ -500,7 +500,7 @@ func TestLoad_EmptyGuiAppNamesNoApp(t *testing.T) {
 func TestLoad_VNC(t *testing.T) {
 	t.Run("a section in any layer serves the desktop, the later layer's fields standing", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode@latest\n")
+		writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode@latest\n")
 		writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc: {}\n")
 
 		c, err := Load(dir, Flags{})
@@ -511,7 +511,7 @@ func TestLoad_VNC(t *testing.T) {
 	t.Run("the --vnc flag adds a section with no app", func(t *testing.T) {
 		useHome(t) // no user file
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML)
 
 		c, err := Load(dir, Flags{VNC: true})
 		require.NoError(t, err)
@@ -520,7 +520,7 @@ func TestLoad_VNC(t *testing.T) {
 
 	t.Run("a later layer's enabled: false opts the section out", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+"vnc:\n  enabled: true\n")
+		writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+imagesYAML+"vnc:\n  enabled: true\n")
 		writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc:\n  enabled: false\n")
 
 		c, err := Load(dir, Flags{})
@@ -544,7 +544,7 @@ func TestLoad_GUIApp(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+tt.body)
+			writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML+tt.body)
 
 			c, err := Load(dir, Flags{})
 			require.NoError(t, err)
@@ -561,7 +561,7 @@ func TestLoad_GUIApp(t *testing.T) {
 
 	t.Run("a later layer's ref wins whole, version included", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode@1.2.3\n")
+		writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+imagesYAML+"vnc:\n  enabled: true\n  gui_app: zcode@1.2.3\n")
 		writeConfig(t, dir, projectConfigFileName, imagesYAML+"vnc:\n  gui_app: zcode@latest\n")
 
 		c, err := Load(dir, Flags{})
@@ -574,7 +574,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("a missing section is no proxy", func(t *testing.T) {
 		useHome(t) // no user file: no section anywhere
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML)
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -584,7 +584,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("an older enabled: false opts the section out", func(t *testing.T) {
 		useHome(t) // no user file: the project's section stands alone
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+"proxy:\n  enabled: false\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML+"proxy:\n  enabled: false\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -617,7 +617,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("an absent enabled is off", func(t *testing.T) {
 		useHome(t) // no user file: no seed's true to inherit
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+"proxy:\n  allowlist:\n    - example.com\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML+"proxy:\n  allowlist:\n    - example.com\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -627,7 +627,7 @@ func TestLoad_Proxy(t *testing.T) {
 	t.Run("the proxy command adds the section", func(t *testing.T) {
 		useHome(t) // no user file: no section anywhere
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML)
 
 		c, err := Load(dir, Flags{ProxyCmd: true})
 		require.NoError(t, err)
@@ -664,9 +664,9 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		want []string
 	}{
 		{"unknown cli", "cli: emacs@latest\n", []string{"CLIRef", `names no known cli: "emacs" is not one of ["antigravity" "claude" "opencode" "pi"]`}},
-		{"version-less cli", "cli: claude\n", []string{"CLIRef", `is not a cli ref (name@latest or name@version): "claude"`}},
-		{"range version", "cli: claude@^1.0\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "^1.0"`}},
-		{"dist-tag version", "cli: claude@next\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "next"`}},
+		{"version-less cli", "cli: pi\n", []string{"CLIRef", `is not a cli ref (name@latest or name@version): "pi"`}},
+		{"range version", "cli: pi@^1.0\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "^1.0"`}},
+		{"dist-tag version", "cli: pi@next\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "next"`}},
 		{"absolute tmpfs_masks", "tmpfs_masks:\n  - /etc\n", []string{"TmpfsMasks", "Match"}},
 		{"tmpfs_masks traversal", "tmpfs_masks:\n  - ../escape\n", []string{"TmpfsMasks", "Match"}},
 		{"absolute volume_masks", "volume_masks:\n  - /var\n", []string{"VolumeMasks", "Match"}},
@@ -728,7 +728,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 	for _, cf := range configFiles {
 		t.Run(cf.term, func(t *testing.T) {
 			dir := t.TempDir()
-			writeConfig(t, dir, cf.name, "cli: claude@latest\n"+"bogus: true\n")
+			writeConfig(t, dir, cf.name, "cli: pi@latest\n"+"bogus: true\n")
 
 			_, err := Load(dir, Flags{})
 			require.ErrorContains(t, err, "field bogus not found")
@@ -770,7 +770,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 	t.Run("the section binds the config's own ask's devbox, the other asks' do not", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+portsYAML)
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -787,7 +787,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 	t.Run("config-present vnc makes the no-flags ask the config's own", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+"vnc:\n  enabled: true\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+"vnc:\n  enabled: true\n"+portsYAML)
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -796,7 +796,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 	t.Run("the flag's list applies on any ask, over the files'", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+portsYAML)
 
 		c, err := Load(dir, Flags{PortBindingsTCP: new("8080"), VNC: true})
 		require.NoError(t, err)
@@ -812,7 +812,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 	t.Run("the proxy command's forced ask on a proxy-less config boots another devbox", func(t *testing.T) {
 		useHome(t) // no user file: no section anywhere
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML+portsYAML)
 
 		c, err := Load(dir, Flags{ProxyCmd: true})
 		require.NoError(t, err)
@@ -825,8 +825,8 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 	t.Run("a later layer replaces the earlier layer's list wholesale", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+portsYAML)
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+"default_variant:\n  port_bindings:\n    tcp: 8080\n")
+		writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML+"default_variant:\n  port_bindings:\n    tcp: 8080\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -834,7 +834,7 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 		// the project layer unset: the user's list stands
 		dir = t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+portsYAML)
+		writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+imagesYAML+portsYAML)
 		c, err = Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"3000", "7200"}, c.DefaultVariant.PortBindings.TCP)
@@ -842,13 +842,13 @@ func TestLoad_PortBindingsTCP(t *testing.T) {
 
 	t.Run("the flag value validates like a file's", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML)
 		for _, tcp := range []string{"70000", "3000,3000", "x"} {
 			_, err := Load(dir, Flags{PortBindingsTCP: new(tcp)})
 			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)
 		}
 
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+"default_variant:\n  port_bindings:\n    tcp: 0\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+"default_variant:\n  port_bindings:\n    tcp: 0\n")
 
 		// the flag's valid value replaces the files' broken one pre-validation
 		c, err := Load(dir, Flags{PortBindingsTCP: new("8080")})
@@ -866,7 +866,7 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 	t.Run("the section applies to every ask", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+portsYAML)
 
 		for _, flags := range []Flags{{}, {VNC: true}, {VNC: true, PortBindingsTCP: new("8080")}} {
 			c, err := Load(dir, flags)
@@ -877,7 +877,7 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 	t.Run("the flag's list overrides the files' on any ask", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+portsYAML)
 
 		c, err := Load(dir, Flags{HostGatewayTCP: new("3306")})
 		require.NoError(t, err)
@@ -890,8 +890,8 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 	t.Run("a later layer replaces the earlier layer's list wholesale", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+portsYAML)
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML+"host_gateway:\n  tcp: 3306\n")
+		writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+imagesYAML+portsYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML+"host_gateway:\n  tcp: 3306\n")
 
 		c, err := Load(dir, Flags{})
 		require.NoError(t, err)
@@ -899,7 +899,7 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 		// the project layer unset: the user's list stands
 		dir = t.TempDir()
-		writeConfig(t, dir, userConfigFileName, "cli: claude@latest\n"+imagesYAML+portsYAML)
+		writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+imagesYAML+portsYAML)
 		c, err = Load(dir, Flags{})
 		require.NoError(t, err)
 		assert.Equal(t, []string{"5432", "6379"}, c.HostGatewayTCP())
@@ -907,13 +907,13 @@ func TestLoad_HostGatewayTCP(t *testing.T) {
 
 	t.Run("the flag value validates like a file's", func(t *testing.T) {
 		dir := t.TempDir()
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+imagesYAML)
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+imagesYAML)
 		for _, tcp := range []string{"70000", "5432,5432", "x"} {
 			_, err := Load(dir, Flags{HostGatewayTCP: new(tcp)})
 			require.ErrorContainsf(t, err, "PortList", "want %q invalid", tcp)
 		}
 
-		writeConfig(t, dir, projectConfigFileName, "cli: claude@latest\n"+"host_gateway:\n  tcp: 0\n")
+		writeConfig(t, dir, projectConfigFileName, "cli: pi@latest\n"+"host_gateway:\n  tcp: 0\n")
 		_, err := Load(dir, Flags{})
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "PortList")

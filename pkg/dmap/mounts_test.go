@@ -172,7 +172,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	// newVncRunMap maps a vnc run naming guiApp
 	newVncRunMap := func(t *testing.T, guiApp string) *RunMap {
 		t.Helper()
-		body := "cli: claude@latest\n"
+		body := "cli: pi@latest\n"
 		if guiApp != "" {
 			body += "vnc:\n  gui_app: " + guiApp + "@latest\n"
 		}
@@ -210,7 +210,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 	})
 
 	t.Run("none without a vnc run", func(t *testing.T) {
-		config := loadConfig(t, "cli: claude@latest\n"+"vnc:\n  gui_app: "+guiapp.App.Name+"@latest\n")
+		config := loadConfig(t, "cli: pi@latest\n"+"vnc:\n  gui_app: "+guiapp.App.Name+"@latest\n")
 
 		binds := NewRunMap(config, nil, false).guiAppDataBinds(true)
 		assert.Empty(t, binds)
@@ -224,7 +224,7 @@ func TestRunMap_GUIAppDataBinds(t *testing.T) {
 
 func TestShareBinds(t *testing.T) {
 	t.Run("binds the share at its container mount", func(t *testing.T) {
-		bind := klean.ShareBind{HostPath: "/host/.ccbox/skills", ContainerPath: "/home/ccbox/.claude/skills"}
+		bind := klean.ShareBind{HostPath: "/host/.ccbox/skills", ContainerPath: "/home/ccbox/.pi/agent/skills"}
 		assert.Equal(t,
 			[]docker.Mount{docker.NewBind(bind.HostPath, bind.ContainerPath)},
 			shareBinds(bind))

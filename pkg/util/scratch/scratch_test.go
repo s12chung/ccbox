@@ -20,7 +20,7 @@ import (
 // scratch test their own wiring.
 
 // testMount is the file bind's container path, as dmap passes it in
-const testMount = "/home/ccbox/.ccbox/tmp/agents/claude/doc.md"
+const testMount = "/home/ccbox/.ccbox/tmp/agents/pi/doc.md"
 
 // fileShare wires a file+symlink Share, binding source
 func fileShare(source func() ([]byte, error)) Share {
@@ -35,11 +35,11 @@ func fileShare(source func() ([]byte, error)) Share {
 // sharedSource is the fixed body the file bind holds, as a seeded doc would
 func sharedSource() ([]byte, error) { return []byte("shared"), nil }
 
-// realFile is the file share's persistent path: ~/.ccbox/claude/doc.md
-func realFile() string { return filepath.Join(userdir.Dir(), "claude", "doc.md") }
+// realFile is the file share's persistent path: ~/.ccbox/pi/doc.md
+func realFile() string { return filepath.Join(userdir.Dir(), "pi", "doc.md") }
 
 // bindFile is the file bound while realFile is missing
-func bindFile() string { return filepath.Join(userdir.Tmp(), "agents", "claude", "doc.md") }
+func bindFile() string { return filepath.Join(userdir.Tmp(), "agents", "pi", "doc.md") }
 
 // baseFile is the baseline the bind is diffed against
 func baseFile() string { return bindFile() + ".orig" }

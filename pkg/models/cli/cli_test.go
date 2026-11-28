@@ -85,7 +85,7 @@ func TestLoadUser(t *testing.T) {
 		assert.Equal(t, ".mycli", c.ConfigHomeMount)
 		assert.Equal(t, []string{"mycli.dev"}, c.Setup.Proxied.AllowDomains)
 		assert.True(t, c.IsUserDefined())
-		assert.False(t, MustFor("claude").IsUserDefined())
+		assert.False(t, MustFor("pi").IsUserDefined())
 	})
 
 	t.Run("missing dir loads nothing", func(t *testing.T) {
@@ -136,14 +136,14 @@ func resetUserProviders(t *testing.T, dir string) {
 
 func TestLoadUser_OverridesEmbedded(t *testing.T) {
 	dir := resetAll(t)
-	writeUserCli(t, dir, "claude", userCliYAML, nil)
+	writeUserCli(t, dir, "pi", userCliYAML, nil)
 	all = mustLoadAll()
 
 	// map keys are unique: the user cli replaces the embedded one, not appends to it
 	assert.Len(t, all, 4)
-	assert.Contains(t, Names(), "claude")
+	assert.Contains(t, Names(), "pi")
 
-	got, ok := lookup("claude")
+	got, ok := lookup("pi")
 	require.True(t, ok)
 	assert.Equal(t, ".mycli", got.ConfigHomeMount, "the user cli's spec wins")
 	assert.Equal(t, []string{"mycli.dev"}, got.Setup.Proxied.AllowDomains)
@@ -333,9 +333,9 @@ func TestMust_For(t *testing.T) {
 
 func TestCLI_PkgInfoJSON(t *testing.T) {
 	// the CLI_PKGINFO env JSON each CLI's install source renders
-	body, err := MustFor("claude").PkgInfoJSON()
+	body, err := MustFor("pi").PkgInfoJSON()
 	require.NoError(t, err)
-	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"version_url":null}`, body)
+	assert.JSONEq(t, `{"name":"pi","npm":{"package":"@earendil-works/pi-coding-agent"},"version_url":null}`, body)
 
 	body, err = MustFor("antigravity").PkgInfoJSON()
 	require.NoError(t, err)
@@ -363,9 +363,8 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 func TestEnv(t *testing.T) {
 	// Config-dir overrides point at the CLI's native config mount; toggles disable
 	// update checks / nonessential traffic. pkg/docker merges these into every run.
-	assert.Nil(t, MustFor("antigravity").ConfigDirEnvKey)
-	assert.Empty(t, MustFor("antigravity").Setup.Env)
-	assert.Equal(t, ".gemini", MustFor("antigravity").ConfigHomeMount)
+	assert.Nil(t, MustFor("pi").ConfigDirEnvKey)
+	assert.Equal(t, map[string]string{"PI_SKIP_VERSION_CHECK": "1"}, MustFor("pi").Setup.Env)
 
 	assert.Equal(t, "CLAUDE_CONFIG_DIR", *MustFor("claude").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{
@@ -376,8 +375,9 @@ func TestEnv(t *testing.T) {
 	assert.Nil(t, MustFor("opencode").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Setup.Env)
 
-	assert.Nil(t, MustFor("pi").ConfigDirEnvKey)
-	assert.Equal(t, map[string]string{"PI_SKIP_VERSION_CHECK": "1"}, MustFor("pi").Setup.Env)
+	assert.Nil(t, MustFor("antigravity").ConfigDirEnvKey)
+	assert.Empty(t, MustFor("antigravity").Setup.Env)
+	assert.Equal(t, ".gemini", MustFor("antigravity").ConfigHomeMount)
 }
 
 func TestCLI_CLIDataBinds(t *testing.T) {

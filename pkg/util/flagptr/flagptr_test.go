@@ -36,7 +36,7 @@ func TestString(t *testing.T) {
 		want *string
 	}{
 		{"unset stays nil", nil, nil},
-		{"set writes through", []string{"--cli=codex"}, new("codex")},
+		{"set writes through", []string{"--cli=pi"}, new("pi")},
 		{"explicit empty is set, not unset", []string{"--cli="}, new("")},
 	}
 
@@ -56,8 +56,8 @@ func TestValue_String(t *testing.T) {
 	value := String(&v)
 	assert.Empty(t, value.String()) // nil target: the unset rendering
 
-	require.NoError(t, value.Set("codex"))
-	assert.Equal(t, "codex", value.String())
+	require.NoError(t, value.Set("pi"))
+	assert.Equal(t, "pi", value.String())
 
 	var zero Value
 	assert.Empty(t, zero.String()) // flag's zero-value reflection must not panic
