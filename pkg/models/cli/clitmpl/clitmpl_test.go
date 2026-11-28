@@ -108,7 +108,7 @@ func TestLoad_Walk(t *testing.T) {
 			names = append(names, c.name)
 			assert.False(t, c.isUserDefined)
 		}
-		assert.Equal(t, []string{"claude", "codex", "opencode", "pi"}, names)
+		assert.Equal(t, []string{"antigravity", "claude", "opencode", "pi"}, names)
 	})
 
 	t.Run("embed tree cli errors are fatal", func(t *testing.T) {

@@ -159,7 +159,7 @@ func setMasksConfig(t *testing.T) {
 	t.Helper()
 	testutil.Home(t)
 	dir := t.TempDir()
-	body := "cli: codex@latest\n" +
+	body := "cli: pi@latest\n" +
 		"images:\n  base: debian:trixie-20250113-slim\n  mise: ghcr.io/jdx/mise:2026.10.12\n" +
 		"tmpfs_masks:\n  - dist\n  - notes.txt\n  - build\n" +
 		"volume_masks:\n  - node_modules\n"

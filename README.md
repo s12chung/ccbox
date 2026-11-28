@@ -1,6 +1,6 @@
 # ccbox
 
-> A protected Docker devbox for running a harness CLI — Claude Code, Codex, etc.
+> A protected Docker devbox for running a harness CLI — Claude Code, Antigravity, etc.
 
 Run `ccbox` from a repo root to run the harness CLI in a Docker container. `ccbox exec` opens a shell in it instead; `ccbox exec <command...>` execs a command there. `ccbox run` boots the devbox and streams its logs until Ctrl-C.
 

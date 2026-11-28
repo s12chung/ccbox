@@ -663,7 +663,7 @@ func TestLoad_RejectsInvalidValues(t *testing.T) {
 		body string
 		want []string
 	}{
-		{"unknown cli", "cli: emacs@latest\n", []string{"CLIRef", `names no known cli: "emacs" is not one of ["claude" "codex" "opencode" "pi"]`}},
+		{"unknown cli", "cli: emacs@latest\n", []string{"CLIRef", `names no known cli: "emacs" is not one of ["antigravity" "claude" "opencode" "pi"]`}},
 		{"version-less cli", "cli: claude\n", []string{"CLIRef", `is not a cli ref (name@latest or name@version): "claude"`}},
 		{"range version", "cli: claude@^1.0\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "^1.0"`}},
 		{"dist-tag version", "cli: claude@next\n", []string{"CLIRef", `is not at "latest" or an exact version (1.2.3, 2.0.0-beta.1): "next"`}},
@@ -739,7 +739,7 @@ func TestLoad_RejectsUnknownKeys(t *testing.T) {
 
 func TestLoad_FlagsOverrideFiles(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, userConfigFileName, "cli: codex@latest\n"+imagesYAML)
+	writeConfig(t, dir, userConfigFileName, "cli: pi@latest\n"+imagesYAML)
 	writeConfig(t, dir, projectConfigFileName, "cli: claude@0.9.2\n"+imagesYAML)
 
 	tests := []struct {

@@ -53,11 +53,11 @@ func loadConfig(t *testing.T, body string) *cfg.Config {
 }
 
 // testRunMap builds a RunMap over a fresh temp project whose .ccbox.yaml carries body;
-// the cli defaults to codex when body doesn't name one.
+// the cli defaults to pi when body doesn't name one.
 func testRunMap(t *testing.T, body string) *RunMap {
 	t.Helper()
 	if !strings.Contains(body, "cli:") {
-		body = "cli: codex@latest\n" + body
+		body = "cli: pi@latest\n" + body
 	}
 	return NewRunMap(loadConfig(t, body), runtime.AllCacheVolumes(), false)
 }
@@ -127,7 +127,7 @@ func TestReadOnlyBinds(t *testing.T) {
 		home := testutil.Home(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(home, ".config", "git"), osutil.Dir))
 
-		config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"+"read_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
+		config, err := cfg.Load(writeConfigYaml(t, "cli: pi@latest\n"+"read_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
 		require.NoError(t, err)
 
 		assert.Equal(t, []docker.Mount{
@@ -138,7 +138,7 @@ func TestReadOnlyBinds(t *testing.T) {
 	t.Run("no bind when the host git dir is absent", func(t *testing.T) {
 		testutil.Home(t)
 
-		config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"+"read_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
+		config, err := cfg.Load(writeConfigYaml(t, "cli: pi@latest\n"+"read_only_binds:\n  gitconfig: enabled\n"), cfg.Flags{})
 		require.NoError(t, err)
 
 		assert.Empty(t, readOnlyBinds(config.ReadOnlyBindsPresent()))

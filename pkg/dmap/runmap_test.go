@@ -235,7 +235,7 @@ func TestRunMap_HostOptions(t *testing.T) {
 	home := testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd()) // AgentsMd assumes the shared template doc is seeded
 
-	projectDir := writeConfigYaml(t, "cli: codex@latest\n"+`tmpfs_masks:
+	projectDir := writeConfigYaml(t, "cli: pi@latest\n"+`tmpfs_masks:
   - dist
   - notes.txt
 volume_masks:
@@ -270,9 +270,9 @@ read_only_binds:
 	// config's masks and per-app binds, then the shared agents doc's scratch bind
 	assert.Equal(t, []docker.Mount{
 		docker.NewBind(projectDir, workspace),
-		docker.NewBind(filepath.Join(home, ".ccbox", "codex"), "/home/ccbox/.codex"),
+		docker.NewBind(filepath.Join(home, ".ccbox", "pi"), "/home/ccbox/.pi/agent"),
 		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "persist", s), "/home/ccbox/.ccbox/persist"),
-		docker.NewBind(filepath.Join(home, ".ccbox", "skills"), "/home/ccbox/.codex/skills"),
+		docker.NewBind(filepath.Join(home, ".ccbox", "skills"), "/home/ccbox/.pi/agent/skills"),
 		docker.NewBind(proxyLiveDir(), pkginfo.ProxyMount).ReadOnly(),
 		docker.NewVolume("ccbox-clis", install.DefaultRoot).Global(),
 		docker.NewVolume("ccbox"+s+"-cache-cache-default", "/home/ccbox/.cache"),
@@ -287,7 +287,7 @@ read_only_binds:
 		docker.NewBind(filepath.Join(projectDir, ".env"), workspace+"/.env").ReadOnly(),
 		docker.NewBind(filepath.Join(home, ".config", "git"), cfg.GitConfigMount).ReadOnly(),
 		docker.NewBind(filepath.Join(home, "fonts"), "/home/ccbox/fonts").ReadOnly(),
-		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "agents", "codex", "AGENTS.md"), "/home/ccbox/.ccbox/tmp/agents/codex/AGENTS.md"),
+		docker.NewBind(filepath.Join(home, ".ccbox", "tmp", "agents", "pi", "AGENTS.md"), "/home/ccbox/.ccbox/tmp/agents/pi/AGENTS.md"),
 	}, hostOptions.Mounts)
 
 	assert.Equal(t, workspace, hostOptions.WorkspaceMount)
@@ -300,7 +300,7 @@ func TestRunMap_HostOptions_MiseDataTmpfs(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"), cfg.Flags{})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: pi@latest\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(true)
@@ -314,7 +314,7 @@ func TestRunMap_HostOptions_NoProxy(t *testing.T) {
 	testutil.Home(t)
 	require.NoError(t, share.SafeSeedAgentsMd())
 
-	config, err := cfg.Load(writeConfigYaml(t, "cli: codex@latest\n"), cfg.Flags{})
+	config, err := cfg.Load(writeConfigYaml(t, "cli: pi@latest\n"), cfg.Flags{})
 	require.NoError(t, err)
 
 	hostOptions, clean, err := NewRunMap(config, runtime.AllCacheVolumes(), false).HostOptions(false)

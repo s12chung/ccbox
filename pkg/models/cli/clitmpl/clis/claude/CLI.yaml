@@ -9,7 +9,7 @@ config_home_mount: ".claude"
 config_dir_env_key: "CLAUDE_CONFIG_DIR"
 
 # CLIs that sandbox themselves with bubblewrap are buggy in this container without root —
-# pass their no-sandbox flag (see codex). claude needs none.
+# pass their no-sandbox flag when adding one. claude needs none.
 cmd: "claude"
 
 setup:

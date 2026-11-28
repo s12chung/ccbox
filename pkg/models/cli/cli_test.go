@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestNames(t *testing.T) {
-	assert.Equal(t, []string{"claude", "codex", "opencode", "pi"}, Names())
+	assert.Equal(t, []string{"antigravity", "claude", "opencode", "pi"}, Names())
 }
 
 func TestUserConfigDir(t *testing.T) {
@@ -78,7 +78,7 @@ func TestLoadUser(t *testing.T) {
 		writeUserCli(t, dir, "mycli", userCliYAML, nil)
 		all = mustLoadAll()
 
-		assert.Equal(t, []string{"claude", "codex", "mycli", "opencode", "pi"}, Names())
+		assert.Equal(t, []string{"antigravity", "claude", "mycli", "opencode", "pi"}, Names())
 
 		c, ok := lookup("mycli")
 		require.True(t, ok)
@@ -337,7 +337,15 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"name":"claude","npm":{"package":"@anthropic-ai/claude-code"},"version_url":null}`, body)
 
-	// no embedded cli uses version_url anymore, so construct one
+	body, err = MustFor("antigravity").PkgInfoJSON()
+	require.NoError(t, err)
+	const updaterHost = "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/linux_$goarch.json"
+	assert.JSONEq(t, `{"name":"antigravity","npm":null,"version_url":{"url":"`+updaterHost+`",`+
+		`"download_template":null,"jq_schema":{"format":"json","version":".version","download_url":".url",`+
+		`"sha512":{"selector":".sha512","encoding":"hex"}},`+
+		`"artifact":{"type":"targz","rel_bin":"antigravity"}}}`, body)
+
+	// no embedded cli uses a download template, so construct one
 	releaser := CLI{PkgInfo: pkginfo.PkgInfo{Name: "mycli", ReleaseURL: &pkginfo.ReleaseURL{
 		URL: "https://mycli.dev/stable",
 		DownloadTemplate: &pkginfo.DownloadTemplate{
@@ -355,14 +363,15 @@ func TestCLI_PkgInfoJSON(t *testing.T) {
 func TestEnv(t *testing.T) {
 	// Config-dir overrides point at the CLI's native config mount; toggles disable
 	// update checks / nonessential traffic. pkg/docker merges these into every run.
+	assert.Nil(t, MustFor("antigravity").ConfigDirEnvKey)
+	assert.Empty(t, MustFor("antigravity").Setup.Env)
+	assert.Equal(t, ".gemini", MustFor("antigravity").ConfigHomeMount)
+
 	assert.Equal(t, "CLAUDE_CONFIG_DIR", *MustFor("claude").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{
 		"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
 		"DISABLE_AUTOUPDATER":                      "1",
 	}, MustFor("claude").Setup.Env)
-
-	assert.Equal(t, "CODEX_HOME", *MustFor("codex").ConfigDirEnvKey)
-	assert.Empty(t, MustFor("codex").Setup.Env)
 
 	assert.Nil(t, MustFor("opencode").ConfigDirEnvKey)
 	assert.Equal(t, map[string]string{"OPENCODE_DISABLE_AUTOUPDATE": "1"}, MustFor("opencode").Setup.Env)
@@ -377,7 +386,7 @@ func TestCLI_CLIDataBinds(t *testing.T) {
 		map[string]*string{".local/share/opencode/auth.json": &authJSON},
 		MustFor("opencode").Setup.DataBinds)
 
-	for _, name := range []string{"claude", "codex", "pi"} {
+	for _, name := range []string{"antigravity", "claude", "pi"} {
 		assert.Emptyf(t, MustFor(name).Setup.DataBinds, "%s has no data binds", name)
 	}
 }

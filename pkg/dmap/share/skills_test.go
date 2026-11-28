@@ -48,7 +48,6 @@ func TestSkillsBind(t *testing.T) {
 			mount   string
 		}{
 			{"claude", ".claude"},
-			{"codex", ".codex"},
 			{"opencode", ".config/opencode"},
 			{"pi", ".pi/agent"},
 		} {
