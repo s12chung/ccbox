@@ -1,16 +1,16 @@
 package docker
 
 import (
-	"sort"
 	"strconv"
 
+	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/pkginfo"
 )
 
 // envString renders env as KEY=VALUE in sorted-key order, the proxy vars last — overriding
 // user-supplied settings; the container reads their presence as the egress wall being on
 func envString(env map[string]string, isProxied, hasHostGateway bool) []string {
-	renderedEnv := sortedEnv(env)
+	renderedEnv := dock.SortedEnv(env)
 	if !isProxied {
 		return renderedEnv
 	}
@@ -30,18 +30,4 @@ func envString(env map[string]string, isProxied, hasHostGateway bool) []string {
 		"no_proxy=" + noProxy,
 		"NO_PROXY=" + noProxy,
 	}...)
-}
-
-func sortedEnv(m map[string]string) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys) // for a deterministic spec
-
-	env := make([]string, 0, len(keys))
-	for _, k := range keys {
-		env = append(env, k+"="+m[k])
-	}
-	return env
 }

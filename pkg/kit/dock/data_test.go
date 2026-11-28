@@ -9,6 +9,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSortedEnv(t *testing.T) {
+	assert.Equal(t, []string{"GH_TOKEN=gh", "GOFLAGS=-mod=mod", "http_proxy="},
+		SortedEnv(map[string]string{"http_proxy": "", "GOFLAGS": "-mod=mod", "GH_TOKEN": "gh"}),
+		"sorted by key: Go map iteration is randomized")
+	assert.Empty(t, SortedEnv(nil))
+}
+
 func TestEnvEntry(t *testing.T) {
 	tests := []struct {
 		name    string

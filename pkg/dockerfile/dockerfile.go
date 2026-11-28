@@ -15,6 +15,7 @@ import (
 	"text/template"
 
 	"github.com/s12chung/ccbox/pkg/cfg"
+	"github.com/s12chung/ccbox/pkg/kit/dock"
 	"github.com/s12chung/ccbox/pkg/kit/hubkit"
 	"github.com/s12chung/ccbox/pkg/mise"
 	"github.com/s12chung/ccbox/pkg/models/runtime"
@@ -58,14 +59,7 @@ func (r regions) PATHDirs() string {
 
 // EnvVars renders the runtimes' image env pairs
 func (r regions) EnvVars() string {
-	var pairs []string
-	for _, rt := range r.runtimes {
-		// Go map iteration is randomized
-		for _, k := range slices.Sorted(maps.Keys(rt.EnvVars)) {
-			pairs = append(pairs, k+"="+rt.EnvVars[k])
-		}
-	}
-	return strings.Join(pairs, " ")
+	return strings.Join(r.collect(func(rt runtime.Runtime) []string { return dock.SortedEnv(rt.EnvVars) }), " ")
 }
 
 // CacheDirs renders the generated mkdir RUN's cache volume mountpoints

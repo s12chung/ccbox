@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/containerd/errdefs"
@@ -16,6 +18,13 @@ import (
 	"github.com/s12chung/ccbox/pkg/util/slicex"
 	"github.com/s12chung/ccbox/tools/ccboxtools/pkg/util/log"
 )
+
+// SortedEnv renders env as the container env — KEY=VALUE entries in sorted-key order,
+// for a deterministic spec
+func SortedEnv(env map[string]string) []string {
+	keys := slices.Sorted(maps.Keys(env))
+	return slicex.Map(keys, func(k string) string { return k + "=" + env[k] })
+}
 
 // EnvEntry reads one var's value off the container env — "" without it
 func EnvEntry(env []string, name string) string {
@@ -53,8 +62,7 @@ func CopyDirFrom(ctxD *CtxD, id, dir string) (map[string][]byte, error) {
 	return filesFromTar(stream, filepath.Base(dir)+"/")
 }
 
-// filesFromTar reads the regular files out of a CopyFrom stream, dropping the entries'
-// name prefix — the tarred tree's basename.
+// filesFromTar reads the regular files out of a CopyFrom stream, dropping the entries' name prefix
 func filesFromTar(stream io.Reader, prefix string) (map[string][]byte, error) {
 	files := map[string][]byte{}
 	tr := tar.NewReader(stream)
@@ -103,7 +111,6 @@ func EnsureOwnedVolumes(ctxD *CtxD, image, uid string, vols []OwnedVolume) error
 	return runChownContainer(ctxD, image, uid, fresh)
 }
 
-// ensureVolume creates vol (with labels) if absent, reporting whether it was fresh.
 func ensureVolume(ctxD *CtxD, vol OwnedVolume) (bool, error) {
 	switch _, err := ctxD.D.VolumeInspect(ctxD.Ctx, vol.Name); {
 	case err == nil:
@@ -117,8 +124,6 @@ func ensureVolume(ctxD *CtxD, vol OwnedVolume) (bool, error) {
 	return true, nil
 }
 
-// runChownContainer chowns the fresh volumes' roots via the throwaway root container,
-// waiting for it to exit.
 func runChownContainer(ctxD *CtxD, image, uid string, fresh []OwnedVolume) error {
 	resp, err := ctxD.D.ContainerCreate(ctxD.Ctx,
 		&container.Config{
@@ -152,5 +157,4 @@ func runChownContainer(ctxD *CtxD, image, uid string, fresh []OwnedVolume) error
 // are DNS-label-safe ([a-zA-Z0-9_.-]), so they're valid path segments.
 func chownMnt(vol OwnedVolume) string { return "/mnt/" + vol.Name }
 
-// chownBind is vol's bind spec in the chown container: <name>:<mount point>
 func chownBind(vol OwnedVolume) string { return vol.Name + ":" + chownMnt(vol) }

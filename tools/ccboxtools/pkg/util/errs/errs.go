@@ -25,8 +25,8 @@ func JoinOnErr(err error, clean func() error) error {
 	return errors.Join(err, clean())
 }
 
-// exitError reports an exit code up through returned errors: a normal, user-facing
-// result (a container's exit status) rather than a failure to log.
+// exitError reports an exit code up through returned errors — a result the caller
+// exits with, not a failure to log.
 type exitError struct{ code int }
 
 func (e exitError) Error() string { return fmt.Sprintf("exit code %d", e.code) }

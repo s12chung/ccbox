@@ -20,7 +20,7 @@ func TestCtxD_BackgroundedCtx(t *testing.T) {
 	bg := ctxD.BackgroundedCtx()
 	cancel()
 	assert.Same(t, d, bg.D)
-	assert.NoError(t, bg.Ctx.Err()) // outlives the parent's cancel
+	assert.NoError(t, bg.Ctx.Err())
 }
 
 func TestRefuseHeldPorts_Free(t *testing.T) {
@@ -50,8 +50,7 @@ func TestRefuseHeldPorts_Held(t *testing.T) {
 	assert.Contains(t, err.Error(), "already taken")
 }
 
-// loopbackPort opens a listener on a random loopback port, returning its port —
-// the caller owns closing the listener
+// loopbackPort opens a listener on a random loopback port — the caller owns closing it
 func loopbackPort(t *testing.T) (net.Listener, string) {
 	t.Helper()
 	li, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")

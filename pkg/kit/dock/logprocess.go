@@ -39,8 +39,8 @@ func RunOnce(ctxD *CtxD, id string, w io.Writer) error {
 	return nil
 }
 
-// ExecInteractive wires the local terminal to a running container's exec, returning its
-// exit code as errs.ExitError. A kill/hangup ends the attach, never the container.
+// ExecInteractive wires the local terminal to a running container's exec, its exit code
+// returned through errs.Exit. A kill/hangup ends the attach, never the container.
 func ExecInteractive(ctxD *CtxD, id string, cmd []string) error {
 	resp, err := ctxD.D.ContainerExecCreate(ctxD.Ctx, id, container.ExecOptions{
 		Cmd:          cmd,
